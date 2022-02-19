@@ -1,0 +1,50 @@
+#include "tld.h"
+
+
+int main(void)
+{
+        LOG_MSG("All good!");
+        WARNING_MSG("WARNING");
+        if(1 == 0){
+                ERROR_MSG("no longer");
+        }
+
+        int* f = NULL;
+        double* d = NULL;
+
+
+
+        galloc(&f, 19);
+        LOG_MSG("Pointer in maon: %p", f);
+        for(int i = 0; i < 19;i++){
+                f[i] = i;
+        }
+        galloc(&d, 1900);
+        gfree(f);
+        gfree(d);
+
+
+        LOG_MSG("About to move to 2D");
+        uint8_t** mat = NULL;
+        int dim1;
+        int dim2;
+        dim1 = 10;
+        dim2 = 15;
+
+        galloc(&mat, dim1,dim2);
+
+        for(int i = 0; i < dim1; i++){
+                for(int j = 0; j < dim2;j++){
+                        mat[i][j] = MACRO_MAX(i,j);
+                }
+        }
+
+
+
+        gfree(mat);
+
+
+        return EXIT_SUCCESS;
+ERROR:
+        return EXIT_FAILURE;
+}
