@@ -1,5 +1,5 @@
 #include "tld.h"
-
+#include <stdio.h>
 
 int main(void)
 {
@@ -25,10 +25,10 @@ int main(void)
 
 
         LOG_MSG("About to move to 2D");
-        uint8_t** mat = NULL;
+        float** mat = NULL;
         int dim1;
         int dim2;
-        dim1 = 10;
+        dim1 = 24;
         dim2 = 15;
 
         galloc(&mat, dim1,dim2);
@@ -36,9 +36,11 @@ int main(void)
         for(int i = 0; i < dim1; i++){
                 for(int j = 0; j < dim2;j++){
                         mat[i][j] = MACRO_MAX(i,j);
+                        fprintf(stdout,"%0.1f ", mat[i][j]);
                 }
+                fprintf(stdout,"\n");
         }
-
+        fprintf(stdout,"\n");
 
 
         gfree(mat);

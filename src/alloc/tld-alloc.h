@@ -68,7 +68,6 @@
                 if(!tld_valid_1D((a))){                                 \
                         ERROR_MSG("Wrong pointer type for 1D alloc");   \
                 }                                                       \
-                LOG_MSG("%d sizeof typeof",sizeof(__typeof__(**(a))));  \
                 *(a) =  galloc_hlp(sizeof(__typeof__(**(a))), (b) , 0); \
 } while (0);
 
@@ -79,27 +78,16 @@
         }                                                           \
         __typeof__(*(a)) ptr_t = NULL;                              \
         ptr_t = galloc_hlp(sizeof(__typeof__(**(a))), (b) , (c));   \
-        LOG_MSG("Got pointer %p", ptr_t);                           \
-        ptr_t[0] = NULL;                                            \
-        LOG_MSG("Got pointer %p", ptr_t[0]);                        \
-        MMALLOC(ptr_t[0], sizeof(__typeof__(***(a)))* (b) * (c));   \
-        LOG_MSG("Got pointer %p", ptr_t[0]);                        \
+        void* p = NULL;                                             \
+        get_ptr(ptr_t,&p);                                          \
+        ptr_t[0] = (__typeof__(**(a)))  p;                          \
         for(int i = 1; i < (b);i++){                                \
                 ptr_t[i] = ptr_t[0] + (c) * i;                      \
-                LOG_MSG("Got pointer %d %p", i,ptr_t[i]);           \
         }                                                           \
         *(a) = ptr_t;                                               \
         } while (0);
 
-#define gfree(a) do {                          \
-                uint32_t d2 = 0;                     \
-                get_dim2((a) , &d2);            \
-                if(d2){                         \
-                        MFREE( (__typeof__(*(a))  (a))[0]); \
-                }                               \
-                tld_free(a);                    \
-        } while (0);
-
+#define gfree(a) tld_free(a)
 
 #define XXGALLOC_ARGS( N, ...) XGALLOC_ARGS_ ## N ( __VA_ARGS__)
 #define XGALLOC_ARGS( N, ...) XXGALLOC_ARGS( N, __VA_ARGS__)
@@ -111,21 +99,10 @@
 
 tld_external int galloc_too_few(void);
 tld_external void* galloc_hlp( size_t tsize, int dim1, int dim2);
-tld_external int galloc_1D(void** ptr, size_t tsize, int dim1);
-tld_external int galloc_2D(void*** ptr, size_t tsize, int dim1, int dim2);
 tld_external void tld_free(void* p);
 
 tld_external int get_dim1(void* ptr,uint32_t* d);
 tld_external int get_dim2(void* ptr,uint32_t* d);
-
-
-
-/*
-Alloc function is actually in two bits:
-1) figure out size_t of variable type
-
-2) pass dimentions and type to actial allocator
-
- */
+tld_external int get_ptr(void* ptr,void** d);
 
 #endif
