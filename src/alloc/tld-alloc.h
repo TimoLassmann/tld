@@ -12,7 +12,6 @@
                 WARNING_MSG("free on a null pointer");  \
         }
 
-
 #define MMALLOC(p,size)                                         \
         if ((p) != NULL){                                       \
                 ERROR_MSG( "malloc on a nun-null pointer");     \

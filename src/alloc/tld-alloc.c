@@ -14,7 +14,6 @@ typedef struct {
 
 #define tld_mem_shift  sizeof(mem_i)
 
-
 int get_dim1(void* ptr,uint32_t* d)
 {
         if(ptr){
@@ -75,7 +74,7 @@ void* galloc_hlp( size_t tsize, int dim1, int dim2)
         if(dim2){
                 MMALLOC(h->ptr, dim1 * dim2 * tsize);
         }
-        return (void *) (  (size_t)tmp + tld_mem_shift);
+        return (void *)((size_t)tmp + tld_mem_shift);
 ERROR:
         return NULL;
 }
@@ -89,10 +88,3 @@ void tld_free(void* p)
         }
         MFREE(h);
 }
-/* int galloc_2D(void** ptr, size_t tsize, int dim1, int dim2) */
-/* { */
-
-/*         return OK; */
-/* ERROR: */
-/*         return FAIL; */
-/* } */
