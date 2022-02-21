@@ -80,7 +80,7 @@ struct rng_dist{
 
 static inline uint64_t rotl(uint64_t x,  uint64_t k);
 static uint64_t next(struct rng_state* s);
-static void jump(struct rng_state* s);
+void jump(struct rng_state* s);
 void long_jump(struct rng_state* s);
 
 static uint64_t choose_arbitrary_seed(void);

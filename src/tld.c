@@ -5,3 +5,5 @@
 #include "alloc/tld-alloc.c"
 
 #include "rng/tld-rng.c"
+
+#include "misc/misc.c"

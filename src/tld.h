@@ -7,4 +7,6 @@
 
 #include "./rng/tld-rng.h"
 
+#include "./misc/misc.h"
+
 #endif

@@ -1,7 +1,7 @@
 #include "tld.h"
 #include <stdio.h>
 
-static int rng_dist_test(void);
+int rng_dist_test(void);
 static void printHistogram(double* values, int n);
 
 int main(void)
