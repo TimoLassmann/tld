@@ -5,4 +5,6 @@
 
 #include "./alloc/tld-alloc.h"
 
+#include "./rng/tld-rng.h"
+
 #endif

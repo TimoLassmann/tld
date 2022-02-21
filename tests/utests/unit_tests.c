@@ -1,6 +1,7 @@
 #include "tld.h"
 #include <stdio.h>
 
+static int rng_dist_test(void);
 int main(void)
 {
         LOG_MSG("All good!");
@@ -44,7 +45,6 @@ int main(void)
 
 
         gfree(mat);
-
 
         return EXIT_SUCCESS;
 ERROR:

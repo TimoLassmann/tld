@@ -39,6 +39,7 @@ target_sources(tld-dev PRIVATE "src/tld.c")
 set_property(TARGET tld-dev PROPERTY C_STANDARD 11)
 #target_compile_features(tld PUBLIC c_std_99)
 target_include_directories(tld-dev PUBLIC "src") # "src/core")
+target_link_libraries(tld-dev PRIVATE m)
 #target_compile_definitions(rayfork-dev PUBLIC RAYFORK_GRAPHICS_BACKEND_DIRECTX)
 
 
