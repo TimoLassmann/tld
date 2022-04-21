@@ -8,7 +8,7 @@ typedef struct rng_state rng_state;
 struct rng_dist;
 
 tld_external int init_rng(struct rng_state** rng,uint64_t seed);
-
+tld_external int init_rng_from_rng(struct rng_state** target, struct rng_state* rng);
 tld_external int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed);
 tld_external int tl_random_sdist_smpl(struct rng_dist* d);
 tld_external void tl_random_sdist_free(struct rng_dist* d);

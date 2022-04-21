@@ -32,9 +32,24 @@ struct tl_seq_buffer{
 
 #undef ALIGN64
 
+/* Alphabet  */
+#define TLALPHABET_DEFAULT_PROTEIN 1
+#define TLALPHABET_DEFAULT_DNA 2
+#define TLALPHABET_REDUCED_PROTEIN 3
 
+#define TLALPHABET_NOAMBIGIOUS_PROTEIN 4
+#define TLALPHABET_NOAMBIGUOUS_DNA 5
 
+struct alphabet;
+struct rng_state;
 
+tld_external int create_alphabet(struct alphabet** alphabet, struct rng_state* rng,int type);
+
+tld_external uint8_t tlalphabet_get_code (const struct alphabet* a, char c);
+tld_external int convert_to_internal(struct alphabet* a, uint8_t* seq, int len);
+//EXTERN int convert_to_external(struct alphabet* a, uint8_t* seq, int len);
+
+tld_external void free_alphabet(struct alphabet* a);
 
 
 /* File IO */

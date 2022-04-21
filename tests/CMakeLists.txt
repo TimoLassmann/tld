@@ -33,10 +33,57 @@ add_test(
     COMMAND unit-rng
 )
 
+add_executable(unit-alpha utests/unit_alphabet.c) 
+target_link_libraries(unit-alpha PRIVATE tld-dev)
+add_test(
+  NAME unit-alpha
+  COMMAND unit-alpha  
+  )
+
+
+
 
 add_executable(unit-seq utests/unit_seq.c) 
 target_link_libraries(unit-seq PRIVATE tld-dev)
+
 add_test(
-  NAME unit-seq-read
-  COMMAND unit-seq
-)
+  NAME unit-seq-BB11001
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/BB11001.fa
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
+add_test(
+  NAME unit-seq-fastq-gz-1
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR142YZV_chr19only_10000_reads_R1.fastq.gz
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
+add_test(
+  NAME unit-seq-fastq-gz-2
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR142YZV_chr19only_10000_reads_R2.fastq.gz
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
+add_test(
+  NAME unit-seq-fastq-gz-3
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep2_chr19_10000reads_R1.fastq.gz
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
+add_test(
+  NAME unit-seq-fastq-gz-4
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep1_chr19_10000reads_R2.fastq.gz
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
+add_test(
+  NAME unit-seq-fastq-gz-5
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep1_chr19_10000reads_R1.fastq.gz
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
+add_test(
+  NAME unit-seq-fastq-gz-6
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep2_chr19_10000reads_R2.fastq.gz
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )

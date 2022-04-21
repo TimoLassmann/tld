@@ -3,6 +3,8 @@
 
 #include <math.h>
 #include <float.h>
+#include <stdio.h>
+#include <time.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -403,6 +405,28 @@ int init_rng(struct rng_state** rng,uint64_t seed)
 ERROR:
         return FAIL;
 }
+
+int init_rng_from_rng(struct rng_state** target, struct rng_state* rng)
+{
+        struct rng_state* s = NULL;
+        int i = 0;
+        MMALLOC(s, sizeof(struct rng_state));
+
+        for(i = 0; i < 4;i++){
+                s->s[i] = rng->s[i];
+                s->gen = 0;
+                s->z1 = 0.0;
+                s->gauss = rng->gauss;
+                s->has_gauss = rng->has_gauss;
+
+        }
+        jump(rng);
+        *target = s;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 
 void free_rng(struct rng_state* rng)
 {
