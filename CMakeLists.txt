@@ -4,6 +4,11 @@ project(tld LANGUAGES C VERSION "0.1")
 
 set (CMAKE_C_STANDARD 11)
 
+
+add_compile_options("$<$<CONFIG:RELEASE>:-W;-Wall;-O3;-pedantic>")
+add_compile_options("$<$<CONFIG:DEBUG>:-W;-Wall;-O0;-g;-pedantic>")
+
+
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   if (MSVC)
     # warning level 4 and all warnings as errors
@@ -31,7 +36,9 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 find_package(HTSlib)
+find_package(ZLIB)
 find_package(HDF5 COMPONENTS C HL)
+
 
 
 add_library(tld-dev)
@@ -40,6 +47,7 @@ set_property(TARGET tld-dev PROPERTY C_STANDARD 11)
 #target_compile_features(tld PUBLIC c_std_99)
 target_include_directories(tld-dev PUBLIC "src") # "src/core")
 target_link_libraries(tld-dev PRIVATE m)
+target_link_libraries(tld-dev PRIVATE ZLIB::ZLIB)
 #target_compile_definitions(rayfork-dev PUBLIC RAYFORK_GRAPHICS_BACKEND_DIRECTX)
 
 

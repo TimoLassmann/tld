@@ -1,7 +1,8 @@
 #include "tld.h"
 #include <stdio.h>
 
-static int rng_dist_test(void);
+int rng_dist_test(void);
+
 int main(void)
 {
         LOG_MSG("All good!");

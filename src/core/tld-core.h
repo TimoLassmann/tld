@@ -21,6 +21,10 @@
 
 /* Define generally useful macros  */
 
+#define tld_stringify(x) #x
+#define tld_tostring(x) tld_stringify(x)
+
+
 #define OK              0
 #define FAIL            1
 
@@ -29,13 +33,11 @@
 #define MACRO_MAX(a,b)          (((a)>(b))?(a):(b))
 
 
-#define tld_stringify(x) #x
-#define tld_tostring(x) tld_stringify(x)
 
-#define ASSERT(TEST,...)  if(!(TEST)) {         \
-                error(AT,#TEST );               \
-                error(AT, __VA_ARGS__);         \
-                goto ERROR;                     \
+#define ASSERT(TEST,...)  if(!(TEST)) {                         \
+                tld_message(MESSAGE_TYPE_ERROR, #TEST );        \
+                tld_message(MESSAGE_TYPE_ERROR, __VA_ARGS__ );  \
+                goto ERROR;                                     \
         }
 
 /* Messages  */

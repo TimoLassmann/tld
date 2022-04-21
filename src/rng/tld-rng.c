@@ -1,14 +1,16 @@
 #include "tld-rng.h"
+#include "alloc/tld-alloc.h"
 
 #include <math.h>
 #include <float.h>
 
+#ifndef M_PI
 #define M_PI 3.14159265358979323846
+#endif
 
 #define M_2PI ((2.0)*(M_PI))
 
 
-#include "../alloc/tld-alloc.h"
 /* code here was adopted from:  */
 
 /*  Written in 2018 by David Blackman and Sebastiano Vigna (vigna@acm.org)

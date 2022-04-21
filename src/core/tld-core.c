@@ -9,6 +9,8 @@
 
 #define AT __FILE__ " line " tld_tostring(__LINE__)
 
+/* #define AT __FILE__ " line " tld_tostring(__LINE__) */
+
 tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *format,  va_list argp);
 tld_internal void verror(FILE* f_ptr, const char *format,  va_list argp);
 

@@ -6,4 +6,7 @@
 
 #include "rng/tld-rng.c"
 
+#include "seq/tld-seqbuffer.c"
+#include "seq/tld-seqio.c"
+
 #include "misc/misc.c"
