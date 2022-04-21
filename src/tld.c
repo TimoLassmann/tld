@@ -10,4 +10,6 @@
 #include "seq/tld-seqio.c"
 #include "seq/tld-seqalphabet.c"
 
+#include "logsum/tld-logsum.c"
+
 #include "misc/misc.c"

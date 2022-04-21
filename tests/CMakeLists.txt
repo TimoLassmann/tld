@@ -41,6 +41,13 @@ add_test(
   )
 
 
+add_executable(unit-logsum utests/unit_logsum.c) 
+target_link_libraries(unit-logsum PRIVATE tld-dev)
+add_test(
+  NAME unit-logsum
+  COMMAND unit-logsum  
+  )
+
 
 
 add_executable(unit-seq utests/unit_seq.c) 

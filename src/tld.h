@@ -9,6 +9,8 @@
 
 #include "./seq/tld-seq.h"
 
+#include "./logsum/tld-logsum.h"
+
 #include "./misc/misc.h"
 
 
