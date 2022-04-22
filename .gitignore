@@ -12,6 +12,8 @@
 
 !src/
 !tests/
+!cmake/
 
 !src/**
 !tests/**
+!cmake/**
