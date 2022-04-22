@@ -1,0 +1,12 @@
+* Intro
+
+
+
+
+* Cmake
+
+
+cpack -G TGZ --config CPackSourceConfig.cmake
+
+cmake --build . --target package_source
+make package_source
