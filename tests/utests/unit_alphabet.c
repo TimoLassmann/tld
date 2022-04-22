@@ -1,4 +1,4 @@
-#include "../../src/tld.h"
+#include "tld.h"
 #include <stdio.h>
 
 int print_seq(uint8_t* seq, int len);

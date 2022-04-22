@@ -1,7 +1,5 @@
 #include "tld-alloc.h"
-
 #include <stdlib.h>
-
 
 #define ALIGN16 16
 typedef struct {
@@ -12,7 +10,7 @@ typedef struct {
 } __attribute__((aligned(ALIGN16))) mem_i;
 #undef ALIGN16
 
-#define tld_mem_shift  sizeof(mem_i)
+#define tld_mem_shift sizeof(mem_i)
 
 int get_dim1(void* ptr,uint32_t* d)
 {

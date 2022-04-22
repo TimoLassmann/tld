@@ -1,5 +1,5 @@
 #include "tld-rng.h"
-#include "alloc/tld-alloc.h"
+#include "../alloc/tld-alloc.h"
 
 #include <math.h>
 #include <float.h>

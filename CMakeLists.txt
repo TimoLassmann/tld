@@ -60,24 +60,25 @@ add_subdirectory(tests)
 
   
 # Package Generator  #######################################################
-# set(CPACK_PACKAGE_VENDOR "Vendor name")
-# set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Some summary")
-# set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
-# set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
-# set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
-# set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/COPYING")
-# set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.org")
-# set(CPACK_SOURCE_GENERATOR "TGZ;ZIP")
-# set(CPACK_SOURCE_IGNORE_FILES
-#     /.git
-#     /dist
-#     /GPATH
-#     /GTAGS
-#     /GRTAGS
-#     /.*build.*
-#     /.dir-locals.el
-#     /\\\\.DS_Store
-# )
-# include (CPack)
+set(CPACK_PACKAGE_VENDOR "Vendor name")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Some summary")
+set(CPACK_PACKAGE_CONTACT "Timo Lassmann")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/COPYING")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.org")
+set(CPACK_SOURCE_GENERATOR "TGZ;ZIP")
+set(CPACK_SOURCE_IGNORE_FILES
+     /.git
+     /dist
+     /GPATH
+     /GTAGS
+     /GRTAGS
+     /.*build.*
+     /.dir-locals.el
+     /\\\\.DS_Store
+ )
+ include (CPack)
 
 
