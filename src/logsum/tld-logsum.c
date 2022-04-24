@@ -8,15 +8,6 @@
 
 static float logsum_lookup[LOGSUM_SIZE];
 
-static int nearly_equal_float(float a, float b);
-static int nearly_equal_double(double a, double b);
-
-#define TLSAFE_EQ(X,Y) _Generic((X),                        \
-                                float: nearly_equal_float,  \
-                                double: nearly_equal_double \
-                )(X,Y)
-
-
 void init_logsum()
 {
         static int called = 0;
