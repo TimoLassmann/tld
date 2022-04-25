@@ -5,8 +5,8 @@ project(tld LANGUAGES C VERSION "0.1")
 set (CMAKE_C_STANDARD 11)
 
 
-add_compile_options("$<$<CONFIG:RELEASE>:-W;-Wall;-O3;-pedantic>")
-add_compile_options("$<$<CONFIG:DEBUG>:-W;-Wall;-O0;-g;-pedantic>")
+add_compile_options("$<$<CONFIG:RELEASE>:-W;-Wall;-pedantic>")
+add_compile_options("$<$<CONFIG:DEBUG>:-W;-Wall;-O0;-pedantic;-DDEBUG>")
 
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)

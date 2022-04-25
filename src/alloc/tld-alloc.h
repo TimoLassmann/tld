@@ -68,6 +68,9 @@
                         ERROR_MSG("Wrong pointer type for 1D alloc");   \
                 }                                                       \
                 *(a) = galloc_hlp(sizeof(__typeof__(**(a))), (b), 0);   \
+                if (*(a) == NULL) {                                     \
+                        ERROR_MSG("Could not alloc 1D");                \
+                }                                                       \
         } while (0);
 
 #define XGALLOC_ARGS_3(a, b, c)                                         \

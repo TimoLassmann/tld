@@ -845,7 +845,7 @@ ERROR:
 
 int read_file_contents(struct file_handler* fh)
 {
-        char c;
+        int c;
         ASSERT(fh!=NULL, "No file handler");
         fh->bytes_read = gzread(fh->gz_f_ptr, fh->read_buffer, TL_READ_BUFF_LEN -1);
         fh->read_buffer[fh->bytes_read] = 0;
@@ -856,7 +856,7 @@ int read_file_contents(struct file_handler* fh)
 
                 while(1){
                         c = gzgetc(fh->gz_f_ptr);
-                        if(c == -1){
+                        if(c == EOF){
                                 break;
                         }
                         fh->read_buffer[fh->bytes_read] = c;

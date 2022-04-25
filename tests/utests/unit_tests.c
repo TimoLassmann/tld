@@ -5,6 +5,9 @@ int rng_dist_test(void);
 
 int main(void)
 {
+        #ifdef DEBUG
+        LOG_MSG("DEBUG");
+        #endif
         LOG_MSG("All good!");
         WARNING_MSG("WARNING");
         if(1 == 0){
@@ -14,9 +17,8 @@ int main(void)
         int* f = NULL;
         double* d = NULL;
 
-
-
         galloc(&f, 19);
+        galloc(&f, 1186718291);
         LOG_MSG("Pointer in maon: %p", f);
         for(int i = 0; i < 19;i++){
                 f[i] = i;

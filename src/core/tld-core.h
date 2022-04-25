@@ -56,7 +56,8 @@
 #define ADDFAILED(x)  "Function \"" tld_tostring(x) "\" failed."
 #define RUN(EXP)                                \
         if((EXP) != OK){                        \
-                ERROR_MSG(ADDFAILED(EXP));      \
+                tld_message(MESSAGE_TYPE_ERROR,ADDFAILED(EXP)); \
+                goto ERROR;                                     \
         }
 
 
