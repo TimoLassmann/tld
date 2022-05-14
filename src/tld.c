@@ -12,4 +12,11 @@
 
 #include "logsum/tld-logsum.c"
 
+#ifdef HAVE_HDF5
+
+#include "hdf5/tld-hdf5wrap.c"
+#include "hdf5/tld-hdf5_utils.c"
+#endif // HAVE_HDF5
+
+
 #include "misc/misc.c"

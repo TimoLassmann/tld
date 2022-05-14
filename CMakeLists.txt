@@ -40,19 +40,20 @@ find_package(ZLIB)
 find_package(HDF5 COMPONENTS C HL)
 
 
-
-add_library(tld-dev)
-target_sources(tld-dev PRIVATE "src/tld.c")
-set_property(TARGET tld-dev PROPERTY C_STANDARD 11)
+add_subdirectory(src)
+# add_library(tld-dev)
+# target_sources(tld-dev PRIVATE "src/tld.c")
+#set_property(TARGET tld-dev PROPERTY C_STANDARD 11)
 #target_compile_features(tld PUBLIC c_std_99)
-target_include_directories(tld-dev PUBLIC "src") # "src/core")
-target_link_libraries(tld-dev PRIVATE m)
-target_link_libraries(tld-dev PRIVATE ZLIB::ZLIB)
+# target_include_directories(tld-dev PUBLIC "src") # "src/core")
+# target_link_libraries(tld-dev PRIVATE m)
+# target_link_libraries(tld-dev PRIVATE ZLIB::ZLIB)
 #target_compile_definitions(rayfork-dev PUBLIC RAYFORK_GRAPHICS_BACKEND_DIRECTX)
 
 
-set(tld_path "${CMAKE_CURRENT_SOURCE_DIR}/tld-dev")
-set(tld tld-dev)
+#dunno what this does 
+# set(tld_path "${CMAKE_CURRENT_SOURCE_DIR}/tld-dev")
+# set(tld tld-dev)
 #add_subdirectory(dev)
 
 include(CTest)
