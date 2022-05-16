@@ -80,9 +80,9 @@
                 }                                                       \
                 __typeof__(*(a)) ptr_t = NULL;                          \
                 ptr_t = galloc_hlp(sizeof(__typeof__(**(a))), (b), (c)); \
-                void *p = NULL;                                         \
-                get_ptr(ptr_t, &p);                                     \
-                ptr_t[0] = (__typeof__(**(a)))p;                        \
+                void *__tld_internal_p = NULL;                          \
+                get_ptr(ptr_t, &__tld_internal_p);                                     \
+                ptr_t[0] = (__typeof__(**(a)))__tld_internal_p;         \
                 for (int i = 1; i < (b); i++) {                         \
                         ptr_t[i] = ptr_t[0] + (c)*i;                    \
                 }                                                       \

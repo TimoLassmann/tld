@@ -168,9 +168,9 @@ int set_type_unknown(hid_t *type);
                 }else{                                              \
                         galloc(V,(int)F->dim[0],(int) F->dim[1]);   \
                 }                                                   \
-                void*ptr = NULL;                                    \
-                HDFWRAP_START_GALLOC(*(V), &ptr);                   \
-                F->data = ptr;                                      \
+                void*__tld_internal_ptr = NULL;                     \
+                HDFWRAP_START_GALLOC(*(V), &__tld_internal_ptr);    \
+                F->data = __tld_internal_ptr;                       \
                 tld_h5D_read_wrap(F);                               \
                 hdf5_finalise_read(F);                              \
         }while (0)
