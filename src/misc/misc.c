@@ -1,3 +1,5 @@
+#include "../core/tld-core.h"
+#include "../alloc/tld-alloc.h"
 #include "misc.h"
 #include <sys/stat.h>
 

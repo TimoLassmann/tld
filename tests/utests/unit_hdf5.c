@@ -1,7 +1,8 @@
 /* #include "hdf5/tld-hdf5wrap.h" */
 /* #include "core/tld-core.h" */
 /* #include "hdf5/tld-hdf5_struct.h" */
-/* #include "hdf5/tld-hdf5wrap.h" */
+#include "core/tld-core.h"
+#include "hdf5/tld-hdf5.h"
 #include "tld.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -27,36 +28,38 @@ int main(void)
                 }
         }
 
-        tldhdf5_open_file(&f, FILENAME);
+        tld_hdf5_open_file(&f, FILENAME);
 
-        HDF_WRITE_DATA(f, "/dat1D","d1d",&d1d);
-        HDF_WRITE_DATA(f, "/dat2D","d2d",&d2d);
-        HDF_WRITE_DATA(f, "/dat0D","d1d",&t);
+        HDF_WRITE_DATA(f, "/dat1D","d1d",d1d);
+        HDF_WRITE_DATA(f, "/dat2D","d2d",d2d);
+        HDF_WRITE_DATA(f, "/dat0D","d1d",t);
+        tld_hdf5_close_file(&f);
 
+        LOG_MSG("Got here - close file");
+        double* read_d1d = NULL;
         double** read_d2d = NULL;
+        uint64_t read_t = 0;
+        tld_hdf5_open_file(&f, FILENAME);
+
+        HDF_READ_DATA(f, "/dat1D","d1d",&read_d1d);
+        for(int i = 0; i < 10;i++){
+                fprintf(stdout,"%d %f\n",i,read_d1d[i]);
+        }
+        gfree(read_d1d);
         HDF_READ_DATA(f, "/dat2D","d2d",&read_d2d);
         for(int i = 0; i < 3;i++){
                 for(int j = 0; j < 3;j++){
                         fprintf(stdout,"%d %d %f\n",i,j,read_d2d[i][j]);
                 }
         }
+        gfree(read_d2d);
 
-        /* int* g = NULL; */
-        /* hdf5_read(f, "/dat2D","d2d",&g); */
-        tlfhdf5_close_file(&f);
+        HDF_READ_DATA(f, "/dat0D","d1d",&read_t);
 
-        uint64_t read_t;
-        tldhdf5_open_file(&f, FILENAME);
+        fprintf(stdout,"%lld\n",read_t );
 
-        /* int a1[_Generic(0, int: 1, short: 2, float: 3, default: 4) == 1 ? 1 : -1]; // ext-warning {{'_Generic' is a C11 extension}} */
-  /* (void) _Generic(read_t, // ext-warning {{'_Generic' is a C11 extension}} */
-  /*     struct A: 0, // expected-error {{type 'struct A' in generic association incomplete}} */
-  /*     void(): 0,   // expected-error {{type 'void ()' in generic association not an object type}} */
-  /*     int: 0);  // expected-error {{type 'int [n]' in generic association is a variably modified type}} */
-
-
-        HDF_READ_VALUE(f,"/dat0D","d1d",&read_t);
-        tlfhdf5_close_file(&f);
+        /* HDF_READ_VALUE(f,"/dat0D","d1d",&read_t); */
+        tld_hdf5_close_file(&f);
         LOG_MSG("%d", read_t);
 
         gfree(d1d);
