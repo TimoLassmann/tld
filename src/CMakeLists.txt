@@ -11,7 +11,7 @@ target_include_directories(tld-dev
   INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
   )
 target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB HDF5::HDF5)
-
+target_include_directories(tld-dev INTERFACE ${HDF5_C_INCLUDE_DIRS})
 
 # if(HDF5_FOUND)
 #   message(STATUS "HDF5 was  found")
@@ -21,5 +21,5 @@ target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB HDF5::HDF5)
 
 
 
- # target_include_directories(tld-dev INTERFACE ${HDF5_C_INCLUDE_DIRS})
+
 # include_directories(${CMAKE_CURRENT_BINARY_DIR})
