@@ -1,5 +1,5 @@
 #include "../core/tld-core.h"
-
+#include "hdf5.h"
 #define TLDHDF5_UTILS_IMPORT
 #include "tld-hdf5_utils.h"
 

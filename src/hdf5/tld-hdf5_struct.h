@@ -1,8 +1,8 @@
 #ifndef TLHDF5WRAP_TYPES_H
 #define TLHDF5WRAP_TYPES_H
 
-#include <hdf5.h>
-
+/* #include <hdf5.h> */
+#include "stdint.h"
 #define HDF5GLUE_MAX_NAME_LEN 200
 #define HDF5GLUE_MAX_DIM 5
 #define HDF5GLUE_MAX_CONTENT_LEN 1024
@@ -32,6 +32,9 @@ struct hdf5_group_names{
         int num_names_mem;
 };
 
+typedef unsigned long long hsize_t;
+typedef int64_t hid_t;
+typedef int herr_t;
 
 typedef struct hdf5_data{
         char dataset_name[HDF5GLUE_MAX_NAME_LEN];

@@ -11,11 +11,9 @@
 
 #include "./logsum/tld-logsum.h"
 
-#ifdef HAVE_HDF5
-#include "./hdf5/tld-hdf5wrap.h"
+#include "./hdf5/tld-hdf5_struct.h"
+#include "./hdf5/tld-hdf5.h"
 #include "./hdf5/tld-hdf5_utils.h"
-#endif // HAVE_HDF5
-
 
 #include "./misc/misc.h"
 

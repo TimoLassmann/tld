@@ -2,6 +2,15 @@ cmake_minimum_required(VERSION 3.1)
 
 project(tld-tests LANGUAGES C)
 
+# add_executable(unit-generic utests/generic.c) 
+# target_link_libraries(unit-generic PRIVATE tld-dev)
+
+add_executable(unit-hdf5 utests/unit_hdf5.c) 
+target_link_libraries(unit-hdf5 PRIVATE tld-dev)
+add_test(
+    NAME unit-hdf5
+    COMMAND unit-hdf5
+)
 
 # Setup unit-tests
 add_executable(unit-test-suite utests/unit_tests.c) 

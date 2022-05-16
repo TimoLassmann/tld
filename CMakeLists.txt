@@ -35,9 +35,9 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-find_package(HTSlib)
-find_package(ZLIB)
-find_package(HDF5 COMPONENTS C HL)
+# find_package(HTSlib)
+# find_package(ZLIB)
+# find_package(HDF5 COMPONENTS C HL)
 
 
 add_subdirectory(src)

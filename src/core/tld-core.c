@@ -32,8 +32,6 @@ void error(const char *format, ...)
         va_end(argp);
 }
 
-
-
 void vlog( uint8_t type, FILE* f_ptr,const char *format,  va_list argp)
 {
         char time_string[BUFSIZ];
