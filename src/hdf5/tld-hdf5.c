@@ -5,24 +5,13 @@
 
 #include <string.h>
 
-/* #include "tldevel.h" */
-/* #include "tlmisc.h" */
-
-
 #define TLHDF5_IMPORT
 #include "tld-hdf5.h"
 
-
-
-
 #define TLD_HDF5_MAX_CONTENT_LEN 1024
-
-/* #include "tltld_hdf5_types.h" */
-
 
 static int my_H5Oget_info_by_name(hid_t loc_id, const char *name, H5O_info_t *info);
 static int my_H5Oget_info(hid_t group, H5O_info_t *info);
-/* important intermediate functions */
 
 /* open / close groups - these are called by all MACROS:
 
@@ -36,17 +25,6 @@ to resolve the path to the data / attribute
  */
 static int tld_hdf5_open_group(struct hdf5_data* hdf5_data, char* groupname);
 static int tld_hdf5_close_group(struct hdf5_data* hdf5_data);
-
-/* Functions to read write attributes - called by:
-
-HDFWRAP_WRITE_ATTRIBUTE
-HDFWRAP_READ_ATTRIBUTE
-
- */
-
-
-//static int hdf5_read_attributes(struct hdf5_data* hdf5_data, char* group);
-//static int clear_hdf5_attribute(struct hdf5_attribute* h);
 
 /* allocating the hdf5 data structure - this is really more of a file handler...  */
 static int alloc_hdf5_data(struct hdf5_data** h);
@@ -125,11 +103,8 @@ static int startof_galloc_unknown(void* x, void** ptr);
   H5T_NATIVE_ULONG  unsigned long
 H5T_NATIVE_LLONG    long long
 H5T_NATIVE_ULLONG   unsigned long long
-
-
-
-
 */
+
 #define SETTYPR(t)                                      \
         static int set_type_ ## t(hid_t* type);
 
@@ -148,8 +123,6 @@ SETTYPR(double)
 #undef SETTYPR
 
 static int set_type_unknown(hid_t* type);
-
-
 
 #define HDFWRAP_SET_TYPE(P,T) _Generic((P),                             \
                                        char: set_type_char,             \
@@ -202,10 +175,8 @@ static int set_type_unknown(hid_t* type);
 #define TLD_HDF5_ADD_SINGLE_BODY do {                                   \
                 int i;                                                  \
                                                                         \
-                LOG_MSG("Got here : %s", group);                        \
                 RUN(tld_hdf5_open_group(hdf5_data, group));             \
                                                                         \
-                LOG_MSG("hdf5");                                        \
                 hdf5_data->dim[0] = 1;                                  \
                 hdf5_data->dim[1] = 0;                                  \
                 hdf5_data->chunk_dim[0] = 1;                            \
@@ -214,7 +185,6 @@ static int set_type_unknown(hid_t* type);
                 hdf5_data->rank = 1;                                    \
                                                                         \
                 HDFWRAP_SET_TYPE(data,&hdf5_data->native_type);         \
-                LOG_MSG("ff");                                          \
                 for(i = 0; i< hdf5_data->rank;i++){                     \
                         if(hdf5_data->chunk_dim[i] >  hdf5_data->dim[i]){ \
                                 ERROR_MSG("chunk dimenson exceeds dataset dimension:%d (rank) %d %d \n", i,hdf5_data->chunk_dim[i], hdf5_data->dim[i] ); \
@@ -227,7 +197,6 @@ static int set_type_unknown(hid_t* type);
                                                                         \
                 snprintf(hdf5_data->dataset_name , TLD_HDF5_MAX_NAME_LEN,"%s",name); \
                 hdf5_data->status = H5Lexists(hdf5_data->group, hdf5_data->dataset_name, H5P_DEFAULT); \
-                LOG_MSG("FF");                                          \
                 if(!hdf5_data->status){                                 \
                         snprintf(hdf5_data->dataset_name , TLD_HDF5_MAX_NAME_LEN,"%s",name); \
                         if((hdf5_data->dataspace = H5Screate_simple(hdf5_data->rank,  hdf5_data->dim , NULL)) < 0)ERROR_MSG("H5Screate_simple failed."); \
@@ -326,7 +295,6 @@ ADD_ARRAY(double)
         uint32_t d2 = 0U;                                               \
                                                                         \
         void* ptr = NULL;                                               \
-        LOG_MSG("%s group ADD BODY",group);                             \
         RUN(tld_hdf5_open_group(hdf5_data, group));                     \
                                                                         \
         RUN(get_dim1(data, &d1));                                       \
@@ -353,7 +321,6 @@ ADD_ARRAY(double)
                 }                                                       \
         }                                                               \
                                                                         \
-        LOG_MSG("%s group ADD BODY",group);                             \
                                                                         \
         snprintf(hdf5_data->dataset_name , TLD_HDF5_MAX_NAME_LEN,"%s",name); \
         hdf5_data->status = H5Lexists(hdf5_data->group, hdf5_data->dataset_name, H5P_DEFAULT); \
@@ -618,12 +585,10 @@ READ_ARRAY(double)
                 RUN(tld_hdf5_open_group(hdf5_data, group));             \
                 HDFWRAP_SET_TYPE(x,&hdf5_data->native_type);            \
                 if( H5Aexists(hdf5_data->group, name)){                 \
-                        LOG_MSG("EXISTS");                              \
                         attr = H5Aopen(hdf5_data->group,name, H5P_DEFAULT); \
                         hdf5_data->status = H5Awrite(attr,hdf5_data->native_type, &x); \
                         hdf5_data->status = H5Aclose(attr);             \
                 }else{                                                  \
-                        LOG_MSG("NEW");                                 \
                         aid  = H5Screate(H5S_SCALAR);                   \
                         if(aid < 0){                                    \
                                 ERROR_MSG("H5Screate failed %d", aid);  \
@@ -872,19 +837,18 @@ int tld_hdf5_open_file(struct hdf5_data** h, char* filename)
         if(hdf5_data){
                 /* I should close all groups / file  */
         }else{
-                LOG_MSG("Allocating");
                 RUN(alloc_hdf5_data(&hdf5_data));
         }
-        LOG_MSG("Check if file exist");
+        /* LOG_MSG("Check if file exist"); */
         if(my_file_exists(filename)){
-                LOG_MSG("Reading: %s", filename);
+                /* LOG_MSG("Reading: %s", filename); */
                 hdf5_data->file = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);
                 if(hdf5_data->file < 0){
                         ERROR_MSG("H5Fopen failed - exists");
                 }
-                LOG_MSG("Reading: done %s", filename);
+                LOG_MSG("Reading: from %d.", filename);
         }else{
-                LOG_MSG("Creating: %s", filename);
+                /* LOG_MSG("Creating: %s", filename); */
                 snprintf(hdf5_data->file_name , TLD_HDF5_MAX_NAME_LEN,"%s",filename);
                 hdf5_data->file = H5Fcreate(hdf5_data->file_name, H5F_ACC_TRUNC, H5P_DEFAULT,H5P_DEFAULT);
                 if(hdf5_data->file < 0){
@@ -892,9 +856,8 @@ int tld_hdf5_open_file(struct hdf5_data** h, char* filename)
                 }
 
                 /* if((hdf5_data->file = H5Fcreate(hdf5_data->file_name, H5F_ACC_TRUNC, H5P_DEFAULT,H5P_DEFAULT)) < 0)  ERROR_MSG("H5Fcreate failed: %s\n",hdf5_data->file_name); */
-                LOG_MSG("Creating: done %s", filename);
+                LOG_MSG("Creating: %s", filename);
         }
-        LOG_MSG("Got here");
         *h = hdf5_data;
         return OK;
 ERROR:
@@ -1189,10 +1152,10 @@ int my_H5Oget_info_by_name(hid_t loc_id, const char *name, H5O_info_t *info)
         int status;
         //H5O_info_t infobuf;
 #if defined(H5Oget_info_vers) && H5Oget_info_vers == 3
-        LOG_MSG("Version 3");
+        /* LOG_MSG("Version 3"); */
         status = H5Oget_info_by_name (loc_id, name, info, H5O_INFO_BASIC,H5O_INFO_NUM_ATTRS);
 #else
-        LOG_MSG("Version other");
+        /* LOG_MSG("Version other"); */
         status = H5Oget_info_by_name (loc_id, name, info, H5P_DEFAULT);
 #endif
         if(status <0){
