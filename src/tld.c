@@ -15,5 +15,6 @@
 #include "hdf5/tld-hdf5.c"
 /* #include "hdf5/tld-hdf5_utils.c" */
 
+#include "stats/basic.c"
 
 #include "misc/misc.c"
