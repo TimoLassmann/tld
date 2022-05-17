@@ -33,6 +33,14 @@ int main(void)
 
         LOG_MSG("Variance of    noise data: %f", var);
 
+        mu = sqrt(var);
+        /* mu = mu *0.5; */
+        for(int i = 0; i < n;i++){
+                noise[i] = tl_random_gaussian(rng, 0.0 ,0.5 *  mu);
+        }
+        tld_sample_variance(noise, n, &var);
+
+        LOG_MSG("Variance of    noise data: %f", var);
 
         gfree(noise);
         gfree(vec);
