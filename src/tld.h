@@ -24,7 +24,7 @@
 #include "./hdf5/tld-hdf5.h"
 /* #include "./hdf5/tld-hdf5_utils.h" */
 
-#include "stats/basic.h"
+#include "./stats/basic.h"
 
 #include "./misc/misc.h"
 

@@ -56,7 +56,7 @@ int main(void)
 
         HDF_READ_DATA(f, "/dat0D","d1d",&read_t);
 
-        fprintf(stdout,"%lld\n",read_t );
+        fprintf(stdout,"%d\n",(int)read_t );
 
         /* HDF_READ_VALUE(f,"/dat0D","d1d",&read_t); */
         tld_hdf5_close_file(&f);

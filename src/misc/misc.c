@@ -1,11 +1,15 @@
+#include "misc.h"
+
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
-#include "misc.h"
+
 #include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
 
 #define MAX_CMD_LEN 16384
 
-int my_file_exists(const char* name)
+int tld_file_exists(const char* name)
 {
         struct stat buf;
         int ret = 0;
@@ -18,6 +22,25 @@ int my_file_exists(const char* name)
                 ret++;
         }
         return ret;
+}
+
+int tld_dir_exists(const char* name)
+{
+        ASSERT(name != NULL," No directory name!");
+        DIR* dir = opendir(name);
+        if (dir) {
+                /* Directory exists. */
+                closedir(dir);
+        } else if (ENOENT == errno) {
+                ERROR_MSG("Directory %s does not exist!", name);
+                /* Directory does not exist. */
+        } else {
+                ERROR_MSG("Opening directory %s failed!", name);
+                /* opendir() failed for some other reason. */
+        }
+        return OK;
+ERROR:
+        return FAIL;
 }
 
 /* I don't like that both libgen and string have functions to work with
