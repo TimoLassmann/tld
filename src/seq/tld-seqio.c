@@ -76,7 +76,7 @@ int open_fasta_fastq_file(struct file_handler** fh,char* filename, int mode)
 
 
         if(mode == TLSEQIO_READ){
-                ASSERT(tld_file_exists(filename),"File: %s does not exists",filename);
+                ASSERT(tld_file_exists(filename) == OK,"File: %s does not exists",filename);
                 RUN(get_io_handler(&f, filename, mode));
                 RUN(read_file_contents(f));
 

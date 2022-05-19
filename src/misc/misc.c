@@ -12,16 +12,14 @@
 int tld_file_exists(const char* name)
 {
         struct stat buf;
-        int ret = 0;
         int local_ret = 0;
-        ret = 0;
-        local_ret= stat ( name, &buf );
+        local_ret = stat( name, &buf );
         /* File found */
         if ( local_ret == 0 )
         {
-                ret++;
+                return OK;
         }
-        return ret;
+        return FAIL;
 }
 
 int tld_dir_exists(const char* name)

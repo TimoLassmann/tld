@@ -1,7 +1,7 @@
 #ifndef TLHDF5_H
 #define TLHDF5_H
 
-
+#include <hdf5.h>
 #include <stdint.h>
 
 #ifdef TLHDF5_IMPORT
@@ -18,9 +18,6 @@ struct hdf5_group_names{
 };
 
 #define TLD_HDF5_MAX_NAME_LEN 256
-typedef unsigned long long hsize_t;
-typedef int64_t hid_t;
-typedef int herr_t;
 
 struct hdf5_data{
         char dataset_name[TLD_HDF5_MAX_NAME_LEN];

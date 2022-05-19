@@ -840,7 +840,7 @@ int tld_hdf5_open_file(struct hdf5_data** h, char* filename)
                 RUN(alloc_hdf5_data(&hdf5_data));
         }
         /* LOG_MSG("Check if file exist"); */
-        if(tld_file_exists(filename)){
+        if(tld_file_exists(filename) == OK){
                 /* LOG_MSG("Reading: %s", filename); */
                 hdf5_data->file = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);
                 if(hdf5_data->file < 0){
