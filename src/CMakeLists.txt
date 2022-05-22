@@ -1,4 +1,6 @@
 
+
+set(HDF5_USE_STATIC_LIBRARIES ON)
 find_package(HDF5 REQUIRED COMPONENTS C HL)
 find_package(ZLIB)
 
