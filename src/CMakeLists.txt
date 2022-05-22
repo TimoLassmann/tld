@@ -1,8 +1,10 @@
 
 
-set(HDF5_USE_STATIC_LIBRARIES ON)
+
 find_package(HDF5 REQUIRED COMPONENTS C HL)
 find_package(ZLIB)
+
+set(HDF5_USE_STATIC_LIBRARIES ON)
 
 add_library(tld-dev STATIC
   tld.c
