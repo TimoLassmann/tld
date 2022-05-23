@@ -846,7 +846,7 @@ int tld_hdf5_open_file(struct hdf5_data** h, char* filename)
                 if(hdf5_data->file < 0){
                         ERROR_MSG("H5Fopen failed - exists");
                 }
-                LOG_MSG("Reading: from %d.", filename);
+                LOG_MSG("Reading: from %s.", filename);
         }else{
                 /* LOG_MSG("Creating: %s", filename); */
                 snprintf(hdf5_data->file_name , TLD_HDF5_MAX_NAME_LEN,"%s",filename);
