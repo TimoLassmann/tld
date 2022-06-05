@@ -5,6 +5,14 @@ project(tld-tests LANGUAGES C)
 # add_executable(unit-generic utests/generic.c) 
 # target_link_libraries(unit-generic PRIVATE tld-dev)
 
+add_executable(unit-str utests/unit_str.c) 
+target_link_libraries(unit-str PRIVATE tld-dev)
+add_test(
+    NAME unit-str
+    COMMAND unit-str
+)
+
+
 add_executable(int-noise itests/noise.c) 
 target_link_libraries(int-noise PRIVATE tld-dev)
 add_test(
