@@ -2,13 +2,14 @@
 #define TLD_SEQ_H
 
 #include "../core/tld-core.h"
-
+#include "../string/str.h"
 #include "stdint.h"
 
 #define ALIGN64 64
 struct tl_seq{
         uint8_t * seq;
-        char* name;
+        tld_strbuf* name;
+        /* char* name; */
         char* qual;
         void* data;
         int malloc_len;

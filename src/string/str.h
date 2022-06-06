@@ -19,8 +19,9 @@ typedef struct tld_string_buffer {
 #define TLD_STRLEN(X) (X)->len
 
 
-
-tld_external int tld_sprintf(tld_strbuf *b, char *content);
+tld_external int tld_append(tld_strbuf *b, char *content);
+tld_external int tld_append_char(tld_strbuf *b, char c);
+tld_external int tld_prepend(tld_strbuf *b, char *content);
 tld_external int tld_strmk(tld_str **string,const char *src);
 
 tld_external int tld_strbuf_alloc(tld_strbuf **buffer, int size);

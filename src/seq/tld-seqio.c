@@ -1,6 +1,7 @@
 #include "tld-seq.h"
 #include "../alloc/tld-alloc.h"
 #include "../misc/misc.h"
+#include "../string/str.h"
 #include <stdio.h>
 #include <zlib.h>
 
@@ -246,19 +247,14 @@ int parse_buf_fasta(struct file_handler* fh, struct tl_seq_buffer* sb,int num)
 
                         /* copy name */
                         i++;
-                        len =0;
+
+
+                        /* len =0; */
                         while(1){
                                 if(buf[i] == '\n' || buf[i] == 0){
-                                        sb->sequences[sb->num_seq]->name[len] = 0;
                                         break;
                                 }
-
-                                sb->sequences[sb->num_seq]->name[len] = buf[i];
-                                len++;
-                                if(len+1 == TL_SEQ_MAX_NAME_LEN){
-                                        sb->sequences[sb->num_seq]->name[len] = 0;
-                                        break;
-                                }
+                                tld_append_char(sb->sequences[sb->num_seq]->name, buf[i]);
                                 i++;
                         }
                         state = RS_SEQ;
@@ -285,7 +281,6 @@ int parse_buf_fasta(struct file_handler* fh, struct tl_seq_buffer* sb,int num)
                                         i++;
                                 }
                                 sb->sequences[sb->num_seq]->len = len;
-
                         }
                 }
         }
@@ -328,22 +323,35 @@ int parse_buf_fastq(struct file_handler* fh, struct tl_seq_buffer* sb,int num)
                         /* works because when we start reading state will be undefined */
                         /* copy name */
                         i++;
-                        len =0;
+                        /* len =0; */
+                        /* tld_append(sb->sequences[sb->num_seq]->name, buf+1); */
                         while(1){
                                 if(buf[i] == '\n' || buf[i] == 0){
-                                        sb->sequences[sb->num_seq]->name[len] = 0;
                                         break;
                                 }
-
-                                sb->sequences[sb->num_seq]->name[len] = buf[i];
-                                len++;
-                                if(len+1 == TL_SEQ_MAX_NAME_LEN){
-                                        sb->sequences[sb->num_seq]->name[len] = 0;
-                                        break;
-                                }
+                                tld_append_char(sb->sequences[sb->num_seq]->name, buf[i]);
+                                /* fprintf(stdout, "NAME: %p", sb->sequences[sb->num_seq]->name); */
+                                /* fprintf(stdout, "NAME: %s  (%d ,%d)\n", */
+                                        /* TLD_STR( sb->sequences[sb->num_seq]->name), */
+                                        /* TLD_STRLEN( sb->sequences[sb->num_seq]->name ), */
+                                        /* sb->sequences[sb->num_seq]->name->alloc_len); */
                                 i++;
                         }
-                        //fprintf(stdout, "NAME: %s\n",sb->sequences[sb->num_seq]->name);
+                        /* while(1){ */
+                        /*         if(buf[i] == '\n' || buf[i] == 0){ */
+                        /*                 sb->sequences[sb->num_seq]->name[len] = 0; */
+                        /*                 break; */
+                        /*         } */
+
+                        /*         sb->sequences[sb->num_seq]->name[len] = buf[i]; */
+                        /*         len++; */
+                        /*         if(len+1 == TL_SEQ_MAX_NAME_LEN){ */
+                        /*                 sb->sequences[sb->num_seq]->name[len] = 0; */
+                        /*                 break; */
+                        /*         } */
+                        /*         i++; */
+                        /* } */
+                        /* fprintf(stdout, "NAME: %s\n",TLD_STR( sb->sequences[sb->num_seq]->name)); */
                         state = RS_SEQ;
                 }else if(buf[i] == '+' && state == RS_SEQ_DONE){
                         state = RS_QUAL;
@@ -933,7 +941,7 @@ int write_fasta_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok)
 
         local_i = *index;
         /* length of name; plus one for '>' plus one for newline  */
-        name_len = strnlen(seq->name, TL_SEQ_MAX_NAME_LEN);
+        name_len = TLD_STRLEN(seq->name);//  strnlen(seq->name, TL_SEQ_MAX_NAME_LEN);
         len = name_len +2;
         /* length of sequence + one for newline + len / 70 for internal line breaks  */
         len += seq->len + 1 + seq->len / TL_OUT_LINE_LEN;
@@ -950,7 +958,7 @@ int write_fasta_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok)
         buf[local_i] = '>';
         local_i++;
         for(i = 0;i < name_len;i++){
-                buf[local_i] = seq->name[i];
+                buf[local_i] = TLD_STR(seq->name)[i]; //TLD_S  seq->name[i];
                 local_i++;
         }
         buf[local_i] = '\n';
@@ -988,7 +996,7 @@ int write_fastq_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok)
 
         local_i = *index;
         /* length of name; plus one for '>' plus one for newline  */
-        name_len = strnlen(seq->name, TL_SEQ_MAX_NAME_LEN);
+        name_len =  TLD_STRLEN(seq->name);//  strnlen(seq->name, TL_SEQ_MAX_NAME_LEN);
         len = name_len +2;
         /* length of sequence + one for newline*/
         len += seq->len + 1 ;
@@ -1009,7 +1017,7 @@ int write_fastq_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok)
         buf[local_i] = '@';
         local_i++;
         for(i = 0;i < name_len;i++){
-                buf[local_i] = seq->name[i];
+                buf[local_i] =  TLD_STR(seq->name)[i];//  seq->name[i];
                 local_i++;
         }
         buf[local_i] = '\n';

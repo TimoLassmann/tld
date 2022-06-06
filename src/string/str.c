@@ -75,7 +75,21 @@ ERROR:
         return FAIL;
 }
 
-int tld_sprintf(tld_strbuf *b, char *content)
+int tld_prepend(tld_strbuf *b, char *content)
+{
+        int size = strlen(content);
+
+        RUN(tld_strbuf_ensure_size(b, size));
+        memmove(b->str + size, b->str, b->len);
+        memcpy(b->str, content, size);
+        b->len += size;
+        b->str[b->len] = 0;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_append(tld_strbuf *b, char *content)
 {
         int size = strlen(content);
 
@@ -90,13 +104,26 @@ ERROR:
         return FAIL;
 }
 
+int tld_append_char(tld_strbuf *b, char c)
+{
+        /* int size = 1; */
+        RUN(tld_strbuf_ensure_size(b, 1));
+        /* memcpy(b->str+b->len,content, size); */
+        b->str[b->len] = c;
+        b->len++;
+        b->str[b->len] = 0;
+
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+
 int tld_strmk(tld_str **string,const char *src)
 {
         int size = strlen(src);
         tld_str* a = NULL;
-
         size = size +1;
-
         RUN(tld_str_alloc(&a,size));
         memcpy(a->str,src, size);
         a->str[size] = 0;

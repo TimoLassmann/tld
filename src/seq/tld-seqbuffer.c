@@ -1,6 +1,7 @@
 
 #include "tld-seq.h"
 #include "../alloc/tld-alloc.h"
+#include "../string/str.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -94,7 +95,7 @@ int detect_format(struct tl_seq_buffer* sb)
 
         for(i = 0; i < sb->num_seq;i++){
                 seq = sb->sequences[i]->seq;
-                name= sb->sequences[i]->name;
+                name=  TLD_STR(sb->sequences[i]->name);
                 qual= sb->sequences[i]->qual;
                 len= sb->sequences[i]->len;
 
@@ -325,6 +326,7 @@ int reset_tl_seq_buffer(struct tl_seq_buffer* sb)
         ASSERT(sb != NULL, "No sequence buffer");
         for(i = 0; i < sb->malloc_num ;i++){
                 sb->sequences[i]->len = 0;
+                sb->sequences[i]->name->len = 0;
         }
         sb->num_seq = 0;       /* horrible hack! as soon as the first seq name is encountered this is incremented to 0...  */
         return OK;
@@ -358,7 +360,10 @@ int alloc_tl_seq(struct tl_seq** sequence)
         s->data = NULL;
         MMALLOC(s->seq, sizeof(uint8_t)* s->malloc_len);
         MMALLOC(s->qual, sizeof(char) * s->malloc_len);
-        MMALLOC(s->name, sizeof(char) * TL_SEQ_MAX_NAME_LEN);
+        /* MMALLOC(s->name, sizeof(char) * TL_SEQ_MAX_NAME_LEN); */
+
+        RUN(tld_strbuf_alloc(&s->name, TL_SEQ_MAX_NAME_LEN));
+
         for(i = 0; i < s->malloc_len;i++){
                 s->qual[i] = 'J';
         }
@@ -397,7 +402,8 @@ void free_tl_seq(struct tl_seq* sequence)
                         MFREE(sequence->seq);
                 }
                 if(sequence->name){
-                        MFREE(sequence->name);
+                        tld_strbuf_free(sequence->name);
+                        /* MFREE(sequence->name); */
                 }
                 if(sequence->qual){
                         MFREE(sequence->qual);
