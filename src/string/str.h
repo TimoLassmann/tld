@@ -1,6 +1,8 @@
 #ifndef STR_H
 #define STR_H
 
+/* code here is inspired by the rayfork str code by Sas Luca */
+
 #include "../core/tld-core.h"
 #include <stdint.h>
 
@@ -22,6 +24,13 @@ typedef struct tld_string_buffer {
 tld_external int tld_append(tld_strbuf *b, char *content);
 tld_external int tld_append_char(tld_strbuf *b, char c);
 tld_external int tld_prepend(tld_strbuf *b, char *content);
+
+tld_external int tld_suffix_match(tld_str t, tld_str s);
+tld_external int tld_prefix_match(tld_str t, tld_str s);
+
+tld_external tld_str tld_strbuf_to_str(tld_strbuf s);
+tld_external tld_str tld_char_to_str(char* s);
+
 tld_external int tld_strmk(tld_str **string,const char *src);
 
 tld_external int tld_strbuf_alloc(tld_strbuf **buffer, int size);

@@ -4,7 +4,7 @@
 #include "../alloc/tld-alloc.h"
 #include <string.h>
 
-static inline int tld_strbuf_free_space(tld_strbuf *b);
+tld_internal inline int tld_strbuf_free_space(tld_strbuf *b);
 
 tld_internal int tld_strbuf_resize(tld_strbuf *b, int new_size);
 
@@ -116,6 +116,41 @@ int tld_append_char(tld_strbuf *b, char c)
         return OK;
 ERROR:
         return FAIL;
+}
+
+int tld_suffix_match(tld_str t, tld_str s)
+{
+
+        if (t.len < s.len) return 0;
+        int offset = t.len - s.len;
+        int cmp = memcmp(t.str + offset, s.str, s.len);
+        return cmp == 0;
+}
+
+int tld_prefix_match(tld_str t, tld_str s)
+{
+        if (t.len < s.len) return 0;
+        int cmp = memcmp(t.str, s.str, s.len);
+        return cmp == 0;
+}
+
+tld_str tld_strbuf_to_str(tld_strbuf s)
+{
+    tld_str r = {0};
+    r.str = s.str;
+    r.len = s.len;
+    return r;
+}
+
+tld_str tld_char_to_str(char* s)
+{
+        int size = strlen(s);
+        tld_str r = {
+                .str = (char*) s,
+                .len = size,
+        };
+
+        return r;
 }
 
 
