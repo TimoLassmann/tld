@@ -3,14 +3,13 @@
 
 #include "../core/tld-core.h"
 #include "../string/str.h"
-#include "stdint.h"
 
 #define ALIGN64 64
 struct tl_seq{
         uint8_t * seq;
         tld_strbuf* name;
         /* char* name; */
-        char* qual;
+        uint8_t* qual;
         void* data;
         int malloc_len;
         int len;
@@ -89,4 +88,8 @@ tld_external int alloc_tl_seq(struct tl_seq** sequence);
 tld_external int resize_tl_seq(struct tl_seq* s);
 tld_external void free_tl_seq(struct tl_seq* sequence);
 
+
+tld_external int reverse(uint8_t *s, int l);
+tld_external int reverse_comp(uint8_t *s, int l);
+tld_external int rev_comp_tl_seq(struct tl_seq* s);
 #endif

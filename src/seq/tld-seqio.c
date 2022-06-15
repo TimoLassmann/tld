@@ -2,6 +2,7 @@
 #include "../alloc/tld-alloc.h"
 #include "../misc/misc.h"
 #include "../string/str.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <zlib.h>
 
@@ -304,7 +305,7 @@ int parse_buf_fastq(struct file_handler* fh, struct tl_seq_buffer* sb,int num)
 {
         char* buf = NULL;
         uint8_t* seq = NULL;
-        char* qual;
+        uint8_t* qual;
         int state;
         int pos;
         int len;

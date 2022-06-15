@@ -9,6 +9,7 @@
 #include "seq/tld-seqbuffer.c"
 #include "seq/tld-seqio.c"
 #include "seq/tld-seqalphabet.c"
+#include "seq/tld-revcomp.c"
 
 #include "logsum/tld-logsum.c"
 

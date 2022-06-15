@@ -3,6 +3,7 @@
 #include "../alloc/tld-alloc.h"
 #include "../string/str.h"
 
+#include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -28,7 +29,7 @@ int detect_format(struct tl_seq_buffer* sb)
 
         uint8_t* seq = NULL;
         char* name = NULL;
-        char* qual = NULL;
+        uint8_t* qual = NULL;
         int len = 0;
 
         int number_of_values_found = 0;

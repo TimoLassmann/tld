@@ -12,6 +12,13 @@ add_test(
     COMMAND unit-str
 )
 
+add_executable(unit-seq-rev utests/unit_seq_rev.c) 
+target_link_libraries(unit-seq-rev PRIVATE tld-dev)
+add_test(
+    NAME unit-seq-rev
+    COMMAND unit-seq-rev
+)
+
 
 add_executable(int-noise itests/noise.c) 
 target_link_libraries(int-noise PRIVATE tld-dev)
