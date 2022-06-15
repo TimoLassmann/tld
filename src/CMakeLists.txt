@@ -18,6 +18,11 @@ target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB ${HDF5_C_LIBRARIES})
 # list(APPEND INCLUDE_LIST ${HDF5_C_INCLUDE_DIRS})
 target_include_directories(tld-dev PUBLIC ${HDF5_C_INCLUDE_DIRS})
 
+add_executable(helper
+  helper.c
+  )
+target_link_libraries(helper PRIVATE tld-dev)
+
 
 # target_compile_definitions(tld-dev INTERFACE ${HDF5_DEFINITIONS})
 
