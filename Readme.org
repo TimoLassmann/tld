@@ -1,4 +1,7 @@
 [![CMake](https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml/badge.svg)](https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml)
+
+
+[[https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml][https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml/badge.svg]]
 * tld - a small convenience C library is small 
 tld is a small C library containing a bunch of convenient function and macros developed and/or adopted by Timo Lassmann. It is under active development and therefore not recommended to be used directly in serious projects. Nevertheless, it may be useful in demonstrating some interesting C techniques. Inspiration for the library comes from many places including:
 1) [[https://github.com/EddyRivasLab/easel][easel]] - a C library for biological sequence analysis developed by the [[http://eddylab.org][Eddy/Rivas laboratory]].
