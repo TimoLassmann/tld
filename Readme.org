@@ -1,9 +1,11 @@
 
 [[https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml][https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml/badge.svg]]
 * tld - a small convenience C library
-tld is a small C library containing a bunch of convenient function and macros developed and/or adopted by Timo Lassmann. It is under active development and therefore not recommended to be used directly in any serious projects. Nevertheless, it may be useful in demonstrating some interesting C techniques. Inspiration for the library comes from many places including:
+*tld* is a small C library containing a bunch of convenient function and macros used by Timo Lassmann. It is under active development and therefore not recommended to be used directly in any serious projects. Nevertheless, it may be useful in demonstrating some interesting C techniques. Inspiration for the library comes from many places including:
+
 1) [[https://github.com/EddyRivasLab/easel][easel]] - a C library for biological sequence analysis developed by the [[http://eddylab.org][Eddy/Rivas laboratory]].
-2) [[https://github.com/SasLuca/rayfork][rayfork]] by Sas Luca
+2) [[https://github.com/attractivechaos/klib][klib]]
+3) [[https://github.com/SasLuca/rayfork][rayfork]] by Sas Luca
 
 An interesting feature is the =galloc= macro, a generic malloc wrapper. It takes a pointer and one or two numbers and allocated either an array or a matrix. For example:
 
@@ -16,7 +18,7 @@ is equivalent to:
 
 #+begin_src C :eval never
 double* arr = NULL;
-size_t size = sizeof(double) * 100
+size_t size = sizeof(double) * 100;
 if ((arr = malloc(size) == NULL) {                   
         fprintf(stderr,"malloc of size %d failed", size);
         exit(1);
@@ -39,7 +41,7 @@ gfree(arr);
 
 =galloc= support all standard data types (=int=, =float=, =double=) any types found in =stdint.h= (uint8_t etc...). 
 
-tld also contains a simple wrapper for writing and reading [[ https://www.hdfgroup.org][hdf5]] files. For example this code writes an array to file =test.h5=
+*tld* also contains a simple wrapper for writing and reading [[ https://www.hdfgroup.org][hdf5]] files. For example this code writes an array to file =test.h5=
 
 #+begin_src C :eval never 
 struct hdf5_data* hdf5_data = NULL;
@@ -60,9 +62,10 @@ tld_hdf5_close_file(&hdf5_data);
 
 * How to build
 
-tld depends on the hdf5 library. To install on linux:
+*tld* depends on the hdf5 library. To install on linux:
 
 Ubuntu/Debian:
+
 #+begin_src bash :eval never 
 sudo apt-get install -y libhdf5-dev
 #+end_src
