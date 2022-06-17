@@ -1,9 +1,7 @@
-[![CMake](https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml/badge.svg)](https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml)
-
 
 [[https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml][https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml/badge.svg]]
-* tld - a small convenience C library is small 
-tld is a small C library containing a bunch of convenient function and macros developed and/or adopted by Timo Lassmann. It is under active development and therefore not recommended to be used directly in serious projects. Nevertheless, it may be useful in demonstrating some interesting C techniques. Inspiration for the library comes from many places including:
+* tld - a small convenience C library
+tld is a small C library containing a bunch of convenient function and macros developed and/or adopted by Timo Lassmann. It is under active development and therefore not recommended to be used directly in any serious projects. Nevertheless, it may be useful in demonstrating some interesting C techniques. Inspiration for the library comes from many places including:
 1) [[https://github.com/EddyRivasLab/easel][easel]] - a C library for biological sequence analysis developed by the [[http://eddylab.org][Eddy/Rivas laboratory]].
 2) [[https://github.com/SasLuca/rayfork][rayfork]] by Sas Luca
 
@@ -61,6 +59,21 @@ tld_hdf5_close_file(&hdf5_data);
 #+end_src
 
 * How to build
+
+tld depends on the hdf5 library. To install on linux:
+
+Ubuntu/Debian:
+#+begin_src bash :eval never 
+sudo apt-get install -y libhdf5-dev
+#+end_src
+
+On a mac via [[https://brew.sh][brew]]:
+
+#+begin_src bash :eval never
+brew install hdf5
+#+end_src
+
+Then:
 
 #+begin_src bash :eval never 
 mkdir build
