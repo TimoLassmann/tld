@@ -1,27 +1,74 @@
-
-
-
 find_package(HDF5 REQUIRED COMPONENTS C HL)
 find_package(ZLIB)
 
 set(HDF5_USE_STATIC_LIBRARIES ON)
 
-add_library(tld-dev STATIC
-  tld.c
-  )
+if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h)
+  #add some compilation flags
+  
+  add_library(tld-dev STATIC
+    tld.c
+    ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
+    )
 
 
-target_include_directories(tld-dev
-  INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
-  )
-target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB ${HDF5_C_LIBRARIES})
-# list(APPEND INCLUDE_LIST ${HDF5_C_INCLUDE_DIRS})
-target_include_directories(tld-dev PUBLIC ${HDF5_C_INCLUDE_DIRS})
+  target_include_directories(tld-dev
+    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+    )
 
-add_executable(helper
-  helper.c
+  target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB ${HDF5_C_LIBRARIES})
+  # list(APPEND INCLUDE_LIST ${HDF5_C_INCLUDE_DIRS})
+  target_include_directories(tld-dev PUBLIC ${HDF5_C_INCLUDE_DIRS})
+else()
+  add_library(boot STATIC
+    tld.c
+    )
+  target_compile_options(boot PRIVATE -DBOOT)
+
+  add_executable(gentable
+    gentables.c
+    )
+  target_compile_options(gentable PRIVATE -DBOOT)
+  target_link_libraries(gentable PRIVATE boot)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
+  COMMAND gentable ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
+  DEPENDS gentable
   )
-target_link_libraries(helper PRIVATE tld-dev)
+
+  # add_custom_target(mktable
+  #   # OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/seq/tld-seq-tables.h
+  #   COMMAND gentable ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
+  #   DEPENDS gentable
+  #   )
+
+  #find_package(HDF5 REQUIRED COMPONENTS C HL)
+  #find_package(ZLIB)
+
+  #set(HDF5_USE_STATIC_LIBRARIES ON)
+
+  add_library(tld-dev STATIC
+    tld.c
+    ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
+    )
+  # add_dependencies(tld-dev mktable)
+
+  target_include_directories(tld-dev
+    INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
+    )
+
+  target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB ${HDF5_C_LIBRARIES})
+  # list(APPEND INCLUDE_LIST ${HDF5_C_INCLUDE_DIRS})
+  target_include_directories(tld-dev PUBLIC ${HDF5_C_INCLUDE_DIRS})
+  
+endif(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h)
+
+  
+
+
 
 
 # target_compile_definitions(tld-dev INTERFACE ${HDF5_DEFINITIONS})

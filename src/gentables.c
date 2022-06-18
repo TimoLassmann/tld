@@ -5,9 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+static int header(tld_strbuf *b);
+static int footer(tld_strbuf *b);
 static int create_is_aa_table(tld_strbuf *b);
 static int create_is_nuc_table(tld_strbuf *b);
 static int create_rev_comp_table(tld_strbuf* b);
+
 
 int main(int argc, char *argv[])
 {
@@ -18,11 +21,11 @@ int main(int argc, char *argv[])
         }
 
         tld_strbuf_alloc(&b,1024);
-
+        RUN(header(b));
         RUN(create_is_aa_table(b));
         RUN(create_is_nuc_table(b));
         RUN(create_rev_comp_table(b));
-
+        RUN(footer(b));
         f_ptr = fopen(argv[1], "w");
         if(f_ptr == NULL){
                 ERROR_MSG("Unable to open file %s for writing.", argv[1]);
@@ -44,6 +47,23 @@ ERROR:
         return EXIT_FAILURE;
 }
 
+int header(tld_strbuf *b)
+
+{
+        RUN(tld_append(b, "#ifndef TLD_SEQ_TABLES\n"));
+        RUN(tld_append(b, "#define TLD_SEQ_TABLES\n"));
+        RUN(tld_append(b, "#include <stdint.h>\n"));
+        return OK;
+ERROR:
+        return FAIL;
+}
+int footer(tld_strbuf *b)
+{
+        RUN(tld_append(b, "#endif\n"));
+        return OK;
+ERROR:
+        return FAIL;
+}
 
 int create_is_aa_table(tld_strbuf* b)
 {

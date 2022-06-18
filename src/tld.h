@@ -16,12 +16,16 @@
 
 #include "./rng/tld-rng.h"
 
+#ifndef BOOT
 #include "./seq/tld-seq.h"
+#endif
 
 #include "./logsum/tld-logsum.h"
 
 /* #include "./hdf5/tld-hdf5_struct.h" */
+#ifndef BOOT
 #include "./hdf5/tld-hdf5.h"
+#endif
 /* #include "./hdf5/tld-hdf5_utils.h" */
 #include "./string/str.h"
 #include "./stats/basic.h"
