@@ -167,9 +167,7 @@ int detect_format(struct tl_seq_buffer* sb)
                                 default:
                                         break;
                                 }
-
                         }
-
                 }
 
 

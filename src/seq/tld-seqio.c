@@ -1,3 +1,5 @@
+
+
 #include "tld-seq.h"
 #include "../alloc/tld-alloc.h"
 #include "../misc/misc.h"
@@ -47,6 +49,9 @@ struct file_handler{
         int write_state;
         int gz;
 };
+
+static int internal_detect_fasta_fastq(const char *b, int len, int *type);
+static int get_char_at_line_start(const char *b, int len, int *pos, char *c);
 static int detect_fasta_fastq(const char* b, int len, int* type);
 static int write_fasta_fastq(struct tl_seq_buffer* sb, struct file_handler* fh);
 static int read_sequences(struct file_handler*fh, struct tl_seq_buffer* sb, int num);
@@ -82,6 +87,8 @@ int open_fasta_fastq_file(struct file_handler** fh,char* filename, int mode)
                 RUN(get_io_handler(&f, filename, mode));
                 RUN(read_file_contents(f));
 
+                internal_detect_fasta_fastq(f->read_buffer , f->bytes_read, &type);
+                exit(0);
                 /* detect file type  */
                 RUN(detect_fasta_fastq(f->read_buffer , f->bytes_read, &type));
 
@@ -452,6 +459,102 @@ int close_seq_file(struct file_handler** fh)
         return OK;
 }
 
+/* The purpose is just to distringuish between fasta / fastq  */
+int internal_detect_fasta_fastq(const char *b, int len, int *type)
+{
+        /* uint8_t  */
+        int b_pos = 0;
+        uint8_t state = RS_UNDEFINED;
+        uint32_t success_fasta = 0;
+        uint32_t success_fastq = 0;
+
+        typedef struct state_seq{
+                uint8_t seq[5];
+                uint8_t len;
+                uint8_t cur;
+        } state_seq;
+        char c;
+        state_seq fa_exp = {
+                .seq = {RS_UNDEFINED,RS_NAME,RS_SEQ},
+                .len = 3,
+                .cur = 0,
+        };
+
+        state_seq fq_exp = {
+                .seq = {RS_UNDEFINED,RS_NAME,RS_SEQ, RS_SEQ_DONE,RS_QUAL},
+                .len =5,
+                .cur = 0,
+        };
+
+        /* Let's see if this is a fastq file  */
+        state = RS_UNDEFINED;
+        success_fastq = 0;
+
+        b_pos = 0;
+        while(b_pos < len){
+                RUN(get_char_at_line_start(b, len, &b_pos, &c));
+                if(state == RS_UNDEFINED && c == '@'){
+                        state = RS_NAME;
+                }else if(state == RS_NAME){
+                        state = RS_SEQ;
+                }else if(state == RS_SEQ && c == '+'){
+                        state = RS_QUAL;
+                }else if(state == RS_QUAL && c == '@'){
+                        state = RS_NAME;
+                }
+                LOG_MSG("%c at %d (%d), state : %d", c, b_pos,len,state);
+        }
+        exit(0);
+        /* Let's see if this is a fasta file */
+        state = RS_UNDEFINED;
+        success_fasta = 0;
+
+        b_pos = 0;
+        while(b_pos < len){
+                RUN(get_char_at_line_start(b, len, &b_pos, &c));
+                if(state == RS_UNDEFINED && c == '>'){
+                        state = RS_NAME;
+                }else if(state == RS_NAME){
+                        state = RS_SEQ;
+                }else if(state == RS_SEQ && c == '>'){
+                        state = RS_NAME;
+                }
+                LOG_MSG("%c at %d (%d), state : %d", c, b_pos,len,state);
+        }
+        /* for(int i = 0; i < len;i++){ */
+        /*         c = b[i]; */
+
+        /* } */
+        *type = FILE_TYPE_FASTQ;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int get_char_at_line_start(const char *b, int len, int *pos, char *c)
+{
+        int p = *pos;
+        if(p == 0){
+                *c = b[p];
+                *pos = p+1;
+                return OK;
+        }
+
+        while(b[p] != '\n' && p != len){
+                p++;
+        }
+        /* LOG_MSG("scrolling: %d %d ", p, len); */
+        if(p + 1 == len){
+                *c = 'W';
+                *pos = len;
+                return OK;
+        }
+        p++;
+        *c = b[p];
+        *pos = p+1;
+        return OK;
+}
+
 int detect_fasta_fastq(const char* b, int len, int* type)
 {
         /* logic:  */
@@ -459,15 +562,15 @@ int detect_fasta_fastq(const char* b, int len, int* type)
         int min;
         int i,c;
         char delim[2];
-        char instrument_R1[256];
-        int run_id_R1 = 0;
-        char flowcell_R1[256];
-        int flowcell_lane_R1= 0;
-        int tile_number_R1= 0;
-        int x_coordinate_R1= 0;
-        int y_coordinate_R1= 0;
+        /* char instrument_R1[256]; */
+        /* int run_id_R1 = 0; */
+        /* char flowcell_R1[256]; */
+        /* int flowcell_lane_R1= 0; */
+        /* int tile_number_R1= 0; */
+        /* int x_coordinate_R1= 0; */
+        /* int y_coordinate_R1= 0; */
 
-        int number_of_values_found = 0;
+        /* int number_of_values_found = 0; */
 
         uint8_t DNA[256];
         uint8_t protein[256];
@@ -484,8 +587,8 @@ int detect_fasta_fastq(const char* b, int len, int* type)
         char* token = NULL;
 
         struct results{
-                int illumina18_name;
-                int illumina15_name;
+                /* int illumina18_name; */
+                /* int illumina15_name; */
                 int dna_line;
                 int protein_line;
                 int illumina_18_line;
@@ -493,6 +596,7 @@ int detect_fasta_fastq(const char* b, int len, int* type)
                 int at_lines;
                 int gt_lines;
                 int plus_lines;
+                int num_lines;
         } res;
 
         ASSERT(b != NULL, "No buffer");
@@ -504,8 +608,8 @@ int detect_fasta_fastq(const char* b, int len, int* type)
         delim[0] = '\n';
         delim[1] = 0;
         /* init */
-        res.illumina15_name = 0;
-        res.illumina18_name = 0;
+        /* res.illumina15_name = 0; */
+        /* res.illumina18_name = 0; */
         res.dna_line = 0;
         res.protein_line = 0;
         res.illumina_15_line = 0;
@@ -513,6 +617,7 @@ int detect_fasta_fastq(const char* b, int len, int* type)
         res.at_lines = 0;
         res.plus_lines = 0;
         res.gt_lines = 0;
+        res.num_lines = 0;
 
         //ASSERT(sb != NULL, "No sequence buffer.");
 
@@ -538,29 +643,30 @@ int detect_fasta_fastq(const char* b, int len, int* type)
                 illumina18[(int) Illumina18[i]] = 1;
         }
 
-        //fprintf(stdout,"BUFFER:\n%s",b);
+        /* fprintf(stdout,"BUFFER:\n%s",b); */
         token= strtok(local_b, delim);
 
         while(token != NULL){
-                c = strnlen(token, TL_SEQ_MAX_NAME_LEN );
 
+                /* c = strnlen(token, TL_SEQ_MAX_NAME_LEN ); */
+                /* fprintf(stdout,"%d\n",c); */
                 /* tests  */
                 /* is this an illumina 1.8 readname?  */
-                number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%"xstr(256)"[^:]:%d:%d:%d:%d ", instrument_R1,&run_id_R1,flowcell_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1 );
-                if(number_of_values_found == 7){
-                        res.illumina18_name++;
-                        //      LOG_MSG("Detected casava 1.8 format.\n");
-                }
+                /* number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%"xstr(256)"[^:]:%d:%d:%d:%d ", instrument_R1,&run_id_R1,flowcell_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1 ); */
+                /* if(number_of_values_found == 7){ */
+                /*         res.illumina18_name++; */
+                /*         //      LOG_MSG("Detected casava 1.8 format.\n"); */
+                /* } */
 
 
-                /* is this an old(er) illumina readname?  */
-                number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%d:%d:%d", instrument_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1);
+                /* /\* is this an old(er) illumina readname?  *\/ */
+                /* number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%d:%d:%d", instrument_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1); */
 
-                if(number_of_values_found == 5){
-                        res.illumina15_name++;
-                        //LOG_MSG("Detected casava <1.7 format.\n");
-                        //param->messages = append_message(param->messages, param->buffer);
-                }
+                /* if(number_of_values_found == 5){ */
+                /*         res.illumina15_name++; */
+                /*         //LOG_MSG("Detected casava <1.7 format.\n"); */
+                /*         //param->messages = append_message(param->messages, param->buffer); */
+                /* } */
 
                 if(token[0] == '@'){
                         res.at_lines++;
@@ -572,6 +678,7 @@ int detect_fasta_fastq(const char* b, int len, int* type)
                 if(token[0] == '>'){
                         res.gt_lines++;
                 }
+                res.num_lines++;
 
                 for(i = 0 ; i < 256;i++){
                         query[i] = 0;
@@ -606,13 +713,11 @@ int detect_fasta_fastq(const char* b, int len, int* type)
                 for(i = 0; i < 4;i++){
                         if(diff[i] < min){
                                 min = diff[i];
-
                         }
                 }
                 for(i = 0; i < 4;i++){
                         if(diff[i] == min){
-                                c = i;
-                                switch (c) {
+                                switch (i) {
                                 case 0:
                                         res.dna_line++;
                                         break;
@@ -628,19 +733,12 @@ int detect_fasta_fastq(const char* b, int len, int* type)
                                 default:
                                         break;
                                 }
-
                         }
-
                 }
-                //fprintf(stdout,"%d\t%s\n",c, token);
-
-
                 token = strtok(NULL, delim);
-
         }
 
         MFREE(local_b);
-
 
         /* LOGIC */
         *type = FILE_TYPE_UNDEFINED;
@@ -648,20 +746,27 @@ int detect_fasta_fastq(const char* b, int len, int* type)
                 *type = FILE_TYPE_FASTA;
         }
 
-        if(res.illumina18_name && res.at_lines && res.plus_lines){
-                *type = FILE_TYPE_FASTQ;
+        /* if(res.illumina18_name && res.at_lines && res.plus_lines){ */
+        /*         *type = FILE_TYPE_FASTQ; */
+        /* } */
+
+        /* if(res.illumina15_name && res.at_lines && res.plus_lines){ */
+        /*         *type = FILE_TYPE_FASTQ; */
+        /* } */
+
+        if(res.at_lines *4 == res.num_lines){
+                if(res.plus_lines >= res.at_lines){
+                        *type = FILE_TYPE_FASTQ;
+                }
         }
 
-        if(res.illumina15_name && res.at_lines && res.plus_lines){
-                *type = FILE_TYPE_FASTQ;
 
-        }
         if(*type == FILE_TYPE_UNDEFINED){
                 WARNING_MSG("Could not detect file format.");
                 WARNING_MSG("This is the file info:");
                 WARNING_MSG("Summary:");
-                WARNING_MSG("%d\tIllumina 1.8 read names", res.illumina18_name);
-                WARNING_MSG("%d\tIllumina 1.5 read names", res.illumina15_name);
+                /* WARNING_MSG("%d\tIllumina 1.8 read names", res.illumina18_name); */
+                /* WARNING_MSG("%d\tIllumina 1.5 read names", res.illumina15_name); */
                 WARNING_MSG("%d\tDNA lines", res.dna_line);
                 WARNING_MSG("%d\tProtein lines", res.protein_line);
                 WARNING_MSG("%d\tIllumina 1.8 base quality lines.", res.illumina_18_line);
@@ -671,6 +776,7 @@ int detect_fasta_fastq(const char* b, int len, int* type)
                 WARNING_MSG("%d\t @ lines.", res.at_lines);
                 WARNING_MSG("%d\t > lines.", res.gt_lines);
                 WARNING_MSG("%d\t + lines.", res.plus_lines);
+                WARNING_MSG("%d\t lines in total.", res.num_lines);
 
         }
         return OK;
@@ -877,7 +983,7 @@ int read_file_contents(struct file_handler* fh)
         }
         fh->read_buffer[fh->bytes_read] = 0;
 
-        //fprintf(stdout,"%s", fh->read_buffer);
+        /* fprintf(stdout,"%s", fh->read_buffer); */
         return OK;
 ERROR:
         return FAIL;
