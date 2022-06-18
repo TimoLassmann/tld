@@ -96,10 +96,9 @@ int detect_format(struct tl_seq_buffer* sb)
 
         for(i = 0; i < sb->num_seq;i++){
                 seq = sb->sequences[i]->seq;
-                name=  TLD_STR(sb->sequences[i]->name);
+                name = TLD_STR(sb->sequences[i]->name);
                 qual= sb->sequences[i]->qual;
                 len= sb->sequences[i]->len;
-
                 /* analyze names  */
                 number_of_values_found = sscanf(name  ,"%"xstr(256)"[^:]:%d:%"xstr(256)"[^:]:%d:%d:%d:%d ", instrument_R1,&run_id_R1,flowcell_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1 );
                 if(number_of_values_found == 7){
@@ -360,7 +359,7 @@ int alloc_tl_seq(struct tl_seq** sequence)
         MMALLOC(s->seq, sizeof(uint8_t)* s->malloc_len);
         MMALLOC(s->qual, sizeof(char) * s->malloc_len);
         /* MMALLOC(s->name, sizeof(char) * TL_SEQ_MAX_NAME_LEN); */
-
+        RUN(tld_strbuf_alloc(&s->seq, 1024 ));
         RUN(tld_strbuf_alloc(&s->name, TL_SEQ_MAX_NAME_LEN));
 
         for(i = 0; i < s->malloc_len;i++){

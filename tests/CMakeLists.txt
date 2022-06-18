@@ -88,16 +88,42 @@ add_test(
   COMMAND unit-logsum  
   )
 
-
-
 add_executable(unit-seq utests/unit_seq.c) 
 target_link_libraries(unit-seq PRIVATE tld-dev)
+
+add_test(
+  NAME unit-seq-nano
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/nano.fastq
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+
 
 add_test(
   NAME unit-seq-BB11001
   COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/BB11001.fa
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
+
+add_test(
+  NAME unit-seq-broken1
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/broken_fasta1.fa
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+set_property(TEST unit-seq-broken1
+  PROPERTY WILL_FAIL true
+  )
+
+add_test(
+  NAME unit-seq-broken2
+  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/broken_fasta2.fa
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+set_property(TEST unit-seq-broken2
+  PROPERTY WILL_FAIL true
+  )
+
+
+
 
 add_test(
   NAME unit-seq-fastq-gz-1

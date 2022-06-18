@@ -11,6 +11,7 @@
 #include "seq/tld-seqio.c"
 #include "seq/tld-seqalphabet.c"
 #include "seq/tld-revcomp.c"
+#include "seq/tld-detect.c"
 #endif
 
 #include "logsum/tld-logsum.c"

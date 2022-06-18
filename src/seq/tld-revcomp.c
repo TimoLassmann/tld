@@ -50,7 +50,6 @@ int reverse_comp(uint8_t *s, int l)
         return OK;
 }
 
-
 int rev_comp_tl_seq(struct tl_seq* s)
 {
         if(s->seq){

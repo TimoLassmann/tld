@@ -2,6 +2,7 @@
 
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
+#include <stdint.h>
 #include <string.h>
 
 tld_internal inline int tld_strbuf_free_space(tld_strbuf *b);
@@ -38,7 +39,7 @@ void tld_strbuf_free(tld_strbuf *b)
 
 int tld_strbuf_resize(tld_strbuf *b, int new_size)
 {
-        char* tmp = NULL;
+        uint8_t* tmp = NULL;
         if (new_size > b->alloc_len){
 
                 galloc(&tmp , new_size);
@@ -146,10 +147,9 @@ tld_str tld_char_to_str(char* s)
 {
         int size = strlen(s);
         tld_str r = {
-                .str = (char*) s,
+                .str = (uint8_t*) s,
                 .len = size,
         };
-
         return r;
 }
 

@@ -7,17 +7,17 @@
 #include <stdint.h>
 
 typedef struct tld_string {
-        char* str;
+        uint8_t* str;
         int32_t len;
 } tld_str;
 
 typedef struct tld_string_buffer {
-        char* str;
+        uint8_t* str;
         int32_t len;
         int32_t alloc_len;
 } tld_strbuf;
 
-#define TLD_STR(X) (X)->str
+#define TLD_STR(X) ((char*)(X)->str)
 #define TLD_STRLEN(X) (X)->len
 
 

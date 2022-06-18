@@ -21,15 +21,6 @@
 #define str(x)          # x
 #define xstr(x)         str(x)
 
-#define FILE_TYPE_UNDEFINED 3
-#define FILE_TYPE_FASTA 1
-#define FILE_TYPE_FASTQ 2
-
-#define RS_UNDEFINED 0
-#define RS_NAME 1
-#define RS_SEQ 2
-#define RS_SEQ_DONE 3
-#define RS_QUAL 4
 
 #define RUNP(EXP)                               \
         if((EXP) == NULL){                      \
@@ -49,9 +40,8 @@ struct file_handler{
         int gz;
 };
 
-static int internal_detect_fasta_fastq(const char *b, int len, int *type);
-static int get_char_at_line_start(const char *b, int len, int *pos, char *c);
-static int detect_fasta_fastq(const char* b, int len, int* type);
+
+/* static int detect_fasta_fastq(const char* b, int len, int* type); */
 static int write_fasta_fastq(struct tl_seq_buffer* sb, struct file_handler* fh);
 static int read_sequences(struct file_handler*fh, struct tl_seq_buffer* sb, int num);
 
@@ -87,9 +77,9 @@ int open_fasta_fastq_file(struct file_handler** fh,char* filename, int mode)
                 RUN(read_file_contents(f));
 
                 internal_detect_fasta_fastq(f->read_buffer , f->bytes_read, &type);
-                exit(0);
+                /* exit(0); */
                 /* detect file type  */
-                RUN(detect_fasta_fastq(f->read_buffer , f->bytes_read, &type));
+                /* RUN(detect_fasta_fastq(f->read_buffer , f->bytes_read, &type)); */
 
                 status = gzrewind(f->gz_f_ptr);
                 if(status){
@@ -254,8 +244,6 @@ int parse_buf_fasta(struct file_handler* fh, struct tl_seq_buffer* sb,int num)
 
                         /* copy name */
                         i++;
-
-
                         /* len =0; */
                         while(1){
                                 if(buf[i] == '\n' || buf[i] == 0){
@@ -458,333 +446,238 @@ int close_seq_file(struct file_handler** fh)
         return OK;
 }
 
-/* The purpose is just to distringuish between fasta / fastq  */
-int internal_detect_fasta_fastq(const char *b, int len, int *type)
-{
-        /* uint8_t  */
-        int b_pos = 0;
-        uint8_t state = RS_UNDEFINED;
-        uint32_t success_fasta = 0;
-        uint32_t success_fastq = 0;
 
-        typedef struct state_seq{
-                uint8_t seq[5];
-                uint8_t len;
-                uint8_t cur;
-        } state_seq;
-        char c;
-        state_seq fa_exp = {
-                .seq = {RS_UNDEFINED,RS_NAME,RS_SEQ},
-                .len = 3,
-                .cur = 0,
-        };
+/* int detect_fasta_fastq(const char* b, int len, int* type) */
+/* { */
+/*         /\* logic:  *\/ */
+/*         char* local_b = NULL; */
+/*         int min; */
+/*         int i,c; */
+/*         char delim[2]; */
+/*         /\* char instrument_R1[256]; *\/ */
+/*         /\* int run_id_R1 = 0; *\/ */
+/*         /\* char flowcell_R1[256]; *\/ */
+/*         /\* int flowcell_lane_R1= 0; *\/ */
+/*         /\* int tile_number_R1= 0; *\/ */
+/*         /\* int x_coordinate_R1= 0; *\/ */
+/*         /\* int y_coordinate_R1= 0; *\/ */
 
-        state_seq fq_exp = {
-                .seq = {RS_UNDEFINED,RS_NAME,RS_SEQ, RS_SEQ_DONE,RS_QUAL},
-                .len =5,
-                .cur = 0,
-        };
+/*         /\* int number_of_values_found = 0; *\/ */
 
-        /* Let's see if this is a fastq file  */
-        state = RS_UNDEFINED;
-        success_fastq = 0;
+/*         uint8_t DNA[256]; */
+/*         uint8_t protein[256]; */
+/*         uint8_t illumina15[256]; */
+/*         uint8_t illumina18[256]; */
 
-        b_pos = 0;
-        while(b_pos < len){
-                RUN(get_char_at_line_start(b, len, &b_pos, &c));
-                if(state == RS_UNDEFINED && c == '@'){
-                        state = RS_NAME;
-                }else if(state == RS_NAME){
-                        state = RS_SEQ;
-                }else if(state == RS_SEQ && c == '+'){
-                        state = RS_QUAL;
-                }else if(state == RS_QUAL && c == '@'){
-                        state = RS_NAME;
-                }
-                LOG_MSG("%c at %d (%d), state : %d", c, b_pos,len,state);
-        }
-        exit(0);
-        /* Let's see if this is a fasta file */
-        state = RS_UNDEFINED;
-        success_fasta = 0;
+/*         uint8_t query[256]; */
+/*         int diff[4]; */
+/*         char DNA_letters[]= "acgtACGTnN"; */
+/*         char protein_letters[] = "ACDEFGHIKLMNPQRSTVWY"; */
+/*         char Illumina15[] = "BCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghi"; */
+/*         char Illumina18[] = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJ"; */
 
-        b_pos = 0;
-        while(b_pos < len){
-                RUN(get_char_at_line_start(b, len, &b_pos, &c));
-                if(state == RS_UNDEFINED && c == '>'){
-                        state = RS_NAME;
-                }else if(state == RS_NAME){
-                        state = RS_SEQ;
-                }else if(state == RS_SEQ && c == '>'){
-                        state = RS_NAME;
-                }
-                LOG_MSG("%c at %d (%d), state : %d", c, b_pos,len,state);
-        }
-        /* for(int i = 0; i < len;i++){ */
-        /*         c = b[i]; */
+/*         char* token = NULL; */
 
-        /* } */
-        *type = FILE_TYPE_FASTQ;
-        return OK;
-ERROR:
-        return FAIL;
-}
+/*         struct results{ */
+/*                 /\* int illumina18_name; *\/ */
+/*                 /\* int illumina15_name; *\/ */
+/*                 int dna_line; */
+/*                 int protein_line; */
+/*                 int illumina_18_line; */
+/*                 int illumina_15_line; */
+/*                 int at_lines; */
+/*                 int gt_lines; */
+/*                 int plus_lines; */
+/*                 int num_lines; */
+/*         } res; */
 
-int get_char_at_line_start(const char *b, int len, int *pos, char *c)
-{
-        int p = *pos;
-        if(p == 0){
-                *c = b[p];
-                *pos = p+1;
-                return OK;
-        }
+/*         ASSERT(b != NULL, "No buffer"); */
 
-        while(b[p] != '\n' && p != len){
-                p++;
-        }
-        /* LOG_MSG("scrolling: %d %d ", p, len); */
-        if(p + 1 == len){
-                *c = 'W';
-                *pos = len;
-                return OK;
-        }
-        p++;
-        *c = b[p];
-        *pos = p+1;
-        return OK;
-}
+/*         MMALLOC(local_b, sizeof(char) * (len+1)); */
 
-int detect_fasta_fastq(const char* b, int len, int* type)
-{
-        /* logic:  */
-        char* local_b = NULL;
-        int min;
-        int i,c;
-        char delim[2];
-        /* char instrument_R1[256]; */
-        /* int run_id_R1 = 0; */
-        /* char flowcell_R1[256]; */
-        /* int flowcell_lane_R1= 0; */
-        /* int tile_number_R1= 0; */
-        /* int x_coordinate_R1= 0; */
-        /* int y_coordinate_R1= 0; */
+/*         RUNP(strncpy(local_b, b, len)); */
+/*         local_b[len] = 0; */
+/*         delim[0] = '\n'; */
+/*         delim[1] = 0; */
+/*         /\* init *\/ */
+/*         /\* res.illumina15_name = 0; *\/ */
+/*         /\* res.illumina18_name = 0; *\/ */
+/*         res.dna_line = 0; */
+/*         res.protein_line = 0; */
+/*         res.illumina_15_line = 0; */
+/*         res.illumina_18_line = 0; */
+/*         res.at_lines = 0; */
+/*         res.plus_lines = 0; */
+/*         res.gt_lines = 0; */
+/*         res.num_lines = 0; */
 
-        /* int number_of_values_found = 0; */
+/*         //ASSERT(sb != NULL, "No sequence buffer."); */
 
-        uint8_t DNA[256];
-        uint8_t protein[256];
-        uint8_t illumina15[256];
-        uint8_t illumina18[256];
+/*         for(i = 0; i <256;i++){ */
+/*                 DNA[i] = 0; */
+/*                 protein[i] = 0; */
+/*                 query[i] = 0; */
+/*                 illumina15[i] = 0; */
+/*                 illumina18[i] = 0; */
+/*         } */
 
-        uint8_t query[256];
-        int diff[4];
-        char DNA_letters[]= "acgtACGTnN";
-        char protein_letters[] = "ACDEFGHIKLMNPQRSTVWY";
-        char Illumina15[] = "BCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghi";
-        char Illumina18[] = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJ";
+/*         for(i = 0 ; i < (int) strlen(DNA_letters);i++){ */
+/*                 DNA[(int) DNA_letters[i]] = 1; */
+/*         } */
 
-        char* token = NULL;
+/*         for(i = 0 ; i < (int)strlen(protein_letters);i++){ */
+/*                 protein[(int) protein_letters[i]] = 1; */
+/*         } */
+/*         for(i = 0; i < (int)strlen(Illumina15);i++){ */
+/*                 illumina15[(int) Illumina15[i]] = 1; */
+/*         } */
+/*         for(i = 0; i < (int)strlen(Illumina18);i++){ */
+/*                 illumina18[(int) Illumina18[i]] = 1; */
+/*         } */
 
-        struct results{
-                /* int illumina18_name; */
-                /* int illumina15_name; */
-                int dna_line;
-                int protein_line;
-                int illumina_18_line;
-                int illumina_15_line;
-                int at_lines;
-                int gt_lines;
-                int plus_lines;
-                int num_lines;
-        } res;
+/*         /\* fprintf(stdout,"BUFFER:\n%s",b); *\/ */
+/*         token= strtok(local_b, delim); */
 
-        ASSERT(b != NULL, "No buffer");
+/*         while(token != NULL){ */
 
-        MMALLOC(local_b, sizeof(char) * (len+1));
-
-        RUNP(strncpy(local_b, b, len));
-        local_b[len] = 0;
-        delim[0] = '\n';
-        delim[1] = 0;
-        /* init */
-        /* res.illumina15_name = 0; */
-        /* res.illumina18_name = 0; */
-        res.dna_line = 0;
-        res.protein_line = 0;
-        res.illumina_15_line = 0;
-        res.illumina_18_line = 0;
-        res.at_lines = 0;
-        res.plus_lines = 0;
-        res.gt_lines = 0;
-        res.num_lines = 0;
-
-        //ASSERT(sb != NULL, "No sequence buffer.");
-
-        for(i = 0; i <256;i++){
-                DNA[i] = 0;
-                protein[i] = 0;
-                query[i] = 0;
-                illumina15[i] = 0;
-                illumina18[i] = 0;
-        }
-
-        for(i = 0 ; i < (int) strlen(DNA_letters);i++){
-                DNA[(int) DNA_letters[i]] = 1;
-        }
-
-        for(i = 0 ; i < (int)strlen(protein_letters);i++){
-                protein[(int) protein_letters[i]] = 1;
-        }
-        for(i = 0; i < (int)strlen(Illumina15);i++){
-                illumina15[(int) Illumina15[i]] = 1;
-        }
-        for(i = 0; i < (int)strlen(Illumina18);i++){
-                illumina18[(int) Illumina18[i]] = 1;
-        }
-
-        /* fprintf(stdout,"BUFFER:\n%s",b); */
-        token= strtok(local_b, delim);
-
-        while(token != NULL){
-
-                /* c = strnlen(token, TL_SEQ_MAX_NAME_LEN ); */
-                /* fprintf(stdout,"%d\n",c); */
-                /* tests  */
-                /* is this an illumina 1.8 readname?  */
-                /* number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%"xstr(256)"[^:]:%d:%d:%d:%d ", instrument_R1,&run_id_R1,flowcell_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1 ); */
-                /* if(number_of_values_found == 7){ */
-                /*         res.illumina18_name++; */
-                /*         //      LOG_MSG("Detected casava 1.8 format.\n"); */
-                /* } */
+/*                 /\* c = strnlen(token, TL_SEQ_MAX_NAME_LEN ); *\/ */
+/*                 /\* fprintf(stdout,"%d\n",c); *\/ */
+/*                 /\* tests  *\/ */
+/*                 /\* is this an illumina 1.8 readname?  *\/ */
+/*                 /\* number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%"xstr(256)"[^:]:%d:%d:%d:%d ", instrument_R1,&run_id_R1,flowcell_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1 ); *\/ */
+/*                 /\* if(number_of_values_found == 7){ *\/ */
+/*                 /\*         res.illumina18_name++; *\/ */
+/*                 /\*         //      LOG_MSG("Detected casava 1.8 format.\n"); *\/ */
+/*                 /\* } *\/ */
 
 
-                /* /\* is this an old(er) illumina readname?  *\/ */
-                /* number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%d:%d:%d", instrument_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1); */
+/*                 /\* /\\* is this an old(er) illumina readname?  *\\/ *\/ */
+/*                 /\* number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%d:%d:%d", instrument_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1); *\/ */
 
-                /* if(number_of_values_found == 5){ */
-                /*         res.illumina15_name++; */
-                /*         //LOG_MSG("Detected casava <1.7 format.\n"); */
-                /*         //param->messages = append_message(param->messages, param->buffer); */
-                /* } */
+/*                 /\* if(number_of_values_found == 5){ *\/ */
+/*                 /\*         res.illumina15_name++; *\/ */
+/*                 /\*         //LOG_MSG("Detected casava <1.7 format.\n"); *\/ */
+/*                 /\*         //param->messages = append_message(param->messages, param->buffer); *\/ */
+/*                 /\* } *\/ */
 
-                if(token[0] == '@'){
-                        res.at_lines++;
-                }
+/*                 if(token[0] == '@'){ */
+/*                         res.at_lines++; */
+/*                 } */
 
-                if(token[0] == '+'){
-                        res.plus_lines++;
-                }
-                if(token[0] == '>'){
-                        res.gt_lines++;
-                }
-                res.num_lines++;
+/*                 if(token[0] == '+'){ */
+/*                         res.plus_lines++; */
+/*                 } */
+/*                 if(token[0] == '>'){ */
+/*                         res.gt_lines++; */
+/*                 } */
+/*                 res.num_lines++; */
 
-                for(i = 0 ; i < 256;i++){
-                        query[i] = 0;
-                }
-                for(i = 0 ; i < c;i++){
-                        query[(int) token[i]] = 1;
-                }
+/*                 for(i = 0 ; i < 256;i++){ */
+/*                         query[i] = 0; */
+/*                 } */
+/*                 for(i = 0 ; i < c;i++){ */
+/*                         query[(int) token[i]] = 1; */
+/*                 } */
 
-                diff[0] = 0;
-                diff[1] = 0;
-                diff[2] = 0;
-                diff[3] = 0;
-                for(i = 0; i < 256;i++){
-                        if(query[i]){
-                                if(query[i] != DNA[i]){
-                                        diff[0]++;
-                                }
-                                if(query[i] != protein[i]){
-                                        diff[1]++;
-                                }
-                                if(query[i] != illumina15[i]){
-                                        diff[2]++;
-                                }
-                                if(query[i] != illumina18[i]){
-                                        diff[3]++;
-                                }
-                        }
-                }
+/*                 diff[0] = 0; */
+/*                 diff[1] = 0; */
+/*                 diff[2] = 0; */
+/*                 diff[3] = 0; */
+/*                 for(i = 0; i < 256;i++){ */
+/*                         if(query[i]){ */
+/*                                 if(query[i] != DNA[i]){ */
+/*                                         diff[0]++; */
+/*                                 } */
+/*                                 if(query[i] != protein[i]){ */
+/*                                         diff[1]++; */
+/*                                 } */
+/*                                 if(query[i] != illumina15[i]){ */
+/*                                         diff[2]++; */
+/*                                 } */
+/*                                 if(query[i] != illumina18[i]){ */
+/*                                         diff[3]++; */
+/*                                 } */
+/*                         } */
+/*                 } */
 
-                c = -1;
-                min = INT32_MAX;
-                for(i = 0; i < 4;i++){
-                        if(diff[i] < min){
-                                min = diff[i];
-                        }
-                }
-                for(i = 0; i < 4;i++){
-                        if(diff[i] == min){
-                                switch (i) {
-                                case 0:
-                                        res.dna_line++;
-                                        break;
-                                case 1:
-                                        res.protein_line++;
-                                        break;
-                                case 2:
-                                        res.illumina_15_line++;
-                                        break;
-                                case 3:
-                                        res.illumina_18_line++;
-                                        break;
-                                default:
-                                        break;
-                                }
-                        }
-                }
-                token = strtok(NULL, delim);
-        }
+/*                 c = -1; */
+/*                 min = INT32_MAX; */
+/*                 for(i = 0; i < 4;i++){ */
+/*                         if(diff[i] < min){ */
+/*                                 min = diff[i]; */
+/*                         } */
+/*                 } */
+/*                 for(i = 0; i < 4;i++){ */
+/*                         if(diff[i] == min){ */
+/*                                 switch (i) { */
+/*                                 case 0: */
+/*                                         res.dna_line++; */
+/*                                         break; */
+/*                                 case 1: */
+/*                                         res.protein_line++; */
+/*                                         break; */
+/*                                 case 2: */
+/*                                         res.illumina_15_line++; */
+/*                                         break; */
+/*                                 case 3: */
+/*                                         res.illumina_18_line++; */
+/*                                         break; */
+/*                                 default: */
+/*                                         break; */
+/*                                 } */
+/*                         } */
+/*                 } */
+/*                 token = strtok(NULL, delim); */
+/*         } */
 
-        MFREE(local_b);
+/*         MFREE(local_b); */
 
-        /* LOGIC */
-        *type = FILE_TYPE_UNDEFINED;
-        if(res.gt_lines && (!res.at_lines ||  !res.plus_lines)){
-                *type = FILE_TYPE_FASTA;
-        }
+/*         /\* LOGIC *\/ */
+/*         *type = FILE_TYPE_UNDEFINED; */
+/*         if(res.gt_lines && (!res.at_lines ||  !res.plus_lines)){ */
+/*                 *type = FILE_TYPE_FASTA; */
+/*         } */
 
-        /* if(res.illumina18_name && res.at_lines && res.plus_lines){ */
-        /*         *type = FILE_TYPE_FASTQ; */
-        /* } */
+/*         /\* if(res.illumina18_name && res.at_lines && res.plus_lines){ *\/ */
+/*         /\*         *type = FILE_TYPE_FASTQ; *\/ */
+/*         /\* } *\/ */
 
-        /* if(res.illumina15_name && res.at_lines && res.plus_lines){ */
-        /*         *type = FILE_TYPE_FASTQ; */
-        /* } */
+/*         /\* if(res.illumina15_name && res.at_lines && res.plus_lines){ *\/ */
+/*         /\*         *type = FILE_TYPE_FASTQ; *\/ */
+/*         /\* } *\/ */
 
-        if(res.at_lines *4 == res.num_lines){
-                if(res.plus_lines >= res.at_lines){
-                        *type = FILE_TYPE_FASTQ;
-                }
-        }
-
-
-        if(*type == FILE_TYPE_UNDEFINED){
-                WARNING_MSG("Could not detect file format.");
-                WARNING_MSG("This is the file info:");
-                WARNING_MSG("Summary:");
-                /* WARNING_MSG("%d\tIllumina 1.8 read names", res.illumina18_name); */
-                /* WARNING_MSG("%d\tIllumina 1.5 read names", res.illumina15_name); */
-                WARNING_MSG("%d\tDNA lines", res.dna_line);
-                WARNING_MSG("%d\tProtein lines", res.protein_line);
-                WARNING_MSG("%d\tIllumina 1.8 base quality lines.", res.illumina_18_line);
-                WARNING_MSG("%d\tIllumina 1.5 base quality lines.", res.illumina_15_line);
+/*         if(res.at_lines *4 == res.num_lines){ */
+/*                 if(res.plus_lines >= res.at_lines){ */
+/*                         *type = FILE_TYPE_FASTQ; */
+/*                 } */
+/*         } */
 
 
-                WARNING_MSG("%d\t @ lines.", res.at_lines);
-                WARNING_MSG("%d\t > lines.", res.gt_lines);
-                WARNING_MSG("%d\t + lines.", res.plus_lines);
-                WARNING_MSG("%d\t lines in total.", res.num_lines);
+/*         if(*type == FILE_TYPE_UNDEFINED){ */
+/*                 WARNING_MSG("Could not detect file format."); */
+/*                 WARNING_MSG("This is the file info:"); */
+/*                 WARNING_MSG("Summary:"); */
+/*                 /\* WARNING_MSG("%d\tIllumina 1.8 read names", res.illumina18_name); *\/ */
+/*                 /\* WARNING_MSG("%d\tIllumina 1.5 read names", res.illumina15_name); *\/ */
+/*                 WARNING_MSG("%d\tDNA lines", res.dna_line); */
+/*                 WARNING_MSG("%d\tProtein lines", res.protein_line); */
+/*                 WARNING_MSG("%d\tIllumina 1.8 base quality lines.", res.illumina_18_line); */
+/*                 WARNING_MSG("%d\tIllumina 1.5 base quality lines.", res.illumina_15_line); */
 
-        }
-        return OK;
-ERROR:
-        if(local_b){
-                MFREE(local_b);
-        }
-        return FAIL;
-}
+
+/*                 WARNING_MSG("%d\t @ lines.", res.at_lines); */
+/*                 WARNING_MSG("%d\t > lines.", res.gt_lines); */
+/*                 WARNING_MSG("%d\t + lines.", res.plus_lines); */
+/*                 WARNING_MSG("%d\t lines in total.", res.num_lines); */
+
+/*         } */
+/*         return OK; */
+/* ERROR: */
+/*         if(local_b){ */
+/*                 MFREE(local_b); */
+/*         } */
+/*         return FAIL; */
+/* } */
 
 
 int get_io_handler(struct file_handler** fh,const char* filename,int mode)

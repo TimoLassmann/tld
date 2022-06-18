@@ -6,7 +6,7 @@
 
 #define ALIGN64 64
 struct tl_seq{
-        uint8_t * seq;
+        tld_strbuf* seq;
         tld_strbuf* name;
         /* char* name; */
         uint8_t* qual;
@@ -60,6 +60,26 @@ tld_external void free_alphabet(struct alphabet* a);
 
 #define TLSEQIO_APPEND 3
 #define TLSEQIO_APPEND_GZIPPED 4
+/* internal stuff */
+#define FILE_TYPE_UNDEFINED 3
+#define FILE_TYPE_FASTA 1
+#define FILE_TYPE_FASTQ 2
+
+/* Finite state automata */
+
+#define S_START 0
+#define S_NAME 1
+#define S_SEQ 2
+#define S_Q_NEXT 3
+#define S_Q 4
+
+
+#define RS_UNDEFINED 0
+#define RS_NAME 1
+#define RS_SEQ 2
+#define RS_SEQ_DONE 3
+#define RS_QUAL 4
+#define RS_QUAL_DONE 5
 
 
 typedef struct file_handler file_handler;
@@ -77,6 +97,7 @@ tld_external int write_seq_buf(struct tl_seq_buffer* sb, struct file_handler* fh
 #define TL_SEQ_BUFFER_DNA 4
 
 
+tld_external int internal_detect_fasta_fastq(const char *b, int len, int *type);
 tld_external int detect_format(struct tl_seq_buffer* sb);
 
 tld_external int alloc_tl_seq_buffer(struct tl_seq_buffer** seq_buf, int size);
