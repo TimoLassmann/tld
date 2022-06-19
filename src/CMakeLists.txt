@@ -25,7 +25,8 @@ else()
     tld.c
     )
   target_compile_options(boot PRIVATE -DBOOT)
-
+  target_link_libraries(boot  PRIVATE m ZLIB::ZLIB)
+  
   add_executable(gentable
     gentables.c
     )

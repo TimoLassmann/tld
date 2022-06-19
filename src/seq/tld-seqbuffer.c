@@ -27,9 +27,9 @@ int detect_format(struct tl_seq_buffer* sb)
         int x_coordinate_R1= 0;
         int y_coordinate_R1= 0;
 
-        uint8_t* seq = NULL;
+        char* seq = NULL;
         char* name = NULL;
-        uint8_t* qual = NULL;
+        char* qual = NULL;
         int len = 0;
 
         int number_of_values_found = 0;
@@ -95,9 +95,9 @@ int detect_format(struct tl_seq_buffer* sb)
 
 
         for(i = 0; i < sb->num_seq;i++){
-                seq = sb->sequences[i]->seq;
+                seq = TLD_STR(sb->sequences[i]->seq);
                 name = TLD_STR(sb->sequences[i]->name);
-                qual= sb->sequences[i]->qual;
+                qual= TLD_STR(sb->sequences[i]->qual);
                 len= sb->sequences[i]->len;
                 /* analyze names  */
                 number_of_values_found = sscanf(name  ,"%"xstr(256)"[^:]:%d:%"xstr(256)"[^:]:%d:%d:%d:%d ", instrument_R1,&run_id_R1,flowcell_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1 );
@@ -207,12 +207,8 @@ int detect_format(struct tl_seq_buffer* sb)
                                 default:
                                         break;
                                 }
-
                         }
-
                 }
-
-
         }
 
         if(res.dna_line > res.protein_line){
@@ -322,9 +318,11 @@ int reset_tl_seq_buffer(struct tl_seq_buffer* sb)
 {
         int i = 0;
         ASSERT(sb != NULL, "No sequence buffer");
-        for(i = 0; i < sb->malloc_num ;i++){
+        for(i = 0; i < sb->malloc_num; i++){
                 sb->sequences[i]->len = 0;
                 sb->sequences[i]->name->len = 0;
+                sb->sequences[i]->seq->len = 0;
+                sb->sequences[i]->qual->len = 0;
         }
         sb->num_seq = 0;       /* horrible hack! as soon as the first seq name is encountered this is incremented to 0...  */
         return OK;
@@ -348,23 +346,24 @@ void free_tl_seq_buffer(struct tl_seq_buffer* sb)
 int alloc_tl_seq(struct tl_seq** sequence)
 {
         struct tl_seq* s = NULL;
-        int i = 0;
+        /* int i = 0; */
         MMALLOC(s, sizeof(struct tl_seq));
-        s->malloc_len = 1024;
+        /* s->malloc_len = 1024; */
         s->len = 0;
         s->seq = NULL;
         s->qual = NULL;
         s->name = NULL;
         s->data = NULL;
-        MMALLOC(s->seq, sizeof(uint8_t)* s->malloc_len);
-        MMALLOC(s->qual, sizeof(char) * s->malloc_len);
+        /* MMALLOC(s->seq, sizeof(uint8_t)* s->malloc_len); */
+        /* MMALLOC(s->qual, sizeof(char) * s->malloc_len); */
         /* MMALLOC(s->name, sizeof(char) * TL_SEQ_MAX_NAME_LEN); */
         RUN(tld_strbuf_alloc(&s->seq, 1024 ));
-        RUN(tld_strbuf_alloc(&s->name, TL_SEQ_MAX_NAME_LEN));
+        RUN(tld_strbuf_alloc(&s->qual, 1024 ));
+        RUN(tld_strbuf_alloc(&s->name, 128));
 
-        for(i = 0; i < s->malloc_len;i++){
-                s->qual[i] = 'J';
-        }
+        /* for(i = 0; i < s->malloc_len;i++){ */
+        /*         s->qual[i] = 'J'; */
+        /* } */
         *sequence = s;
         return OK;
 ERROR:
@@ -372,24 +371,24 @@ ERROR:
         return FAIL;
 }
 
-int resize_tl_seq(struct tl_seq* s)
-{
-        int i = 0;
-        int o = 0;
-        ASSERT(s != NULL, "No sequence");
-        o = s->malloc_len;
-        s->malloc_len = s->malloc_len + s->malloc_len / 2;
-        //LOG_MSG("New len: %d", s->malloc_len);
-        MREALLOC(s->seq, sizeof(uint8_t)* s->malloc_len);
-        MREALLOC(s->qual, sizeof(char) * s->malloc_len);
-        for(i = o; i < s->malloc_len;i++){
-                s->qual[i] = 'J';
-        }
-        return OK;
-ERROR:
-        free_tl_seq(s);
-        return FAIL;
-}
+/* int resize_tl_seq(struct tl_seq* s) */
+/* { */
+/*         int i = 0; */
+/*         int o = 0; */
+/*         ASSERT(s != NULL, "No sequence"); */
+/*         o = s->malloc_len; */
+/*         s->malloc_len = s->malloc_len + s->malloc_len / 2; */
+/*         //LOG_MSG("New len: %d", s->malloc_len); */
+/*         MREALLOC(s->seq, sizeof(uint8_t)* s->malloc_len); */
+/*         MREALLOC(s->qual, sizeof(char) * s->malloc_len); */
+/*         for(i = o; i < s->malloc_len;i++){ */
+/*                 s->qual[i] = 'J'; */
+/*         } */
+/*         return OK; */
+/* ERROR: */
+/*         free_tl_seq(s); */
+/*         return FAIL; */
+/* } */
 
 
 
@@ -397,14 +396,16 @@ void free_tl_seq(struct tl_seq* sequence)
 {
         if(sequence){
                 if(sequence->seq){
-                        MFREE(sequence->seq);
+                        /* MFREE(sequence->seq); */
+                        tld_strbuf_free(sequence->seq);
+                }
+                if(sequence->qual){
+                        /* MFREE(sequence->qual); */
+                        tld_strbuf_free(sequence->qual);
                 }
                 if(sequence->name){
                         tld_strbuf_free(sequence->name);
                         /* MFREE(sequence->name); */
-                }
-                if(sequence->qual){
-                        MFREE(sequence->qual);
                 }
                 MFREE(sequence);
         }

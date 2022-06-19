@@ -1,8 +1,10 @@
 #include "tld-seq.h"
-
+#include "tld-seq-tables.h"
 #include "../alloc/tld-alloc.h"
 #include "../misc/misc.h"
 #include "../string/str.h"
+#include "../stats/basic.h"
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <zlib.h>
@@ -32,12 +34,15 @@ struct file_handler{
         FILE* f_ptr;
         gzFile gz_f_ptr;
         uint8_t file_type;
+        int trans[5][5];
+        char start_symbol;
         char* read_buffer;
         int bytes_read;
         int pos;
         int read_state;
         int write_state;
         int gz;
+        int n_parse_error;
 };
 
 
@@ -45,8 +50,11 @@ struct file_handler{
 static int write_fasta_fastq(struct tl_seq_buffer* sb, struct file_handler* fh);
 static int read_sequences(struct file_handler*fh, struct tl_seq_buffer* sb, int num);
 
-static int parse_buf_fasta(struct file_handler* fh, struct tl_seq_buffer* sb,int num);
-static int parse_buf_fastq(struct file_handler* fh, struct tl_seq_buffer* sb,int num);
+static int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num);
+
+static int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb);
+/* static int parse_buf_fasta(struct file_handler* fh, struct tl_seq_buffer* sb,int num); */
+/* static int parse_buf_fastq(struct file_handler* fh, struct tl_seq_buffer* sb,int num); */
 
 static int read_file_contents(struct file_handler* fh);
 
@@ -55,6 +63,9 @@ static void free_io_handler(struct file_handler* f);
 
 static int write_fasta_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok);
 static int write_fastq_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok);
+
+static int read_until_eol(tld_strbuf *t, char *buf, int *pos);
+static int skip_until_eol(char *buf, int *pos);
 
 int write_seq_buf(struct tl_seq_buffer* sb, struct file_handler* fh)
 {
@@ -76,7 +87,7 @@ int open_fasta_fastq_file(struct file_handler** fh,char* filename, int mode)
                 RUN(get_io_handler(&f, filename, mode));
                 RUN(read_file_contents(f));
 
-                internal_detect_fasta_fastq(f->read_buffer , f->bytes_read, &type);
+                /* internal_detect_fasta_fastq(f->read_buffer , f->bytes_read, &type); */
                 /* exit(0); */
                 /* detect file type  */
                 /* RUN(detect_fasta_fastq(f->read_buffer , f->bytes_read, &type)); */
@@ -110,20 +121,6 @@ ERROR:
         return FAIL;
 }
 
-#define UNUSED(expr) do { (void)(expr); } while (0)
-int open_sam_bam(struct file_handler** fh, char* filename, int mode)
-{
-        UNUSED(fh);
-        UNUSED(filename);
-        UNUSED(mode);
-
-        ERROR_MSG("Reading from sam/bam only supported if tldevel is compiled with hts");
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-#undef UNUSED
 int read_fasta_fastq_file(struct file_handler* fh, struct tl_seq_buffer** seq_buf, int num)
 {
         struct tl_seq_buffer* sb = NULL;
@@ -151,9 +148,9 @@ int read_fasta_fastq_file(struct file_handler* fh, struct tl_seq_buffer** seq_bu
         /* reading  */
         RUN(read_sequences(fh,sb,num));
 
-        if(sb->base_quality_offset == 0){
-                RUN(detect_format(sb));
-        }
+        /* if(sb->base_quality_offset == 0){ */
+        /*         RUN(detect_format(sb)); */
+        /* } */
 
 
         *seq_buf = sb;
@@ -164,19 +161,20 @@ ERROR:
 
 int read_sequences(struct file_handler*fh, struct tl_seq_buffer* sb, int num)
 {
-        int i;
-        int max_len;
+        /* int i; */
+        /* int max_len; */
         while(1){
 
                 if(fh->pos){
                         //LOG_MSG("Finishing buffer");
-                        if(fh->file_type == FILE_TYPE_FASTA){
-                                RUN(parse_buf_fasta(fh,sb,num));
-                        }else if(fh->file_type == FILE_TYPE_FASTQ){
-                                RUN(parse_buf_fastq(fh,sb,num));
-                        }else{
-                                ERROR_MSG("Unknown file type");
-                        }
+                        /* if(fh->file_type == FILE_TYPE_FASTA){ */
+                        /*         RUN(parse_buf_fasta(fh,sb,num)); */
+                        /* }else if(fh->file_type == FILE_TYPE_FASTQ){ */
+                        /*         RUN(parse_buf_fastq(fh,sb,num)); */
+                        /* }else{ */
+                        /*         ERROR_MSG("Unknown file type"); */
+                        /* } */
+                        RUN(parse_buf(fh,sb,num));
 
                         if(sb->num_seq == num){
                                 break;
@@ -184,257 +182,296 @@ int read_sequences(struct file_handler*fh, struct tl_seq_buffer* sb, int num)
                 }else{
                         //LOG_MSG("read new content");
                         if (gzeof (fh->gz_f_ptr)){
+                                /* LOG_MSG("Nothing left"); */
                                 break;
                         }
                         RUN(read_file_contents(fh));
                         if(!fh->bytes_read){
+                                /* LOG_MSG("Nothing left"); */
                                 break;
                         }
-                        if(fh->file_type == FILE_TYPE_FASTA){
-                                RUN(parse_buf_fasta(fh,sb,num));
-                        }else if(fh->file_type == FILE_TYPE_FASTQ){
-                                RUN(parse_buf_fastq(fh,sb,num));
-                        }else{
-                                ERROR_MSG("Unknown file type");
-                        }
+                        RUN(parse_buf(fh,sb,num));
+                        /* if(fh->file_type == FILE_TYPE_FASTA){ */
+                        /*         RUN(parse_buf_fasta(fh,sb,num)); */
+                        /* }else if(fh->file_type == FILE_TYPE_FASTQ){ */
+                        /*         RUN(parse_buf_fastq(fh,sb,num)); */
+                        /* }else{ */
+                        /*         ERROR_MSG("Unknown file type"); */
+                        /* } */
                         if(sb->num_seq == num){
                                 break;
                         }
                 }
         }
-        max_len = -1;
-        for(i = 0; i < sb->num_seq;i++){
-                if(sb->sequences[i]->len > max_len){
+        RUN(finalize_read(fh, sb));
+
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+
+int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num)
+{
+        char* buf = NULL;
+        int buf_len;
+        int state;
+        int pos;
+        int i;
+        char c;
+
+        int first_seq =1;
+        ASSERT(fh!= NULL, "No file handler");
+        ASSERT(sb!= NULL, "No sequence buffer");
+        buf = fh->read_buffer;
+        pos = fh->pos;
+        buf_len = fh->bytes_read;
+        state = fh->read_state;
+        for(i = pos;i < buf_len;i++){
+                c = buf[i];
+                switch (state) {
+                case S_START:
+                        if(c == '@' || c == '>'){
+                                fh->start_symbol = c;
+                                fh->trans[S_START][S_NAME]++;
+                                state = S_NAME;
+                                if(first_seq){
+                                        first_seq = 0;
+                                }
+                                i++;
+                                read_until_eol(sb->sequences[sb->num_seq]->name, buf, &i);
+                        }
+                        break;
+                case S_NAME:
+                        if(is_aa[(uint8_t) c] || is_nuc[(uint8_t)c]){
+                                fh->trans[S_NAME][S_SEQ]++;
+                                state = S_SEQ;
+
+                                read_until_eol(sb->sequences[sb->num_seq]->seq, buf, &i);
+                                sb->sequences[sb->num_seq]->len = sb->sequences[sb->num_seq]->seq->len;
+                        }else if(c != 0){
+                                fh->n_parse_error++;
+                                WARNING_MSG("ERROR %d: A name line is not followed by a sequence line.",fh->n_parse_error);
+                        }
+                        break;
+                case S_SEQ:
+                        if(is_aa[(uint8_t) c] || is_nuc[(uint8_t)c]){
+                                fh->trans[S_SEQ][S_SEQ]++;
+                                state = S_SEQ;
+
+                                read_until_eol(sb->sequences[sb->num_seq]->seq, buf, &i);
+                                sb->sequences[sb->num_seq]->len = sb->sequences[sb->num_seq]->seq->len;
+
+                        }else if(c == fh->start_symbol){
+                                if(first_seq){
+                                        first_seq = 0;
+                                }else{
+                                        sb->num_seq++;
+                                        if(sb->num_seq == num){
+                                                fh->pos = i;
+                                                fh->read_state = state;
+                                                return OK;
+                                        }
+                                }
+
+                                fh->trans[S_SEQ][S_NAME]++;
+                                state = S_NAME;
+
+                                i++;
+                                read_until_eol(sb->sequences[sb->num_seq]->name, buf, &i);
+                        }else if(c == '+'){
+                                fh->trans[S_SEQ][S_Q_NEXT]++;
+                                state = S_Q_NEXT;
+
+                                skip_until_eol(buf, &i);
+                                /* skip until eol  */
+                        }else if(c != 0){
+                                fh->n_parse_error++;
+                                WARNING_MSG("ERROR %d: Don't understand - was in a seq and expecting more sequences, a '+' line or a name: %c",fh->n_parse_error,c);
+                                LOG_MSG("%c %s", fh->start_symbol, buf+ i);
+                        }
+                        break;
+                case S_Q_NEXT:
+                        /* range of quality encodings for pacbio (coversillumina18 intervals) */
+                        if(c >= 33 && c <= 126){
+                                fh->trans[S_Q_NEXT][S_Q]++;
+                                state = S_Q;
+
+                                read_until_eol(sb->sequences[sb->num_seq]->qual, buf, &i);
+                        }else{
+                                fh->n_parse_error++;
+                                WARNING_MSG("ERROR %d: Line following a '^+' line does not start with a valid base quality: %c",fh->n_parse_error,c);
+                        }
+                        break;
+                case S_Q:
+                        if(fh->start_symbol){
+                                if(first_seq){
+                                        first_seq =0;
+                                }else{
+                                        sb->num_seq++;
+                                        if(sb->num_seq == num){
+                                                fh->pos = i;
+                                                fh->read_state = state;
+                                                return OK;
+                                        }
+                                }
+
+                                fh->trans[S_Q][S_NAME]++;
+                                state = S_NAME;
+                                i++;
+                                read_until_eol(sb->sequences[sb->num_seq]->name, buf, &i);
+                        }else if(c != 0){
+                                fh->n_parse_error++;
+                                WARNING_MSG("ERROR %d: A base quality line is not followed by a sequence line.: %c",fh->n_parse_error,c);
+                        }
+                        break;
+                }
+        }
+        sb->num_seq++;
+        LOG_MSG("Done!: %d", sb->num_seq);
+        /* LOG_MSG("State : %d",state); */
+        /* LOG_MSG("Last char: %d %c", (int) buf[i], buf[i]); */
+
+        fh->read_state = state;
+        fh->pos = 0;            /* am at end of buffer */
+        /* we reached the end of the buffer and of the file; the last sequence must be complete.  */
+        /* if (gzeof (fh->gz_f_ptr)){ */
+                /* sb->num_seq++; */
+
+        /* } */
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+
+int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
+{
+        struct tl_seq* s = NULL;
+        double*  dist = NULL;
+        double total;
+        int max_len = -1;
+        int n_is_dna = 0;
+        int n_is_aa = 0;
+        if(fh->n_parse_error){
+                sb->num_seq = 0;
+                return FAIL;
+                /* *type = FILE_TYPE_UNDEFINED; */
+        }else{
+                if(fh->trans[S_START][S_NAME] == 0){
+                        WARNING_MSG("Could not detect a single sequence name.");
+                        if(sb->num_seq){
+                                WARNING_MSG("Even stranger - the parser did record a sequence");
+                        }
+                        sb->num_seq = 0;
+                        return FAIL;
+                }else if(fh->trans[S_START][S_NAME] && fh->trans[S_NAME][S_SEQ] == 0){
+                        WARNING_MSG("Could detect a name but no sequence.");
+                        if(sb->num_seq){
+                                WARNING_MSG("Even stranger - the parser did record a sequence");
+                        }
+                        sb->num_seq = 0;
+                        return FAIL;
+                }else if(fh->trans[S_SEQ][S_Q_NEXT] && fh->trans[S_Q_NEXT][S_Q] == 0){
+                        WARNING_MSG("Could detect (at least) a sequence that should have base qualities but found none .");
+                        sb->num_seq = 0;
+                        return FAIL;
+                }else if(fh->trans[S_SEQ][S_Q_NEXT] ){
+                        sb->is_fastq = 1;
+                }else{
+                        sb->is_fastq = 0;
+                }
+        }
+        sb->base_quality_offset = 0;
+
+        total = 0.0;
+        galloc(&dist, 256);
+        for(int i = 0; i < 256;i++){
+                dist[i] = 0.0;
+        }
+        for(int i = 0; i < sb->num_seq;i++){
+                s = sb->sequences[i];
+                /* more sanity checks */
+                if(sb->is_fastq){
+                        if(s->seq->len != s->qual->len){
+                                WARNING_MSG("Length of sequence %s is not equal to length of base qualities.", TLD_STR(s->name));
+                                sb->num_seq = 0;
+                        }
+                }
+                uint8_t* seq = s->seq->str;
+                /* LOG_MSG("%d %d",s->len, s->seq->len); */
+                for(int j = 0; j < s->len;j++){
+                        if(is_nuc[seq[j]]){
+                                n_is_dna++;
+                        }
+                        if(is_aa[seq[j]]){
+                                n_is_aa++;
+                        }
+                        if(seq[j] < 33 ){
+                                LOG_MSG("Weird character found : %d at position %d in seq %d", seq[j], j , i);
+                        }
+                        dist[seq[j]]++;
+                }
+                total += (double) s->len;
+
+                if(s->len > max_len){
                         max_len = sb->sequences[i]->len;
                 }
         }
+        /* LOG_MSG("%f", total); */
+        double shannon = 0.0;
+        tld_shannon(dist,256,&shannon);
+
+
+        LOG_MSG("Shanon: %f", shannon);
+
+        LOG_MSG("%d %d",n_is_dna,n_is_aa);
         sb->max_len = max_len;
+        gfree(dist);
+        /* exit(0); */
         return OK;
 ERROR:
+        if(dist){
+                gfree(dist);
+        }
         return FAIL;
 }
 
-int parse_buf_fasta(struct file_handler* fh, struct tl_seq_buffer* sb,int num)
+int get_base_q_offset(struct tl_seq* s, int* offset)
 {
-        char* buf = NULL;
-        uint8_t* seq = NULL;
-        int state;
-        int pos;
-        int len;
-        int i;
-        int buf_len;
-        ASSERT(fh!= NULL, "No file handler");
-        ASSERT(sb!= NULL, "No sequence buffer");
-        buf = fh->read_buffer;
-        pos = fh->pos;
-        buf_len = fh->bytes_read;
-        state = fh->read_state;
-        //fprintf(stdout,"%s", buf);
-        for(i = pos;i < buf_len;i++){
-                if(buf[i] == '>'){
-                        //LOG_MSG("state:%d seq: %d", state, sb->num_seq);
-                        if(state == RS_SEQ || state == RS_QUAL){
-                                sb->num_seq++;
-                        }
-                        if(sb->num_seq == num){
-                                fh->pos = i;
-                                fh->read_state = state;
-                                return OK;
-                        }
-
-                        /* copy name */
-                        i++;
-                        /* len =0; */
-                        while(1){
-                                if(buf[i] == '\n' || buf[i] == 0){
-                                        break;
-                                }
-                                tld_append_char(sb->sequences[sb->num_seq]->name, buf[i]);
-                                i++;
-                        }
-                        state = RS_SEQ;
-                }else if(buf[i] == '+'){
-                        state = RS_QUAL;
-                }else{
-                        if(state == RS_SEQ){
-                                len = sb->sequences[sb->num_seq]->len;
-                                seq = sb->sequences[sb->num_seq]->seq;
-                                while(1){
-                                        if(buf[i] == '\n' || buf[i] == 0){
-                                                seq[len] = 0;
-                                                break;
-                                        }
-                                        seq[len] = buf[i];
-                                        len++;
-                                        //LOG_MSG("%d",len);
-                                        if(len == sb->sequences[sb->num_seq]->malloc_len){
-                                                //LOG_MSG("Resize from: %d", sb->sequences[sb->num_seq]->malloc_len);
-                                                RUN(resize_tl_seq(sb->sequences[sb->num_seq]));
-                                                //LOG_MSG("Resize   to: %d", sb->sequences[sb->num_seq]->malloc_len);
-                                                seq  =sb->sequences[sb->num_seq]->seq;
-                                        }
-                                        i++;
-                                }
-                                sb->sequences[sb->num_seq]->len = len;
-                        }
-                }
-        }
-
-        /* propagate read state  */
-        fh->read_state = state;
-        fh->pos = 0;            /* am at end of buffer */
-
-        /* we reached the end of the buffer and of the file; the last sequence must be complete.  */
-        if (gzeof (fh->gz_f_ptr)){
-                sb->num_seq++;
-
-        }
-        //LOG_MSG("END state: %d", fh->read_state);
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int parse_buf_fastq(struct file_handler* fh, struct tl_seq_buffer* sb,int num)
-{
-        char* buf = NULL;
-        uint8_t* seq = NULL;
-        uint8_t* qual;
-        int state;
-        int pos;
-        int len;
-        int i;
-        int buf_len;
-        ASSERT(fh!= NULL, "No file handler");
-        ASSERT(sb!= NULL, "No sequence buffer");
-        buf = fh->read_buffer;
-        pos = fh->pos;
-        buf_len = fh->bytes_read;
-        state = fh->read_state;
-        //fprintf(stdout,"state: %d\n", state);
-        //fprintf(stdout,"BUFF:\n%s\n", buf);
-        for(i = pos;i < buf_len;i++){
-                if(buf[i] == '@' && (state == RS_NAME || state == RS_UNDEFINED)){
-                        /* works because when we start reading state will be undefined */
-                        /* copy name */
-                        i++;
-                        /* len =0; */
-                        /* tld_append(sb->sequences[sb->num_seq]->name, buf+1); */
-                        while(1){
-                                if(buf[i] == '\n' || buf[i] == 0){
-                                        break;
-                                }
-                                tld_append_char(sb->sequences[sb->num_seq]->name, buf[i]);
-                                /* fprintf(stdout, "NAME: %p", sb->sequences[sb->num_seq]->name); */
-                                /* fprintf(stdout, "NAME: %s  (%d ,%d)\n", */
-                                        /* TLD_STR( sb->sequences[sb->num_seq]->name), */
-                                        /* TLD_STRLEN( sb->sequences[sb->num_seq]->name ), */
-                                        /* sb->sequences[sb->num_seq]->name->alloc_len); */
-                                i++;
-                        }
-                        /* while(1){ */
-                        /*         if(buf[i] == '\n' || buf[i] == 0){ */
-                        /*                 sb->sequences[sb->num_seq]->name[len] = 0; */
-                        /*                 break; */
-                        /*         } */
-
-                        /*         sb->sequences[sb->num_seq]->name[len] = buf[i]; */
-                        /*         len++; */
-                        /*         if(len+1 == TL_SEQ_MAX_NAME_LEN){ */
-                        /*                 sb->sequences[sb->num_seq]->name[len] = 0; */
-                        /*                 break; */
-                        /*         } */
-                        /*         i++; */
-                        /* } */
-                        /* fprintf(stdout, "NAME: %s\n",TLD_STR( sb->sequences[sb->num_seq]->name)); */
-                        state = RS_SEQ;
-                }else if(buf[i] == '+' && state == RS_SEQ_DONE){
-                        state = RS_QUAL;
-                        while(1){
-                                if(buf[i] == '\n' || buf[i] == 0){
-                                        break;
-                                }
-                                i++;
-                        }
-                }else{
-                        if(state == RS_SEQ){
-                                len = sb->sequences[sb->num_seq]->len;
-                                seq  =sb->sequences[sb->num_seq]->seq;
-                                while(1){
-                                        if(buf[i] == '\n' || buf[i] == 0){
-                                                seq[len] = 0;
-                                                break;
-                                        }
-                                        seq[len] = buf[i];
-                                        len++;
-                                        //LOG_MSG("%d",len);
-                                        if(len == sb->sequences[sb->num_seq]->malloc_len){
-                                                //LOG_MSG("Resize from: %d", sb->sequences[sb->num_seq]->malloc_len);
-                                                RUN(resize_tl_seq(sb->sequences[sb->num_seq]));
-                                                //LOG_MSG("Resize   to: %d", sb->sequences[sb->num_seq]->malloc_len);
-                                                seq  =sb->sequences[sb->num_seq]->seq;
-                                        }
-                                        i++;
-                                }
-                                sb->sequences[sb->num_seq]->len = len;
-                                state = RS_SEQ_DONE;
-                        }else if(state == RS_QUAL){
-                                /*fprintf(stdout,"PRINT:a\n");
-                                for(len = 0; len < 200;len++){
-                                        if(i+len > buf_len){
-                                                break;
-                                        }
-                                        fprintf(stdout,"%c",buf[i+len]);
-                                }
-                                fprintf(stdout,"\n");*/
-                                len = 0;
-                                qual = sb->sequences[sb->num_seq]->qual;
-                                while(1){
-                                        ///fprintf(stdout,"<<<%c>>>",buf[i]);
-                                        if(buf[i] == '\n' || buf[i] == 0){
-                                                qual[len] = 0;
-                                                break;
-                                        }
-                                        qual[len] = buf[i];
-                                        len++;
-                                        //LOG_MSG("%d",len);
-                                        if(len == sb->sequences[sb->num_seq]->malloc_len){
-                                                ERROR_MSG("Quality string is longer than sequence");
-                                        }
-                                        i++;
-                                }
-                                sb->sequences[sb->num_seq]->qual = qual;
-
-                                ASSERT(len == sb->sequences[sb->num_seq]->len,"seq and qual have different lengths: %d %d buf: %d (%d)",len, sb->sequences[sb->num_seq]->len, i, buf_len);
-
-                                /* if I read everyting until here and seqlen == qual len I am done */
-                                sb->num_seq++;
-                                state = RS_NAME;
-
-
-
-                        }
-                        if(sb->num_seq == num){
-                                fh->pos = i;
-                                fh->read_state = state;
-                                //LOG_MSG("Internal stop:state: %d seq: %d pos: %d", fh->read_state, sb->num_seq,fh->pos);
-                                //fprintf(stdout,"leftover:\n%s\n", buf+fh->pos);
-                                return OK;
-                        }
+        /*
+           SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS.....................................................
+           ..........................XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX......................
+           ...............................IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII......................
+           .................................JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ.....................
+           LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL....................................................
+           PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
+           !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
+           |                         |    |        |                              |                     |
+          33                        59   64       73                            104                   126
+           0........................26...31.......40                                 S - Sanger  Phred+33
+                                    -5....0........9.............................40  X - Solexa    Solexa+64
+                                          0........9.............................40  I - Illumina 1.3+
+                                             3.....9..............................4  J - Illumina 1.5+
+           0.2......................26...31........41                                L - Illumina 1.8+
+           0..................20........30........40........50..........................................93  P - PacBio
+        */
+        char q_type[] = "SXIJLP";
+        uint32_t count[6] = {0,0,0,0,0,0};
+        uint8_t c = 0;
+        for(int i = 0; i < s->qual->len;i++){
+                c = s->qual->str[i];
+                if(c >= 33 && c < 59){
+                        count[0]++;
+                        count[4]++;
+                        count[5]++;
+                }else if(c >=59 && c < 64){
 
                 }
         }
 
-        /* checkif last entry is complete */
-
-        /* propagate read state  */
-        fh->read_state = state;
-        fh->pos = 0;            /* am at end of buffer */
-
-        //LOG_MSG("END state: %d", fh->read_state);
         return OK;
-ERROR:
-        return FAIL;
+
 }
 
 int close_seq_file(struct file_handler** fh)
@@ -445,239 +482,6 @@ int close_seq_file(struct file_handler** fh)
         }
         return OK;
 }
-
-
-/* int detect_fasta_fastq(const char* b, int len, int* type) */
-/* { */
-/*         /\* logic:  *\/ */
-/*         char* local_b = NULL; */
-/*         int min; */
-/*         int i,c; */
-/*         char delim[2]; */
-/*         /\* char instrument_R1[256]; *\/ */
-/*         /\* int run_id_R1 = 0; *\/ */
-/*         /\* char flowcell_R1[256]; *\/ */
-/*         /\* int flowcell_lane_R1= 0; *\/ */
-/*         /\* int tile_number_R1= 0; *\/ */
-/*         /\* int x_coordinate_R1= 0; *\/ */
-/*         /\* int y_coordinate_R1= 0; *\/ */
-
-/*         /\* int number_of_values_found = 0; *\/ */
-
-/*         uint8_t DNA[256]; */
-/*         uint8_t protein[256]; */
-/*         uint8_t illumina15[256]; */
-/*         uint8_t illumina18[256]; */
-
-/*         uint8_t query[256]; */
-/*         int diff[4]; */
-/*         char DNA_letters[]= "acgtACGTnN"; */
-/*         char protein_letters[] = "ACDEFGHIKLMNPQRSTVWY"; */
-/*         char Illumina15[] = "BCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghi"; */
-/*         char Illumina18[] = "!\"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJ"; */
-
-/*         char* token = NULL; */
-
-/*         struct results{ */
-/*                 /\* int illumina18_name; *\/ */
-/*                 /\* int illumina15_name; *\/ */
-/*                 int dna_line; */
-/*                 int protein_line; */
-/*                 int illumina_18_line; */
-/*                 int illumina_15_line; */
-/*                 int at_lines; */
-/*                 int gt_lines; */
-/*                 int plus_lines; */
-/*                 int num_lines; */
-/*         } res; */
-
-/*         ASSERT(b != NULL, "No buffer"); */
-
-/*         MMALLOC(local_b, sizeof(char) * (len+1)); */
-
-/*         RUNP(strncpy(local_b, b, len)); */
-/*         local_b[len] = 0; */
-/*         delim[0] = '\n'; */
-/*         delim[1] = 0; */
-/*         /\* init *\/ */
-/*         /\* res.illumina15_name = 0; *\/ */
-/*         /\* res.illumina18_name = 0; *\/ */
-/*         res.dna_line = 0; */
-/*         res.protein_line = 0; */
-/*         res.illumina_15_line = 0; */
-/*         res.illumina_18_line = 0; */
-/*         res.at_lines = 0; */
-/*         res.plus_lines = 0; */
-/*         res.gt_lines = 0; */
-/*         res.num_lines = 0; */
-
-/*         //ASSERT(sb != NULL, "No sequence buffer."); */
-
-/*         for(i = 0; i <256;i++){ */
-/*                 DNA[i] = 0; */
-/*                 protein[i] = 0; */
-/*                 query[i] = 0; */
-/*                 illumina15[i] = 0; */
-/*                 illumina18[i] = 0; */
-/*         } */
-
-/*         for(i = 0 ; i < (int) strlen(DNA_letters);i++){ */
-/*                 DNA[(int) DNA_letters[i]] = 1; */
-/*         } */
-
-/*         for(i = 0 ; i < (int)strlen(protein_letters);i++){ */
-/*                 protein[(int) protein_letters[i]] = 1; */
-/*         } */
-/*         for(i = 0; i < (int)strlen(Illumina15);i++){ */
-/*                 illumina15[(int) Illumina15[i]] = 1; */
-/*         } */
-/*         for(i = 0; i < (int)strlen(Illumina18);i++){ */
-/*                 illumina18[(int) Illumina18[i]] = 1; */
-/*         } */
-
-/*         /\* fprintf(stdout,"BUFFER:\n%s",b); *\/ */
-/*         token= strtok(local_b, delim); */
-
-/*         while(token != NULL){ */
-
-/*                 /\* c = strnlen(token, TL_SEQ_MAX_NAME_LEN ); *\/ */
-/*                 /\* fprintf(stdout,"%d\n",c); *\/ */
-/*                 /\* tests  *\/ */
-/*                 /\* is this an illumina 1.8 readname?  *\/ */
-/*                 /\* number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%"xstr(256)"[^:]:%d:%d:%d:%d ", instrument_R1,&run_id_R1,flowcell_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1 ); *\/ */
-/*                 /\* if(number_of_values_found == 7){ *\/ */
-/*                 /\*         res.illumina18_name++; *\/ */
-/*                 /\*         //      LOG_MSG("Detected casava 1.8 format.\n"); *\/ */
-/*                 /\* } *\/ */
-
-
-/*                 /\* /\\* is this an old(er) illumina readname?  *\\/ *\/ */
-/*                 /\* number_of_values_found =sscanf(token,"%"xstr(256)"[^:]:%d:%d:%d:%d", instrument_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1); *\/ */
-
-/*                 /\* if(number_of_values_found == 5){ *\/ */
-/*                 /\*         res.illumina15_name++; *\/ */
-/*                 /\*         //LOG_MSG("Detected casava <1.7 format.\n"); *\/ */
-/*                 /\*         //param->messages = append_message(param->messages, param->buffer); *\/ */
-/*                 /\* } *\/ */
-
-/*                 if(token[0] == '@'){ */
-/*                         res.at_lines++; */
-/*                 } */
-
-/*                 if(token[0] == '+'){ */
-/*                         res.plus_lines++; */
-/*                 } */
-/*                 if(token[0] == '>'){ */
-/*                         res.gt_lines++; */
-/*                 } */
-/*                 res.num_lines++; */
-
-/*                 for(i = 0 ; i < 256;i++){ */
-/*                         query[i] = 0; */
-/*                 } */
-/*                 for(i = 0 ; i < c;i++){ */
-/*                         query[(int) token[i]] = 1; */
-/*                 } */
-
-/*                 diff[0] = 0; */
-/*                 diff[1] = 0; */
-/*                 diff[2] = 0; */
-/*                 diff[3] = 0; */
-/*                 for(i = 0; i < 256;i++){ */
-/*                         if(query[i]){ */
-/*                                 if(query[i] != DNA[i]){ */
-/*                                         diff[0]++; */
-/*                                 } */
-/*                                 if(query[i] != protein[i]){ */
-/*                                         diff[1]++; */
-/*                                 } */
-/*                                 if(query[i] != illumina15[i]){ */
-/*                                         diff[2]++; */
-/*                                 } */
-/*                                 if(query[i] != illumina18[i]){ */
-/*                                         diff[3]++; */
-/*                                 } */
-/*                         } */
-/*                 } */
-
-/*                 c = -1; */
-/*                 min = INT32_MAX; */
-/*                 for(i = 0; i < 4;i++){ */
-/*                         if(diff[i] < min){ */
-/*                                 min = diff[i]; */
-/*                         } */
-/*                 } */
-/*                 for(i = 0; i < 4;i++){ */
-/*                         if(diff[i] == min){ */
-/*                                 switch (i) { */
-/*                                 case 0: */
-/*                                         res.dna_line++; */
-/*                                         break; */
-/*                                 case 1: */
-/*                                         res.protein_line++; */
-/*                                         break; */
-/*                                 case 2: */
-/*                                         res.illumina_15_line++; */
-/*                                         break; */
-/*                                 case 3: */
-/*                                         res.illumina_18_line++; */
-/*                                         break; */
-/*                                 default: */
-/*                                         break; */
-/*                                 } */
-/*                         } */
-/*                 } */
-/*                 token = strtok(NULL, delim); */
-/*         } */
-
-/*         MFREE(local_b); */
-
-/*         /\* LOGIC *\/ */
-/*         *type = FILE_TYPE_UNDEFINED; */
-/*         if(res.gt_lines && (!res.at_lines ||  !res.plus_lines)){ */
-/*                 *type = FILE_TYPE_FASTA; */
-/*         } */
-
-/*         /\* if(res.illumina18_name && res.at_lines && res.plus_lines){ *\/ */
-/*         /\*         *type = FILE_TYPE_FASTQ; *\/ */
-/*         /\* } *\/ */
-
-/*         /\* if(res.illumina15_name && res.at_lines && res.plus_lines){ *\/ */
-/*         /\*         *type = FILE_TYPE_FASTQ; *\/ */
-/*         /\* } *\/ */
-
-/*         if(res.at_lines *4 == res.num_lines){ */
-/*                 if(res.plus_lines >= res.at_lines){ */
-/*                         *type = FILE_TYPE_FASTQ; */
-/*                 } */
-/*         } */
-
-
-/*         if(*type == FILE_TYPE_UNDEFINED){ */
-/*                 WARNING_MSG("Could not detect file format."); */
-/*                 WARNING_MSG("This is the file info:"); */
-/*                 WARNING_MSG("Summary:"); */
-/*                 /\* WARNING_MSG("%d\tIllumina 1.8 read names", res.illumina18_name); *\/ */
-/*                 /\* WARNING_MSG("%d\tIllumina 1.5 read names", res.illumina15_name); *\/ */
-/*                 WARNING_MSG("%d\tDNA lines", res.dna_line); */
-/*                 WARNING_MSG("%d\tProtein lines", res.protein_line); */
-/*                 WARNING_MSG("%d\tIllumina 1.8 base quality lines.", res.illumina_18_line); */
-/*                 WARNING_MSG("%d\tIllumina 1.5 base quality lines.", res.illumina_15_line); */
-
-
-/*                 WARNING_MSG("%d\t @ lines.", res.at_lines); */
-/*                 WARNING_MSG("%d\t > lines.", res.gt_lines); */
-/*                 WARNING_MSG("%d\t + lines.", res.plus_lines); */
-/*                 WARNING_MSG("%d\t lines in total.", res.num_lines); */
-
-/*         } */
-/*         return OK; */
-/* ERROR: */
-/*         if(local_b){ */
-/*                 MFREE(local_b); */
-/*         } */
-/*         return FAIL; */
-/* } */
 
 
 int get_io_handler(struct file_handler** fh,const char* filename,int mode)
@@ -700,9 +504,16 @@ int get_io_handler(struct file_handler** fh,const char* filename,int mode)
         f_handle->read_buffer = NULL;
         f_handle->bytes_read = 0;
         f_handle->pos = 0;
-        f_handle->read_state = RS_UNDEFINED;
+        f_handle->read_state = S_START ; // RS_UNDEFINED;
         f_handle->write_state = 0;
         f_handle->gz= 0;
+        f_handle->n_parse_error = 0;
+        f_handle->start_symbol = 0;
+        for(int i = 0 ; i < 5; i++){
+                for(int j = 0 ; j < 5; j++){
+                        f_handle->trans[i][j] = 0;
+                }
+        }
 
         MMALLOC(f_handle->read_buffer, sizeof(char)*  TL_READ_BUFF_LEN + TL_READ_BUFF_LEN);
 
@@ -968,7 +779,7 @@ int write_fasta_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok)
                         buf[local_i] = '\n';
                         local_i++;
                 }
-                buf[local_i] = seq->seq[i];
+                buf[local_i] = TLD_STR(seq->seq)[i];
                 local_i++;
         }
         buf[local_i] = '\n';
@@ -1023,7 +834,7 @@ int write_fastq_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok)
         local_i++;
         /* write sequence */
         for(i = 0;i < seq->len;i++){
-                buf[local_i] = seq->seq[i];
+                buf[local_i] = TLD_STR(seq->seq)[i];
                 local_i++;
         }
         buf[local_i] = '\n';
@@ -1035,7 +846,7 @@ int write_fastq_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok)
         local_i++;
 
         for(i = 0;i < seq->len;i++){
-                buf[local_i] = seq->qual[i];
+                buf[local_i] = TLD_STR(seq->qual)[i];
                 local_i++;
         }
         buf[local_i] = '\n';
@@ -1050,4 +861,35 @@ int write_fastq_to_buf(struct tl_seq* seq, char* buf, int* index,int* write_ok)
         return OK;
 ERROR:
         return FAIL;
+}
+
+int read_until_eol(tld_strbuf *t, char *buf, int *pos)
+{
+        int i = *pos;
+        while(1){
+                if(buf[i] == '\n' || buf[i] == 0){
+                        break;
+                }
+                /* This is annoying but required to skip \r and other non-printable characters.  */
+                if(buf[i] >= 32){
+                        tld_append_char(t, buf[i]);
+                }
+                i++;
+
+        }
+        *pos = i;
+        return OK;
+}
+
+int skip_until_eol(char *buf, int *pos)
+{
+        int i = *pos;
+        while(1){
+                if(buf[i] == '\n' || buf[i] == 0){
+                        break;
+                }
+                i++;
+        }
+        *pos = i;
+        return OK;
 }

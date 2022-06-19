@@ -3,6 +3,25 @@
 #define BASIC_IMPORT
 #include "basic.h"
 
+int tld_shannon(double *vec, int n, double *entropy)
+{
+        double t = 0.0;
+        double s = 0.0;
+        for(int i = 0; i < n;i++){
+                t += vec[i];
+        }
+        for(int i = 0; i < n;i++){
+                if(vec[i]){
+                        double p = vec[i] / t;
+                        s += p * log2(p);
+                }
+        }
+
+        s = s * -1.0;
+        *entropy = s;
+        return OK;
+}
+
 int tld_mean(double *vec, int n, double *mean)
 {
         ASSERT(vec != NULL, "No vector");

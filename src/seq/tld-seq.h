@@ -8,10 +8,11 @@
 struct tl_seq{
         tld_strbuf* seq;
         tld_strbuf* name;
+        tld_strbuf* qual;
         /* char* name; */
-        uint8_t* qual;
+        /* uint8_t* qual; */
         void* data;
-        int malloc_len;
+        /* int malloc_len; */
         int len;
 } __attribute__((aligned(ALIGN64)));
 

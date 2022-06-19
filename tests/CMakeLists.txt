@@ -27,6 +27,16 @@ add_test(
     COMMAND int-noise
 )
 
+add_executable(seq_shannon itests/seq_shannon.c) 
+target_link_libraries(seq_shannon PRIVATE tld-dev)
+add_test(
+    NAME seq_shannon
+    COMMAND seq_shannon ${CMAKE_CURRENT_SOURCE_DIR}/test_data/BB11001.fa
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+
+
 
 add_executable(unit-stats utests/unit_stats.c) 
 target_link_libraries(unit-stats PRIVATE tld-dev)

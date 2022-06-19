@@ -53,10 +53,10 @@ int reverse_comp(uint8_t *s, int l)
 int rev_comp_tl_seq(struct tl_seq* s)
 {
         if(s->seq){
-                reverse_comp(s->seq, s->len);
+                reverse_comp(s->seq->str, s->seq->len);
         }
         if(s->qual){
-                reverse(s->qual, s->len);
+                reverse(s->qual->str, s->qual->len);
         }
         return OK;
 }
