@@ -70,3 +70,17 @@ int tld_sample_variance(double *vec, int n, double *variance)
 ERROR:
         return FAIL;
 }
+
+
+int tld_normal_pdf(double x, double mu, double sigma, double* p)
+{
+        double z;
+        ASSERT(sigma != 0.0, "stdev is 0.")
+        z = (x - mu) / sigma;
+
+        *p = exp(-z*z*0.5) / (sigma * sqrt(2. * 3.14159265358979323846264338328));
+
+        return OK;
+ERROR:
+        return FAIL;
+}

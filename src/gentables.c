@@ -94,6 +94,13 @@ int create_is_aa_table(tld_strbuf* b)
         arr['W'] = 1;//	Trp	Tryptophan
         arr['Y'] = 1;//	Tyr	Tyrosine
 
+        arr['X'] = 1;//	UNKNOWN
+
+        arr['B'] = 1;//	UNKNOWN
+        arr['J'] = 1;//	UNKNOWN
+        arr['Z'] = 1;//	UNKNOWN
+        arr['U'] = 1;//	UNKNOWN
+
         arr['a'] = 1;//	Ala	Alanine
         arr['c'] = 1;//	Cys	Cysteine
         arr['d'] = 1;//	Asp	Aspartic Acid
@@ -114,6 +121,13 @@ int create_is_aa_table(tld_strbuf* b)
         arr['v'] = 1;//	Val	Valine
         arr['w'] = 1;//	Trp	Tryptophan
         arr['y'] = 1;//	Tyr	Tyrosine
+
+        arr['x'] = 1;//	UNKNOWN
+
+        arr['b'] = 1;//	UNKNOWN
+        arr['j'] = 1;//	UNKNOWN
+        arr['z'] = 1;//	UNKNOWN
+        arr['u'] = 1;//	UNKNOWN
 
         RUN(tld_append(b, "const uint8_t is_aa[256] = {\n"));
 

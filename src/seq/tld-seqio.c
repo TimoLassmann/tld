@@ -51,7 +51,7 @@ static int write_fasta_fastq(struct tl_seq_buffer* sb, struct file_handler* fh);
 static int read_sequences(struct file_handler*fh, struct tl_seq_buffer* sb, int num);
 
 static int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num);
-
+static int print_error_context(char* buf, int len, int point);
 static int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb);
 /* static int parse_buf_fasta(struct file_handler* fh, struct tl_seq_buffer* sb,int num); */
 /* static int parse_buf_fastq(struct file_handler* fh, struct tl_seq_buffer* sb,int num); */
@@ -210,6 +210,25 @@ ERROR:
         return FAIL;
 }
 
+int print_error_context(char* buf, int len, int point)
+{
+        tld_strbuf* tmp = NULL;
+        int start;
+        int end;
+        tld_strbuf_alloc(&tmp, 1024);
+
+        start = point - 20;
+        end = point + 20;
+
+        start = MACRO_MAX(start, 0);
+        end = MACRO_MIN(end, len);
+
+        for(int i = start; i < end; i++){
+                tld_append_char(tmp, buf[i]);
+        }
+        LOG_MSG("%s", tmp->str);
+        return OK;
+}
 
 int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num)
 {
@@ -252,6 +271,8 @@ int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num)
                         }else if(c != 0){
                                 fh->n_parse_error++;
                                 WARNING_MSG("ERROR %d: A name line is not followed by a sequence line.",fh->n_parse_error);
+                                print_error_context(buf, buf_len,i);
+                                /* fprintf(stdout,"%s",buf); */
                         }
                         break;
                 case S_SEQ:
@@ -288,7 +309,8 @@ int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num)
                         }else if(c != 0){
                                 fh->n_parse_error++;
                                 WARNING_MSG("ERROR %d: Don't understand - was in a seq and expecting more sequences, a '+' line or a name: %c",fh->n_parse_error,c);
-                                LOG_MSG("%c %s", fh->start_symbol, buf+ i);
+                                /* LOG_MSG("%c %s", fh->start_symbol, buf+ i); */
+                                print_error_context(buf, buf_len,i);
                         }
                         break;
                 case S_Q_NEXT:
@@ -301,6 +323,7 @@ int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num)
                         }else{
                                 fh->n_parse_error++;
                                 WARNING_MSG("ERROR %d: Line following a '^+' line does not start with a valid base quality: %c",fh->n_parse_error,c);
+                                print_error_context(buf, buf_len,i);
                         }
                         break;
                 case S_Q:
@@ -323,22 +346,16 @@ int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num)
                         }else if(c != 0){
                                 fh->n_parse_error++;
                                 WARNING_MSG("ERROR %d: A base quality line is not followed by a sequence line.: %c",fh->n_parse_error,c);
+                                print_error_context(buf, buf_len,i);
                         }
                         break;
                 }
         }
         sb->num_seq++;
-        LOG_MSG("Done!: %d", sb->num_seq);
-        /* LOG_MSG("State : %d",state); */
-        /* LOG_MSG("Last char: %d %c", (int) buf[i], buf[i]); */
 
         fh->read_state = state;
         fh->pos = 0;            /* am at end of buffer */
-        /* we reached the end of the buffer and of the file; the last sequence must be complete.  */
-        /* if (gzeof (fh->gz_f_ptr)){ */
-                /* sb->num_seq++; */
 
-        /* } */
         return OK;
 ERROR:
         return FAIL;
@@ -349,12 +366,11 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
 {
         struct tl_seq* s = NULL;
         double*  dist = NULL;
-        double total;
         int max_len = -1;
         int n_is_dna = 0;
         int n_is_aa = 0;
         if(fh->n_parse_error){
-                sb->num_seq = 0;
+                /* sb->num_seq = 0; */
                 return FAIL;
                 /* *type = FILE_TYPE_UNDEFINED; */
         }else{
@@ -363,18 +379,18 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
                         if(sb->num_seq){
                                 WARNING_MSG("Even stranger - the parser did record a sequence");
                         }
-                        sb->num_seq = 0;
+                        /* sb->num_seq = 0; */
                         return FAIL;
                 }else if(fh->trans[S_START][S_NAME] && fh->trans[S_NAME][S_SEQ] == 0){
                         WARNING_MSG("Could detect a name but no sequence.");
                         if(sb->num_seq){
                                 WARNING_MSG("Even stranger - the parser did record a sequence");
                         }
-                        sb->num_seq = 0;
+                        /* sb->num_seq = 0; */
                         return FAIL;
                 }else if(fh->trans[S_SEQ][S_Q_NEXT] && fh->trans[S_Q_NEXT][S_Q] == 0){
                         WARNING_MSG("Could detect (at least) a sequence that should have base qualities but found none .");
-                        sb->num_seq = 0;
+                        /* sb->num_seq = 0; */
                         return FAIL;
                 }else if(fh->trans[S_SEQ][S_Q_NEXT] ){
                         sb->is_fastq = 1;
@@ -384,7 +400,7 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
         }
         sb->base_quality_offset = 0;
 
-        total = 0.0;
+
         galloc(&dist, 256);
         for(int i = 0; i < 256;i++){
                 dist[i] = 0.0;
@@ -395,7 +411,8 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
                 if(sb->is_fastq){
                         if(s->seq->len != s->qual->len){
                                 WARNING_MSG("Length of sequence %s is not equal to length of base qualities.", TLD_STR(s->name));
-                                sb->num_seq = 0;
+                                return FAIL;
+                                /* sb->num_seq = 0; */
                         }
                 }
                 uint8_t* seq = s->seq->str;
@@ -412,20 +429,48 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
                         }
                         dist[seq[j]]++;
                 }
-                total += (double) s->len;
 
                 if(s->len > max_len){
                         max_len = sb->sequences[i]->len;
                 }
         }
-        /* LOG_MSG("%f", total); */
-        double shannon = 0.0;
-        tld_shannon(dist,256,&shannon);
+        if(sb->num_seq){
+                if(n_is_aa > n_is_dna){
+                        sb->L = TL_SEQ_BUFFER_PROTEIN;
+                }else{
+                        double shannon = 0.0;
+                        double p1 = 0.0;
+                        double p2 = 0.0;
+                        double sum = 0.0;
 
+                        tld_shannon(dist,256,&shannon);
+                        /* Magical numbers ahead to see whether the shannon entropy
+                           of letter distributions matches nucleotides or protein
+                           sequences.
+                         */
+                        /* mean and standard deviation of shannon entropy
+                           of first 25 nucleotide of sequences in:
+                           uniprot_sprot.fasta.gz
+                        */
+                        tld_normal_pdf(shannon, 3.454989,0.257477,&p1);
 
-        LOG_MSG("Shanon: %f", shannon);
+                        /* mean and standard deviation of shannon entropy
+                           of first 25 nucleotide of sequences in:
+                           vertebrate_mammalian.1.rna.fna.gz
+                        */
+                        tld_normal_pdf(shannon, 1.838894,0.138224,&p2);
 
-        LOG_MSG("%d %d",n_is_dna,n_is_aa);
+                        sum = p1 + p2;
+                        p1 = p1 / sum;
+                        p2 = p2 / sum ;
+                        /* LOG_MSG("%d %d  protein: %f nuc: %f",n_is_dna,n_is_aa, p1, p2); */
+                        if(p1 > p2){
+                                sb->L = TL_SEQ_BUFFER_PROTEIN;
+                        }else{
+                                sb->L = TL_SEQ_BUFFER_DNA;
+                        }
+                }
+        }
         sb->max_len = max_len;
         gfree(dist);
         /* exit(0); */
@@ -437,42 +482,42 @@ ERROR:
         return FAIL;
 }
 
-int get_base_q_offset(struct tl_seq* s, int* offset)
-{
-        /*
-           SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS.....................................................
-           ..........................XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX......................
-           ...............................IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII......................
-           .................................JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ.....................
-           LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL....................................................
-           PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
-           !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
-           |                         |    |        |                              |                     |
-          33                        59   64       73                            104                   126
-           0........................26...31.......40                                 S - Sanger  Phred+33
-                                    -5....0........9.............................40  X - Solexa    Solexa+64
-                                          0........9.............................40  I - Illumina 1.3+
-                                             3.....9..............................4  J - Illumina 1.5+
-           0.2......................26...31........41                                L - Illumina 1.8+
-           0..................20........30........40........50..........................................93  P - PacBio
-        */
-        char q_type[] = "SXIJLP";
-        uint32_t count[6] = {0,0,0,0,0,0};
-        uint8_t c = 0;
-        for(int i = 0; i < s->qual->len;i++){
-                c = s->qual->str[i];
-                if(c >= 33 && c < 59){
-                        count[0]++;
-                        count[4]++;
-                        count[5]++;
-                }else if(c >=59 && c < 64){
+/* int get_base_q_offset(struct tl_seq* s, int* offset) */
+/* { */
+/*         /\* */
+/*            SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS..................................................... */
+/*            ..........................XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX...................... */
+/*            ...............................IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII...................... */
+/*            .................................JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJ..................... */
+/*            LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.................................................... */
+/*            PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP */
+/*            !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~ */
+/*            |                         |    |        |                              |                     | */
+/*           33                        59   64       73                            104                   126 */
+/*            0........................26...31.......40                                 S - Sanger  Phred+33 */
+/*                                     -5....0........9.............................40  X - Solexa    Solexa+64 */
+/*                                           0........9.............................40  I - Illumina 1.3+ */
+/*                                              3.....9..............................4  J - Illumina 1.5+ */
+/*            0.2......................26...31........41                                L - Illumina 1.8+ */
+/*            0..................20........30........40........50..........................................93  P - PacBio */
+/*         *\/ */
+/*         char q_type[] = "SXIJLP"; */
+/*         uint32_t count[6] = {0,0,0,0,0,0}; */
+/*         uint8_t c = 0; */
+/*         for(int i = 0; i < s->qual->len;i++){ */
+/*                 c = s->qual->str[i]; */
+/*                 if(c >= 33 && c < 59){ */
+/*                         count[0]++; */
+/*                         count[4]++; */
+/*                         count[5]++; */
+/*                 }else if(c >=59 && c < 64){ */
 
-                }
-        }
+/*                 } */
+/*         } */
 
-        return OK;
+/*         return OK; */
 
-}
+/* } */
 
 int close_seq_file(struct file_handler** fh)
 {

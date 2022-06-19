@@ -13,6 +13,9 @@ EXTERN int tld_mean(double *vec, int n, double *mean);
 EXTERN int tld_pop_variance(double *vec, int n, double *variance);
 EXTERN int tld_sample_variance(double *vec, int n, double *variance);
 
+
+EXTERN int tld_normal_pdf(double x, double mu, double sigma, double* p);
+
 #undef BASIC_IMPORT
 #undef EXTERN
 
