@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
         if(argc > 1){
                 RUN(open_fasta_fastq_file(&f, argv[1], TLSEQIO_READ));
                 while(1){
-                        RUN(read_fasta_fastq_file(f, &sb, 3));
+                        RUN(read_fasta_fastq_file(f, &sb, 100000));
                         //detect_format(sb);
                         //total_r+= sb->num_seq;
                         LOG_MSG("Finished reading chunk: found %d ",sb->num_seq);
@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
                                 break;
                         }
                         for(int i = 0; i < sb->num_seq;i++){
-                                fprintf(stdout, "%s %d\n",  sb->sequences[i]->name->str, sb->sequences[i]->seq->len);
+                                /* fprintf(stdout, "%s %d\n%s\n",  sb->sequences[i]->name->str, sb->sequences[i]->seq->len,TLD_STR(sb->sequences[i]->seq)); */
                         }
                 }
         }

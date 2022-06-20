@@ -76,6 +76,20 @@ ERROR:
         return FAIL;
 }
 
+int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s)
+{
+        /* tld_strbuf_ensure_size(t, s->len); */
+        RUN(tld_strbuf_ensure_size(t,s->len));
+
+        memcpy(t->str, s->str, s->len);
+        t->len = s->len;
+        t->str[t->len] = 0;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+
 int tld_prepend(tld_strbuf *b, char *content)
 {
         int size = strlen(content);
