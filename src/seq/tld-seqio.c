@@ -445,8 +445,8 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
 
                         tld_shannon(dist,256,&shannon);
                         /* Magical numbers ahead to see whether the shannon entropy
-                           of letter distributions matches nucleotides or protein
-                           sequences.
+                           of the letter distribution matches nucleotide or protein
+                           sequences patterns.
                          */
                         /* mean and standard deviation of shannon entropy
                            of first 25 nucleotide of sequences in:
