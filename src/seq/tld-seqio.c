@@ -717,6 +717,11 @@ int read_gz_line(struct file_handler *fh)
                         b->str[b->len-1]  = 0;
                         b->len--;
                 }
+                if(b->str[b->len-1] == '\r'){
+                        b->str[b->len-1]  = 0;
+                        b->len--;
+                }
+                /* LOG_MSG("%d", b->str[b->len-1]); */
         }
         return OK;
 }
