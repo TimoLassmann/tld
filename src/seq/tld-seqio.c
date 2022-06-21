@@ -465,6 +465,7 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
                         }
                 }
         }
+        sb->offset = 33;
         sb->max_len = max_len;
         gfree(dist);
         /* exit(0); */
