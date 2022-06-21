@@ -277,6 +277,7 @@ int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num)
                                 fh->trans[S_NAME][S_SEQ]++;
                                 state = S_SEQ;
                                 RUN(tld_strbuf_copy(sb->sequences[sb->num_seq]->seq, fh->line_buf));
+                                sb->sequences[sb->num_seq]->len = sb->sequences[sb->num_seq]->seq->len;
                         }else if(c != 0){
                                 fh->n_parse_error++;
                                 ERROR_MSG("%d: A name line is not followed by a sequence line. %s",fh->n_parse_error,TLD_STR(fh->line_buf));
@@ -290,6 +291,7 @@ int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num)
 
                                 sb->sequences[sb->num_seq]->len = sb->sequences[sb->num_seq]->seq->len;
                         }else if(c == fh->start_symbol){
+
                                 sb->num_seq++;
                                 if(sb->num_seq == num){
                                         fh->read_state = S_START;//state;
@@ -423,9 +425,9 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
                         }
                         dist[seq[j]]++;
                 }
-
+                /* LOG_MSG("%d %d %d", max_len, s->len,s->seq->len); */
                 if(s->len > max_len){
-                        max_len = sb->sequences[i]->len;
+                        max_len = s->len;
                 }
         }
         if(sb->num_seq){
