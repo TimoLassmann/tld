@@ -43,8 +43,8 @@ int main(int argc, char *argv[])
                         }
                 }
         }
-        gfree(dat);
-        if(n_dat > 1){
+
+        if(n_dat > 0){
                 double mean;
                 tld_mean(dat, n_dat, &mean);
                 double var;
@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
 
                 LOG_MSG("%f %f", x, p);
         }
+        gfree(dat);
         free_tl_seq_buffer(sb);
         RUN(close_seq_file(&f));
         if(argc > 2){
