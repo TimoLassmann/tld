@@ -4,7 +4,11 @@
 #include <math.h>
 #include <float.h>
 #include <stdint.h>
+/*
+  adopted from:
 
+  https://metacpan.org/release/JANERT/Statistics-KernelEstimation-0.05/source/lib/Statistics/KernelEstimation.pm
+*/
 static int create_steps(double *data, int data_len, int n_steps, double*** ret);
 static int default_bandwidth(double *x,double* cnt, int len, double* band);
 
