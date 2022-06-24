@@ -33,11 +33,11 @@ else()
   target_compile_options(gentable PRIVATE -DBOOT)
   target_link_libraries(gentable PRIVATE boot)
 
-add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
-  COMMAND gentable ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
-  DEPENDS gentable
-  )
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
+    COMMAND gentable ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
+    DEPENDS gentable
+    )
 
   # add_custom_target(mktable
   #   # OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/seq/tld-seq-tables.h
@@ -67,7 +67,7 @@ add_custom_command(
   
 endif(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h)
 
-  
+
 
 
 

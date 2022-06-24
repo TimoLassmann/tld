@@ -24,5 +24,6 @@
 #include "string/str.c"
 
 #include "stats/basic.c"
+#include "stats/kde.c"
 
 #include "misc/misc.c"

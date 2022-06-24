@@ -5,6 +5,13 @@ project(tld-tests LANGUAGES C)
 # add_executable(unit-generic utests/generic.c) 
 # target_link_libraries(unit-generic PRIVATE tld-dev)
 
+add_executable(kde_itest itests/kde_itest.c) 
+target_link_libraries(kde_itest PRIVATE tld-dev)
+add_test(
+    NAME kde_itest
+    COMMAND kde_itest
+)
+
 add_executable(unit-str utests/unit_str.c) 
 target_link_libraries(unit-str PRIVATE tld-dev)
 add_test(
