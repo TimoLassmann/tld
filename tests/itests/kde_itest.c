@@ -23,17 +23,17 @@ int main(void)
         FILE* f_ptr = NULL;
 
 
-        f_ptr = fopen("kde_dat.csv","w");
-        for(int i = 0;i < len;i++){
-                fprintf(f_ptr,"%f\n",x[i]);
-        }
+        /* f_ptr = fopen("kde_dat.csv","w"); */
+        /* for(int i = 0;i < len;i++){ */
+        /*         fprintf(f_ptr,"%f\n",x[i]); */
+        /* } */
 
-        fclose(f_ptr);
+        /* fclose(f_ptr); */
         double** ladder = NULL;
-        tld_kde_pdf(x, NULL,len, 20, &ladder);
+        tld_kde_pdf(x, len, 20, &ladder);
 
         for(int i = 0; i < 20;i++){
-                fprintf(stdout,"%f,%f\n", ladder[i][0],ladder[i][1]);
+                fprintf(stdout,"%d %f,%f\n",i, ladder[i][0],ladder[i][1]);
         }
 
         gfree(ladder);
@@ -46,10 +46,10 @@ int main(void)
 
         double* y = NULL;
         len = 10;
-        /* galloc(&x,len); */
+        galloc(&x,len);
         galloc(&y,len);
         for(int i = 0;i < len;i++){
-                /* x[i] = i; */
+                x[i] = i;
                 y[i] = 0.0;
         }
 
@@ -74,19 +74,24 @@ int main(void)
         /*         fprintf(stdout,"%d %f %f\n",i , x[i], y[i]); */
         /* } */
         ladder = NULL;
-        tld_kde_pdf(NULL, y,len, 200, &ladder);
-
-        f_ptr = fopen("kde_line_dat.csv","w");
+        tld_kde_count_pdf(x,y,len ,&ladder);
 
 
-        for(int i = 0; i < 200;i++){
-                fprintf(f_ptr,"%f,%f\n", ladder[i][0],ladder[i][1]);
+
+
+        for(int i = 0; i < len;i++){
+                fprintf(stdout,"%f %f -> %f,%f\n",x[i],y[i], ladder[i][0],ladder[i][1]);
         }
-        fclose(f_ptr);
+
 
         gfree(ladder);
 
-
+        if(x){
+                gfree(x);
+        }
+        if(y){
+                gfree(y);
+        }
 
         free_rng(rng);
         return EXIT_SUCCESS;
