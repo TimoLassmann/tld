@@ -20,7 +20,7 @@ int main(void)
 
         }
 
-        FILE* f_ptr = NULL;
+        /* FILE* f_ptr = NULL; */
 
 
         /* f_ptr = fopen("kde_dat.csv","w"); */
