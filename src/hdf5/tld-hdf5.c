@@ -10,6 +10,8 @@
 
 #define TLD_HDF5_MAX_CONTENT_LEN 1024
 
+static void print_type(hid_t type);
+
 static int my_H5Oget_info_by_name(hid_t loc_id, const char *name, H5O_info_t *info);
 static int my_H5Oget_info(hid_t group, H5O_info_t *info);
 
@@ -433,6 +435,10 @@ ADD_ARRAY(double)
                 HDFWRAP_SET_TYPE(data,&hdf5_data->native_type);         \
                 if(!H5Tequal(hdf5_data->datatype, hdf5_data->native_type)){ \
                         WARNING_MSG("The type of the data in the file doesn't match the type of the pointer"); \
+                        WARNING_MSG("Type in file"); \
+                        print_type(hdf5_data->datatype); \
+                        WARNING_MSG("NAtive type in file"); \
+                        print_type(hdf5_data->native_type); \
                         if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
                         ERROR_MSG("Reading failed");                    \
                 }                                                       \
@@ -482,6 +488,10 @@ READ_ARRAY(double)
                 HDFWRAP_SET_TYPE(data,&hdf5_data->native_type);         \
                 if(!H5Tequal(hdf5_data->datatype, hdf5_data->native_type)){ \
                         WARNING_MSG("The type of the data in the file doesn't match the type of the pointer"); \
+                        WARNING_MSG("Type in file"); \
+                        print_type(hdf5_data->datatype); \
+                        WARNING_MSG("NAtive type in file"); \
+                        print_type(hdf5_data->native_type); \
                         if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
                         ERROR_MSG("Reading failed");                    \
                 }                                                       \
@@ -533,6 +543,10 @@ READ_ARRAY(double)
                 HDFWRAP_SET_TYPE(data,&hdf5_data->native_type);         \
                 if(!H5Tequal(hdf5_data->datatype, hdf5_data->native_type)){ \
                         WARNING_MSG("The type of the data in the file doesn't match the type of the pointer"); \
+                        WARNING_MSG("Type in file"); \
+                        print_type(hdf5_data->datatype); \
+                        WARNING_MSG("NAtive type in file"); \
+                        print_type(hdf5_data->native_type); \
                         if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
                         ERROR_MSG("Reading failed");                    \
                 }                                                       \
@@ -1183,4 +1197,121 @@ int my_H5Oget_info(hid_t group, H5O_info_t *info)
         return OK;
 ERROR:
         return FAIL;
+}
+
+
+void print_type(hid_t type)
+{
+        switch (H5Tget_class(type)) {
+        case H5T_INTEGER:
+                if (H5Tequal(type, H5T_STD_I8BE))
+                        LOG_MSG("H5T_STD_I8BE");
+                else if (H5Tequal(type, H5T_STD_I8LE))
+                        LOG_MSG("H5T_STD_I8LE");
+                else if (H5Tequal(type, H5T_STD_I16BE))
+                        LOG_MSG("H5T_STD_I16BE");
+                else if (H5Tequal(type, H5T_STD_I16LE))
+                        LOG_MSG("H5T_STD_I16LE");
+                else if (H5Tequal(type, H5T_STD_I32BE))
+                        LOG_MSG("H5T_STD_I32BE");
+                else if (H5Tequal(type, H5T_STD_I32LE))
+                        LOG_MSG("H5T_STD_I32LE");
+                else if (H5Tequal(type, H5T_STD_I64BE))
+                        LOG_MSG("H5T_STD_I64BE");
+                else if (H5Tequal(type, H5T_STD_I64LE))
+                        LOG_MSG("H5T_STD_I64LE");
+                else if (H5Tequal(type, H5T_STD_U8BE))
+                        LOG_MSG("H5T_STD_U8BE");
+                else if (H5Tequal(type, H5T_STD_U8LE))
+                        LOG_MSG("H5T_STD_U8LE");
+                else if (H5Tequal(type, H5T_STD_U16BE))
+                        LOG_MSG("H5T_STD_U16BE");
+                else if (H5Tequal(type, H5T_STD_U16LE))
+                        LOG_MSG("H5T_STD_U16LE");
+                else if (H5Tequal(type, H5T_STD_U32BE))
+                        LOG_MSG("H5T_STD_U32BE");
+                else if (H5Tequal(type, H5T_STD_U32LE))
+                        LOG_MSG("H5T_STD_U32LE");
+                else if (H5Tequal(type, H5T_STD_U64BE))
+                        LOG_MSG("H5T_STD_U64BE");
+                else if (H5Tequal(type, H5T_STD_U64LE))
+                        LOG_MSG("H5T_STD_U64LE");
+                else if (H5Tequal(type, H5T_NATIVE_SCHAR))
+                        LOG_MSG("H5T_NATIVE_SCHAR");
+                else if (H5Tequal(type, H5T_NATIVE_UCHAR))
+                        LOG_MSG("H5T_NATIVE_UCHAR");
+                else if (H5Tequal(type, H5T_NATIVE_SHORT))
+                        LOG_MSG("H5T_NATIVE_SHORT");
+                else if (H5Tequal(type, H5T_NATIVE_USHORT))
+                        LOG_MSG("H5T_NATIVE_USHORT");
+                else if (H5Tequal(type, H5T_NATIVE_INT))
+                        LOG_MSG("H5T_NATIVE_INT");
+                else if (H5Tequal(type, H5T_NATIVE_UINT))
+                        LOG_MSG("H5T_NATIVE_UINT");
+                else if (H5Tequal(type, H5T_NATIVE_LONG))
+                        LOG_MSG("H5T_NATIVE_LONG");
+                else if (H5Tequal(type, H5T_NATIVE_ULONG))
+                        LOG_MSG("H5T_NATIVE_ULONG");
+                else if (H5Tequal(type, H5T_NATIVE_LLONG))
+                        LOG_MSG("H5T_NATIVE_LLONG");
+                else if (H5Tequal(type, H5T_NATIVE_ULLONG))
+                        LOG_MSG("H5T_NATIVE_ULLONG");
+                else
+                        LOG_MSG("undefined integer");
+                break;
+
+        case H5T_FLOAT:
+                if (H5Tequal(type, H5T_IEEE_F32BE))
+                        LOG_MSG("H5T_IEEE_F32BE");
+                else if (H5Tequal(type, H5T_IEEE_F32LE))
+                        LOG_MSG("H5T_IEEE_F32LE");
+                else if (H5Tequal(type, H5T_IEEE_F64BE))
+                        LOG_MSG("H5T_IEEE_F64BE");
+                else if (H5Tequal(type, H5T_IEEE_F64LE))
+                        LOG_MSG("H5T_IEEE_F64LE");
+                else if (H5Tequal(type, H5T_NATIVE_FLOAT))
+                        LOG_MSG("H5T_NATIVE_FLOAT");
+                else if (H5Tequal(type, H5T_NATIVE_DOUBLE))
+                        LOG_MSG("H5T_NATIVE_DOUBLE");
+                else if (H5Tequal(type, H5T_NATIVE_LDOUBLE))
+                        LOG_MSG("H5T_NATIVE_LDOUBLE");
+                else
+                        LOG_MSG("undefined float");
+                break;
+
+        case H5T_BITFIELD:
+                if (H5Tequal(type, H5T_STD_B8BE))
+                        LOG_MSG("H5T_STD_B8BE");
+                else if (H5Tequal(type, H5T_STD_B8LE))
+                        LOG_MSG("H5T_STD_B8LE");
+                else if (H5Tequal(type, H5T_STD_B16BE))
+                        LOG_MSG("H5T_STD_B16BE");
+                else if (H5Tequal(type, H5T_STD_B16LE))
+                        LOG_MSG("H5T_STD_B16LE");
+                else if (H5Tequal(type, H5T_STD_B32BE))
+                        LOG_MSG("H5T_STD_B32BE");
+                else if (H5Tequal(type, H5T_STD_B32LE))
+                        LOG_MSG("H5T_STD_B32LE");
+                else if (H5Tequal(type, H5T_STD_B64BE))
+                        LOG_MSG("H5T_STD_B64BE");
+                else if (H5Tequal(type, H5T_STD_B64LE))
+                        LOG_MSG("H5T_STD_B64LE");
+                else
+                        LOG_MSG("undefined bitfield");
+                break;
+
+        case H5T_TIME:
+        case H5T_STRING:
+        case H5T_OPAQUE:
+        case H5T_COMPOUND:
+        case H5T_REFERENCE:
+        case H5T_ENUM:
+        case H5T_VLEN:
+        case H5T_ARRAY:
+        case H5T_NO_CLASS:
+        case H5T_NCLASSES:
+        default:
+                return;
+
+        } /* end switch */
 }
