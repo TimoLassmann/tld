@@ -994,66 +994,66 @@ ERROR:
 
 int set_type_char(hid_t* type)
 {
-        *type = H5T_NATIVE_CHAR;
+        *type = H5T_STD_U8LE;//H5T_NATIVE_CHAR;
         return OK;
 }
 
 int set_type_int8_t(hid_t* type)
 {
-        *type = H5T_NATIVE_INT8;
+        *type = H5T_STD_I8LE;//H5T_NATIVE_INT8;
         return OK;
 }
 
 int set_type_uint8_t(hid_t* type)
 {
-        *type = H5T_NATIVE_UINT8;
+        *type = H5T_STD_U8LE;//H5T_NATIVE_UINT8;
         return OK;
 }
 
 int set_type_int16_t(hid_t* type)
 {
-        *type = H5T_NATIVE_INT16;
+        *type = H5T_STD_I16LE;//H5T_NATIVE_INT16;
         return OK;
 }
 
 int set_type_uint16_t(hid_t* type)
 {
-        *type = H5T_NATIVE_UINT16;
+        *type = H5T_STD_U16LE;//H5T_NATIVE_UINT16;
         return OK;
 }
 
 int set_type_int32_t(hid_t* type)
 {
-        *type = H5T_NATIVE_INT32;
+        *type = H5T_STD_I32LE;//H5T_NATIVE_INT32;
         return OK;
 }
 
 int set_type_uint32_t(hid_t* type)
 {
-        *type = H5T_NATIVE_UINT32;
+        *type = H5T_STD_U32LE;//H5T_NATIVE_UINT32;
         return OK;
 }
 int set_type_int64_t(hid_t* type)
 {
-        *type = H5T_NATIVE_INT64;
+        *type = H5T_STD_I64BE;//H5T_NATIVE_INT64;
         return OK;
 }
 
 int set_type_uint64_t(hid_t* type)
 {
-        *type = H5T_NATIVE_UINT64;
+        *type = H5T_STD_U64BE;//H5T_NATIVE_UINT64;
         return OK;
 }
 
 int set_type_float(hid_t* type)
 {
-        *type = H5T_NATIVE_FLOAT;
+        *type = H5T_IEEE_F32LE;//H5T_NATIVE_FLOAT;
         return OK;
 }
 
 int set_type_double(hid_t* type)
 {
-        *type = H5T_NATIVE_DOUBLE;
+        *type = H5T_IEEE_F64LE;//H5T_NATIVE_DOUBLE;
         return OK;
 }
 
