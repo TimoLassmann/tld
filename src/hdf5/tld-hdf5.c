@@ -10,21 +10,20 @@
 
 #define TLD_HDF5_MAX_CONTENT_LEN 1024
 
-static void print_type(hid_t type);
-
+static int check_types(struct hdf5_data* hdf5_data, int write);
 static int my_H5Oget_info_by_name(hid_t loc_id, const char *name, H5O_info_t *info);
 static int my_H5Oget_info(hid_t group, H5O_info_t *info);
 
 /* open / close groups - these are called by all MACROS:
 
-HDFWRAP_WRITE_DATA
-HDFWRAP_READ_DATA
-HDFWRAP_WRITE_ATTRIBUTE
-HDFWRAP_READ_ATTRIBUTE
+   HDFWRAP_WRITE_DATA
+   HDFWRAP_READ_DATA
+   HDFWRAP_WRITE_ATTRIBUTE
+   HDFWRAP_READ_ATTRIBUTE
 
-to resolve the path to the data / attribute
+   to resolve the path to the data / attribute
 
- */
+*/
 static int tld_hdf5_open_group(struct hdf5_data* hdf5_data, char* groupname);
 static int tld_hdf5_close_group(struct hdf5_data* hdf5_data);
 
@@ -33,31 +32,58 @@ static int alloc_hdf5_data(struct hdf5_data** h);
 static void free_hdf5_data(struct hdf5_data* hdf5_data);
 
 
+int check_types(struct hdf5_data* hdf5_data, int write)
+{
+        if (!H5Tequal(hdf5_data->datatype, hdf5_data->datatype_read)) {
+                if(write){
+                        WARNING_MSG("Writing failed due to a type mismatch");
+                }else{
+                        WARNING_MSG("Reading failed due to a type mismatch");
+                }
+                if(write){
+                        LOG_MSG("Type in mem (actual):");
+                }else{
+                        LOG_MSG("Type in mem (expected):");
+                }
+                hdf5_print_type(hdf5_data->datatype);
+                if(write){
+                        LOG_MSG("Type in file (expected):");
+                }else{
+                        LOG_MSG("Type in file (actual):");
+                }
+                hdf5_print_type(hdf5_data->datatype_read);
+                ERROR_MSG("Overwriting failed");
+        }
+        return OK;
+ERROR:
+
+        return FAIL;
+}
 /* to write an array / matrix in hdf5 I need to pass a reference to first start of the memory block.
    this is &x[0] for arrays and &x[0][0] for things allocated with galloc.
    The function below + the generic function allow this to happen.
- */
+*/
 
-#define STARTOF_DATA(type)                                      \
-        static int startof_galloc_ ##type(type x, void** ptr);  \
-        static int startof_galloc_ ##type##_s(type* x, void** ptr);  \
+#define STARTOF_DATA(type)                                              \
+        static int startof_galloc_ ##type(type x, void** ptr);          \
+        static int startof_galloc_ ##type##_s(type* x, void** ptr);     \
         static int startof_galloc_ ##type##_ss(type** x, void** ptr);
 
 STARTOF_DATA(char)
-STARTOF_DATA(int8_t)
-STARTOF_DATA(uint8_t)
-STARTOF_DATA(int16_t)
-STARTOF_DATA(uint16_t)
-STARTOF_DATA(int32_t)
-STARTOF_DATA(uint32_t)
-STARTOF_DATA(int64_t)
-STARTOF_DATA(uint64_t)
-STARTOF_DATA(float)
-STARTOF_DATA(double)
+        STARTOF_DATA(int8_t)
+        STARTOF_DATA(uint8_t)
+        STARTOF_DATA(int16_t)
+        STARTOF_DATA(uint16_t)
+        STARTOF_DATA(int32_t)
+        STARTOF_DATA(uint32_t)
+        STARTOF_DATA(int64_t)
+        STARTOF_DATA(uint64_t)
+        STARTOF_DATA(float)
+        STARTOF_DATA(double)
 
 #undef STARTOF_DATA
 
-static int startof_galloc_unknown(void* x, void** ptr);
+        static int startof_galloc_unknown(void* x, void** ptr);
 
 #define HDFWRAP_START_GALLOC(P,T) _Generic((P),                         \
                                            char: startof_galloc_char,   \
@@ -96,85 +122,9 @@ static int startof_galloc_unknown(void* x, void** ptr);
                                            default: startof_galloc_unknown \
                 )(P,T)
 
-/* These functions determine the native hdf5 data type from the C data type  */
 
-/*
-  H5T_NATIVE_INT    int
-  H5T_NATIVE_UINT   unsigned
-  H5T_NATIVE_LONG   long
-  H5T_NATIVE_ULONG  unsigned long
-H5T_NATIVE_LLONG    long long
-H5T_NATIVE_ULLONG   unsigned long long
-*/
-
-#define SETTYPR(t)                                      \
-        static int set_type_ ## t(hid_t* type);
-
-SETTYPR(char)
-SETTYPR(int8_t)
-SETTYPR(uint8_t)
-SETTYPR(int16_t)
-SETTYPR(uint16_t)
-SETTYPR(int32_t)
-SETTYPR(uint32_t)
-SETTYPR(int64_t)
-SETTYPR(uint64_t)
-SETTYPR(float)
-SETTYPR(double)
-
-#undef SETTYPR
-
-static int set_type_unknown(hid_t* type);
-
-#define HDFWRAP_SET_TYPE(P,T) _Generic((P),                             \
-                                       char: set_type_char,             \
-                                       char*: set_type_char,            \
-                                       char**: set_type_char,           \
-                                       char***: set_type_char,          \
-                                       int8_t: set_type_int8_t,         \
-                                       int8_t*: set_type_int8_t,        \
-                                       int8_t**: set_type_int8_t,       \
-                                       int8_t***: set_type_int8_t,      \
-                                       uint8_t: set_type_uint8_t,       \
-                                       uint8_t*: set_type_uint8_t,      \
-                                       uint8_t**: set_type_uint8_t,     \
-                                       uint8_t***: set_type_uint8_t,    \
-                                       int16_t: set_type_int16_t,       \
-                                       int16_t*: set_type_int16_t,      \
-                                       int16_t**: set_type_int16_t,     \
-                                       int16_t***: set_type_int16_t,    \
-                                       uint16_t: set_type_uint16_t,     \
-                                       uint16_t*: set_type_uint16_t,    \
-                                       uint16_t**: set_type_uint16_t,   \
-                                       uint16_t***: set_type_uint16_t,  \
-                                       int32_t: set_type_int32_t,       \
-                                       int32_t*: set_type_int32_t,      \
-                                       int32_t**: set_type_int32_t,     \
-                                       int32_t***: set_type_int32_t,    \
-                                       uint32_t: set_type_uint32_t,     \
-                                       uint32_t*: set_type_uint32_t,    \
-                                       uint32_t**: set_type_uint32_t,   \
-                                       uint32_t***: set_type_uint32_t,  \
-                                       int64_t: set_type_int64_t,       \
-                                       int64_t*: set_type_int64_t,      \
-                                       int64_t**: set_type_int64_t,     \
-                                       int64_t***: set_type_int64_t,    \
-                                       uint64_t: set_type_uint64_t,     \
-                                       uint64_t*: set_type_uint64_t,    \
-                                       uint64_t**: set_type_uint64_t,   \
-                                       uint64_t***: set_type_uint64_t,  \
-                                       float: set_type_float,           \
-                                       float*: set_type_float,          \
-                                       float**: set_type_float,         \
-                                       float***: set_type_float,        \
-                                       double: set_type_double,         \
-                                       double*: set_type_double,        \
-                                       double**: set_type_double,       \
-                                       double***: set_type_double,      \
-                                       default: set_type_unknown        \
-                )(T)
-
-#define TLD_HDF5_ADD_SINGLE_BODY do {                                   \
+#define TLD_HDF5_ADD_SINGLE_BODY                                        \
+        do {                                                            \
                 int i;                                                  \
                                                                         \
                 RUN(tld_hdf5_open_group(hdf5_data, group));             \
@@ -186,66 +136,79 @@ static int set_type_unknown(hid_t* type);
                                                                         \
                 hdf5_data->rank = 1;                                    \
                                                                         \
-                HDFWRAP_SET_TYPE(data,&hdf5_data->native_type);         \
-                for(i = 0; i< hdf5_data->rank;i++){                     \
-                        if(hdf5_data->chunk_dim[i] >  hdf5_data->dim[i]){ \
-                                ERROR_MSG("chunk dimenson exceeds dataset dimension:%d (rank) %d %d \n", i,hdf5_data->chunk_dim[i], hdf5_data->dim[i] ); \
+                HDFWRAP_SET_TYPE(data, &hdf5_data->datatype);           \
+                for (i = 0; i < hdf5_data->rank; i++) {                 \
+                        if (hdf5_data->chunk_dim[i] > hdf5_data->dim[i]) { \
+                                ERROR_MSG(                              \
+                                        "chunk dimenson exceeds dataset dimension:%d (rank) %d %d \n", i, \
+                                        hdf5_data->chunk_dim[i], hdf5_data->dim[i]); \
                         }                                               \
-                        if(hdf5_data->chunk_dim[i] == 0){               \
+                        if (hdf5_data->chunk_dim[i] == 0) {             \
                                 hdf5_data->chunk_dim[i] = hdf5_data->dim[i]; \
                         }                                               \
                 }                                                       \
                                                                         \
                                                                         \
-                snprintf(hdf5_data->dataset_name , TLD_HDF5_MAX_NAME_LEN,"%s",name); \
-                hdf5_data->status = H5Lexists(hdf5_data->group, hdf5_data->dataset_name, H5P_DEFAULT); \
-                if(!hdf5_data->status){                                 \
-                        snprintf(hdf5_data->dataset_name , TLD_HDF5_MAX_NAME_LEN,"%s",name); \
-                        if((hdf5_data->dataspace = H5Screate_simple(hdf5_data->rank,  hdf5_data->dim , NULL)) < 0)ERROR_MSG("H5Screate_simple failed."); \
+                snprintf(hdf5_data->dataset_name, TLD_HDF5_MAX_NAME_LEN, "%s", name); \
+                hdf5_data->status =                                     \
+                        H5Lexists(hdf5_data->group, hdf5_data->dataset_name, H5P_DEFAULT); \
+                if (!hdf5_data->status) {                               \
+                        snprintf(hdf5_data->dataset_name, TLD_HDF5_MAX_NAME_LEN, "%s", name); \
+                        if ((hdf5_data->dataspace =                     \
+                             H5Screate_simple(hdf5_data->rank, hdf5_data->dim, NULL)) < 0) \
+                                ERROR_MSG("H5Screate_simple failed.");  \
                                                                         \
-                        if((hdf5_data->datatype = H5Tcopy(hdf5_data->native_type )) < 0) ERROR_MSG("H5Tcopy failed"); \
+                        if ((hdf5_data->status =                        \
+                             H5Tset_order(hdf5_data->datatype, H5T_ORDER_LE)) < 0) \
+                                ERROR_MSG("H5Tset_order failed.");      \
                                                                         \
-                        if((hdf5_data->status = H5Tset_order(hdf5_data->datatype, H5T_ORDER_LE)) < 0) ERROR_MSG("H5Tset_order failed."); \
+                        if ((hdf5_data->plist = H5Pcreate(H5P_DATASET_CREATE)) < 0) \
+                                ERROR_MSG("H5Pcreate failed.");         \
                                                                         \
-                        if((hdf5_data->plist = H5Pcreate (H5P_DATASET_CREATE)) < 0) ERROR_MSG("H5Pcreate failed."); \
+                        if ((hdf5_data->status = H5Pset_shuffle(hdf5_data->plist)) < 0) \
+                                ERROR_MSG("H5Pset_shuffle failed.");    \
                                                                         \
-                        if((hdf5_data->status = H5Pset_shuffle (hdf5_data->plist )) < 0 )ERROR_MSG("H5Pset_shuffle failed."); \
+                        if ((hdf5_data->status = H5Pset_deflate(hdf5_data->plist, 2)) < 0) \
+                                ERROR_MSG("H5Pset_deflate failed.");    \
+                        if ((hdf5_data->status = H5Pset_chunk(hdf5_data->plist, hdf5_data->rank, \
+                                                              hdf5_data->chunk_dim)) < 0) \
+                                ERROR_MSG("H5Pset_chunk failed.");      \
                                                                         \
-                        if((hdf5_data->status = H5Pset_deflate (hdf5_data->plist, 2)) < 0 )ERROR_MSG("H5Pset_deflate failed."); \
-                        if((hdf5_data->status = H5Pset_chunk (hdf5_data->plist, hdf5_data->rank,  hdf5_data->chunk_dim)) < 0 )ERROR_MSG("H5Pset_chunk failed."); \
                                                                         \
+                        if ((hdf5_data->dataset =                       \
+                             H5Dcreate(hdf5_data->group, hdf5_data->dataset_name, \
+                                       hdf5_data->datatype, hdf5_data->dataspace, \
+                                       H5P_DEFAULT, hdf5_data->plist, H5P_DEFAULT)) < 0) \
+                                ERROR_MSG("H5Dcreate failed");          \
                                                                         \
-                        if((hdf5_data->dataset = H5Dcreate(hdf5_data->group, \
-                                                           hdf5_data->dataset_name, \
-                                                           hdf5_data->datatype, \
-                                                           hdf5_data->dataspace, \
-                                                           H5P_DEFAULT, \
-                                                           hdf5_data->plist, H5P_DEFAULT)) < 0 )ERROR_MSG("H5Dcreate failed"); \
-                                                                        \
-                        if((hdf5_data->status  = H5Dwrite(hdf5_data->dataset,hdf5_data->native_type, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void*)&data)) < 0) ERROR_MSG("H5Dwrite failed"); \
+                        if ((hdf5_data->status =                        \
+                             H5Dwrite(hdf5_data->dataset, hdf5_data->datatype, H5S_ALL, \
+                                      H5S_ALL, H5P_DEFAULT, (void *)&data)) < 0) \
+                                ERROR_MSG("H5Dwrite failed");           \
                                                                         \
                         /* closing stuff */                             \
-                        if((hdf5_data->status = H5Pclose(hdf5_data->plist)) < 0) ERROR_MSG("H5Pclose failed"); \
-                        if((hdf5_data->status = H5Tclose(hdf5_data->datatype)) < 0) ERROR_MSG("H5Tclose failed"); \
-                        if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
-                        if((hdf5_data->status = H5Sclose(hdf5_data->dataspace)) < 0) ERROR_MSG("H5Sclose failed"); \
-                }else{                                                  \
-                        if((hdf5_data->dataset = H5Dopen(hdf5_data->group,hdf5_data->dataset_name ,H5P_DEFAULT)) == -1)ERROR_MSG("H5Dopen failed\n"); \
+                        if ((hdf5_data->status = H5Pclose(hdf5_data->plist)) < 0) \
+                                ERROR_MSG("H5Pclose failed");           \
+                        if ((hdf5_data->status = H5Tclose(hdf5_data->datatype)) < 0) \
+                                ERROR_MSG("H5Tclose failed");           \
+                        if ((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) \
+                                ERROR_MSG("H5Dclose failed");           \
+                        if ((hdf5_data->status = H5Sclose(hdf5_data->dataspace)) < 0) \
+                                ERROR_MSG("H5Sclose failed");           \
+                } else {                                                \
+                        if ((hdf5_data->dataset = H5Dopen(              \
+                                     hdf5_data->group, hdf5_data->dataset_name, H5P_DEFAULT)) == -1) \
+                                ERROR_MSG("H5Dopen failed\n");          \
                                                                         \
-                        hdf5_data->datatype  = H5Dget_type(hdf5_data->dataset );     /* datatype handle */ \
-                                                                        \
-                        if(!H5Tequal(hdf5_data->datatype, hdf5_data->native_type)){ \
-                                WARNING_MSG("Writing into an existing dataset failed"); \
-                                WARNING_MSG("Data type is different!"); \
-                                if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
-                                ERROR_MSG("Overwriting failed");        \
-                        }                                               \
+                        hdf5_data->datatype_read =                      \
+                                H5Dget_type(hdf5_data->dataset); /* datatype handle */ \
+                        RUN(check_types(hdf5_data, 1));                 \
                         hdf5_data->dataspace = H5Dget_space(hdf5_data->dataset); \
                         hdf5_data->rank      = H5Sget_simple_extent_ndims(hdf5_data->dataspace); \
                         hdf5_data->status  = H5Sget_simple_extent_dims(hdf5_data->dataspace,hdf5_data->dim , NULL); \
                                                                         \
                         if(1== (int) hdf5_data->dim[0] && 0 == (int)hdf5_data->dim[1]){ \
-                                if((hdf5_data->status  = H5Dwrite(hdf5_data->dataset,hdf5_data->native_type, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void*) &data)) < 0) ERROR_MSG("H5Dwrite failed"); \
+                                if((hdf5_data->status  = H5Dwrite(hdf5_data->dataset,hdf5_data->datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, (void*) &data)) < 0) ERROR_MSG("H5Dwrite failed"); \
                                                                         \
                                                                         \
                         }else{                                          \
@@ -312,7 +275,7 @@ ADD_ARRAY(double)
                 hdf5_data->rank = 2;                                    \
         }                                                               \
                                                                         \
-        HDFWRAP_SET_TYPE(data,&hdf5_data->native_type);                 \
+        HDFWRAP_SET_TYPE(data,&hdf5_data->datatype);                    \
                                                                         \
         for(i = 0; i< hdf5_data->rank;i++){                             \
                 if(hdf5_data->chunk_dim[i] >  hdf5_data->dim[i]){       \
@@ -330,8 +293,6 @@ ADD_ARRAY(double)
         if(!hdf5_data->status){                                         \
         snprintf(hdf5_data->dataset_name , TLD_HDF5_MAX_NAME_LEN,"%s",name); \
         if((hdf5_data->dataspace = H5Screate_simple(hdf5_data->rank,  hdf5_data->dim , NULL)) < 0)ERROR_MSG("H5Screate_simple failed."); \
-                                                                        \
-        if((hdf5_data->datatype = H5Tcopy(hdf5_data->native_type )) < 0) ERROR_MSG("H5Tcopy failed"); \
                                                                         \
         if((hdf5_data->status = H5Tset_order(hdf5_data->datatype, H5T_ORDER_LE)) < 0) ERROR_MSG("H5Tset_order failed."); \
                                                                         \
@@ -351,7 +312,7 @@ ADD_ARRAY(double)
                                            hdf5_data->plist, H5P_DEFAULT)) < 0 )ERROR_MSG("H5Dcreate failed"); \
                                                                         \
         HDFWRAP_START_GALLOC(data,&ptr);                                \
-        if((hdf5_data->status  = H5Dwrite(hdf5_data->dataset,hdf5_data->native_type, H5S_ALL, H5S_ALL, H5P_DEFAULT, ptr)) < 0) ERROR_MSG("H5Dwrite failed"); \
+        if((hdf5_data->status  = H5Dwrite(hdf5_data->dataset,hdf5_data->datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, ptr)) < 0) ERROR_MSG("H5Dwrite failed"); \
                                                                         \
         /* closing stuff */                                             \
         if((hdf5_data->status = H5Sclose(hdf5_data->dataspace)) < 0) ERROR_MSG("H5Sclose failed"); \
@@ -361,21 +322,15 @@ ADD_ARRAY(double)
         }else{                                                          \
                  if((hdf5_data->dataset = H5Dopen(hdf5_data->group,hdf5_data->dataset_name ,H5P_DEFAULT)) == -1)ERROR_MSG("H5Dopen failed\n"); \
                                                                         \
-                 hdf5_data->datatype  = H5Dget_type(hdf5_data->dataset );     /* datatype handle */ \
-                                                                        \
-                 if(!H5Tequal(hdf5_data->datatype, hdf5_data->native_type)){ \
-                         WARNING_MSG("Writing into an existing dataset failed"); \
-                         WARNING_MSG("Data type is different!");        \
-                         if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
-                         ERROR_MSG("Overwriting failed");               \
-                 }                                                      \
+                 hdf5_data->datatype_read  = H5Dget_type(hdf5_data->dataset );     /* datatype handle */ \
+                 RUN(check_types(hdf5_data, 1));                        \
                  hdf5_data->dataspace = H5Dget_space(hdf5_data->dataset); \
                  hdf5_data->rank      = H5Sget_simple_extent_ndims(hdf5_data->dataspace); \
                  hdf5_data->status  = H5Sget_simple_extent_dims(hdf5_data->dataspace,hdf5_data->dim , NULL); \
                                                                         \
                  HDFWRAP_START_GALLOC(data,&ptr);                       \
                  if(d1 == hdf5_data->dim[0] && d2 == hdf5_data->dim[1]){ \
-                         if((hdf5_data->status  = H5Dwrite(hdf5_data->dataset,hdf5_data->native_type, H5S_ALL, H5S_ALL, H5P_DEFAULT, ptr)) < 0) ERROR_MSG("H5Dwrite failed"); \
+                         if((hdf5_data->status  = H5Dwrite(hdf5_data->dataset,hdf5_data->datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, ptr)) < 0) ERROR_MSG("H5Dwrite failed"); \
                                                                         \
                                                                         \
                  }else{                                                 \
@@ -431,17 +386,10 @@ ADD_ARRAY(double)
         {                                                               \
                 RUN(tld_hdf5_open_group(hdf5_data, group));             \
                 if((hdf5_data->dataset = H5Dopen(hdf5_data->group,name,H5P_DEFAULT)) == -1)ERROR_MSG("H5Dopen failed\n"); \
-                hdf5_data->datatype  = H5Dget_type(hdf5_data->dataset ); \
-                HDFWRAP_SET_TYPE(data,&hdf5_data->native_type);         \
-                if(!H5Tequal(hdf5_data->datatype, hdf5_data->native_type)){ \
-                        WARNING_MSG("The type of the data in the file doesn't match the type of the pointer"); \
-                        WARNING_MSG("Type in file"); \
-                        print_type(hdf5_data->datatype); \
-                        WARNING_MSG("NAtive type in file"); \
-                        print_type(hdf5_data->native_type); \
-                        if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
-                        ERROR_MSG("Reading failed");                    \
-                }                                                       \
+                hdf5_data->datatype_read  = H5Dget_type(hdf5_data->dataset ); \
+                HDFWRAP_SET_TYPE(data,&hdf5_data->datatype);            \
+                                                                        \
+                RUN(check_types(hdf5_data, 0));                        \
                                                                         \
                 hdf5_data->dataspace = H5Dget_space(hdf5_data->dataset); \
                 hdf5_data->rank      = H5Sget_simple_extent_ndims(hdf5_data->dataspace); \
@@ -449,9 +397,9 @@ ADD_ARRAY(double)
                                                                         \
                 hdf5_data->data = NULL;                                 \
                                                                         \
-                hdf5_data->status = H5Dread(hdf5_data->dataset, hdf5_data->datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT,data); \
+                hdf5_data->status = H5Dread(hdf5_data->dataset, hdf5_data->datatype_read, H5S_ALL, H5S_ALL, H5P_DEFAULT,data); \
                                                                         \
-                if((hdf5_data->status = H5Tclose(hdf5_data->datatype)) < 0) ERROR_MSG("H5Tclose failed"); \
+                if((hdf5_data->status = H5Tclose(hdf5_data->datatype_read)) < 0) ERROR_MSG("H5Tclose failed"); \
                 if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
                                                                         \
                 tld_hdf5_close_group(hdf5_data);                        \
@@ -481,20 +429,13 @@ READ_ARRAY(double)
         int tld_hdf5_read_1D_dataset_ ##type(struct hdf5_data* hdf5_data, char* group, char* name, type** data) \
         {                                                               \
                 void* ptr = NULL;                                       \
-                type* p = NULL;                                          \
+                type* p = NULL;                                         \
                 RUN(tld_hdf5_open_group(hdf5_data, group));             \
                 if((hdf5_data->dataset = H5Dopen(hdf5_data->group,name,H5P_DEFAULT)) == -1)ERROR_MSG("H5Dopen failed\n"); \
-                hdf5_data->datatype  = H5Dget_type(hdf5_data->dataset ); \
-                HDFWRAP_SET_TYPE(data,&hdf5_data->native_type);         \
-                if(!H5Tequal(hdf5_data->datatype, hdf5_data->native_type)){ \
-                        WARNING_MSG("The type of the data in the file doesn't match the type of the pointer"); \
-                        WARNING_MSG("Type in file"); \
-                        print_type(hdf5_data->datatype); \
-                        WARNING_MSG("NAtive type in file"); \
-                        print_type(hdf5_data->native_type); \
-                        if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
-                        ERROR_MSG("Reading failed");                    \
-                }                                                       \
+                hdf5_data->datatype_read  = H5Dget_type(hdf5_data->dataset ); \
+                HDFWRAP_SET_TYPE(data,&hdf5_data->datatype);            \
+                                                                        \
+                RUN(check_types(hdf5_data, 0));                        \
                                                                         \
                 hdf5_data->dataspace = H5Dget_space(hdf5_data->dataset); \
                 hdf5_data->rank      = H5Sget_simple_extent_ndims(hdf5_data->dataspace); \
@@ -502,11 +443,11 @@ READ_ARRAY(double)
                                                                         \
                 hdf5_data->data = NULL;                                 \
                                                                         \
-                galloc(&p, hdf5_data->dim[0]);                      \
+                galloc(&p, hdf5_data->dim[0]);                          \
                 HDFWRAP_START_GALLOC(p,&ptr);                           \
-                hdf5_data->status = H5Dread(hdf5_data->dataset, hdf5_data->datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT,ptr); \
+                hdf5_data->status = H5Dread(hdf5_data->dataset, hdf5_data->datatype_read, H5S_ALL, H5S_ALL, H5P_DEFAULT,ptr); \
                                                                         \
-                if((hdf5_data->status = H5Tclose(hdf5_data->datatype)) < 0) ERROR_MSG("H5Tclose failed"); \
+                if((hdf5_data->status = H5Tclose(hdf5_data->datatype_read)) < 0) ERROR_MSG("H5Tclose failed"); \
                 if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
                                                                         \
                 tld_hdf5_close_group(hdf5_data);                        \
@@ -539,17 +480,10 @@ READ_ARRAY(double)
                 type** p = NULL;                                          \
                 RUN(tld_hdf5_open_group(hdf5_data, group));             \
                 if((hdf5_data->dataset = H5Dopen(hdf5_data->group,name,H5P_DEFAULT)) == -1)ERROR_MSG("H5Dopen failed\n"); \
-                hdf5_data->datatype  = H5Dget_type(hdf5_data->dataset ); \
-                HDFWRAP_SET_TYPE(data,&hdf5_data->native_type);         \
-                if(!H5Tequal(hdf5_data->datatype, hdf5_data->native_type)){ \
-                        WARNING_MSG("The type of the data in the file doesn't match the type of the pointer"); \
-                        WARNING_MSG("Type in file"); \
-                        print_type(hdf5_data->datatype); \
-                        WARNING_MSG("NAtive type in file"); \
-                        print_type(hdf5_data->native_type); \
-                        if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
-                        ERROR_MSG("Reading failed");                    \
-                }                                                       \
+                hdf5_data->datatype_read  = H5Dget_type(hdf5_data->dataset ); \
+                HDFWRAP_SET_TYPE(data,&hdf5_data->datatype);            \
+                                                                        \
+                RUN(check_types(hdf5_data, 0));                        \
                                                                         \
                 hdf5_data->dataspace = H5Dget_space(hdf5_data->dataset); \
                 hdf5_data->rank      = H5Sget_simple_extent_ndims(hdf5_data->dataspace); \
@@ -559,9 +493,9 @@ READ_ARRAY(double)
                                                                         \
                 galloc(&p,(int) hdf5_data->dim[0],(int)hdf5_data->dim[1]); \
                 HDFWRAP_START_GALLOC(p,&ptr);                           \
-                hdf5_data->status = H5Dread(hdf5_data->dataset, hdf5_data->datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT,ptr); \
+                hdf5_data->status = H5Dread(hdf5_data->dataset, hdf5_data->datatype_read, H5S_ALL, H5S_ALL, H5P_DEFAULT,ptr); \
                                                                         \
-                if((hdf5_data->status = H5Tclose(hdf5_data->datatype)) < 0) ERROR_MSG("H5Tclose failed"); \
+                if((hdf5_data->status = H5Tclose(hdf5_data->datatype_read)) < 0) ERROR_MSG("H5Tclose failed"); \
                 if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
                                                                         \
                 tld_hdf5_close_group(hdf5_data);                        \
@@ -597,21 +531,21 @@ READ_ARRAY(double)
                 hid_t aid;                                              \
                 hid_t attr;                                             \
                 RUN(tld_hdf5_open_group(hdf5_data, group));             \
-                HDFWRAP_SET_TYPE(x,&hdf5_data->native_type);            \
+                HDFWRAP_SET_TYPE(x,&hdf5_data->datatype);            \
                 if( H5Aexists(hdf5_data->group, name)){                 \
                         attr = H5Aopen(hdf5_data->group,name, H5P_DEFAULT); \
-                        hdf5_data->status = H5Awrite(attr,hdf5_data->native_type, &x); \
+                        hdf5_data->status = H5Awrite(attr,hdf5_data->datatype, &x); \
                         hdf5_data->status = H5Aclose(attr);             \
                 }else{                                                  \
                         aid  = H5Screate(H5S_SCALAR);                   \
                         if(aid < 0){                                    \
                                 ERROR_MSG("H5Screate failed %d", aid);  \
                         }                                               \
-                        attr = H5Acreate(hdf5_data->group,name, hdf5_data->native_type, aid,  H5P_DEFAULT, H5P_DEFAULT); \
+                        attr = H5Acreate(hdf5_data->group,name, hdf5_data->datatype, aid,  H5P_DEFAULT, H5P_DEFAULT); \
                         if(attr < 0){                                   \
                                 ERROR_MSG("H5Acreate failed %d", attr); \
                         }                                               \
-                        hdf5_data->status = H5Awrite(attr,hdf5_data->native_type, &x); \
+                        hdf5_data->status = H5Awrite(attr,hdf5_data->datatype, &x); \
                         if(hdf5_data->status < 0){                      \
                                 ERROR_MSG("H5Awrite failed %d", hdf5_data->status); \
                         }                                               \
@@ -673,7 +607,6 @@ ERROR:
         int tld_hdf5_read_attribute_ ##type (struct hdf5_data* hdf5_data, char* group,char* name, type* x) \
         {                                                               \
                 H5O_info_t oinfo;                                       \
-                hid_t atype;                                            \
                 int i;                                                  \
                 char attr_name[TLD_HDF5_MAX_NAME_LEN];                  \
                 RUN(tld_hdf5_open_group(hdf5_data, group));             \
@@ -683,18 +616,27 @@ ERROR:
                         if(hdf5_data->attribute_id < 1){                \
                                 ERROR_MSG("H5Aopen_by_idx failed with %d",hdf5_data->attribute_id); \
                         }                                               \
-                        atype = H5Aget_type(hdf5_data->attribute_id);   \
+                        hdf5_data->datatype_read = H5Aget_type(hdf5_data->attribute_id); \
+                        HDFWRAP_SET_TYPE(x,&hdf5_data->datatype);       \
+                        if (!H5Tequal(hdf5_data->datatype, hdf5_data->datatype_read)) { \
+                                WARNING_MSG("Reading an existing attribute failed"); \
+                                WARNING_MSG("Data type is different!"); \
+                                LOG_MSG("Type in mem (expected):");     \
+                                hdf5_print_type(hdf5_data->datatype);   \
+                                LOG_MSG("Type in file (actual):");      \
+                                hdf5_print_type(hdf5_data->datatype_read); \
+                                hdf5_data->status   = H5Aclose(hdf5_data->attribute_id); \
+                                hdf5_data->status   = H5Tclose(hdf5_data->datatype_read);  \
+                                if((hdf5_data->status = H5Dclose(hdf5_data->dataset)) < 0) ERROR_MSG("H5Dclose failed"); \
+                                ERROR_MSG("Overwriting failed");        \
+                        }                                               \
+                                                                        \
                         H5Aget_name(hdf5_data->attribute_id ,TLD_HDF5_MAX_NAME_LEN,attr_name); \
                         if(!strncmp(name,attr_name, TLD_HDF5_MAX_NAME_LEN)){ \
-                                HDFWRAP_SET_TYPE(x,&hdf5_data->native_type); \
-                                if(H5Tequal(hdf5_data->native_type, atype)){ \
-                                        hdf5_data->status = H5Aread(hdf5_data->attribute_id, hdf5_data->native_type, x); \
-                                }else{                                  \
-                                        ERROR_MSG("Type mismatch");     \
-                                }                                       \
+                                hdf5_data->status = H5Aread(hdf5_data->attribute_id, hdf5_data->datatype_read, x); \
                         }                                               \
                         hdf5_data->status   = H5Aclose(hdf5_data->attribute_id); \
-                        hdf5_data->status   = H5Tclose(atype);          \
+                        hdf5_data->status   = H5Tclose(hdf5_data->datatype_read);          \
                 }                                                       \
                 return OK;                                              \
         ERROR:                                                          \
@@ -991,82 +933,6 @@ ERROR:
         return FAIL;
 }
 
-
-int set_type_char(hid_t* type)
-{
-        *type = H5T_STD_U8LE;//H5T_NATIVE_CHAR;
-        return OK;
-}
-
-int set_type_int8_t(hid_t* type)
-{
-        *type = H5T_STD_I8LE;//H5T_NATIVE_INT8;
-        return OK;
-}
-
-int set_type_uint8_t(hid_t* type)
-{
-        *type = H5T_STD_U8LE;//H5T_NATIVE_UINT8;
-        return OK;
-}
-
-int set_type_int16_t(hid_t* type)
-{
-        *type = H5T_STD_I16LE;//H5T_NATIVE_INT16;
-        return OK;
-}
-
-int set_type_uint16_t(hid_t* type)
-{
-        *type = H5T_STD_U16LE;//H5T_NATIVE_UINT16;
-        return OK;
-}
-
-int set_type_int32_t(hid_t* type)
-{
-        *type = H5T_STD_I32LE;//H5T_NATIVE_INT32;
-        return OK;
-}
-
-int set_type_uint32_t(hid_t* type)
-{
-        *type = H5T_STD_U32LE;//H5T_NATIVE_UINT32;
-        return OK;
-}
-int set_type_int64_t(hid_t* type)
-{
-        *type = H5T_STD_I64BE;//H5T_NATIVE_INT64;
-        return OK;
-}
-
-int set_type_uint64_t(hid_t* type)
-{
-        *type = H5T_STD_U64BE;//H5T_NATIVE_UINT64;
-        return OK;
-}
-
-int set_type_float(hid_t* type)
-{
-        *type = H5T_IEEE_F32LE;//H5T_NATIVE_FLOAT;
-        return OK;
-}
-
-int set_type_double(hid_t* type)
-{
-        *type = H5T_IEEE_F64LE;//H5T_NATIVE_DOUBLE;
-        return OK;
-}
-
-
-int set_type_unknown(hid_t* type)
-{
-
-        WARNING_MSG("Could not determine type! (%d)",type);
-        return FAIL;
-}
-
-
-
 static herr_t op_func (hid_t loc_id, const char *name, const H5L_info_t *info, void *operator_data);
 
 int tld_hdf5_search(struct hdf5_data* hdf5_data,char* target, char** location)
@@ -1200,118 +1066,3 @@ ERROR:
 }
 
 
-void print_type(hid_t type)
-{
-        switch (H5Tget_class(type)) {
-        case H5T_INTEGER:
-                if (H5Tequal(type, H5T_STD_I8BE))
-                        LOG_MSG("H5T_STD_I8BE");
-                else if (H5Tequal(type, H5T_STD_I8LE))
-                        LOG_MSG("H5T_STD_I8LE");
-                else if (H5Tequal(type, H5T_STD_I16BE))
-                        LOG_MSG("H5T_STD_I16BE");
-                else if (H5Tequal(type, H5T_STD_I16LE))
-                        LOG_MSG("H5T_STD_I16LE");
-                else if (H5Tequal(type, H5T_STD_I32BE))
-                        LOG_MSG("H5T_STD_I32BE");
-                else if (H5Tequal(type, H5T_STD_I32LE))
-                        LOG_MSG("H5T_STD_I32LE");
-                else if (H5Tequal(type, H5T_STD_I64BE))
-                        LOG_MSG("H5T_STD_I64BE");
-                else if (H5Tequal(type, H5T_STD_I64LE))
-                        LOG_MSG("H5T_STD_I64LE");
-                else if (H5Tequal(type, H5T_STD_U8BE))
-                        LOG_MSG("H5T_STD_U8BE");
-                else if (H5Tequal(type, H5T_STD_U8LE))
-                        LOG_MSG("H5T_STD_U8LE");
-                else if (H5Tequal(type, H5T_STD_U16BE))
-                        LOG_MSG("H5T_STD_U16BE");
-                else if (H5Tequal(type, H5T_STD_U16LE))
-                        LOG_MSG("H5T_STD_U16LE");
-                else if (H5Tequal(type, H5T_STD_U32BE))
-                        LOG_MSG("H5T_STD_U32BE");
-                else if (H5Tequal(type, H5T_STD_U32LE))
-                        LOG_MSG("H5T_STD_U32LE");
-                else if (H5Tequal(type, H5T_STD_U64BE))
-                        LOG_MSG("H5T_STD_U64BE");
-                else if (H5Tequal(type, H5T_STD_U64LE))
-                        LOG_MSG("H5T_STD_U64LE");
-                else if (H5Tequal(type, H5T_NATIVE_SCHAR))
-                        LOG_MSG("H5T_NATIVE_SCHAR");
-                else if (H5Tequal(type, H5T_NATIVE_UCHAR))
-                        LOG_MSG("H5T_NATIVE_UCHAR");
-                else if (H5Tequal(type, H5T_NATIVE_SHORT))
-                        LOG_MSG("H5T_NATIVE_SHORT");
-                else if (H5Tequal(type, H5T_NATIVE_USHORT))
-                        LOG_MSG("H5T_NATIVE_USHORT");
-                else if (H5Tequal(type, H5T_NATIVE_INT))
-                        LOG_MSG("H5T_NATIVE_INT");
-                else if (H5Tequal(type, H5T_NATIVE_UINT))
-                        LOG_MSG("H5T_NATIVE_UINT");
-                else if (H5Tequal(type, H5T_NATIVE_LONG))
-                        LOG_MSG("H5T_NATIVE_LONG");
-                else if (H5Tequal(type, H5T_NATIVE_ULONG))
-                        LOG_MSG("H5T_NATIVE_ULONG");
-                else if (H5Tequal(type, H5T_NATIVE_LLONG))
-                        LOG_MSG("H5T_NATIVE_LLONG");
-                else if (H5Tequal(type, H5T_NATIVE_ULLONG))
-                        LOG_MSG("H5T_NATIVE_ULLONG");
-                else
-                        LOG_MSG("undefined integer");
-                break;
-
-        case H5T_FLOAT:
-                if (H5Tequal(type, H5T_IEEE_F32BE))
-                        LOG_MSG("H5T_IEEE_F32BE");
-                else if (H5Tequal(type, H5T_IEEE_F32LE))
-                        LOG_MSG("H5T_IEEE_F32LE");
-                else if (H5Tequal(type, H5T_IEEE_F64BE))
-                        LOG_MSG("H5T_IEEE_F64BE");
-                else if (H5Tequal(type, H5T_IEEE_F64LE))
-                        LOG_MSG("H5T_IEEE_F64LE");
-                else if (H5Tequal(type, H5T_NATIVE_FLOAT))
-                        LOG_MSG("H5T_NATIVE_FLOAT");
-                else if (H5Tequal(type, H5T_NATIVE_DOUBLE))
-                        LOG_MSG("H5T_NATIVE_DOUBLE");
-                else if (H5Tequal(type, H5T_NATIVE_LDOUBLE))
-                        LOG_MSG("H5T_NATIVE_LDOUBLE");
-                else
-                        LOG_MSG("undefined float");
-                break;
-
-        case H5T_BITFIELD:
-                if (H5Tequal(type, H5T_STD_B8BE))
-                        LOG_MSG("H5T_STD_B8BE");
-                else if (H5Tequal(type, H5T_STD_B8LE))
-                        LOG_MSG("H5T_STD_B8LE");
-                else if (H5Tequal(type, H5T_STD_B16BE))
-                        LOG_MSG("H5T_STD_B16BE");
-                else if (H5Tequal(type, H5T_STD_B16LE))
-                        LOG_MSG("H5T_STD_B16LE");
-                else if (H5Tequal(type, H5T_STD_B32BE))
-                        LOG_MSG("H5T_STD_B32BE");
-                else if (H5Tequal(type, H5T_STD_B32LE))
-                        LOG_MSG("H5T_STD_B32LE");
-                else if (H5Tequal(type, H5T_STD_B64BE))
-                        LOG_MSG("H5T_STD_B64BE");
-                else if (H5Tequal(type, H5T_STD_B64LE))
-                        LOG_MSG("H5T_STD_B64LE");
-                else
-                        LOG_MSG("undefined bitfield");
-                break;
-
-        case H5T_TIME:
-        case H5T_STRING:
-        case H5T_OPAQUE:
-        case H5T_COMPOUND:
-        case H5T_REFERENCE:
-        case H5T_ENUM:
-        case H5T_VLEN:
-        case H5T_ARRAY:
-        case H5T_NO_CLASS:
-        case H5T_NCLASSES:
-        default:
-                return;
-
-        } /* end switch */
-}

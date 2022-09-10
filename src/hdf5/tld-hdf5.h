@@ -46,7 +46,7 @@ struct hdf5_data{
 
         hid_t datatype;
         hid_t dataspace;
-        hid_t native_type;
+        hid_t datatype_read;
         herr_t status;
 };
 

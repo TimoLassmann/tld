@@ -18,6 +18,7 @@
 
 #ifndef BOOT
 #include "hdf5/tld-hdf5.c"
+#include "hdf5/tld-hdf5_types.c"
 #endif
 /* #include "hdf5/tld-hdf5_utils.c" */
 

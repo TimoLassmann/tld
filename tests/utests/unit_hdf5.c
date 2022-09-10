@@ -63,6 +63,7 @@ int main(void)
         LOG_MSG("%d", read_t);
 
         gfree(d1d);
+        gfree(d2d);
 
         return EXIT_SUCCESS;
 ERROR:

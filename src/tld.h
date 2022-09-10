@@ -10,27 +10,27 @@
 
 #include <math.h>
 
-#include "./core/tld-core.h"
+#include "core/tld-core.h"
 
-#include "./alloc/tld-alloc.h"
+#include "alloc/tld-alloc.h"
 
-#include "./rng/tld-rng.h"
+#include "rng/tld-rng.h"
 
 #ifndef BOOT
-#include "./seq/tld-seq.h"
+#include "seq/tld-seq.h"
 #endif
 
-#include "./logsum/tld-logsum.h"
+#include "logsum/tld-logsum.h"
 
 /* #include "./hdf5/tld-hdf5_struct.h" */
 #ifndef BOOT
-#include "./hdf5/tld-hdf5.h"
+#include "hdf5/tld-hdf5.h"
+#include "hdf5/tld-hdf5_types.h"
 #endif
 /* #include "./hdf5/tld-hdf5_utils.h" */
-#include "./string/str.h"
-#include "./stats/basic.h"
+#include "string/str.h"
+#include "stats/basic.h"
 
-#include "./misc/misc.h"
-
+#include "misc/misc.h"
 
 #endif
