@@ -22,6 +22,7 @@
 #endif
 /* #include "hdf5/tld-hdf5_utils.c" */
 
+#include "timing/tld-timing.c"
 #include "string/str.c"
 
 #include "stats/basic.c"

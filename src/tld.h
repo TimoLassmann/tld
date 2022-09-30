@@ -28,6 +28,7 @@
 #include "hdf5/tld-hdf5_types.h"
 #endif
 /* #include "./hdf5/tld-hdf5_utils.h" */
+#include "timing/tld-timing.h"
 #include "string/str.h"
 #include "stats/basic.h"
 
