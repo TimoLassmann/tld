@@ -4,6 +4,7 @@
 #include "../misc/misc.h"
 #include "../string/str.h"
 #include "../stats/basic.h"
+
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -147,9 +148,10 @@ int read_fasta_fastq_file(struct file_handler* fh, struct tl_seq_buffer** seq_bu
 
         RUN(reset_tl_seq_buffer(sb));
 
-        LOG_MSG("Start read");
+        /* LOG_MSG("Start read"); */
         /* read_gz_line2(fh); */
         /* reading  */
+
         RUN(parse_buf(fh,sb,num));
         RUN(finalize_read(fh, sb));
         /* RUN(read_sequences(fh,sb,num)); */

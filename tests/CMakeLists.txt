@@ -5,6 +5,14 @@ project(tld-tests LANGUAGES C)
 # add_executable(unit-generic utests/generic.c) 
 # target_link_libraries(unit-generic PRIVATE tld-dev)
 
+add_executable(unit-timing utests/unit_timing.c)
+target_link_libraries(unit-timing PRIVATE tld-dev)
+add_test(
+    NAME unit-timing
+    COMMAND timing_itest
+)
+
+
 add_executable(kde_itest itests/kde_itest.c) 
 target_link_libraries(kde_itest PRIVATE tld-dev)
 add_test(
