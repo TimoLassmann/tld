@@ -6,6 +6,7 @@ int main(int argc, char *argv[])
         struct file_handler* f = NULL;
         struct tl_seq_buffer* sb = NULL;
 
+        uint64_t total_numseq = 0;
         if(argc > 1){
                 RUN(open_fasta_fastq_file(&f, argv[1], TLSEQIO_READ));
                 while(1){
@@ -16,9 +17,14 @@ int main(int argc, char *argv[])
                         if(sb->num_seq == 0){
                                 break;
                         }
-                        for(int i = 0; i < sb->num_seq;i++){
-                                /* fprintf(stdout, "%s %d\n%s\n",  sb->sequences[i]->name->str, sb->sequences[i]->seq->len,TLD_STR(sb->sequences[i]->seq)); */
+                        total_numseq += sb->num_seq;
+                        if(total_numseq > 1000000){
+                                break;
                         }
+
+                        /* for(int i = 0; i < sb->num_seq;i++){ */
+                                /* fprintf(stdout, "%s %d\n%s\n",  sb->sequences[i]->name->str, sb->sequences[i]->seq->len,TLD_STR(sb->sequences[i]->seq)); */
+                        /* } */
                 }
         }
         free_tl_seq_buffer(sb);

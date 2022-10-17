@@ -58,7 +58,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_strbuf_free_space(tld_strbuf *b)
+inline int tld_strbuf_free_space(tld_strbuf *b)
 {
         int space = b->alloc_len - b->len;
         return space;

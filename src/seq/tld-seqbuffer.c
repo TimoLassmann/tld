@@ -357,8 +357,8 @@ int alloc_tl_seq(struct tl_seq** sequence)
         /* MMALLOC(s->seq, sizeof(uint8_t)* s->malloc_len); */
         /* MMALLOC(s->qual, sizeof(char) * s->malloc_len); */
         /* MMALLOC(s->name, sizeof(char) * TL_SEQ_MAX_NAME_LEN); */
-        RUN(tld_strbuf_alloc(&s->seq, 1024 ));
-        RUN(tld_strbuf_alloc(&s->qual, 1024 ));
+        RUN(tld_strbuf_alloc(&s->seq, 128));
+        RUN(tld_strbuf_alloc(&s->qual, 128));
         RUN(tld_strbuf_alloc(&s->name, 128));
 
         /* for(i = 0; i < s->malloc_len;i++){ */

@@ -398,19 +398,9 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
         for(int i = 0; i < 256;i++){
                 dist[i] = 0.0;
         }
+
         for(int i = 0; i < sb->num_seq;i++){
                 s = sb->sequences[i];
-                /* more sanity checks */
-                if(sb->is_fastq){
-                        /* LOG_MSG("%d %s %d %d",i,TLD_STR(s->name), s->seq->len,s->qual->len); */
-                        if(s->seq->len != s->qual->len){
-                                WARNING_MSG("Length of sequence %d (%s) is not equal to length of base qualities.: %d seq %d qual",i, TLD_STR(s->name), s->seq->len,s->qual->len);
-
-                                fprintf(stdout,"%s\n%s\n", s->seq->str, s->qual->str);
-                                return FAIL;
-                                /* sb->num_seq = 0; */
-                        }
-                }
                 uint8_t* seq = s->seq->str;
                 /* LOG_MSG("%d %d",s->len, s->seq->len); */
                 for(int j = 0; j < s->len;j++){
@@ -425,11 +415,31 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
                         }
                         dist[seq[j]]++;
                 }
+                if(n_is_dna > 1000000 || n_is_aa > 1000000){
+                        break;
+                }
+        }
+
+        for(int i = 0; i < sb->num_seq;i++){
+                s = sb->sequences[i];
+                /* more sanity checks */
+                if(sb->is_fastq){
+                        /* LOG_MSG("%d %s %d %d",i,TLD_STR(s->name), s->seq->len,s->qual->len); */
+                        if(s->seq->len != s->qual->len){
+                                WARNING_MSG("Length of sequence %d (%s) is not equal to length of base qualities.: %d seq %d qual",i, TLD_STR(s->name), s->seq->len,s->qual->len);
+
+                                fprintf(stdout,"%s\n%s\n", s->seq->str, s->qual->str);
+                                return FAIL;
+                                /* sb->num_seq = 0; */
+                        }
+                }
+
                 /* LOG_MSG("%d %d %d", max_len, s->len,s->seq->len); */
                 if(s->len > max_len){
                         max_len = s->len;
                 }
         }
+        /* LOG_MSG("%d %d",n_is_dna, n_is_aa); */
         if(sb->num_seq){
                 if(n_is_aa > n_is_dna){
                         sb->L = TL_SEQ_BUFFER_PROTEIN;
@@ -467,6 +477,7 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
                         }
                 }
         }
+        LOG_MSG("is: %d", sb->L);
         sb->offset = 33;
         sb->max_len = max_len;
         gfree(dist);
