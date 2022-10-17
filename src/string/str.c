@@ -41,7 +41,6 @@ int tld_strbuf_resize(tld_strbuf *b, int new_size)
 {
         uint8_t* tmp = NULL;
         if (new_size > b->alloc_len){
-
                 galloc(&tmp , new_size);
 
                 memcpy(tmp,b->str,b->len);

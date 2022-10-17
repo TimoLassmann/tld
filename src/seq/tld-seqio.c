@@ -270,7 +270,6 @@ int parse_buf(struct file_handler *fh, struct tl_seq_buffer *sb, int num)
                                 fh->start_symbol = c;
                                 fh->trans[S_START][S_NAME]++;
                                 state = S_NAME;
-
                                 RUN(tld_strbuf_copy(sb->sequences[sb->num_seq]->name, fh->line_buf));
                         }
                         break;
@@ -479,7 +478,7 @@ int finalize_read(struct file_handler *fh, struct tl_seq_buffer *sb)
                         }
                 }
         }
-        LOG_MSG("is: %d", sb->L);
+        /* LOG_MSG("is: %d", sb->L); */
         sb->offset = 33;
         sb->max_len = max_len;
         gfree(dist);

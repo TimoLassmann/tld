@@ -318,6 +318,7 @@ int reset_tl_seq_buffer(struct tl_seq_buffer* sb)
 {
         int i = 0;
         ASSERT(sb != NULL, "No sequence buffer");
+
         for(i = 0; i < sb->malloc_num; i++){
                 sb->sequences[i]->len = 0;
                 sb->sequences[i]->name->len = 0;

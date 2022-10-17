@@ -9,7 +9,7 @@ add_executable(unit-timing utests/unit_timing.c)
 target_link_libraries(unit-timing PRIVATE tld-dev)
 add_test(
     NAME unit-timing
-    COMMAND timing_itest
+    COMMAND unit-timing
 )
 
 
