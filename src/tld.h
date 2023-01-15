@@ -31,7 +31,7 @@
 #include "timing/tld-timing.h"
 #include "string/str.h"
 #include "stats/basic.h"
-
+#include "sort/tld-sort.h"
 #include "misc/misc.h"
 
 #endif

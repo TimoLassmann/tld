@@ -12,6 +12,13 @@ add_test(
     COMMAND unit-timing
 )
 
+add_executable(unit-sort utests/unit_sort.c)
+target_link_libraries(unit-sort PRIVATE tld-dev)
+add_test(
+    NAME unit-sort 
+    COMMAND unit-sort
+)
+
 
 add_executable(kde_itest itests/kde_itest.c) 
 target_link_libraries(kde_itest PRIVATE tld-dev)

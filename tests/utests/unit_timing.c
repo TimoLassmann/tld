@@ -18,6 +18,4 @@ int main(void)
         TLD_END_TIMER;
 
         return EXIT_SUCCESS;
-ERROR:
-        return EXIT_FAILURE;
 }
