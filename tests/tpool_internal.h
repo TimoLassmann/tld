@@ -17,7 +17,7 @@
 
 
 struct work_item {
-        void (*func_ptr)(void*);
+        void (*func_ptr)(void*,int);
         void* data;
         int status;
 };
@@ -30,8 +30,10 @@ struct work_queue {
 };
 
 EXTERN int work_queue_haswork(struct work_queue *q);
-EXTERN int work_queue_push(struct work_queue *q, void (*func_ptr)(void *), void *data);
-EXTERN int work_queue_pop(struct work_queue *q, void (**func_ptr)(void *), void **data);
+EXTERN int work_queue_push(struct work_queue *q, void (*func_ptr)(void *,int),
+                           void *data);
+EXTERN int work_queue_pop(struct work_queue *q, void (**func_ptr)(void *,int), void **data);
+
 
 EXTERN int work_queue_alloc(struct work_queue **queue, int size);
 EXTERN int work_queue_expand(struct work_queue *q, int add);

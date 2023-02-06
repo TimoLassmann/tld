@@ -15,11 +15,12 @@ int work_queue_haswork(struct work_queue *q)
         return 0;
 }
 
-int work_queue_push(struct work_queue *q, void (*func_ptr)(void *), void *data)
+int work_queue_push(struct work_queue *q, void (*func_ptr)(void *,int), void *data)
 {
         struct work_item* tmp = NULL;
 
         q->n++;
+
         if(q->n == q->n_alloc){
                 RUN(work_queue_expand(q, 0));
         }
@@ -28,13 +29,14 @@ int work_queue_push(struct work_queue *q, void (*func_ptr)(void *), void *data)
         tmp->data = data;
         tmp->func_ptr = func_ptr;
         tmp->status = WORK_TODO;
+        /* LOG_MSG("Added: %d", q->n); */
         /* LOG_MSG("Added %5d : %p %p", q->n, tmp->func_ptr, tmp->data); */
         return OK;
 ERROR:
         return FAIL;
 }
 
-int work_queue_pop(struct work_queue *q, void (**func_ptr)(void *), void **data)
+int work_queue_pop(struct work_queue *q, void (**func_ptr)(void *,int), void **data)
 {
         struct work_item* tmp = NULL;
         *func_ptr = NULL;
@@ -46,6 +48,7 @@ int work_queue_pop(struct work_queue *q, void (**func_ptr)(void *), void **data)
                 /* LOG_MSG("taking:  %5d : %p %p", q->n, tmp->func_ptr, tmp->data); */
                 q->n--;
         }
+        LOG_MSG("Taking on work %d", q->n+1);
         return OK;
 }
 
