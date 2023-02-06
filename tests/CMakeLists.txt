@@ -4,6 +4,15 @@ project(tld-tests LANGUAGES C)
 
 # add_executable(unit-generic utests/generic.c) 
 # target_link_libraries(unit-generic PRIVATE tld-dev)
+find_package(Threads REQUIRED)
+
+add_executable(tpool
+  tpool_test.c
+  tpool.c
+  tpool_internal.c
+  )
+
+target_link_libraries(tpool PRIVATE tld-dev Threads::Threads)
 
 add_executable(unit-timing utests/unit_timing.c)
 target_link_libraries(unit-timing PRIVATE tld-dev)
