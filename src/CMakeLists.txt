@@ -1,6 +1,14 @@
 find_package(HDF5 REQUIRED COMPONENTS C HL)
 find_package(ZLIB)
 
+find_package(Threads REQUIRED)
+if(Threads_FOUND)
+  message(STATUS "Threads are enabled.")
+  add_definitions (-DHAVE_PTHREAD)
+endif(Threads_FOUND)
+
+
+
 set(HDF5_USE_STATIC_LIBRARIES ON)
 
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h)
@@ -11,13 +19,14 @@ if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h)
     ${CMAKE_CURRENT_BINARY_DIR}/tld-seq-tables.h
     )
 
+  
 
   target_include_directories(tld-dev
     INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
     )
 
-  target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB ${HDF5_C_LIBRARIES})
+  target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB Threads::Threads ${HDF5_C_LIBRARIES})
   # list(APPEND INCLUDE_LIST ${HDF5_C_INCLUDE_DIRS})
   target_include_directories(tld-dev PUBLIC ${HDF5_C_INCLUDE_DIRS})
 else()
@@ -61,7 +70,7 @@ else()
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}
     )
 
-  target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB ${HDF5_C_LIBRARIES})
+  target_link_libraries(tld-dev PRIVATE m ZLIB::ZLIB Threads::Threads ${HDF5_C_LIBRARIES})
   # list(APPEND INCLUDE_LIST ${HDF5_C_INCLUDE_DIRS})
   target_include_directories(tld-dev PUBLIC ${HDF5_C_INCLUDE_DIRS})
   
