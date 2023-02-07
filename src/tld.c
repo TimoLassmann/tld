@@ -22,6 +22,12 @@
 #endif
 /* #include "hdf5/tld-hdf5_utils.c" */
 
+/* #include "tpool/tpool_sig.c" */
+
+#include "tpool/tpool.c"
+/* #include "tpool/tpool_internal.c" */
+
+
 #include "timing/tld-timing.c"
 #include "string/str.c"
 #include "sort/tld-sort.c"

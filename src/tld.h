@@ -27,6 +27,14 @@
 #include "hdf5/tld-hdf5.h"
 #include "hdf5/tld-hdf5_types.h"
 #endif
+
+/* #include "tpool/tpool_internal.h" */
+/* #include "tpool/tpool_sig.h" */
+
+#include "tpool/tpool.h"
+
+
+
 /* #include "./hdf5/tld-hdf5_utils.h" */
 #include "timing/tld-timing.h"
 #include "string/str.h"

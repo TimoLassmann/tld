@@ -1,6 +1,7 @@
 
-#include "tld.h"
-
+/* #include "tld.h" */
+#include "../core/tld-core.h"
+#include "../alloc/tld-alloc.h"
 #define TPOOL_INTERNAL_IMPORT
 #include "tpool_internal.h"
 
@@ -176,6 +177,22 @@ ERROR:
 void work_queue_free(struct work_queue *q)
 {
         if(q){
+                struct work_item* n = NULL;
+                struct work_item* tmp = NULL;
+                n = q->head;
+                while(n){
+                        tmp = n;
+                        n = n->next;
+                        work_item_free(tmp);
+                }
+
+                n = q->store;
+                while(n){
+                        tmp = n;
+                        n = n->next;
+                        work_item_free(tmp);
+                }
+
                 /* for(int i = 0; i < q->n_alloc;i++){ */
                 /*         work_item_free(q->l[i]); */
                 /* } */

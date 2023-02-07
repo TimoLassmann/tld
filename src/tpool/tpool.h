@@ -1,16 +1,16 @@
 #ifndef TPOOL_H
 #define TPOOL_H
-
+#include "../core/tld-core.h"
 #include <pthread.h>
 #include <stdint.h>
-
-#ifdef TPOOL_IMPORT
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
-
+#include <stdatomic.h>
 struct work_queue;
+
+tld_external atomic_int tld_global_stop_run;
+tld_external pthread_mutex_t tld_global_cond_mutex;
+tld_external  pthread_cond_t tld_global_cond;
+
+
 
 typedef struct tld_thread_pool {
         struct work_queue* work;
@@ -37,15 +37,11 @@ typedef struct tld_thread_pool {
 
 } tld_thread_pool;
 
-EXTERN int  tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int), void *data);
-EXTERN int  tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads);
-EXTERN void tld_thread_pool_wait(tld_thread_pool *p);
-EXTERN void tld_thread_pool_free(tld_thread_pool *p);
+tld_external int  tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int), void *data);
+tld_external int  tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads);
+tld_external void tld_thread_pool_wait(tld_thread_pool *p);
+tld_external void tld_thread_pool_free(tld_thread_pool *p);
 
-
-
-#undef TPOOL_IMPORT
-#undef EXTERN
 
 
 #endif

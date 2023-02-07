@@ -3,7 +3,7 @@
 
 #include <pthread.h>
 
-#include "tpool.h"
+/* #include "tpool.h" */
 #ifdef TPOOL_INTERNAL_IMPORT
 #define EXTERN
 #else
@@ -14,6 +14,7 @@
 #define WORK_EMPTY 0
 #define WORK_TODO 1
 #define WORK_DONE 2
+typedef struct tld_thread_pool tld_thread_pool;
 
 
 struct work_item {

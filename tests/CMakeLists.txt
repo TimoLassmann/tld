@@ -6,13 +6,16 @@ project(tld-tests LANGUAGES C)
 # target_link_libraries(unit-generic PRIVATE tld-dev)
 find_package(Threads REQUIRED)
 
-add_executable(tpool
-  tpool_test.c
-  tpool.c
-  tpool_internal.c
+add_executable(unit-tpool
+ utests/unit_tpool.c
   )
+target_link_libraries(unit-tpool PRIVATE tld-dev Threads::Threads)
+add_test(
+    NAME unit-tpool
+    COMMAND unit-tpool
+)
 
-target_link_libraries(tpool PRIVATE tld-dev Threads::Threads)
+
 
 add_executable(unit-timing utests/unit_timing.c)
 target_link_libraries(unit-timing PRIVATE tld-dev)
