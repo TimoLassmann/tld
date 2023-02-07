@@ -51,7 +51,7 @@ int pool_get_tid(tld_thread_pool *p)
         return ID;
 }
 
-int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int), void *data)
+int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end)
 {
         /* LOG_MSG("Adding work"); */
         pthread_mutex_lock(&p->lock);
@@ -60,7 +60,7 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
         }
         if(!p->stop){
                 /* LOG_MSG("Adding work"); */
-                RUN(work_queue_push(p->work, func_ptr, data));
+                RUN(work_queue_push(p->work, func_ptr, data, start, end));
                 pthread_cond_broadcast(&p->work_cond);
         }
         pthread_mutex_unlock(&p->lock);
@@ -72,10 +72,11 @@ ERROR:
 void *pool_worker(void *data)
 {
         tld_thread_pool*  p = (tld_thread_pool*) data;
-        void (*func_ptr)(tld_thread_pool*, void *, int ) = NULL;
+        void (*func_ptr)(tld_thread_pool*, void *,int64_t, int64_t, int ) = NULL;
         void* fun_data = NULL;
         const int thread_id = pool_get_tid(p);
-
+        int64_t start;
+        int64_t end;
         while(1){
 
                 pthread_mutex_lock(&p->lock);
@@ -91,11 +92,14 @@ void *pool_worker(void *data)
                 if(p->stop){
                         break;
                 }
-                work_queue_pop(p->work,  &func_ptr, &fun_data);
+
+                start = 0 ;
+                end = 0;
+                work_queue_pop(p->work,  &func_ptr, &fun_data, &start, &end);
                 pthread_mutex_unlock(&p->lock);
 
 
-                func_ptr(p,fun_data,thread_id);
+                func_ptr(p,fun_data,start, end, thread_id);
 
                 pthread_mutex_lock(&p->lock);
                 p->n_jobs_processed++;

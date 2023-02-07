@@ -37,7 +37,7 @@ typedef struct tld_thread_pool {
 
 } tld_thread_pool;
 
-tld_external int  tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int), void *data);
+tld_external int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
 tld_external int  tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads);
 tld_external void tld_thread_pool_wait(tld_thread_pool *p);
 tld_external void tld_thread_pool_free(tld_thread_pool *p);

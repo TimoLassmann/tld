@@ -4,7 +4,7 @@
 
 /* #include "tpool_internal.h" */
 
-static void add(tld_thread_pool* p, void *data, int thread_id);
+static void add(tld_thread_pool* p, void *data,int64_t start, int64_t end, int thread_id);
 /* static void sub(tld_thread_pool* p, void *data, int thread_id); */
 
 int test_queue(void);
@@ -38,7 +38,7 @@ int test_pool(void)
 
         for(int i = 0; i < 64;i++){
                 /* sleep(5); */
-                tld_thread_pool_add(pool, add, &array[i]);
+                tld_thread_pool_add(pool, add, &array[i], 0, 0 );
         }
         /* LOG_MSG("Got here - sleep 5"); */
         /* tld_thread_pool_stop(pool); */
@@ -56,11 +56,11 @@ int test_pool(void)
 
         for(int i = 0; i < 64;i++){
                 /* sleep(5); */
-                tld_thread_pool_add(pool, add, &array[i]);
-                tld_thread_pool_add(pool, add, &array[i]);
-                tld_thread_pool_add(pool, add, &array[i]);
-                tld_thread_pool_add(pool, add, &array[i]);
-                tld_thread_pool_add(pool, add, &array[i]);
+                tld_thread_pool_add(pool, add, &array[i], 0, 0 );
+                tld_thread_pool_add(pool, add, &array[i], 0, 0 );
+                tld_thread_pool_add(pool, add, &array[i], 0, 0 );
+                tld_thread_pool_add(pool, add, &array[i], 0, 0 );
+                tld_thread_pool_add(pool, add, &array[i], 0, 0 );
         }
 
         tld_thread_pool_wait(pool);
@@ -119,7 +119,7 @@ ERROR:
 /* } */
 
 
-void add(tld_thread_pool*p,void *data,int thread_id)
+void add(tld_thread_pool*p,void *data,int64_t start, int64_t end, int thread_id)
 {
         int* num = (int*) data;
 
@@ -133,7 +133,7 @@ void add(tld_thread_pool*p,void *data,int thread_id)
                 sum = sum  % 65536;
         }
         *num = *num + sum;
-        tld_thread_pool_add(p, add, data);
+        tld_thread_pool_add(p, add, data,start, end);
 
         /* usleep(0.1); */
 }

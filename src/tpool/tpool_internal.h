@@ -2,7 +2,7 @@
 #define TPOOL_INTERNAL_H
 
 #include <pthread.h>
-
+#include <stdint.h>
 /* #include "tpool.h" */
 #ifdef TPOOL_INTERNAL_IMPORT
 #define EXTERN
@@ -19,8 +19,10 @@ typedef struct tld_thread_pool tld_thread_pool;
 
 struct work_item {
         struct work_item* next;
-        void (*func_ptr)(tld_thread_pool*, void*,int);
+        void (*func_ptr)(tld_thread_pool*, void*,int64_t, int64_t, int);
         void* data;
+        int64_t start;
+        int64_t end;
         int status;
 };
 
@@ -38,9 +40,9 @@ struct work_queue {
 };
 
 EXTERN int work_queue_haswork(struct work_queue *q);
-EXTERN int work_queue_push(struct work_queue *q, void (*func_ptr)(tld_thread_pool*, void *,int),
-                           void *data);
-EXTERN int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*, void *,int), void **data);
+EXTERN int work_queue_push(struct work_queue *q, void (*func_ptr)(tld_thread_pool*, void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
+
+EXTERN int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*, void *,int64_t, int64_t,int), void **data,int64_t* start, int64_t* end);
 
 
 EXTERN int work_queue_alloc(struct work_queue **queue, int size);

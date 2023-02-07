@@ -17,7 +17,7 @@ int work_queue_haswork(struct work_queue *q)
         return 0;
 }
 
-int work_queue_push(struct work_queue *q, void (*func_ptr)(tld_thread_pool*, void *,int), void *data)
+int work_queue_push(struct work_queue *q, void (*func_ptr)(tld_thread_pool*, void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end)
 {
         struct work_item* new = NULL;
 
@@ -34,6 +34,8 @@ int work_queue_push(struct work_queue *q, void (*func_ptr)(tld_thread_pool*, voi
         new->func_ptr = func_ptr;
         new->data = data;
         new->status = WORK_TODO;
+        new->start = start;
+        new->end = end;
 
         if(q->head == NULL){
                 q->tail = new;
@@ -67,7 +69,7 @@ ERROR:
         return FAIL;
 }
 
-int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*,void *,int), void **data)
+int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*,void *, int64_t, int64_t , int), void **data,int64_t* start, int64_t* end)
 {
 
 
@@ -84,6 +86,8 @@ int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*,void
 
         *func_ptr = tmp->func_ptr;
         *data = tmp->data;
+        *start = tmp->start;
+        *end = tmp->end;
         q->head = tmp->next;
 
         tmp->next = q->store;
@@ -207,6 +211,8 @@ int work_item_alloc(struct work_item **work)
         MMALLOC(w, sizeof(struct work_item));
         w->next = NULL;
         w->func_ptr = NULL;
+        w->start = 0;
+        w->end = 0;
         w->status = WORK_EMPTY;
         *work = w;
         return OK;
