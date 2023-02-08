@@ -13,10 +13,8 @@
 #include "tpool.h"
 
 atomic_int tld_global_stop_run;
-
 pthread_mutex_t tld_global_cond_mutex;
 pthread_cond_t tld_global_cond;
-
 
 static void *pool_worker(void *data);
 static int pool_get_tid(tld_thread_pool *p);
@@ -26,11 +24,8 @@ static int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,i
 static int setup_signals_and_thread_comms(void);
 static void catch_signal(int sig);
 
-/* void sleepy_job(tld_thread_pool*p , void *data,int thread_id); */
-
 int pool_get_tid(tld_thread_pool *p)
 {
-
         int i;
         int64_t tid = (int64_t) pthread_self();
         int ID = -1;
@@ -47,7 +42,6 @@ int pool_get_tid(tld_thread_pool *p)
                 p->thread_id_idx++;
         }
         pthread_mutex_unlock(&p->lock);
-
         return ID;
 }
 
@@ -97,7 +91,6 @@ void *pool_worker(void *data)
                 end = 0;
                 work_queue_pop(p->work,  &func_ptr, &fun_data, &start, &end);
                 pthread_mutex_unlock(&p->lock);
-
 
                 func_ptr(p,fun_data,start, end, thread_id);
 
@@ -293,17 +286,6 @@ int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run
         return OK;
 }
 
-/* void sleepy_job(tld_thread_pool* p ,void *data,int thread_id) */
-/* { */
-/*         tld_thread_pool*  pool = (tld_thread_pool*) data; */
-
-/*         LOG_MSG("Snoozing"); */
-/*         sleep(1); */
-
-/*         tld_thread_pool_add(p, sleepy_job, p ); */
-/* } */
-
-
 int setup_signals_and_thread_comms(void)
 {
         int status = 0;
@@ -318,7 +300,6 @@ int setup_signals_and_thread_comms(void)
         }
         signal(SIGINT, catch_signal);
         signal(SIGABRT, catch_signal);
-        /* LOG_MSG("Set up signals."); */
         return OK;
 ERROR:
         return FAIL;
@@ -335,9 +316,7 @@ void catch_signal(int sig)
         tld_global_stop_run = 1;
         pthread_mutex_lock(&tld_global_cond_mutex);
         LOG_MSG("Ohhh am being interupted.... %d ", sig);
-        pthread_cond_broadcast(&tld_global_cond);       /* signal condition */
+        pthread_cond_broadcast(&tld_global_cond);
         pthread_mutex_unlock(&tld_global_cond_mutex);
-        /* printf("Caught signal %d\n", sig); */
-        /* LOG_MSG("Interupt = %d", tld_global_stop_run); */
         n_inter++;
 }
