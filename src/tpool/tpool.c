@@ -1,10 +1,9 @@
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
 
+/* Weird but works... */
 #include "tpool_internal.h"
-
 #include "tpool_internal.c"
-
 
 #include <unistd.h>
 #include <signal.h>
@@ -24,26 +23,6 @@ static int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,i
 static int setup_signals_and_thread_comms(void);
 static void catch_signal(int sig);
 
-int pool_get_tid(tld_thread_pool *p)
-{
-        int i;
-        int64_t tid = (int64_t) pthread_self();
-        int ID = -1;
-        pthread_mutex_lock(&p->lock);
-        for(i = 0; i < p->thread_id_idx;i++){
-                if(p->thread_id_map[i] == tid){
-                        ID = i;
-                        break;
-                }
-        }
-        if(ID == -1){
-                ID = p->thread_id_idx;
-                p->thread_id_map[p->thread_id_idx] = tid;
-                p->thread_id_idx++;
-        }
-        pthread_mutex_unlock(&p->lock);
-        return ID;
-}
 
 int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end)
 {
@@ -96,7 +75,6 @@ void *pool_worker(void *data)
 
                 pthread_mutex_lock(&p->lock);
                 p->n_jobs_processed++;
-
                 if(p->maxtime && !p->stop){
                         test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &p->stop);
                         if(p->stop == 1){
@@ -108,7 +86,6 @@ void *pool_worker(void *data)
                 }
                 pthread_mutex_unlock(&p->lock);
         }
-        /* LOG_MSG("Done with threads"); */
         p->n_active_threads--;
 
         pthread_cond_signal(&p->working_cond);
@@ -116,11 +93,7 @@ void *pool_worker(void *data)
 
         pthread_exit(0);
         return NULL;
-/* ERROR: */
-/*         pthread_exit(0); */
-/*         return NULL; */
 }
-
 
 int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads)
 {
@@ -285,6 +258,29 @@ int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run
         }
         return OK;
 }
+
+int pool_get_tid(tld_thread_pool *p)
+{
+        int i;
+        int64_t tid = (int64_t) pthread_self();
+        int ID = -1;
+        pthread_mutex_lock(&p->lock);
+        for(i = 0; i < p->thread_id_idx;i++){
+                if(p->thread_id_map[i] == tid){
+                        ID = i;
+                        break;
+                }
+        }
+        if(ID == -1){
+                ID = p->thread_id_idx;
+                p->thread_id_map[p->thread_id_idx] = tid;
+                p->thread_id_idx++;
+        }
+        pthread_mutex_unlock(&p->lock);
+
+        return ID;
+}
+
 
 int setup_signals_and_thread_comms(void)
 {
