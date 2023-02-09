@@ -27,10 +27,10 @@ int test_pool(void)
         galloc(&array, 64);
 
         for(int i = 0; i < 64;i++){
-                array[i] = i+5;
+                array[i] = i;
         }
         LOG_MSG("Running threadpool for 15 seconds...");
-        tld_thread_pool_create(&pool,0.25, 4);
+        tld_thread_pool_create(&pool,0.0, 4);
         /* tld_thread_pool_start(pool); */
 
         /* LOG_MSG("Got here"); */
@@ -46,13 +46,14 @@ int test_pool(void)
         tld_thread_pool_wait(pool);
 
         LOG_MSG("The wait is over");
+
         for(int i = 0; i < 64;i++){
                 fprintf(stdout,"%d %d\n", i, array[i]);
                 /* add(array[i]); */
                 /* fprintf(stdout,"%d %d\n", i, array[i]); */
 
         }
-
+        exit(0);
 
         for(int i = 0; i < 64;i++){
                 /* sleep(5); */
@@ -124,18 +125,19 @@ void add(tld_thread_pool*p,void *data,int64_t start, int64_t end, int thread_id)
         int* num = (int*) data;
 
         thread_id+= 1;
+        sleep(1.0);
         /* LOG_MSG("Thread %d doing stuff", thread_id); */
-        int sum = 0;
-        for(int i = 0;i < 1;i++){
-                sum += i;
-                /* sum /= thread_id; */
-                /* sum = sum * sum; */
-                sum = sum  % 65536;
-        }
-        *num = *num + sum;
-        tld_thread_pool_add(p, add, data,start, end);
+        /* int sum = 0; */
+        /* for(int i = 0;i < 1;i++){ */
+        /*         sum += i; */
+        /*         /\* sum /= thread_id; *\/ */
+        /*         /\* sum = sum * sum; *\/ */
+        /*         sum = sum  % 65536; */
+        /* } */
+        *num = *num + 1.0;
+        /* tld_thread_pool_add(p, add, data,start, end); */
 
-        /* usleep(0.1); */
+
 }
 
 

@@ -27,7 +27,7 @@ typedef struct tld_thread_pool {
         pthread_t* threads;
         int64_t* thread_id_map;
         int thread_id_idx;
-        /* int n_working; */
+        int n_working;
         /* int n_work; */
         int stop;
         double maxtime;

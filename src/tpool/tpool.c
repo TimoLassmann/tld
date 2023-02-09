@@ -69,19 +69,21 @@ void *pool_worker(void *data)
                 start = 0 ;
                 end = 0;
                 work_queue_pop(p->work,  &func_ptr, &fun_data, &start, &end);
+                p->n_working++;
                 pthread_mutex_unlock(&p->lock);
 
                 func_ptr(p,fun_data,start, end, thread_id);
 
                 pthread_mutex_lock(&p->lock);
                 p->n_jobs_processed++;
+                p->n_working--;
                 if(p->maxtime && !p->stop){
                         test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &p->stop);
                         if(p->stop == 1){
                                 pthread_cond_broadcast(&p->work_cond);
                         }
                 }
-                if (!p->stop && !work_queue_haswork(p->work)){
+                if (!p->stop && p->n_working == 0 && !work_queue_haswork(p->work)){
                         pthread_cond_signal(&p->working_cond);
                 }
                 pthread_mutex_unlock(&p->lock);
@@ -109,7 +111,7 @@ int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_thread
         p->n_active_threads = n_threads;
         p->n_jobs_processed = 0;
         p->maxtime = max_time;
-
+        p->n_working = 0;
         /* p->n_working = 0; */
 
         p->thread_id_map = NULL;
