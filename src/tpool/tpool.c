@@ -137,9 +137,6 @@ int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_thread
 
         p->stop = 0;
         /* p->n_work = 0; */
-
-
-
         RUN(work_queue_alloc(&p->work, 1024));
 
         /* if(p->maxtime){ */

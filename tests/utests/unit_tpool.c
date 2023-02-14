@@ -23,6 +23,7 @@ ERROR:
 int test_pool(void)
 {
         tld_thread_pool* pool = NULL;
+        tld_thread_pool* pool2 = NULL;
         int* array = NULL;
         galloc(&array, 64);
 
@@ -31,6 +32,9 @@ int test_pool(void)
         }
         LOG_MSG("Running threadpool for 15 seconds...");
         tld_thread_pool_create(&pool,0.25, 4);
+
+        LOG_MSG("Running threadpool for 15 seconds...");
+        tld_thread_pool_create(&pool2,0.25, 4);
         /* tld_thread_pool_start(pool); */
 
         /* LOG_MSG("Got here"); */
@@ -38,12 +42,17 @@ int test_pool(void)
 
                 for(int i = 0; i < 64;i++){
                         /* sleep(5); */
-                        tld_thread_pool_add(pool, add, array, i, i+1 );
+                        if(i % 1){
+                                tld_thread_pool_add(pool, add, array, i, i+1 );
+                        }else{
+                                tld_thread_pool_add(pool2, add, array, i, i+1 );
+                        }
                 }
                 /* LOG_MSG("Got here - sleep 5"); */
                 /* tld_thread_pool_stop(pool); */
 
                 tld_thread_pool_wait(pool);
+                tld_thread_pool_wait(pool2);
 
                 LOG_MSG("The wait is over");
         }
