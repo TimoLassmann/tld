@@ -63,6 +63,7 @@ void *pool_worker(void *data)
                 }
 
                 if(p->stop){
+                        /* LOG_MSG("Thread %d stopping", thread_id); */
                         break;
                 }
 
@@ -80,7 +81,8 @@ void *pool_worker(void *data)
                 if(p->maxtime && !p->stop){
                         test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &p->stop);
                         if(p->stop == 1){
-                                pthread_cond_broadcast(&p->work_cond);
+                                LOG_MSG("Stopping because of time!");
+                                pthread_cond_broadcast(&p->working_cond);
                         }
                 }
                 if (!p->stop && p->n_working == 0 && !work_queue_haswork(p->work)){
@@ -176,7 +178,7 @@ void tld_thread_pool_wait(tld_thread_pool *p)
                         /* LOG_MSG("Condition one: !stop && p->n_working: %d %d : %d",!p->stop, work_queue_haswork(p->work), (!p->stop && p->n_active_threads != 0)); */
                         /* LOG_MSG("Condition two:  stop && p->n_threads: %d %d : %d",p->stop, p->n_threads, (p->stop && p->n_threads != 0)); */
 
-                        if((!p->stop && work_queue_haswork(p->work) != 0) || (p->stop && p->n_active_threads != 0)) {
+                        if((!p->stop &&  p->n_working != 0) || (p->stop && p->n_active_threads != 0)) {
                                 /* LOG_MSG("Waiting #################################!!!"); */
                                 /* time_to_wait.tv_sec = time(NULL) + 1L; */
                                 /* pthread_cond_timedwait(&p->working_cond, &p->lock, &time_to_wait); */
