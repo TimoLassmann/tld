@@ -1,9 +1,4 @@
-#include "core/tld-core.h"
-#include "seq/tld-seq.h"
-#include "string/str.h"
 #include "tld.h"
-#include <stdio.h>
-#include <stdlib.h>
 
 static int header(tld_strbuf *b);
 static int footer(tld_strbuf *b);
