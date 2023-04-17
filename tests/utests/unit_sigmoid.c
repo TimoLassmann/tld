@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
         RUN(init_rng(&rng, 0));
 
         for(int i = 0; i < 10000;i++){
-                double x = tl_random_double(rng)* 1000000.0;
+                double x = tl_random_double(rng)* 2000000.0  - 1000000.0;
                 tld_sigmoid(x, &y);
                 LOG_MSG("%d %f %f", i, y, x);
         }

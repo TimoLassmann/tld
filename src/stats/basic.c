@@ -89,8 +89,8 @@ int tld_sigmoid(double x, double *out)
 {
         double y;
 
-        ASSERT(isinf(x) != 0, "x is infinite");
-        ASSERT(isnan(x) != 0, "x is Nan");
+        ASSERT(isinf(x) == 0, "x is infinite");
+        ASSERT(isnan(x) == 0, "x is Nan");
         if(x < 0.0){
                 y = exp(x);
                 y = y / (1.0 + y);
