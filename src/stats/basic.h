@@ -14,6 +14,8 @@ EXTERN int tld_pop_variance(double *vec, int n, double *variance);
 EXTERN int tld_sample_variance(double *vec, int n, double *variance);
 
 
+EXTERN int tld_sigmoid(double x, double *out);
+
 EXTERN int tld_normal_pdf(double x, double mu, double sigma, double* p);
 
 

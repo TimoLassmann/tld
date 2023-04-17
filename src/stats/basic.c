@@ -84,3 +84,21 @@ int tld_normal_pdf(double x, double mu, double sigma, double* p)
 ERROR:
         return FAIL;
 }
+
+int tld_sigmoid(double x, double *out)
+{
+        double y;
+
+        ASSERT(isinf(x) != 0, "x is infinite");
+        ASSERT(isnan(x) != 0, "x is Nan");
+        if(x < 0.0){
+                y = exp(x);
+                y = y / (1.0 + y);
+        }else{
+                y = 1.0 / (1.0 + exp(-1.0 * x));
+        }
+        *out = y;
+        return OK;
+ERROR:
+        return FAIL;
+}

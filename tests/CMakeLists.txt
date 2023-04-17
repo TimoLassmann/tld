@@ -31,6 +31,14 @@ add_test(
     COMMAND unit-sort
 )
 
+add_executable(unit-sigmoid utests/unit_sigmoid.c)
+target_link_libraries(unit-sigmoid PRIVATE tld-dev)
+add_test(
+    NAME unit-sigmoid 
+    COMMAND unit-sigmoid
+)
+
+
 
 add_executable(kde_itest itests/kde_itest.c) 
 target_link_libraries(kde_itest PRIVATE tld-dev)
