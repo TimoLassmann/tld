@@ -741,6 +741,7 @@ int tld_hdf5_open_group(struct hdf5_data* hdf5_data, char* groupname)
         }
         /* hdf5_data->status = H5Eset_auto(hdf5_data->status ,NULL, NULL); */
         /* hdf5_data->status = H5Gget_objinfo (hdf5_data->file, groupname, 0, NULL); */
+
         hdf5_data->status = H5Lexists(hdf5_data->file, groupname , H5P_DEFAULT);
         if (hdf5_data->status == 0){
                 snprintf(hdf5_data->group_name , TLD_HDF5_MAX_NAME_LEN,"%s",groupname);

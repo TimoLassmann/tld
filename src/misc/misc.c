@@ -41,6 +41,17 @@ ERROR:
         return FAIL;
 }
 
+int tld_dir_create(char* dir)
+{
+        if(tld_dir_exists(dir) == OK){
+                WARNING_MSG("Directory %s already exists",dir);
+        }else{
+                LOG_MSG("Creating output directory");
+                mkdir(dir, 0700);
+        }
+        return OK;
+}
+
 /* I don't like that both libgen and string have functions to work with
    directory / filenames. The functions below copy the input path and alloc
    a new character array to store the output. Needs to be MFREE'd...
