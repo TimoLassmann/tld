@@ -5,6 +5,10 @@
 
 #include <string.h>
 
+
+#include "tld-hdf5_struct.h"
+#include "tld-hdf5_tree.h"
+
 #define TLHDF5_IMPORT
 #include "tld-hdf5.h"
 
@@ -24,8 +28,6 @@ static int my_H5Oget_info(hid_t group, H5O_info_t *info);
    to resolve the path to the data / attribute
 
 */
-static int tld_hdf5_open_group(struct hdf5_data* hdf5_data, char* groupname);
-static int tld_hdf5_close_group(struct hdf5_data* hdf5_data);
 
 /* allocating the hdf5 data structure - this is really more of a file handler...  */
 static int alloc_hdf5_data(struct hdf5_data** h);
@@ -811,10 +813,12 @@ int tld_hdf5_open_file(struct hdf5_data** h, char* filename)
                 if(hdf5_data->file < 0){
                         ERROR_MSG("H5Fcreate failed: %s\n",hdf5_data->file_name);
                 }
-
                 /* if((hdf5_data->file = H5Fcreate(hdf5_data->file_name, H5F_ACC_TRUNC, H5P_DEFAULT,H5P_DEFAULT)) < 0)  ERROR_MSG("H5Fcreate failed: %s\n",hdf5_data->file_name); */
                 LOG_MSG("Creating: %s", filename);
         }
+
+        hdf5_build_tree(hdf5_data);
+
         *h = hdf5_data;
         return OK;
 ERROR:
@@ -828,6 +832,9 @@ int tld_hdf5_close_file(struct hdf5_data** h)
         hdf5_data  = *h;
 
         if(hdf5_data){
+                /* if(hdf5_data->root){ */
+                /*         hdf5_node_free(hdf5_data->root); */
+                /* } */
                 /* if(H5Fflush(hdf5_data->file, H5F_SCOPE_LOCAL) < 0) ERROR_MSG("Flushl failed"); */
                 if(H5Fclose(hdf5_data->file) < 0) ERROR_MSG("Close failed");
                 /* H5garbage_collect(); */
@@ -852,9 +859,9 @@ int alloc_hdf5_data(struct hdf5_data** h)
                 hdf5_data->chunk_dim[i] = 0;
         }
 
-        hdf5_data->grp_names = NULL;
+        /* hdf5_data->grp_names = NULL; */
         hdf5_data->data = 0;
-
+        hdf5_data->root = NULL;
         hdf5_data->fapl = 0;
         hdf5_data->file = 0;
         hdf5_data->group = 0;
@@ -886,9 +893,12 @@ void free_hdf5_data(struct hdf5_data* hdf5_data)
 
         //int i;
         if(hdf5_data){
-                if(hdf5_data->grp_names){
-                        gfree(hdf5_data->grp_names->names);
-                        MFREE(hdf5_data->grp_names);
+                /* if(hdf5_data->grp_names){ */
+                        /* gfree(hdf5_data->grp_names->names); */
+                        /* MFREE(hdf5_data->grp_names); */
+                /* } */
+                if(hdf5_data->root){
+                        hdf5_node_free(hdf5_data->root);
                 }
                 MFREE(hdf5_data);
         }

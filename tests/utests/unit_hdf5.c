@@ -58,6 +58,9 @@ int main(void)
 
         fprintf(stdout,"%d\n",(int)read_t );
 
+        /* LOG_MSG("Build tree!"); */
+        /* hdf5_build_tree(f); */
+
         /* HDF_READ_VALUE(f,"/dat0D","d1d",&read_t); */
         tld_hdf5_close_file(&f);
         LOG_MSG("%d", read_t);

@@ -26,6 +26,7 @@
 #ifndef BOOT
 #include "hdf5/tld-hdf5.h"
 #include "hdf5/tld-hdf5_types.h"
+#include "hdf5/tld-hdf5_tree.h"
 #endif
 
 /* #include "tpool/tpool_internal.h" */

@@ -10,45 +10,44 @@
 #define EXTERN extern
 #endif
 
-struct hdf5_group_names{
-        char** names;
-        int num_names;
-        int name_length;
-        int num_names_mem;
-};
+/* struct hdf5_group_names{ */
+/*         char** names; */
+/*         int num_names; */
+/*         int name_length; */
+/*         int num_names_mem; */
+/* }; */
 
-#define TLD_HDF5_MAX_NAME_LEN 256
 
-struct hdf5_data{
-        char dataset_name[TLD_HDF5_MAX_NAME_LEN];
-        char group_name[TLD_HDF5_MAX_NAME_LEN];
-        char file_name[TLD_HDF5_MAX_NAME_LEN];
-        char tmp_name[TLD_HDF5_MAX_NAME_LEN];
+/* struct hdf5_data{ */
+/*         char dataset_name[TLD_HDF5_MAX_NAME_LEN]; */
+/*         char group_name[TLD_HDF5_MAX_NAME_LEN]; */
+/*         char file_name[TLD_HDF5_MAX_NAME_LEN]; */
+/*         char tmp_name[TLD_HDF5_MAX_NAME_LEN]; */
 
-        hsize_t dim[2];
-        hsize_t chunk_dim[2];
-        struct hdf5_group_names* grp_names;
-        //struct hdf5_attribute** attr;
-        void* data;
-        //int num_attr;
-        //int num_attr_mem;
-        int rank;
+/*         hsize_t dim[2]; */
+/*         hsize_t chunk_dim[2]; */
+/*         /\* struct hdf5_group_names* grp_names; *\/ */
+/*         //struct hdf5_attribute** attr; */
+/*         void* data; */
+/*         //int num_attr; */
+/*         //int num_attr_mem; */
+/*         int rank; */
 
-        hid_t fapl;
-        hid_t file;
-        hid_t group;
+/*         hid_t fapl; */
+/*         hid_t file; */
+/*         hid_t group; */
 
-        hid_t plist;
-        hid_t dataset;
+/*         hid_t plist; */
+/*         hid_t dataset; */
 
-        hid_t attribute_id;
-        hid_t attr_dataspace_id;
+/*         hid_t attribute_id; */
+/*         hid_t attr_dataspace_id; */
 
-        hid_t datatype;
-        hid_t dataspace;
-        hid_t datatype_read;
-        herr_t status;
-};
+/*         hid_t datatype; */
+/*         hid_t dataspace; */
+/*         hid_t datatype_read; */
+/*         herr_t status; */
+/* }; */
 
 
 /* This is an attempt to make reading to / from hdf5 files simpler */
@@ -270,6 +269,8 @@ EXTERN int tld_hdf5_read_attribute_string(struct hdf5_data* hdf5_data, char* gro
                 char**: tld_hdf5_read_attribute_string        \
                 )(F,G,N,V)
 
+EXTERN int tld_hdf5_open_group(struct hdf5_data* hdf5_data, char* groupname);
+EXTERN int tld_hdf5_close_group(struct hdf5_data* hdf5_data);
 
 
 #undef TLHDF5_IMPORT

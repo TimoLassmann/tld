@@ -1,7 +1,7 @@
 #ifndef TLHDF5WRAP_TYPES_H
 #define TLHDF5WRAP_TYPES_H
 
-/* #include <hdf5.h> */
+#include <hdf5.h>
 #include "stdint.h"
 #define HDF5GLUE_MAX_NAME_LEN 200
 #define HDF5GLUE_MAX_DIM 5
@@ -17,20 +17,18 @@
 #define HDF5GLUE_TYPE_DOUBLE 5
 
 
-/*struct hdf5_attribute{
-        char attr_name[HDF5GLUE_MAX_NAME_LEN];
-        char string[HDF5GLUE_MAX_CONTENT_LEN];
-        int int_val;
-        double double_val;
-        int type;
-        };*/
+#define TLD_HDF5_MAX_NAME_LEN 256
 
-struct hdf5_group_names{
-        char** names;
-        int num_names;
-        int name_length;
-        int num_names_mem;
+struct hdf5_node {
+        struct hdf5_node** l;
+        uint8_t visited;
+        H5O_type_t type;
+        char* name;
+        char* path_name;
+        int n_alloc;
+        int n;
 };
+
 
 typedef unsigned long long hsize_t;
 typedef int64_t hid_t;
@@ -44,7 +42,8 @@ typedef struct hdf5_data{
 
         hsize_t dim[HDF5GLUE_MAX_DIM];
         hsize_t chunk_dim[HDF5GLUE_MAX_DIM];
-        struct hdf5_group_names* grp_names;
+        struct hdf5_node* root;
+        /* struct hdf5_group_names* grp_names; */
         //struct hdf5_attribute** attr;
         void* data;
         //int num_attr;
@@ -62,6 +61,7 @@ typedef struct hdf5_data{
         hid_t attr_dataspace_id;
 
         hid_t datatype;
+        hid_t datatype_read;
         hid_t dataspace;
         hid_t native_type;
         herr_t status;
