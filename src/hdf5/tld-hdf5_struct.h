@@ -35,10 +35,10 @@ typedef int64_t hid_t;
 typedef int herr_t;
 
 typedef struct hdf5_data{
-        char dataset_name[HDF5GLUE_MAX_NAME_LEN];
-        char group_name[HDF5GLUE_MAX_NAME_LEN];
-        char file_name[HDF5GLUE_MAX_NAME_LEN];
-        char tmp_name[HDF5GLUE_MAX_NAME_LEN];
+        char dataset_name[TLD_HDF5_MAX_NAME_LEN];
+        char group_name[TLD_HDF5_MAX_NAME_LEN];
+        char file_name[TLD_HDF5_MAX_NAME_LEN];
+        char tmp_name[TLD_HDF5_MAX_NAME_LEN];
 
         hsize_t dim[HDF5GLUE_MAX_DIM];
         hsize_t chunk_dim[HDF5GLUE_MAX_DIM];

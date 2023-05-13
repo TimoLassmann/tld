@@ -71,23 +71,21 @@ ERROR:
 
 int hdf5_print_tree(struct hdf5_node* n , int l)
 {
-
         for(int i = 0; i < l;i++){
                 fprintf(stdout," ");
         }
         switch (n->type) {
         case H5O_TYPE_GROUP:
-                fprintf(stdout,"%s\tGroup\n",n->name);
+                fprintf(stdout,"%s %s\tGroup\n",n->name , n->path_name);
                 break;
         case H5O_TYPE_DATASET:
-                fprintf(stdout,"%s\tDataset\n",n->name);
-
+                fprintf(stdout,"%s %s\tDataset\n",n->name, n->path_name);
                 break;
         case H5O_TYPE_NAMED_DATATYPE:
-                fprintf(stdout,"%s\tDatatype\n",n->name);
+                fprintf(stdout,"%s %s\tDatatype\n",n->name, n->path_name);
                 break;
         default:
-                fprintf(stdout,"%s\tUnknown\n",n->name);
+                fprintf(stdout,"%s %s\tUnknown\n",n->name, n->path_name);
         }
         for(int i = 0; i < n->n;i++){
                 hdf5_print_tree( n->l[i], l + 3);
@@ -100,10 +98,26 @@ herr_t worker_hdf_node  (hid_t loc_id, const char *name, const H5L_info_t *info,
 {
         herr_t          status;
         H5O_info_t      infobuf;
+        const hid_t lapl_id = H5Pcreate(H5P_LINK_ACCESS);
 
         struct hdf5_node* root = (struct hdf5_node*) operator_data;
         struct hdf5_node* n;
         char buffer[BUFSIZ];
+
+        if (lapl_id < 0){
+                ERROR_MSG("Failed to create HDF5 property list");
+        }
+        htri_t link_status = H5Lexists(loc_id,name, lapl_id);
+        if (link_status < 0){
+                ERROR_MSG("Failed to check existence of HDF5 link in group");
+        }
+
+        if (link_status == 0){
+                if (H5Pclose(lapl_id) < 0){
+                        ERROR_MSG("Call to H5Pclose unsuccessful");
+                }
+        }
+
 
         UNUSED(info);
         if(root->n == root->n_alloc){
@@ -114,7 +128,13 @@ herr_t worker_hdf_node  (hid_t loc_id, const char *name, const H5L_info_t *info,
         n = root->l[root->n];
         root->n++;
 
-        status = H5Oget_info_by_name (loc_id, name, &infobuf, H5P_DEFAULT);
+#if H5_VERSION_GE(1, 12, 0)
+        status = H5Oget_info_by_name3(loc_id, name, &infobuf, H5O_INFO_ALL, lapl_id);
+#else
+        status = H5Oget_info_by_name1(loc_id, name, &infobuf, lapl_id);
+#endif
+
+        /* status = H5Oget_info_by_name (loc_id, name, &infobuf, H5P_DEFAULT); */
         if(status){
                 WARNING_MSG("H5Oget_info_by_name failed in hdf5 tree ");
         }
@@ -145,6 +165,10 @@ herr_t worker_hdf_node  (hid_t loc_id, const char *name, const H5L_info_t *info,
         strncpy(n->path_name, buffer, len);
         n->path_name[len] = 0;
         root->l[root->n] = n;
+
+        if (H5Pclose(lapl_id) < 0){
+                ERROR_MSG("Call to H5Pclose unsuccessful");
+        }
         return 0;
 ERROR:
         WARNING_MSG("Malloc in hdf5 tree node building failed!!!");
