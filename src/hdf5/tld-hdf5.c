@@ -817,7 +817,7 @@ int tld_hdf5_open_file(struct hdf5_data** h, char* filename)
                 LOG_MSG("Creating: %s", filename);
         }
 
-        hdf5_build_tree(hdf5_data);
+        RUN(hdf5_build_tree(hdf5_data));
 
         *h = hdf5_data;
         return OK;

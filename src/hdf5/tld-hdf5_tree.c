@@ -9,6 +9,14 @@
 #define TLD_HDF5_TREE_IMPORT
 #include "tld-hdf5_tree.h"
 
+struct search_res {
+        char* target;
+        char* path;
+        int n_found;
+        int is_group;
+};
+
+static int hdf5_data_search(struct hdf5_node* n , struct search_res* r);
 herr_t worker_hdf_node  (hid_t loc_id, const char *name, const H5L_info_t *info, void *operator_data);
 
 int tree_recurse_fill(struct hdf5_data *d, struct hdf5_node *root);
@@ -16,6 +24,77 @@ static int hdf5_print_tree(struct hdf5_node* n , int l);
 
 static int hdf5_node_alloc(struct hdf5_node **out, int size);
 static int hdf5_node_resize(struct hdf5_node *n);
+
+int hdf5_data_exists(struct hdf5_data *d, char *name, char **path)
+{
+        struct search_res* r = NULL;
+        int len;
+
+        /* hdf5_print_tree(d->root,0); */
+
+        MMALLOC(r, sizeof(struct search_res));
+        r->target = name;
+        r->path = NULL;
+        r->n_found = 0;
+        r->is_group = 0;
+
+        len = strnlen(name,512);
+        for(int i = 0; i < len;i++){
+                if(name[i] == '/'){
+                        r->is_group++;
+                }
+        }
+
+        if(r->is_group){
+                if(name[0] != '/'){
+                        *path = NULL;
+                        ERROR_MSG("%s appears to be a path but is not starting with '/'");
+                }
+        }
+        /* LOG_MSG("GROUP?? %d", r->is_group); */
+        RUN(hdf5_data_search(d->root, r));
+
+        if(r->n_found == 0){
+                *path = NULL;
+                ERROR_MSG("%s not found in hdf5 file!", name);
+        }else if(r->n_found == 1){
+                *path = r->path;
+        }else if(r->n_found > 1){
+                *path = NULL;
+                ERROR_MSG("%s found multiple times in hdf5 file!", name);
+        }
+        MFREE(r);
+
+        return OK;
+ERROR:
+        if(r){
+                MFREE(r);
+        }
+        return FAIL;
+}
+
+
+int hdf5_data_search(struct hdf5_node* n , struct search_res* r)
+{
+        char* txt;
+        if(r->is_group){
+                txt = n->path_name;
+        }else{
+                txt = n->name;
+        }
+        if(strcmp(r->target, txt) == 0){
+                if(!r->n_found){
+                        r->path = n->path_name;
+                }
+                r->n_found++;
+        }
+        for(int i = 0; i < n->n;i++){
+                RUN(hdf5_data_search( n->l[i], r));
+        }
+        return OK;
+ERROR:
+        return FAIL;
+}
 
 int hdf5_build_tree(struct hdf5_data *d)
 {
@@ -33,7 +112,7 @@ int hdf5_build_tree(struct hdf5_data *d)
         root->type = H5O_TYPE_GROUP;
 
         tree_recurse_fill(d, root);
-        RUN(hdf5_print_tree(root , 0));
+
 
         d->root = root;
 /* hdf5_node_free(root); */
@@ -47,9 +126,8 @@ ERROR:
 
 int tree_recurse_fill(struct hdf5_data *d, struct hdf5_node *root)
 {
-
         if(root->type == H5O_TYPE_GROUP){
-                LOG_MSG("Arrived at %s", root->path_name);
+                /* LOG_MSG("Arrived at %s", root->path_name); */
                 RUN(tld_hdf5_open_group(d, root->path_name));
                 int status = H5Literate (d->group, H5_INDEX_NAME, H5_ITER_NATIVE, NULL, worker_hdf_node, root);
                 if(status){
@@ -61,9 +139,7 @@ int tree_recurse_fill(struct hdf5_data *d, struct hdf5_node *root)
                 if(root->l[i]->type == H5O_TYPE_GROUP){
                         RUN(tree_recurse_fill(d,root->l[i]));
                 }
-
         }
-
         return OK;
 ERROR:
         return FAIL;
@@ -145,7 +221,7 @@ herr_t worker_hdf_node  (hid_t loc_id, const char *name, const H5L_info_t *info,
         int len = strnlen(buffer, BUFSIZ);
 
 
-        /* LOG_MSG("len %5d name:%s", strlen(name), name); */
+        LOG_MSG("len %5d name:%s", strlen(name), name);
 
         MMALLOC(n->name, len+1 );
 
@@ -156,8 +232,10 @@ herr_t worker_hdf_node  (hid_t loc_id, const char *name, const H5L_info_t *info,
         if(strncmp(root->path_name,"/",512) == 0){
                 snprintf(buffer, BUFSIZ, "/%s", name);
                 /* snprintf(n->name, 512, "/%s", name); */
+                /* LOG_MSG("BUILDING PATH: %s %s", name, buffer); */
         }else{
-                snprintf(buffer, BUFSIZ, "%s/%s", root->name,  name);
+                /* LOG_MSG("BUILDING PATH: %s %s", root->path_name, name); */
+                snprintf(buffer, BUFSIZ, "%s/%s", root->path_name,  name);
 
         }
         len = strnlen(buffer, BUFSIZ);

@@ -12,7 +12,7 @@
 int main(void)
 {
         struct hdf5_data* f = NULL;
-
+        char* hdf_path = NULL;
         double* d1d = NULL;
         double** d2d = NULL;
         uint64_t t = 10;
@@ -62,6 +62,26 @@ int main(void)
         /* hdf5_build_tree(f); */
 
         /* HDF_READ_VALUE(f,"/dat0D","d1d",&read_t); */
+
+        /* RUN(hdf5_print_tree(f-> , 0)); */
+
+        if(hdf5_data_exists(f,"Donkey",&hdf_path) == OK){
+                LOG_MSG("Donkey found: %s", hdf_path);
+        }
+
+        if(hdf5_data_exists(f,"d1d",&hdf_path) == OK){
+                LOG_MSG("d1d found : %s", hdf_path);
+        }
+
+        if(hdf5_data_exists(f,"/dat1D/d1d",&hdf_path) == OK){
+                LOG_MSG("d1d found : %s", hdf_path);
+        }
+
+        if(hdf5_data_exists(f,"d2d",&hdf_path) == OK){
+                LOG_MSG("d2d found : %s", hdf_path);
+        }
+
+
         tld_hdf5_close_file(&f);
         LOG_MSG("%d", read_t);
 
