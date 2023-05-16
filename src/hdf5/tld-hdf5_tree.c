@@ -221,7 +221,7 @@ herr_t worker_hdf_node  (hid_t loc_id, const char *name, const H5L_info_t *info,
         int len = strnlen(buffer, BUFSIZ);
 
 
-        LOG_MSG("len %5d name:%s", strlen(name), name);
+        /* LOG_MSG("len %5d name:%s", strlen(name), name); */
 
         MMALLOC(n->name, len+1 );
 
