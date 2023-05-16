@@ -53,6 +53,40 @@ int tld_dir_create(char* dir)
         return OK;
 }
 
+int tld_get_full_path(tld_strbuf **full, char *filename)
+{
+        char* full_path = NULL;
+        tld_strbuf *f = NULL;
+        if(*full){
+                f = *full;
+                f->len = 0;
+        }else{
+                RUN(tld_strbuf_alloc(&f,512));
+        }
+
+        ASSERT(filename != NULL, "tld_get_full_path: No filename");
+        if(tld_file_exists(filename) != OK){
+                ERROR_MSG("tld_get_full_path: file %s does not exist!", filename);
+        }
+
+        full_path = realpath(filename, NULL);
+
+        if(!full_path){
+                ERROR_MSG("Could not get full path of %s", filename);
+        }
+
+        RUN(tld_append(f, full_path));
+        free(full_path);
+
+        return OK;
+ERROR:
+        if(f){
+                tld_strbuf_free(f);
+        }
+        return FAIL;
+
+}
+
 /* I don't like that both libgen and string have functions to work with
    directory / filenames. The functions below copy the input path and alloc
    a new character array to store the output. Needs to be MFREE'd...
