@@ -2,6 +2,7 @@
 
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
+#include "../string/str.h"
 
 #include <sys/stat.h>
 #include <dirent.h>
@@ -56,7 +57,7 @@ int tld_dir_create(char* dir)
    directory / filenames. The functions below copy the input path and alloc
    a new character array to store the output. Needs to be MFREE'd...
  */
-int tlfilename(char* path, char** out)
+int tld_get_filename(char* path, char** out)
 {
         char* tmp = NULL;
         int len = 0;
@@ -86,7 +87,7 @@ ERROR:
         return FAIL;
 }
 
-int tldirname(char* path, char** out)
+int tld_get_dirname(char* path, char** out)
 {
         char* tmp = NULL;
         int len = 0;
@@ -119,63 +120,85 @@ ERROR:
         return FAIL;
 }
 
-int make_cmd_line(char** command, const int argc,char* const argv[])
+int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[])
 {
-        char* cmd = NULL;
 
-        int i = 0;
-        int j = 0;
-        int c = 0;
-        int g = 0;
-        int alloc_len = 16;
+        tld_strbuf* cmd = NULL;
 
-        int old_len = 0;
-        galloc(&cmd,alloc_len);
-        for(i =0 ; i < alloc_len;i++){
-                cmd[i] = 0;
+        if(*cmdline == NULL){
+                RUN(tld_strbuf_alloc(&cmd, 128));
+        }else{
+                cmd = *cmdline;
         }
-        c = 0;
-        for(i = 0; i < argc;i++){
-                //fprintf(stdout,"%s\n", argv[i]);
-                for(j = 0; j < (int) strlen(argv[i]);j++){
-                        if(c == 16384-1){
-                                break;
-                        }
-                        cmd[c] = argv[i][j];
-                        c++;
-                        if(c == alloc_len){
-                                old_len = alloc_len;
-                                alloc_len = alloc_len + alloc_len /2;
-                                galloc(&cmd,alloc_len);
-                                for(g = old_len; g < alloc_len;g++){
-                                        cmd[g] = 0;
-                                }
-                        }
-
-                }
-                if(c >= MAX_CMD_LEN){
-                        ERROR_MSG("Command line too long! Allocated: %d", alloc_len);
-                }
-                if(c == 16384-1){
-                        break;
-                }
-                cmd[c] = ' ';
-                c++;
-                if(c == alloc_len){
-                        old_len = alloc_len;
-                        alloc_len = alloc_len + alloc_len /2;
-                        galloc(&cmd,alloc_len);
-                        for(g = old_len; g < alloc_len;g++){
-                                cmd[g] = 0;
-                        }
-                }
+        for(int i = 0; i < argc;i++){
+                tld_append(cmd, argv[i]);
+                tld_append(cmd, " ");
         }
-        cmd[c] = 0;
-        *command = cmd;
+        /* LOG_MSG("%s",TLD_STR(cmd)); */
+
+        *cmdline = cmd;
         return OK;
 ERROR:
-        if(cmd){
-                gfree(cmd);
-        }
         return FAIL;
 }
+
+/* int make_cmd_line(char** command, const int argc,char* const argv[]) */
+/* { */
+/*         char* cmd = NULL; */
+
+/*         int i = 0; */
+/*         int j = 0; */
+/*         int c = 0; */
+/*         int g = 0; */
+/*         int alloc_len = 16; */
+
+/*         int old_len = 0; */
+/*         galloc(&cmd,alloc_len); */
+/*         for(i =0 ; i < alloc_len;i++){ */
+/*                 cmd[i] = 0; */
+/*         } */
+/*         c = 0; */
+/*         for(i = 0; i < argc;i++){ */
+/*                 //fprintf(stdout,"%s\n", argv[i]); */
+/*                 for(j = 0; j < (int) strlen(argv[i]);j++){ */
+/*                         if(c == 16384-1){ */
+/*                                 break; */
+/*                         } */
+/*                         cmd[c] = argv[i][j]; */
+/*                         c++; */
+/*                         if(c == alloc_len){ */
+/*                                 old_len = alloc_len; */
+/*                                 alloc_len = alloc_len + alloc_len /2; */
+/*                                 galloc(&cmd,alloc_len); */
+/*                                 for(g = old_len; g < alloc_len;g++){ */
+/*                                         cmd[g] = 0; */
+/*                                 } */
+/*                         } */
+
+/*                 } */
+/*                 if(c >= MAX_CMD_LEN){ */
+/*                         ERROR_MSG("Command line too long! Allocated: %d", alloc_len); */
+/*                 } */
+/*                 if(c == 16384-1){ */
+/*                         break; */
+/*                 } */
+/*                 cmd[c] = ' '; */
+/*                 c++; */
+/*                 if(c == alloc_len){ */
+/*                         old_len = alloc_len; */
+/*                         alloc_len = alloc_len + alloc_len /2; */
+/*                         galloc(&cmd,alloc_len); */
+/*                         for(g = old_len; g < alloc_len;g++){ */
+/*                                 cmd[g] = 0; */
+/*                         } */
+/*                 } */
+/*         } */
+/*         cmd[c] = 0; */
+/*         *command = cmd; */
+/*         return OK; */
+/* ERROR: */
+/*         if(cmd){ */
+/*                 gfree(cmd); */
+/*         } */
+/*         return FAIL; */
+/* } */

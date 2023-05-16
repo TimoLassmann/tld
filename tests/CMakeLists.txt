@@ -17,6 +17,15 @@ add_test(
 
 endif(Threads_FOUND)
 
+
+add_executable(unit-misc utests/unit_misc.c)
+target_link_libraries(unit-misc PRIVATE tld-dev)
+add_test(
+    NAME unit-misc
+    COMMAND unit-misc
+)
+
+
 add_executable(unit-timing utests/unit_timing.c)
 target_link_libraries(unit-timing PRIVATE tld-dev)
 add_test(
