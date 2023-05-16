@@ -19,8 +19,8 @@ struct search_res {
 static int hdf5_data_search(struct hdf5_node* n , struct search_res* r);
 herr_t worker_hdf_node  (hid_t loc_id, const char *name, const H5L_info_t *info, void *operator_data);
 
-int tree_recurse_fill(struct hdf5_data *d, struct hdf5_node *root);
-static int hdf5_print_tree(struct hdf5_node* n , int l);
+static int tree_recurse_fill(struct hdf5_data *d, struct hdf5_node *root);
+int hdf5_print_tree(struct hdf5_node* n , int l);
 
 static int hdf5_node_alloc(struct hdf5_node **out, int size);
 static int hdf5_node_resize(struct hdf5_node *n);

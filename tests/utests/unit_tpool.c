@@ -130,11 +130,13 @@ ERROR:
 /*         return FAIL; */
 /* } */
 
-
+#define UNUSED(expr) do { (void)(expr); } while (0)
 void add(tld_thread_pool*p,void *data,int64_t start, int64_t end, int thread_id)
 {
         int* array = (int*) data;
 
+        UNUSED(thread_id);
+        UNUSED(p);
         /* thread_id+= 1; */
         sleep(10.0);
 
@@ -155,7 +157,7 @@ void add(tld_thread_pool*p,void *data,int64_t start, int64_t end, int thread_id)
 
 
 }
-
+#undef UNUSED
 
 /* void sub(tld_thread_pool*p,void *data,int thread_id) */
 /* { */
