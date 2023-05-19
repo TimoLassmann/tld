@@ -44,11 +44,17 @@ int main(void)
 
         MFREE(values);
 
+
+
+        LOG_MSG("Double");
+        for(int i = 0; i < 10;i++){
+                double r = tl_random_double( rng);
+                LOG_MSG("%d %f",i, r);
+        }
         free_rng(rng);
 
         LOG_MSG("Test rngdist");
         RUN(rng_dist_test());
-
         return EXIT_SUCCESS;
 ERROR:
         return EXIT_FAILURE;
