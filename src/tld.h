@@ -41,6 +41,7 @@
 #include "string/str.h"
 #include "stats/basic.h"
 #include "sort/tld-sort.h"
+#include "shuffle/tld-shuffle.h"
 #include "misc/misc.h"
 
 #endif

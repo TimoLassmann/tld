@@ -18,6 +18,14 @@ add_test(
 endif(Threads_FOUND)
 
 
+add_executable(unit-shuffle utests/unit_shuffle.c)
+target_link_libraries(unit-shuffle PRIVATE tld-dev)
+add_test(
+    NAME unit-shuffle
+    COMMAND unit-shuffle
+)
+
+
 add_executable(unit-misc utests/unit_misc.c)
 target_link_libraries(unit-misc PRIVATE tld-dev)
 add_test(

@@ -33,6 +33,7 @@
 #include "timing/tld-timing.c"
 #include "string/str.c"
 #include "sort/tld-sort.c"
+#include "shuffle/tld-shuffle.c"
 #include "stats/basic.c"
 #include "stats/kde.c"
 
