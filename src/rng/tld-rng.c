@@ -353,8 +353,8 @@ double tl_gauss(struct rng_state* rng)
 int init_rng(struct rng_state** rng,uint64_t seed)
 {
         struct rng_state* s = NULL;
-        uint64_t z = 0U;
-        uint64_t sanity = 0U;
+        /* uint64_t z = 0U; */
+        /* uint64_t sanity = 0U; */
 
         MMALLOC(s, sizeof(struct rng_state));
         s->gen = 0;
@@ -365,8 +365,55 @@ int init_rng(struct rng_state** rng,uint64_t seed)
         if(!seed){
                 seed = choose_arbitrary_seed();
         }
-        sanity = 0;
 
+        tld_rng_set_seed(s, seed);
+
+        /* sanity = 0; */
+
+        /* while(!sanity){ */
+        /*         sanity = 0; */
+        /*         z = (seed += 0x9e3779b97f4a7c15); */
+        /*         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9; */
+        /*         z = (z ^ (z >> 27U)) * 0x94d049bb133111eb; */
+        /*         s->s[0] = z ^ (z >> 31U); */
+        /*         if(s->s[0]){ */
+        /*                 sanity++; */
+        /*         } */
+        /*         z = (seed += 0x9e3779b97f4a7c15); */
+        /*         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9; */
+        /*         z = (z ^ (z >> 27U)) * 0x94d049bb133111eb; */
+        /*         s->s[1] = z ^ (z >> 31U); */
+        /*         if(s->s[1]){ */
+        /*                 sanity++; */
+        /*         } */
+
+        /*         z = (seed += 0x9e3779b97f4a7c15); */
+        /*         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9; */
+        /*         z = (z ^ (z >> 27U)) * 0x94d049bb133111eb; */
+        /*         s->s[2] = z ^ (z >> 31U); */
+        /*         if(s->s[2]){ */
+        /*                 sanity++; */
+        /*         } */
+
+        /*         z = (seed += 0x9e3779b97f4a7c15); */
+        /*         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9; */
+        /*         z = (z ^ (z >> 27U)) * 0x94d049bb133111eb; */
+        /*         s->s[3] = z ^ (z >> 31U); */
+        /*         if(s->s[3]){ */
+        /*                 sanity++; */
+        /*         } */
+        /* } */
+        *rng = s;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_rng_set_seed(struct rng_state *s, uint64_t seed)
+{
+        uint64_t sanity = 0U;
+        uint64_t z = 0U;
+        ASSERT(s != NULL, "No rng allocated in set seed");
         while(!sanity){
                 sanity = 0;
                 z = (seed += 0x9e3779b97f4a7c15);
@@ -400,7 +447,7 @@ int init_rng(struct rng_state** rng,uint64_t seed)
                         sanity++;
                 }
         }
-        *rng = s;
+
         return OK;
 ERROR:
         return FAIL;
