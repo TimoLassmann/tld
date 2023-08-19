@@ -37,5 +37,7 @@
 #include "stats/basic.c"
 #include "stats/kde.c"
 #include "stats/norm_quantile.c"
+#include "stats/auc.c"
+
 
 #include "misc/misc.c"

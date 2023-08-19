@@ -17,6 +17,21 @@ add_test(
 
 endif(Threads_FOUND)
 
+add_executable(unit-qnorm utests/unit_qnorm.c)
+target_link_libraries(unit-qnorm PRIVATE tld-dev)
+add_test(
+    NAME unit-qnorm
+    COMMAND unit-qnorm
+)
+
+
+add_executable(unit-auc utests/unit_auc.c)
+target_link_libraries(unit-auc PRIVATE tld-dev)
+add_test(
+    NAME unit-auc
+    COMMAND unit-auc
+)
+
 
 add_executable(unit-shuffle utests/unit_shuffle.c)
 target_link_libraries(unit-shuffle PRIVATE tld-dev)
