@@ -40,6 +40,8 @@
 #include "timing/tld-timing.h"
 #include "string/str.h"
 #include "stats/basic.h"
+#include "stats/norm_quantile.h"
+
 #include "sort/tld-sort.h"
 #include "shuffle/tld-shuffle.h"
 #include "misc/misc.h"

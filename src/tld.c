@@ -36,5 +36,6 @@
 #include "shuffle/tld-shuffle.c"
 #include "stats/basic.c"
 #include "stats/kde.c"
+#include "stats/norm_quantile.c"
 
 #include "misc/misc.c"
