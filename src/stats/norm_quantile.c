@@ -41,14 +41,14 @@ int norm_quantile(double **data, int n, int m)
                         data_rank[i][column] = l[i]->v;
                 }
         }
-        LOG_MSG("DATA org");
-        for(int i = 0; i < n;i++){
-                for(int j = 0; j < m;j++){
-                        fprintf(stdout,"%f ",data[i][j]);
-                }
-                fprintf(stdout,"\n");
-        }
-        fprintf(stdout,"\n");
+        /* LOG_MSG("DATA org"); */
+        /* for(int i = 0; i < n;i++){ */
+        /*         for(int j = 0; j < m;j++){ */
+        /*                 fprintf(stdout,"%f ",data[i][j]); */
+        /*         } */
+        /*         fprintf(stdout,"\n"); */
+        /* } */
+        /* fprintf(stdout,"\n"); */
 
         for(int i = 0; i < n;i++){
                 sum = 0.0;
@@ -88,14 +88,23 @@ int norm_quantile(double **data, int n, int m)
                 }
                 /* fprintf(stdout," IDX\n"); */
         }
-        LOG_MSG("DATA norm");
-        for(int i = 0; i < n;i++){
-                for(int j = 0; j < m;j++){
-                        fprintf(stdout,"%f ",data[i][j]);
+        /* LOG_MSG("DATA norm"); */
+        /* for(int i = 0; i < n;i++){ */
+        /*         for(int j = 0; j < m;j++){ */
+        /*                 fprintf(stdout,"%f ",data[i][j]); */
+        /*         } */
+        /*         fprintf(stdout,"\n"); */
+        /* } */
+        /* fprintf(stdout,"\n"); */
+        for(int j = 0; j < m;j++){
+                sum = 0.0;
+                for(int i = 0; i < n;i++){
+                        sum += data[i][j];
+                        /* fprintf(stdout,"%f ",data[i][j]); */
                 }
-                fprintf(stdout,"\n");
+                fprintf(stdout,"%d %f\n",j, sum / (double) n);
         }
-        fprintf(stdout,"\n");
+
 
         gfree(data_rank);
         for(int i = 0; i < n;i++){
