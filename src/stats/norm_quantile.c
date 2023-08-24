@@ -102,7 +102,7 @@ int norm_quantile(double **data, int n, int m)
                         sum += data[i][j];
                         /* fprintf(stdout,"%f ",data[i][j]); */
                 }
-                fprintf(stdout,"%d %f\n",j, sum / (double) n);
+                /* fprintf(stdout,"%d %f\n",j, sum / (double) n); */
         }
 
 
