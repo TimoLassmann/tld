@@ -48,7 +48,7 @@ int hdf5_data_exists(struct hdf5_data *d, char *name, char **path)
         if(r->is_group){
                 if(name[0] != '/'){
                         *path = NULL;
-                        ERROR_MSG("%s appears to be a path but is not starting with '/'");
+                        /* ERROR_MSG("%s appears to be a path but is not starting with '/'"); */
                 }
         }
         /* LOG_MSG("GROUP?? %d", r->is_group); */
@@ -56,12 +56,12 @@ int hdf5_data_exists(struct hdf5_data *d, char *name, char **path)
 
         if(r->n_found == 0){
                 *path = NULL;
-                ERROR_MSG("%s not found in hdf5 file!", name);
+                /* ERROR_MSG("%s not found in hdf5 file!", name); */
         }else if(r->n_found == 1){
                 *path = r->path;
         }else if(r->n_found > 1){
                 *path = NULL;
-                ERROR_MSG("%s found multiple times in hdf5 file!", name);
+                /* ERROR_MSG("%s found multiple times in hdf5 file!", name); */
         }
         MFREE(r);
 
