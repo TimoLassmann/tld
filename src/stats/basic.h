@@ -12,7 +12,7 @@ EXTERN int tld_shannon(double *vec, int n, double *entropy);
 EXTERN int tld_mean(double *vec, int n, double *mean);
 EXTERN int tld_pop_variance(double *vec, int n, double *variance);
 EXTERN int tld_sample_variance(double *vec, int n, double *variance);
-
+EXTERN int tld_standardise(double *vec, int n, double *mean, double *stdev);
 
 EXTERN int tld_sigmoid(double x, double *out);
 

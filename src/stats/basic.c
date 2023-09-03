@@ -71,6 +71,30 @@ ERROR:
         return FAIL;
 }
 
+int tld_standardise(double *vec, int n, double *mean, double *stdev)
+{
+        double m;
+        double variance;
+        double s;
+
+        RUN(tld_mean(vec, n, &m));
+        RUN(tld_sample_variance(vec, n, &variance));
+
+        s = sqrt(variance);
+        if(s == 0.0){
+                ERROR_MSG("Standard deviation is zero!");
+        }
+        for(int i = 0; i < n;i++){
+                vec[i] = (vec[i] -m) / s;
+        }
+
+        *mean = m;
+        *stdev = s;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 
 int tld_normal_pdf(double x, double mu, double sigma, double* p)
 {
