@@ -14,6 +14,13 @@ EXTERN int tld_pop_variance(double *vec, int n, double *variance);
 EXTERN int tld_sample_variance(double *vec, int n, double *variance);
 EXTERN int tld_standardise(double *vec, int n, double *mean, double *stdev);
 
+
+
+EXTERN int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov);
+EXTERN int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov);
+
+EXTERN int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr);
+
 EXTERN int tld_sigmoid(double x, double *out);
 
 EXTERN int tld_normal_pdf(double x, double mu, double sigma, double* p);
