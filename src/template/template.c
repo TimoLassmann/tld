@@ -53,10 +53,14 @@ int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
 
                                 /* fprintf(stdout,"%s (%d - %d)\n", TLD_STR(pattern), start , stop); */
                                 int idx = -1;
+                                int a = TLD_STRLEN(pattern);
                                 for(int i = 0; i < map->n;i++){
-                                        if(strncmp(TLD_STR(pattern), TLD_STR(map->identifier[i]), MACRO_MIN(TLD_STRLEN(pattern), TLD_STRLEN(map->identifier[i]))) == 0){
-                                                idx = i;
-                                                break;
+                                        int b = TLD_STRLEN(map->identifier[i]);
+                                        if(a == b){
+                                                if(strncmp(TLD_STR(pattern), TLD_STR(map->identifier[i]), a) == 0){
+                                                        idx = i;
+                                                        break;
+                                                }
                                         }
                                 }
                                 if(idx != -1){
