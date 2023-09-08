@@ -39,6 +39,7 @@
 /* #include "./hdf5/tld-hdf5_utils.h" */
 #include "timing/tld-timing.h"
 #include "string/str.h"
+#include "template/template.h"
 
 #include "stats/basic.h"
 #include "stats/norm_quantile.h"

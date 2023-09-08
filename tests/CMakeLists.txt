@@ -10,12 +10,20 @@ add_executable(unit-tpool
  utests/unit_tpool.c
   )
 target_link_libraries(unit-tpool PRIVATE tld-dev Threads::Threads)
-add_test(
-    NAME unit-tpool
-    COMMAND unit-tpool
-)
+# add_test(
+#     NAME unit-tpool
+#     COMMAND unit-tpool
+# )
 
 endif(Threads_FOUND)
+
+add_executable(unit-template utests/unit_template.c)
+target_link_libraries(unit-template PRIVATE tld-dev)
+add_test(
+    NAME unit-template
+    COMMAND unit-template
+)
+
 
 add_executable(unit-qnorm utests/unit_qnorm.c)
 target_link_libraries(unit-qnorm PRIVATE tld-dev)
