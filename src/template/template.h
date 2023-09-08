@@ -18,6 +18,7 @@ typedef struct tld_template_map {
 
 tld_external  int tld_template_apply(tld_strbuf *txt, tld_template_map *map);
 tld_external  int tld_template_chk(tld_template_map *map, int verbose);
+tld_external  int tld_template_add(tld_template_map **map, char *id, char *rep);
 tld_external  int tld_template_init(tld_template_map **map, char **id, char **rep, int n);
 tld_external void tld_template_free(tld_template_map *m);
 

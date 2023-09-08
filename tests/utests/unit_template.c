@@ -37,10 +37,27 @@ int main(void)
 
 
         tld_template_free(map);
-        LOG_MSG("Success");
+        /* LOG_MSG("Success"); */
+        map = NULL;
+
+        tld_template_add(&map, "AA", "Chair");
+        tld_template_add(&map, "BB", "Docker");
+        LOG_MSG("Default template test");
+        test_default(map);
+        LOG_MSG("Mismatch template test");
+        if(test_mismatch(map) == OK){
+                ERROR_MSG("This test should FAIL!!!!");
+        }
+
+        LOG_MSG("Mismatch template test");
+        if(test_mismatch2(map) == FAIL){
+                ERROR_MSG("This test should PASS!!!!");
+        }
+        tld_template_free(map);
+        /* LOG_MSG("Success"); */
         return EXIT_SUCCESS;
 ERROR:
-        LOG_MSG("FAIL");
+        /* LOG_MSG("FAIL"); */
         return EXIT_FAILURE;
 
 }

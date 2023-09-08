@@ -13,6 +13,9 @@
 tld_internal int find_open(tld_strbuf *txt,int offset, tld_strbuf *delim, int*pos);
 tld_internal int find_end(tld_strbuf *txt,int offset, tld_strbuf* delim, int*pos);
 
+tld_internal int tld_template_allocate(tld_template_map **map, int n);
+tld_internal int tld_template_resize(tld_template_map *m);
+
 int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
 {
         /* loop until there are no more valid reps  */
@@ -183,7 +186,55 @@ int find_end(tld_strbuf *txt, int offset, tld_strbuf *delim,int*pos)
 }
 
 
+int tld_template_add(tld_template_map **map, char *id, char *rep)
+{
+        tld_template_map* m = NULL;
+        int idx;
+
+        if(*map){
+                m = *map;
+        }else{
+                RUN(tld_template_allocate(&m, 16));
+        }
+
+        ASSERT(m != NULL,"No Map");
+
+        idx = m->n;
+
+        tld_append(m->identifier[idx], id);
+        tld_append(m->replacement[idx], rep);
+        m->n++;
+        if(m->n == m->n_alloc){
+                tld_template_resize(m);
+        }
+        *map = m;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+
 int tld_template_init(tld_template_map **map, char **id, char **rep, int n)
+{
+        tld_template_map* m = NULL;
+
+        RUN(tld_template_allocate(&m, n));
+        /* MMALLOC(m, sizeof(tld_template_map)); */
+        m->n = 0;
+        for(int i = 0; i < n;i++){
+                tld_append(m->identifier[i], id[i]);
+                tld_append(m->replacement[i], rep[i]);
+                m->n++;
+        }
+
+        *map = m;
+        return OK;
+ERROR:
+        tld_template_free(m);
+        return FAIL;
+}
+
+int tld_template_allocate(tld_template_map **map, int n)
 {
         tld_template_map* m = NULL;
         MMALLOC(m, sizeof(tld_template_map));
@@ -198,16 +249,12 @@ int tld_template_init(tld_template_map **map, char **id, char **rep, int n)
         MMALLOC(m->identifier, sizeof(tld_strbuf*) * m->n_alloc);
         MMALLOC(m->replacement, sizeof(tld_strbuf*) * m->n_alloc);
 
-        m->n = 0;
-        for(int i = 0; i < n;i++){
+
+        for(int i = 0; i < m->n_alloc;i++){
                 m->identifier[i] = NULL;
                 m->replacement[i] = NULL;
                 tld_strbuf_alloc(&m->identifier[i], 16);
                 tld_strbuf_alloc(&m->replacement[i], 16);
-
-                tld_append(m->identifier[i], id[i]);
-                tld_append(m->replacement[i], rep[i]);
-                m->n++;
         }
         /* Default delim = {{ and }} */
         tld_strbuf_alloc(&m->delim_start, 3);
@@ -224,6 +271,30 @@ ERROR:
         tld_template_free(m);
         return FAIL;
 }
+
+int tld_template_resize(tld_template_map *m)
+{
+        int old_size = m->n_alloc;
+        m->n_alloc = m->n_alloc + m->n_alloc /2;
+
+
+        MREALLOC(m->identifier, sizeof(tld_strbuf*) * m->n_alloc);
+        MREALLOC(m->replacement, sizeof(tld_strbuf*) * m->n_alloc);
+
+
+        for(int i = old_size; i < m->n_alloc;i++){
+                m->identifier[i] = NULL;
+                m->replacement[i] = NULL;
+                tld_strbuf_alloc(&m->identifier[i], 16);
+                tld_strbuf_alloc(&m->replacement[i], 16);
+        }
+
+        return OK;
+ERROR:
+        tld_template_free(m);
+        return FAIL;
+}
+
 
 void tld_template_free(tld_template_map *m)
 {
