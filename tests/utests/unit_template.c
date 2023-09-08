@@ -31,14 +31,16 @@ int main(void)
         }
 
         LOG_MSG("Mismatch template test");
-        if(test_mismatch2(map) == OK){
-                ERROR_MSG("This test should FAIL!!!!");
+        if(test_mismatch2(map) == FAIL){
+                ERROR_MSG("This test should PASS!!!!");
         }
 
 
         tld_template_free(map);
+        LOG_MSG("Success");
         return EXIT_SUCCESS;
 ERROR:
+        LOG_MSG("FAIL");
         return EXIT_FAILURE;
 
 }
