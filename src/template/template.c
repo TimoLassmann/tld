@@ -4,13 +4,11 @@
 #include "../alloc/tld-alloc.h"
 #include "../string/str.h"
 
-
-#include "stdio.h"
+#include <stdio.h>
 
 #define TEMPLATE_OK 0
 #define TEMPLATE_MISMATCH_DELIM 1
 #define TEMPLATE_NOREP 2
-
 
 tld_internal int find_open(tld_strbuf *txt,int offset, tld_strbuf *delim, int*pos);
 tld_internal int find_end(tld_strbuf *txt,int offset, tld_strbuf* delim, int*pos);
@@ -28,8 +26,8 @@ int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
         map->status = TEMPLATE_OK;
         map->n_rep = 0;
 
-        tld_strbuf_alloc(&out, 32);
-        tld_strbuf_alloc(&pattern, 32);
+        RUN(tld_strbuf_alloc(&out, 32));
+        RUN(tld_strbuf_alloc(&pattern, 32));
 
         while(1){
                 start = -1;
@@ -41,7 +39,7 @@ int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
                                 offset = stop;
                                 pattern->len = 0;
                                 for(int i = start; i < stop;i++){
-                                        tld_append_char(pattern, txt->str[i]);
+                                        RUN(tld_append_char(pattern, txt->str[i]));
                                         /* fprintf(stdout,"%c",txt->str[i]); */
                                 }
                                 int internal_start = -1;
@@ -50,7 +48,7 @@ int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
                                         map->status = TEMPLATE_MISMATCH_DELIM;
                                 }
 
-                                fprintf(stdout,"%s (%d - %d)\n", TLD_STR(pattern), start , stop);
+                                /* fprintf(stdout,"%s (%d - %d)\n", TLD_STR(pattern), start , stop); */
                                 int idx = -1;
                                 for(int i = 0; i < map->n;i++){
                                         if(strncmp(TLD_STR(pattern), TLD_STR(map->identifier[i]), MACRO_MIN(TLD_STRLEN(pattern), TLD_STRLEN(map->identifier[i]))) == 0){
@@ -62,9 +60,9 @@ int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
                                         /* fprintf(stdout,"%s -> %s \n", TLD_STR(map->identifier[idx]), TLD_STR(map->replacement[idx])); */
 
                                         for(int i = read_header; i < start-TLD_STRLEN(map->delim_start);i++){
-                                                tld_append_char(out, txt->str[i]);
+                                                RUN(tld_append_char(out, txt->str[i]));
                                         }
-                                        tld_append(out,TLD_STR(map->replacement[idx]));
+                                        RUN(tld_append(out,TLD_STR(map->replacement[idx])));
                                         read_header = stop + TLD_STRLEN(map->delim_end);
                                         map->n_rep++;
                                 }else{
@@ -80,13 +78,11 @@ int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
                 }
         }
         if(read_header < TLD_STRLEN(txt)){
-                tld_append(out, TLD_STR(txt) + read_header);
+                RUN(tld_append(out, TLD_STR(txt) + read_header));
         }
         /* LOG_MSG("%s", TLD_STR(out)); */
         /* LOG_MSG("READ HEADER: %d", read_header); */
-        tld_strbuf_copy(txt, out);
-
-
+        RUN(tld_strbuf_copy(txt, out));
 
         tld_strbuf_free(pattern);
         tld_strbuf_free(out);
