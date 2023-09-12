@@ -217,6 +217,29 @@ ERROR:
         return FAIL;
 }
 
+int tld_template_get(tld_template_map *m, char *key, char** val)
+{
+        ASSERT(m != NULL," No Map!!");
+        ASSERT(key != NULL, "No key)");
+
+        int k_len = strnlen(key, 1024);
+
+        *val = NULL;
+        for(int i = 0 ; i < m->n;i++){
+                int t_len = TLD_STRLEN(m->identifier[i]);
+                if(k_len == t_len){
+                        if(strncmp(key, TLD_STR(m->identifier[i]), k_len) == 0){
+                                *val = TLD_STR(m->replacement[i]);
+                                break;
+                        }
+                }
+        }
+
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 
 int tld_template_init(tld_template_map **map, char **id, char **rep, int n)
 {

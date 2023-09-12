@@ -53,6 +53,16 @@ int main(void)
         if(test_mismatch2(map) == FAIL){
                 ERROR_MSG("This test should PASS!!!!");
         }
+        LOG_MSG("Testing key retrieval");
+        char*val = NULL;
+        tld_template_get(map, "AA",&val);
+        if(val){
+                fprintf(stderr,"AA -> %s (retrieved)\n", val);
+        }
+        tld_template_get(map, "BB",&val);
+        if(val){
+                fprintf(stderr,"BB -> %s (retrieved)\n", val);
+        }
         tld_template_free(map);
         /* LOG_MSG("Success"); */
         return EXIT_SUCCESS;
