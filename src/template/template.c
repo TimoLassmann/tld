@@ -326,8 +326,8 @@ ERROR:
 void tld_template_free(tld_template_map *m)
 {
         if(m){
-                if(m->n){
-                        for(int i = 0; i < m->n;i++){
+                if(m->n_alloc){
+                        for(int i = 0; i < m->n_alloc;i++){
                                 tld_strbuf_free(m->identifier[i]);
                                 tld_strbuf_free(m->replacement[i]);
 
