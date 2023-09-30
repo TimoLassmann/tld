@@ -413,6 +413,12 @@ int tld_rng_set_seed(struct rng_state *s, uint64_t seed)
 {
         uint64_t sanity = 0U;
         uint64_t z = 0U;
+
+        s->gen = 0;
+        s->z1 = 0.0F;
+        s->gauss = 0.0;
+        s->has_gauss = 0;
+
         ASSERT(s != NULL, "No rng allocated in set seed");
         while(!sanity){
                 sanity = 0;
