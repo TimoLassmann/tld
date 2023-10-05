@@ -8,7 +8,7 @@
 
 #include "tld-hdf5_struct.h"
 #include "tld-hdf5_tree.h"
-
+#include "tld-hdf5_types.h"
 #define TLHDF5_IMPORT
 #include "tld-hdf5.h"
 
@@ -616,12 +616,12 @@ ERROR:
                 for(i = 0; i < (int)oinfo.num_attrs; i++) {             \
                         hdf5_data->attribute_id = H5Aopen_by_idx(hdf5_data->group, ".", H5_INDEX_CRT_ORDER, H5_ITER_INC, (hsize_t)i, H5P_DEFAULT, H5P_DEFAULT); \
                         if(hdf5_data->attribute_id < 1){                \
-                                ERROR_MSG("H5Aopen_by_idx failed with %d",hdf5_data->attribute_id); \
+                                ERROR_MSG("H5Aopen_by_idx failed with %d (reading from %s / %s)",hdf5_data->attribute_id,group,name); \
                         }                                               \
                         hdf5_data->datatype_read = H5Aget_type(hdf5_data->attribute_id); \
                         HDFWRAP_SET_TYPE(x,&hdf5_data->datatype);       \
                         if (!H5Tequal(hdf5_data->datatype, hdf5_data->datatype_read)) { \
-                                WARNING_MSG("Reading an existing attribute failed"); \
+                                WARNING_MSG("Reading an existing attribute failed (reading from %s / %s)",group,name); \
                                 WARNING_MSG("Data type is different!"); \
                                 LOG_MSG("Type in mem (expected):");     \
                                 hdf5_print_type(hdf5_data->datatype);   \
