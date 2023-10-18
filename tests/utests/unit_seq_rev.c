@@ -26,10 +26,14 @@ int main(void)
         }
 
         gfree(seq);
+        free_rng(rng);
         return EXIT_SUCCESS;
 ERROR:
         if(seq){
                 gfree(seq);
+        }
+        if(rng){
+                free_rng(rng);
         }
         return EXIT_FAILURE;
 }

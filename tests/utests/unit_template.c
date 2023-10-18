@@ -7,7 +7,6 @@ int test_mismatch2 (tld_template_map *map);
 int main(void)
 {
 
-
         char* id[] = {
                 "AA",
                 "BB",
@@ -89,6 +88,9 @@ int test_default(tld_template_map *map)
         tld_strbuf_free(template);
         return OK;
 ERROR:
+        if(template){
+                tld_strbuf_free(template);
+        }
         return FAIL;
 }
 
@@ -109,6 +111,9 @@ int test_mismatch (tld_template_map *map)
         tld_strbuf_free(template);
         return OK;
 ERROR:
+        if(template){
+                tld_strbuf_free(template);
+        }
         return FAIL;
 }
 
@@ -129,5 +134,8 @@ int test_mismatch2 (tld_template_map *map)
         tld_strbuf_free(template);
         return OK;
 ERROR:
+        if(template){
+                tld_strbuf_free(template);
+        }
         return FAIL;
 }

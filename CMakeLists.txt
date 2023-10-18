@@ -4,28 +4,32 @@ project(tld LANGUAGES C VERSION "0.1")
 
 set (CMAKE_C_STANDARD 11)
 
-# SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
-# SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pg")
-# SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pg")
-
-
-add_compile_options("$<$<CONFIG:RELEASE>:-W;-Wall;-pedantic>")
-add_compile_options("$<$<CONFIG:DEBUG>:-W;-Wall;-O0;-pedantic;-DDEBUG>")
-
-
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-  if (MSVC)
-    # warning level 4 and all warnings as errors
-    add_compile_options(/W4 /WX)
-  else()
-    # lots of warnings and all warnings as errors
-    add_compile_options(-Wall -Wextra -pedantic) # -Werror )
-  endif()
-endif()
-
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
+
+add_compile_options("$<$<CONFIG:RELEASE>:-W;-Wall;-O3;-pedantic;-ffunction-sections;-fdata-sections>")
+add_compile_options("$<$<CONFIG:DEBUG>:-W;-Wall;-Wextra;-O0;-g;-DDEBUG;-pedantic>")
+add_compile_options("$<$<CONFIG:ASAN>:-W;-Wall;-Wextra;-O0;-g;-DDEBUG;-pedantic;-ffunction-sections;-fdata-sections;-fstack-protector-strong;-fsanitize=address>")
+
+# if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+#   if (MSVC)
+#     # warning level 4 and all warnings as errors
+#     add_compile_options(/W4 /WX)
+#   else()
+#     # lots of warnings and all warnings as errors
+#     add_compile_options(-Wall -Wextra -pedantic) # -Werror )
+#   endif()
+# endif()
+
+if(CMAKE_BUILD_TYPE MATCHES ASAN)
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address")
+# elseif(CMAKE_BUILD_TYPE MATCHES DEBUG)
+#   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
+#   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=address")
+endif()
+
 
 #include(GNUInstallDirs)
 

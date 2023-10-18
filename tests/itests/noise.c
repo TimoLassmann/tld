@@ -41,11 +41,20 @@ int main(void)
         tld_sample_variance(noise, n, &var);
 
         LOG_MSG("Variance of    noise data: %f", var);
-
+        free_rng(rng);
         gfree(noise);
         gfree(vec);
         return EXIT_SUCCESS;
 ERROR:
+        if(rng){
+                free_rng(rng);
+        }
+        if(noise){
+                gfree(noise);
+        }
+        if(vec){
+                gfree(vec);
+        }
         return EXIT_FAILURE;
 
 }

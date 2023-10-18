@@ -87,7 +87,8 @@ int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
         if(read_header < TLD_STRLEN(txt)){
                 RUN(tld_append(out, TLD_STR(txt) + read_header));
         }
-        /* LOG_MSG("%s", TLD_STR(out)); */
+
+        /* LOG_MSG("%s", TLD_STR(text)); */
         /* LOG_MSG("READ HEADER: %d", read_header); */
         RUN(tld_strbuf_copy(txt, out));
 
