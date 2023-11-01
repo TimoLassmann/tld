@@ -9,12 +9,13 @@ int main(void)
         double labels[5] = { 1,1,0,0,0};
         double pred[5] = { 0.6125478,0.3642710,0.4321361,0.1402911,0.3848959};
 
-        double_t auc = 0.0;
-        tld_auc(labels, pred, 5, &auc);
+        double auc = 0.0;
+        double thres = 0.0;
+        tld_auc(labels, pred, 5,&thres, &auc);
         LOG_MSG("AUC: %f",auc);
 
         labels[3] = -0.000001;
-        tld_auc(labels, pred, 5, &auc);
+        tld_auc(labels, pred, 5,&thres, &auc);
         LOG_MSG("AUC: %f",auc);
 
         RUN(auc_test());
@@ -73,9 +74,42 @@ int auc_test(void)
         int n = sizeof(labels) / sizeof(double);
         int m = sizeof(pred) / sizeof(double);
         LOG_MSG("%d %d", n,m);
-        double_t auc = 0.0;
-        tld_auc(labels, pred, n, &auc);
-        LOG_MSG("AUC: %f",auc);
+        double auc = 0.0;
+        double thres = 0.0;
+        tld_auc(labels, pred, n,&thres, &auc);
+        LOG_MSG("AUC: %f Thres : %f ",auc,thres);
+
+        int n_error = 0;
+        int n_error_test  = 0;
+        struct rng_state* rng = NULL;
+
+        RUN(init_rng(&rng, 0));
+        for(int i = 0; i < n;i++){
+                int p = (pred[i] > thres) ? 1 : 0;
+                if( p != labels[i]){
+                        n_error++;
+                }
+        }
+
+        for(int c = 0; c < 1000000;c++){
+                double t = (double)  c / (double) 1000000.0;
+                n_error_test  = 0;
+                for(int i = 0; i < n;i++){
+                        int p = (pred[i] > t) ? 1 : 0;
+                        if( p != labels[i]){
+                                n_error_test++;
+                        }
+                }
+                if(n_error_test < n_error){
+                        LOG_MSG("Threshold %f is better", t);
+                }
+        }
+        free_rng(rng);
 
         return OK;
+ERROR:
+        if(rng){
+                free_rng(rng);
+        }
+        return FAIL;
 }

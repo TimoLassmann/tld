@@ -4,6 +4,8 @@
 #include "../alloc/tld-alloc.h"
 
 #include <stdio.h>
+#include <math.h>
+
 struct auc_pt {
         double Y;
         double Y_hat;
@@ -11,7 +13,7 @@ struct auc_pt {
 
 static int auc_pt_sort(const void *a, const void *b);
 
-int tld_auc(double*Y , double* Y_hat, int n, double* ret)
+int tld_auc(double*Y , double* Y_hat, int n,double*t, double* ret)
 {
         struct auc_pt**l = NULL;
 
@@ -21,6 +23,8 @@ int tld_auc(double*Y , double* Y_hat, int n, double* ret)
         double tn;
         double fp;
         double fn;
+        double d = 10.0;
+        double thres = 0.0;
 
         double auc;
         ASSERT(n > 0, "TLD auc needs more than 0 datapoints");
@@ -80,6 +84,18 @@ int tld_auc(double*Y , double* Y_hat, int n, double* ret)
                 }
                 tpr[i] = tp / ( tp + fn);
                 fpr[i] = fp / ( fp + tn);
+                /* Find closest point to upper left corner to determing the 'best' threshold */
+                double tmp = sqrt(pow (1.0 - tpr[i],2.0) + pow(fpr[i],2.0));
+                if(tmp < d){
+                        if(i  == 0){
+                                thres = l[i]->Y_hat;
+                        }else{
+                                thres = (l[i]->Y_hat + l[i-1]->Y_hat) / 2.0;
+                        }
+                        /* LOG_MSG("%f %f",l[i]->Y_hat, l[i+1]->Y_hat ); */
+                        d = tmp;
+                }
+
         }
         auc = 0.0;
         for(int i = 1; i <= n;i++){
@@ -111,6 +127,7 @@ int tld_auc(double*Y , double* Y_hat, int n, double* ret)
         /* fprintf(stdout,"roc<- prediction(predictions= pred , labels = target) \n"); */
         /* fprintf(stdout,"auc =  performance(roc, measure = \"auc\") \n"); */
         /* fprintf(stdout,"auc@y.values\n"); */
+        *t = thres;
         *ret = auc;
         for(int i = 0; i < n; i++){
                 MFREE(l[i]);
