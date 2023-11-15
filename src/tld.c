@@ -29,6 +29,9 @@
 
 /* #include "tpool/tpool_internal.c" */
 
+#include "json/tld-json.c"
+#include "json/tld-json_mem.c"
+#include "json/tld-json_misc.c"
 
 #include "timing/tld-timing.c"
 #include "string/str.c"

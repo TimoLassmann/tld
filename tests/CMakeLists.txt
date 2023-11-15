@@ -17,6 +17,14 @@ target_link_libraries(unit-tpool PRIVATE tld-dev Threads::Threads)
 
 endif(Threads_FOUND)
 
+add_executable(unit-json utests/unit_json.c)
+target_link_libraries(unit-json PRIVATE tld-dev)
+add_test(
+    NAME unit-json
+    COMMAND unit-json
+)
+
+
 add_executable(unit-template utests/unit_template.c)
 target_link_libraries(unit-template PRIVATE tld-dev)
 add_test(

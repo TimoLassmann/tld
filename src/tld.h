@@ -34,7 +34,10 @@
 
 #include "tpool/tpool.h"
 
-
+#include "json/tld-json_struct.h"
+#include "json/tld-json.h"
+#include "json/tld-json_mem.h"
+#include "json/tld-json_misc.h"
 
 /* #include "./hdf5/tld-hdf5_utils.h" */
 #include "timing/tld-timing.h"
