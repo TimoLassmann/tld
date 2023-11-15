@@ -242,7 +242,13 @@ ERROR:
 /* Lexer  */
 int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
 {
-        char buf[BUFSIZ];
+        /* tld_strbuf* buf = NULL; */
+
+        /* tld_strbuf_alloc(&buf, 4096); */
+
+        char* buf = NULL;
+        int n_buf_size = 4096;
+
         int b_pos = 0;
 
         tld_json_arr* n = NULL;
@@ -250,6 +256,8 @@ int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
         uint8_t* str = NULL;
         int len = 0;
         uint8_t in_str = 0;
+
+        MMALLOC(buf, sizeof(char) * n_buf_size);
 
         RUN(tld_json_arr_alloc(&n));
 
@@ -267,6 +275,10 @@ int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
                         if(in_str){
                                 buf[b_pos] = str[i];
                                 b_pos++;
+                                if(b_pos ==n_buf_size){
+                                        n_buf_size = n_buf_size + n_buf_size /2;
+                                        MREALLOC(buf, sizeof(char) * n_buf_size);
+                                }
                         }else{
                                 if(b_pos){
                                         buf[b_pos] = 0;
@@ -298,6 +310,10 @@ int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
                         if(in_str){
                                 buf[b_pos] = str[i];
                                 b_pos++;
+                                if(b_pos ==n_buf_size){
+                                        n_buf_size = n_buf_size + n_buf_size /2;
+                                        MREALLOC(buf, sizeof(char) * n_buf_size);
+                                }
                         }
                         break;
                 case '"':
@@ -318,10 +334,14 @@ int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
                 default:
                         buf[b_pos] = str[i];
                         b_pos++;
+                        if(b_pos ==n_buf_size){
+                                n_buf_size = n_buf_size + n_buf_size /2;
+                                MREALLOC(buf, sizeof(char) * n_buf_size);
+                        }
                         break;
                 }
         }
-
+        MFREE(buf);
         *out = n;
         return OK;
 ERROR:
