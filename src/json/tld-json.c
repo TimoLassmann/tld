@@ -242,18 +242,13 @@ ERROR:
 /* Lexer  */
 int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
 {
-        /* tld_strbuf* buf = NULL; */
-
-        /* tld_strbuf_alloc(&buf, 4096); */
-
-        char* buf = NULL;
-        int n_buf_size = 4096;
-
-        int b_pos = 0;
-
         tld_json_arr* n = NULL;
         tld_json_val* val = NULL;
         uint8_t* str = NULL;
+        char* buf = NULL;
+        int n_buf_size = 4096;
+        int b_pos = 0;
+
         int len = 0;
         uint8_t in_str = 0;
 
@@ -317,18 +312,23 @@ int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
                         }
                         break;
                 case '"':
-                        if(!in_str){
-                                in_str = 1;
+                        if(i && str[i-1] == '\\'){
+                                 buf[b_pos] = str[i];
+                                 b_pos++;
                         }else{
-                                buf[b_pos] = 0;
-                                val = n->v[n->n];
-                                add_val(buf, b_pos , val);
-                                n->n++;
-                                if(n->n == n->n_alloc){
-                                        tld_json_arr_realloc(n);
+                                if(!in_str){
+                                        in_str = 1;
+                                }else{
+                                        buf[b_pos] = 0;
+                                        val = n->v[n->n];
+                                        add_val(buf, b_pos , val);
+                                        n->n++;
+                                        if(n->n == n->n_alloc){
+                                                tld_json_arr_realloc(n);
+                                        }
+                                        in_str = 0;
+                                        b_pos = 0;
                                 }
-                                in_str = 0;
-                                b_pos = 0;
                         }
                         break;
                 default:
