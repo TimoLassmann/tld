@@ -105,7 +105,7 @@ int test_parser(void)
       \"name\": \"Molecule Man\",\n\
       \"age\": 29,\n\
       \"secretIdentity\": \"Dan Jukes\",\n\
-      \"powers\": [\"Radiation resistance\", \"Turning tiny\", \"Radiation blast\"]\n\
+      \"powers\": [\"Radiation resistance\", \"Turning \\\"tiny\\\"\", \"Radiation blast\"]\n\
     },\n\
     {\n\
       \"name\": \"Madame Uppercut\",\n\
