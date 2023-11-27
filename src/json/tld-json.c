@@ -242,14 +242,17 @@ ERROR:
 /* Lexer  */
 int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
 {
-        char buf[BUFSIZ];
-        int b_pos = 0;
-
         tld_json_arr* n = NULL;
         tld_json_val* val = NULL;
         uint8_t* str = NULL;
+        char* buf = NULL;
+        int n_buf_size = 4096;
+        int b_pos = 0;
+
         int len = 0;
         uint8_t in_str = 0;
+
+        MMALLOC(buf, sizeof(char) * n_buf_size);
 
         RUN(tld_json_arr_alloc(&n));
 
@@ -267,6 +270,10 @@ int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
                         if(in_str){
                                 buf[b_pos] = str[i];
                                 b_pos++;
+                                if(b_pos ==n_buf_size){
+                                        n_buf_size = n_buf_size + n_buf_size /2;
+                                        MREALLOC(buf, sizeof(char) * n_buf_size);
+                                }
                         }else{
                                 if(b_pos){
                                         buf[b_pos] = 0;
@@ -298,30 +305,43 @@ int tld_json_lex(tld_strbuf *t, tld_json_arr **out)
                         if(in_str){
                                 buf[b_pos] = str[i];
                                 b_pos++;
+                                if(b_pos ==n_buf_size){
+                                        n_buf_size = n_buf_size + n_buf_size /2;
+                                        MREALLOC(buf, sizeof(char) * n_buf_size);
+                                }
                         }
                         break;
                 case '"':
-                        if(!in_str){
-                                in_str = 1;
+                        if(i && str[i-1] == '\\'){
+                                 buf[b_pos] = str[i];
+                                 b_pos++;
                         }else{
-                                buf[b_pos] = 0;
-                                val = n->v[n->n];
-                                add_val(buf, b_pos , val);
-                                n->n++;
-                                if(n->n == n->n_alloc){
-                                        tld_json_arr_realloc(n);
+                                if(!in_str){
+                                        in_str = 1;
+                                }else{
+                                        buf[b_pos] = 0;
+                                        val = n->v[n->n];
+                                        add_val(buf, b_pos , val);
+                                        n->n++;
+                                        if(n->n == n->n_alloc){
+                                                tld_json_arr_realloc(n);
+                                        }
+                                        in_str = 0;
+                                        b_pos = 0;
                                 }
-                                in_str = 0;
-                                b_pos = 0;
                         }
                         break;
                 default:
                         buf[b_pos] = str[i];
                         b_pos++;
+                        if(b_pos ==n_buf_size){
+                                n_buf_size = n_buf_size + n_buf_size /2;
+                                MREALLOC(buf, sizeof(char) * n_buf_size);
+                        }
                         break;
                 }
         }
-
+        MFREE(buf);
         *out = n;
         return OK;
 ERROR:
