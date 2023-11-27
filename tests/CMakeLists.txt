@@ -17,6 +17,14 @@ target_link_libraries(unit-tpool PRIVATE tld-dev Threads::Threads)
 
 endif(Threads_FOUND)
 
+add_executable(unit-kdtree utests/unit_kdtree.c)
+target_link_libraries(unit-kdtree PRIVATE tld-dev)
+add_test(
+    NAME unit-kdtree
+    COMMAND unit-kdtree
+)
+
+
 add_executable(unit-json utests/unit_json.c)
 target_link_libraries(unit-json PRIVATE tld-dev)
 add_test(

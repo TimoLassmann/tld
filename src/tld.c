@@ -6,6 +6,7 @@
 
 #include "rng/tld-rng.c"
 
+#include "kdtree/tld-kdtree.c"
 #ifndef BOOT
 #include "seq/tld-seqbuffer.c"
 #include "seq/tld-seqio.c"
