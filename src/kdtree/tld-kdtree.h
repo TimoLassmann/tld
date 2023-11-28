@@ -11,16 +11,20 @@ typedef struct kd_node {
         int n;
 } kd_node;
 
+struct kdyard;
+
 typedef struct kdtree {
         /* kd_node* root; */
         kd_node* root;
-
-
-
+        struct kdyard* yard;
 } kdtree;
 
-tld_external int kdtree_build(float **x, int n, int size, int depth, kd_node **root);
-tld_external int kdtree_insert(kd_node *root, float *x, int size,kd_node **ret);
+tld_external  int kdtree_alloc(kdtree **tree, int size);
+tld_external void kdtree_free(kdtree *t);
+
+tld_external int kdtree_build(kdtree* t,kd_node** root,float **x, int n, int size, int depth);
+
+tld_external int kdtree_insert(kdtree* t, float *x, int size);
 
 tld_external void quickselect(float **x, int left, int right, int k, int dim);
 

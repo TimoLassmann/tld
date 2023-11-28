@@ -22,21 +22,27 @@ ERROR:
 
 int test_build_opt_tree(void)
 {
+        kdtree* kd = NULL;
+
         float** x = NULL;
         kd_node* root = NULL;
-        int dim1 = 1032978;
+        int dim1 = 1032;
         int dim2 = 1000;
+
+        RUN(kdtree_alloc(&kd, dim2));
 
         RUN(rnd_mat_alloc(&x,dim1 , dim2, 0));
 
         TLD_START_TIMER
-        kdtree_build(x, dim1,  dim2, 0, &root);
+         kdtree_build(kd,&kd->root, x, dim1,  dim2, 0);
+        /* kdtree_build(x, dim1,  dim2, 0, &root); */
 
         TLD_END_TIMER
-        /* kdtree_debug_print(root, 0); */
-        kdtree_node_free(root);
+        kdtree_debug_print(kd->root, 0);
+        /* kdtree_node_free(root); */
         rnd_mat_free(x, dim1);
 
+        kdtree_free(kd);
         return OK;
 ERROR:
         return FAIL;
