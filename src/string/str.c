@@ -88,6 +88,17 @@ ERROR:
         return FAIL;
 }
 
+int tld_strbuf_clear(tld_strbuf *b)
+{
+        ASSERT(b != NULL,"No buffer");
+        b->len = 0;
+        b->str[b->len] = 0;
+
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 
 int tld_prepend(tld_strbuf *b, char *content)
 {
