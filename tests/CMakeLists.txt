@@ -143,6 +143,13 @@ add_test(
     COMMAND unit-stats
 )
 
+add_executable(unit-pearson utests/unit_pearson.c) 
+target_link_libraries(unit-pearson PRIVATE tld-dev)
+add_test(
+    NAME unit-pearson
+    COMMAND unit-pearson
+)
+
 
 add_executable(unit-hdf5 utests/unit_hdf5.c) 
 target_link_libraries(unit-hdf5 PRIVATE tld-dev)

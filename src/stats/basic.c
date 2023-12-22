@@ -147,7 +147,12 @@ int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr)
 
         RUN(tld_pop_covariance(vec_a, vec_b, n, &cov));
 
-        c = pow(cov,2.0) / (var_a * var_b);
+        c = sqrt(var_a * var_b);
+        if(c == 0){
+                c = 0;
+        }else{
+                c = cov / c;
+        }
 
         *corr = c;
         return OK;
