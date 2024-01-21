@@ -3,6 +3,7 @@
 int test_file_parser(char *infile);
 int test_obj_parser(void);
 int test_parser(void);
+int test_parser_list(void);
 
 int main(int argc, char *argv[])
 {
@@ -14,7 +15,7 @@ int main(int argc, char *argv[])
         /* exit(0); */
                 test_parser();
         }
-
+        test_parser_list();
         return EXIT_SUCCESS;
 ERROR:
         return EXIT_FAILURE;
@@ -47,16 +48,17 @@ int test_file_parser(char *infile)
         tld_json_parse(buf, &n);
 
 
-        tld_strbuf* res = NULL;
-        tld_strbuf_alloc(&res, 16);
+        /* tld_strbuf* res = NULL; */
+        tld_json_ret* res = NULL;
+        /* tld_strbuf_alloc(&res, 16); */
 
-        tld_json_obj_get_str(n, "name",res);
+        tld_json_obj_get(n, "name",&res);
 
-        LOG_MSG("RESULT:::: %s", TLD_STR(res));
+        LOG_MSG("RESULT:::: %s", TLD_STR(res->value.string));
 
         tld_json_obj_free(n);
         tld_strbuf_free(buf);
-        tld_strbuf_free(res);
+        tld_json_ret_free(res);
         return OK;
 ERROR:
         if(f_ptr){
@@ -89,10 +91,43 @@ int test_obj_parser(void)
 
 }
 
+int test_parser_list(void)
 
+{
+        char test[] = "{\n\
+\"embedding\":[ 0.31691884994506836,5.225735664367676,1.9427547454833984]\n\
+}\n";
+
+        tld_strbuf  * buf = NULL;
+        tld_json_ret* ret = NULL;
+        tld_json_obj *n = NULL;
+        tld_strbuf_alloc(&buf, 1024);
+        tld_append(buf, test);
+        fprintf(stdout,"%s - input ", TLD_STR(buf));
+        tld_json_parse(buf, &n);
+
+        /* LOG_MSG("Printing objecT:"); */
+        /* tld_json_obj_print(n, stdout); */
+        buf->len = 0;
+        tld_json_obj_get(n, "embedding", &ret);
+        if(ret->type == TLD_JSON_RET_DBL_ARR){
+                for(int i = 0; i < ret->n;i++){
+                        fprintf(stdout,"%d %f - parsed\n",i,ret->value.dbl_arr[i]);
+                }
+        }else{
+                ERROR_MSG("TYPE:::: %d", ret->type);
+        }
+        /* LOG_MSG("%s", TLD_STR(ret->value.string)); */
+        /* tld_json_get_arr_str(tld_json_arr *n, char *key, tld_strbuf* res) */
+        tld_json_obj_free(n);
+        tld_strbuf_free(buf);
+
+        return OK;
+ERROR:
+        return FAIL;
+}
 
 int test_parser(void)
-
 {
         char test[] = "{\n\
   \"squadName\": \"Super hero squad\",\n\

@@ -3,8 +3,6 @@
 #define  TLD_JSON_MISC_IMPORT
 #include "tld-json_misc.h"
 
-
-
 int detect_type(char*s, int len, tld_json_type* type)
 {
         tld_json_type l_type = TLD_JSON_UNDEF;
