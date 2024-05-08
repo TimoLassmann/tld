@@ -54,4 +54,6 @@
 #include "shuffle/tld-shuffle.h"
 #include "misc/misc.h"
 
+#include "data/bitfield.h"
+
 #endif

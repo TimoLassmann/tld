@@ -8,7 +8,7 @@
 
 static float logsum_lookup[LOGSUM_SIZE];
 
-void init_logsum()
+void init_logsum(void)
 {
         static int called = 0;
         int i = 0;
