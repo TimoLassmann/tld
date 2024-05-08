@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <ctype.h>
 
-#define str(x)          # x
-#define xstr(x)         str(x)
+/* #define str(x)          # x */
+/* #define xstr(x)         str(x) */
 
 int detect_format(struct tl_seq_buffer* sb)
 {
@@ -100,7 +100,7 @@ int detect_format(struct tl_seq_buffer* sb)
                 qual= TLD_STR(sb->sequences[i]->qual);
                 len= sb->sequences[i]->len;
                 /* analyze names  */
-                number_of_values_found = sscanf(name  ,"%"xstr(256)"[^:]:%d:%"xstr(256)"[^:]:%d:%d:%d:%d ", instrument_R1,&run_id_R1,flowcell_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1 );
+                number_of_values_found = sscanf(name  ,"%255[^:]:%d:%255[^:]:%d:%d:%d:%d ", instrument_R1,&run_id_R1,flowcell_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1 );
                 if(number_of_values_found == 7){
                         res.illumina18_name++;
                         //      LOG_MSG("Detected casava 1.8 format.\n");
@@ -108,7 +108,7 @@ int detect_format(struct tl_seq_buffer* sb)
 
 
                 /* is this an old(er) illumina readname?  */
-                number_of_values_found =sscanf(name,"%"xstr(256)"[^:]:%d:%d:%d:%d", instrument_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1);
+                number_of_values_found =sscanf(name,"%255[^:]:%d:%d:%d:%d", instrument_R1,&flowcell_lane_R1,&tile_number_R1,&x_coordinate_R1,&y_coordinate_R1);
 
                 if(number_of_values_found == 5){
                         res.illumina15_name++;

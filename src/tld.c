@@ -45,6 +45,6 @@
 #include "stats/norm_quantile.c"
 #include "stats/auc.c"
 
-#include "data/bitfield.h"
+#include "data/bitfield.c"
 
 #include "misc/misc.c"

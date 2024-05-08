@@ -17,6 +17,15 @@ target_link_libraries(unit-tpool PRIVATE tld-dev Threads::Threads)
 
 endif(Threads_FOUND)
 
+add_executable(unit_bit
+  utests/unit_bitfield.c
+)
+target_link_libraries(unit_bit PRIVATE tld-dev)
+add_test(
+    NAME unit_bit
+    COMMAND unit_bit
+)
+
 add_executable(unit-kdtree utests/unit_kdtree.c)
 target_link_libraries(unit-kdtree PRIVATE tld-dev)
 add_test(
