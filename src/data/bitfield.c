@@ -20,7 +20,6 @@ int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2, int32_t* dist)
         int32_t len = b1->alloc_len;
         int32_t count = 0;
         for(int i = 0; i <  len; i++){
-                /* fprintf(stderr, "b1->m[%d] = %llX  b2->m[%d] = %llX\n", i, b1->m[i], i, b2->m[i]); */
                 count += _tl_bitfield_popcount_branchless(b1->m[i] ^ b2->m[i]);
         }
         *dist = count;
@@ -51,12 +50,13 @@ int tl_bitfield_set(tl_bitfield *b, int32_t index)
         return OK;
 }
 
-int tl_bitfield_get(tl_bitfield *b, int32_t index)
+int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit)
 {
         if(index < 0 || index >= b->len){
                 return FAIL;
         }
-        return (b->m[index >> BIT_SHIFT] & (1ULL << (index & BIT_MASK))) != 0;
+        *bit = (b->m[index >> BIT_SHIFT] & (1ULL << (index & BIT_MASK))) != 0;
+        return OK;
 }
 
 int tl_bitfield_clear(tl_bitfield *b, int32_t index)
@@ -99,7 +99,6 @@ void tl_bitfield_free(tl_bitfield *b)
                 free(b);
         }
 }
-
 
 
 #undef BIT_MASK

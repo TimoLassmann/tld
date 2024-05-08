@@ -15,7 +15,7 @@ tld_external  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2, int32_t*
 
 
 tld_external  int tl_bitfield_set(tl_bitfield *b, int32_t index);
-tld_external  int tl_bitfield_get(tl_bitfield *b, int32_t index);
+tld_external  int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit);
 tld_external  int tl_bitfield_clear(tl_bitfield *b, int32_t index);
 
 tld_external  int tl_bitfield_reset(tl_bitfield *b);

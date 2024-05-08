@@ -51,19 +51,20 @@ To make sure bits are set and can be retrieved
 int tl_bitfield_test3(void) {
         tl_bitfield *b = NULL;
         int status = 0;
+        uint8_t bit = 0;
         tl_bitfield_alloc(&b, 100);
         for(int i = 0; i < 100; i++){
                 tl_bitfield_set(b, i);
         }
 
         for(int i = 0; i < 100; i++){
-                status = tl_bitfield_get(b, i);
-                if(status != 1){
+                RUN(tl_bitfield_get(b, i,&bit));
+                if(bit != 1){
                         ERROR_MSG("tl_bitfield_get failed");
                 }
         }
 
-        status = tl_bitfield_get(b, 100);
+        status = tl_bitfield_get(b, 100,&bit);
         if(status != FAIL){
                 ERROR_MSG("tl_bitfield_get failed");
         }
@@ -106,7 +107,33 @@ int tl_bitfield_test4(void)
         return OK;
 ERROR:
         return FAIL;
+}
 
+/* Test to set and get bits */
+int tl_bitfield_test5(void)
+{
+        tl_bitfield *b = NULL;
+        int status = 0;
+        uint8_t bit = 0;
+        tl_bitfield_alloc(&b, 100);
+        for(int i = 0; i < 100; i++){
+                tl_bitfield_set(b, i);
+        }
+
+        for(int i = 0; i < 100; i++){
+                RUN(tl_bitfield_get(b, i,&bit));
+                if(bit != 1){
+                        ERROR_MSG("tl_bitfield_get failed");
+                }
+        }
+
+        status = tl_bitfield_get(b, 100, &bit);
+        if(status != FAIL){
+                ERROR_MSG("tl_bitfield_get failed");
+        }
+        return OK;
+ERROR:
+        return FAIL;
 }
 
 int main(void)
@@ -117,6 +144,7 @@ int main(void)
 
         RUN(tl_bitfield_test3());
         RUN(tl_bitfield_test4());
+        RUN(tl_bitfield_test5());
         return EXIT_SUCCESS;
 ERROR:
         return EXIT_FAILURE;
