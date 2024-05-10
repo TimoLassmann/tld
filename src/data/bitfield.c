@@ -11,7 +11,7 @@ static inline int _tl_bitfield_popcount_branchless(uint64_t x);
         available on most modern CPUs
  */
 
-int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2, int32_t* dist)
+int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int32_t* dist)
 {
         /* making sure the bitfields have the same length */
         if(b1->len != b2->len){
@@ -19,8 +19,14 @@ int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2, int32_t* dist)
         }
         int32_t len = b1->alloc_len;
         int32_t count = 0;
-        for(int i = 0; i <  len; i++){
-                count += _tl_bitfield_popcount_branchless(b1->m[i] ^ b2->m[i]);
+        if(mask == NULL){
+                for(int i = 0; i <  len; i++){
+                        count += _tl_bitfield_popcount_branchless(b1->m[i] ^ b2->m[i]);
+                }
+        }else{
+                for(int i = 0; i <  len; i++){
+                        count += _tl_bitfield_popcount_branchless((b1->m[i] ^ b2->m[i]) & mask->m[i]);
+                }
         }
         *dist = count;
         return OK;

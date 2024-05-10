@@ -11,8 +11,8 @@ typedef struct {
         int32_t alloc_len;
 } tl_bitfield;
 
-tld_external  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2, int32_t* dist);
 
+tld_external  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int32_t* dist);
 
 tld_external  int tl_bitfield_set(tl_bitfield *b, int32_t index);
 tld_external  int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit);
