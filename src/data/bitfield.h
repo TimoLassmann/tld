@@ -18,6 +18,7 @@ tld_external  int tl_bitfield_set(tl_bitfield *b, int32_t index);
 tld_external  int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit);
 tld_external  int tl_bitfield_clear(tl_bitfield *b, int32_t index);
 
+tld_external  int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src);
 tld_external  int tl_bitfield_reset(tl_bitfield *b);
 tld_external  int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size);
 tld_external void tl_bitfield_free(tl_bitfield *b);

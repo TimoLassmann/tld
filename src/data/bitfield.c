@@ -74,6 +74,19 @@ int tl_bitfield_reset(tl_bitfield *b)
         return OK;
 }
 
+int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src)
+{
+        if(dst->len != src->len){
+                ERROR_MSG("bitfields have different lengths");
+        }
+        memcpy(dst->m, src->m, src->alloc_len * sizeof(uint64_t));
+        dst->len = src->len;
+        dst->alloc_len = src->alloc_len;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size)
 {
         tl_bitfield* b = NULL;
