@@ -94,13 +94,15 @@ int tl_bitfield_test4(void)
                 tl_bitfield_set(b2, i);
         }
 
-        RUN(tl_bitfield_hamming(b1, b2, &dist));
+        RUN(tl_bitfield_hamming(b1, b2, NULL,&dist));
         if(dist != 0){
                 ERROR_MSG("tl_bitfield_hamming failed (d = %d) A", dist);
         }
 
+
+
         tl_bitfield_clear(b2, 0);
-        RUN(tl_bitfield_hamming(b1, b2, &dist));
+        RUN(tl_bitfield_hamming(b1, b2, NULL,&dist));
         if(dist != 1){
                 ERROR_MSG("tl_bitfield_hamming failed (d = %d) B", dist);
         }
