@@ -26,12 +26,18 @@ int print_arr(tld_json_arr* n);
 int tld_json_obj_get(tld_json_obj *n, char *key, tld_json_ret **ret)
 {
         if(n){
+
                 for(int i = 0; i < n->n;i++){
 
-                        if(strncmp((char*)n->key[i]->str, key, n->key[i]->len)==0){
-                                RUN(tld_json_get_ret_val(n->v[i], ret));
-                                break;
+                        int len = strnlen(key, 256);
+                        /* fprintf(stdout,"NAME: %s  LEN: %d %d\n",TLD_STR(n->key[i]),n->key[i]->len,len); */
+                        if(len == n->key[i]->len){
+                                if(strncmp((char*)n->key[i]->str, key, n->key[i]->len)==0){
+                                        RUN(tld_json_get_ret_val(n->v[i], ret));
+                                        break;
+                                }
                         }
+
                         if(n->v[i]->type == TLD_JSON_ARR){
 
                                 tld_json_get_arr_str(n->v[i]->value.arr,key,ret);
@@ -462,7 +468,7 @@ int tld_json_obj_print(tld_json_obj *n, FILE *out)
                         }else{
 
                                 fprintf(out,"  %s : ", TLD_STR(n->key[i]));
-                                print_val(n->v[i],out);;
+                                print_val(n->v[i],out);
                                 fprintf(out,"\n");
                         }
                 }
@@ -529,13 +535,13 @@ int print_val(tld_json_val *val, FILE *out)
                 fprintf(out,"%s", TLD_STR(val->value.str));
                 break;
         case TLD_JSON_ARR:
-                ERROR_MSG("This should never happen!!@");
+                ERROR_MSG("This should never happen - ARR");
                 break;
         case TLD_JSON_OBJ:
-                ERROR_MSG("This should never happen!!@");
+                ERROR_MSG("This should never happen - OBJ");
                 break;
         case TLD_JSON_UNDEF:
-                ERROR_MSG("This should never happen!!@");
+                ERROR_MSG("This should never happen - UNDEF");
                 break;
         }
         return OK;
@@ -692,10 +698,12 @@ int tld_json_get_ret_val(tld_json_val* v, tld_json_ret **ret)
         int n_elem = 0;
         int type[8];
         RUN(tld_json_ret_alloc(&r));
+        print_val(v,stdout);
         switch (v->type) {
         case TLD_JSON_OBJ:
 
         case TLD_JSON_STR:
+                LOG_MSG("Got a string %s", TLD_STR(v->value.str));
                 r->type = TLD_JSON_RET_STR;
                 tld_strbuf_alloc(&r->value.string,16);
                 tld_append(r->value.string, TLD_STR(v->value.str));

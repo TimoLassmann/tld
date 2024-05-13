@@ -47,12 +47,13 @@ int test_file_parser(char *infile)
         /* fprintf(stdout,"%s", TLD_STR(buf)); */
         tld_json_parse(buf, &n);
 
-
+        tld_json_obj_print(n, stdout);
         /* tld_strbuf* res = NULL; */
         tld_json_ret* res = NULL;
         /* tld_strbuf_alloc(&res, 16); */
+        LOG_MSG("Getting title");
+        tld_json_obj_get(n, "title",&res);
 
-        tld_json_obj_get(n, "name",&res);
 
         LOG_MSG("RESULT:::: %s", TLD_STR(res->value.string));
 
