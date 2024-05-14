@@ -46,6 +46,25 @@ int _tl_bitfield_popcount_branchless(uint64_t x)
         return x & 0x7F;
 }
 
+int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret)
+{
+        if(b1->len != b2->len){
+                ERROR_MSG("bitfields have different lengths");
+        }
+        if(ret->len != b1->len){
+                ERROR_MSG("bitfields have different lengths");
+        }
+
+        int32_t len = b1->alloc_len;
+
+        for(int i = 0; i <  len; i++){
+                ret->m[i] = b1->m[i] | b2->m[i];
+        }
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 
 int tl_bitfield_set(tl_bitfield *b, int32_t index)
 {
