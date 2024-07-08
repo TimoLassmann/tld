@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
         /* exit(0); */
                 test_parser();
         }
-        test_parser_list();
+        /* test_parser_list(); */
         return EXIT_SUCCESS;
 ERROR:
         return EXIT_FAILURE;
@@ -52,7 +52,7 @@ int test_file_parser(char *infile)
         tld_json_ret* res = NULL;
         /* tld_strbuf_alloc(&res, 16); */
         LOG_MSG("Getting title");
-        tld_json_obj_get(n, "title",&res);
+        /* tld_json_obj_get(n, "title",&res); */
 
 
         LOG_MSG("RESULT:::: %s", TLD_STR(res->value.string));
@@ -110,7 +110,7 @@ int test_parser_list(void)
         /* LOG_MSG("Printing objecT:"); */
         /* tld_json_obj_print(n, stdout); */
         buf->len = 0;
-        tld_json_obj_get(n, "embedding", &ret);
+        /* tld_json_obj_get(n, "embedding", &ret); */
         if(ret->type == TLD_JSON_RET_DBL_ARR){
                 for(int i = 0; i < ret->n;i++){
                         fprintf(stdout,"%d %f - parsed\n",i,ret->value.dbl_arr[i]);
@@ -175,8 +175,40 @@ int test_parser(void)
         tld_json_parse(buf, &n);
 
         tld_json_obj_print(n, stdout);
+
+
+
+
+        /* tld_json_val* ret = NULL; */
+
+        /* tld_json_val_copy(n->v[n->n], tok); */
+        /*                 n->n++; */
+        LOG_MSG("Searching for age");
+        tld_json_obj* r = NULL;
+        tld_json_search(n, "secretIdentity", &r);
+
+        if(r){
+
+                for(int i = 0; i < r->n;i++){
+                        if(r->v[i]->type == TLD_JSON_INT){
+                                LOG_MSG("RESULT:::: %d", r->v[i]->value.i_num);
+                        }else if(r->v[i]->type == TLD_JSON_STR){
+                                LOG_MSG("RESULT:::: %s", TLD_STR(r->v[i]->value.str));
+                        }else{
+                                ERROR_MSG("RESULT:::: %s", "NULL");
+                        }
+                        /* LOG_MSG("RESULT:::: %s", TLD_STR(r->v[i]->value.string)); */
+                }
+                /* LOG_MSG("RESULT:::: %s", TLD_STR(ret->value.string)); */
+                /* LOG_MSG("RESULT:::: %s", TLD_STR(ret->value.)); */
+                /* tld_json_ret_free(ret); */
+        }else{
+                ERROR_MSG("RESULT:::: %s", "NULL");
+        }
+        tld_json_obj_free(r);
         tld_json_obj_free(n);
         tld_strbuf_free(buf);
-
         return OK;
+ERROR:
+        return FAIL;
 }

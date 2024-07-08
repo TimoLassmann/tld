@@ -9,8 +9,9 @@
 #define TLD_JSON_IMPORT
 #include "tld-json.h"
 
-static int tld_json_get_ret_val(tld_json_val *v, tld_json_ret **ret);
-static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_ret** res);
+/* static int tld_json_get_ret_val(tld_json_val *v, tld_json_ret **ret); */
+/* static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_val **res); */
+static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj* res);
 /* static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_strbuf *res); */
 static int tld_json_parse_obj(tld_json_arr *lex, tld_json_obj **out);
 static int tld_json_parse_arr(tld_json_arr *lex, tld_json_arr **out);
@@ -22,29 +23,50 @@ static int print_val(tld_json_val *val, FILE *out);
 int print_arr(tld_json_arr* n);
 /* static int tld_json_parse_arr(tld_json_arr *lex, tld_json_arr **out); */
 /* static int tld_json_parse_node(tld_json_arr *lex,tld_json_obj** out); */
+static int search(tld_json_obj *n, char *key, tld_json_obj* r);
 
-int tld_json_obj_get(tld_json_obj *n, char *key, tld_json_ret **ret)
+int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret)
+{
+        tld_json_obj* r = NULL;
+        RUN(tld_json_obj_alloc(&r));
+        search(n, key, r);
+        for(int i =0; i < r->n;i++){
+                fprintf(stdout,"KEY: %s\n",TLD_STR(r->key[i]));
+                print_val(r->v[i],stdout);
+                fprintf(stdout,"\n");
+        }
+        *ret = r;
+        return OK;
+ERROR:
+        if(r){
+                tld_json_obj_free(r);
+        }
+        return FAIL;
+}
+
+int search(tld_json_obj *n, char *key, tld_json_obj* r)
 {
         if(n){
-
                 for(int i = 0; i < n->n;i++){
-
                         int len = strnlen(key, 256);
                         /* fprintf(stdout,"NAME: %s  LEN: %d %d\n",TLD_STR(n->key[i]),n->key[i]->len,len); */
                         if(len == n->key[i]->len){
                                 if(strncmp((char*)n->key[i]->str, key, n->key[i]->len)==0){
-                                        RUN(tld_json_get_ret_val(n->v[i], ret));
+                                        tld_append(r->key[r->n], TLD_STR(n->key[i]));
+                                        tld_json_val_copy(r->v[r->n], n->v[i]);
+                                        r->n++;
+                                        tld_json_obj_chk_space(n);
                                         break;
                                 }
                         }
 
                         if(n->v[i]->type == TLD_JSON_ARR){
 
-                                tld_json_get_arr_str(n->v[i]->value.arr,key,ret);
+                                tld_json_get_arr_str(n->v[i]->value.arr,key,r);
 
                         }else if(n->v[i]->type == TLD_JSON_OBJ){
 
-                                tld_json_obj_get(n->v[i]->value.obj, key,ret);
+                                search(n->v[i]->value.obj, key,r);
 
                         }
                 }
@@ -116,7 +138,7 @@ ERROR:
 /* /\*         return FAIL; *\/ */
 /* } */
 
-int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_ret** res)
+int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj* res)
 {
         if(n){
                 for(int i = 0; i < n->n;i++){
@@ -124,7 +146,7 @@ int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_ret** res)
 
                                 tld_json_get_arr_str(n->v[i]->value.arr,key,res);
                         }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                tld_json_obj_get(n->v[i]->value.obj, key,res);
+                                search(n->v[i]->value.obj, key,res);
 
                         }
 
@@ -520,10 +542,10 @@ int print_val(tld_json_val *val, FILE *out)
         }
         switch (val->type) {
         case TLD_JSON_DBL:
-                fprintf(out,"%f",val->value.d_num);
+                fprintf(out,"%f\n",val->value.d_num);
                 break;
         case TLD_JSON_INT:
-                fprintf(out,"%d",val->value.i_num);
+                fprintf(out,"%d\n",val->value.i_num);
                 break;
         case TLD_JSON_BOOL_TRUE:
                 fprintf(out,"%s","TRUE");
@@ -689,106 +711,106 @@ ERROR:
         return FAIL;
 }
 
-int tld_json_get_ret_val(tld_json_val* v, tld_json_ret **ret)
-{
-        tld_json_ret* r = NULL;
-        tld_json_arr *arr = NULL;
-        int max;
-        int max_idx;
-        int n_elem = 0;
-        int type[8];
-        RUN(tld_json_ret_alloc(&r));
-        print_val(v,stdout);
-        switch (v->type) {
-        case TLD_JSON_OBJ:
+/* int tld_json_get_ret_val(tld_json_val* v, tld_json_ret **ret) */
+/* { */
+/*         tld_json_ret* r = NULL; */
+/*         tld_json_arr *arr = NULL; */
+/*         int max; */
+/*         int max_idx; */
+/*         int n_elem = 0; */
+/*         int type[8]; */
+/*         RUN(tld_json_ret_alloc(&r)); */
+/*         /\* print_val(v,stdout); *\/ */
+/*         switch (v->type) { */
+/*         case TLD_JSON_OBJ: */
 
-        case TLD_JSON_STR:
-                LOG_MSG("Got a string %s", TLD_STR(v->value.str));
-                r->type = TLD_JSON_RET_STR;
-                tld_strbuf_alloc(&r->value.string,16);
-                tld_append(r->value.string, TLD_STR(v->value.str));
-                break;
-        case TLD_JSON_DBL:
-                r->type = TLD_JSON_RET_DBL;
-                r->value.d_num = v->value.d_num;
-                break;
-        case TLD_JSON_INT:
-                r->type = TLD_JSON_RET_INT;
-                r->value.d_num = v->value.i_num;
-                break;
-        case TLD_JSON_BOOL_TRUE:
-                r->type = TLD_JSON_RET_BOOL;
-                r->value.b_num = 1;
-                break;
-        case TLD_JSON_BOOL_FALSE:
-                r->type = TLD_JSON_RET_BOOL;
-                r->value.b_num = 0;
-                break;
-        case TLD_JSON_UNDEF:
-                ERROR_MSG("Node has no type!");
-                break;
-        case TLD_JSON_ARR:
-                arr = v->value.arr;
-                n_elem = arr->n;
-                r->n = n_elem;
-                r->n_alloc = n_elem;
-                for(int i = 0; i < 8;i++){
-                        type[i] = 0;
-                }
-                for(int i = 0; i < n_elem;i++){
-                        type[arr->v[i]->type]++;
-                }
-                max = -1;
-                max_idx = -1;
-                for(int i = 0; i < 8;i++){
-                        if(type[i] > max){
-                                max = type[i];
-                                max_idx = i;
-                        }
-                }
-                type[TLD_JSON_BOOL_TRUE] = type[TLD_JSON_BOOL_TRUE] + type[TLD_JSON_BOOL_FALSE];
-                if(type[TLD_JSON_BOOL_TRUE] > max){
-                        max = type[TLD_JSON_BOOL_TRUE];
-                        max_idx = TLD_JSON_BOOL_TRUE;
-                }
+/*         case TLD_JSON_STR: */
+/*                 LOG_MSG("Got a string %s", TLD_STR(v->value.str)); */
+/*                 r->type = TLD_JSON_RET_STR; */
+/*                 tld_strbuf_alloc(&r->value.string,16); */
+/*                 tld_append(r->value.string, TLD_STR(v->value.str)); */
+/*                 break; */
+/*         case TLD_JSON_DBL: */
+/*                 r->type = TLD_JSON_RET_DBL; */
+/*                 r->value.d_num = v->value.d_num; */
+/*                 break; */
+/*         case TLD_JSON_INT: */
+/*                 r->type = TLD_JSON_RET_INT; */
+/*                 r->value.d_num = v->value.i_num; */
+/*                 break; */
+/*         case TLD_JSON_BOOL_TRUE: */
+/*                 r->type = TLD_JSON_RET_BOOL; */
+/*                 r->value.b_num = 1; */
+/*                 break; */
+/*         case TLD_JSON_BOOL_FALSE: */
+/*                 r->type = TLD_JSON_RET_BOOL; */
+/*                 r->value.b_num = 0; */
+/*                 break; */
+/*         case TLD_JSON_UNDEF: */
+/*                 ERROR_MSG("Node has no type!"); */
+/*                 break; */
+/*         case TLD_JSON_ARR: */
+/*                 arr = v->value.arr; */
+/*                 n_elem = arr->n; */
+/*                 r->n = n_elem; */
+/*                 r->n_alloc = n_elem; */
+/*                 for(int i = 0; i < 8;i++){ */
+/*                         type[i] = 0; */
+/*                 } */
+/*                 for(int i = 0; i < n_elem;i++){ */
+/*                         type[arr->v[i]->type]++; */
+/*                 } */
+/*                 max = -1; */
+/*                 max_idx = -1; */
+/*                 for(int i = 0; i < 8;i++){ */
+/*                         if(type[i] > max){ */
+/*                                 max = type[i]; */
+/*                                 max_idx = i; */
+/*                         } */
+/*                 } */
+/*                 type[TLD_JSON_BOOL_TRUE] = type[TLD_JSON_BOOL_TRUE] + type[TLD_JSON_BOOL_FALSE]; */
+/*                 if(type[TLD_JSON_BOOL_TRUE] > max){ */
+/*                         max = type[TLD_JSON_BOOL_TRUE]; */
+/*                         max_idx = TLD_JSON_BOOL_TRUE; */
+/*                 } */
 
-                if(max != n_elem){
-                        ERROR_MSG("Mixed types (?) in json arr!");
-                }
-                switch (max_idx) {
-                case TLD_JSON_DBL:
-                        r->type = TLD_JSON_RET_DBL_ARR;
-                        galloc(&r->value.dbl_arr, n_elem);
-                        for(int i = 0; i < n_elem;i++){
-                                r->value.dbl_arr[i] = arr->v[i]->value.d_num;
-                        }
-                        break;
-                case TLD_JSON_INT:
-                        r->type = TLD_JSON_RET_INT_ARR;
-                        galloc(&r->value.int_arr, n_elem);
-                        for(int i = 0; i < n_elem;i++){
-                                r->value.int_arr[i] = arr->v[i]->value.i_num;
-                        }
-                        break;
-                case TLD_JSON_BOOL_TRUE:
-                case TLD_JSON_BOOL_FALSE:
-                        r->type = TLD_JSON_RET_BOOL_ARR;
-                        galloc(&r->value.bool_arr, n_elem);
-                        for(int i = 0; i < n_elem;i++){
-                                r->value.int_arr[i] = arr->v[i]->value.b_num;
-                        }
-                        break;
-                default:
-                        ERROR_MSG("Cannot parse %d json type.",max_idx);
-                        break;
-                }
-                break;
-        }
-        *ret = r;
-        return OK;
-ERROR:
-        return FAIL;
-}
+/*                 if(max != n_elem){ */
+/*                         ERROR_MSG("Mixed types (?) in json arr!"); */
+/*                 } */
+/*                 switch (max_idx) { */
+/*                 case TLD_JSON_DBL: */
+/*                         r->type = TLD_JSON_RET_DBL_ARR; */
+/*                         galloc(&r->value.dbl_arr, n_elem); */
+/*                         for(int i = 0; i < n_elem;i++){ */
+/*                                 r->value.dbl_arr[i] = arr->v[i]->value.d_num; */
+/*                         } */
+/*                         break; */
+/*                 case TLD_JSON_INT: */
+/*                         r->type = TLD_JSON_RET_INT_ARR; */
+/*                         galloc(&r->value.int_arr, n_elem); */
+/*                         for(int i = 0; i < n_elem;i++){ */
+/*                                 r->value.int_arr[i] = arr->v[i]->value.i_num; */
+/*                         } */
+/*                         break; */
+/*                 case TLD_JSON_BOOL_TRUE: */
+/*                 case TLD_JSON_BOOL_FALSE: */
+/*                         r->type = TLD_JSON_RET_BOOL_ARR; */
+/*                         galloc(&r->value.bool_arr, n_elem); */
+/*                         for(int i = 0; i < n_elem;i++){ */
+/*                                 r->value.int_arr[i] = arr->v[i]->value.b_num; */
+/*                         } */
+/*                         break; */
+/*                 default: */
+/*                         ERROR_MSG("Cannot parse %d json type.",max_idx); */
+/*                         break; */
+/*                 } */
+/*                 break; */
+/*         } */
+/*         *ret = r; */
+/*         return OK; */
+/* ERROR: */
+/*         return FAIL; */
+/* } */
 
 int tld_json_ret_alloc(tld_json_ret** ret)
 {
