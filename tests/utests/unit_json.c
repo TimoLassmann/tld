@@ -62,44 +62,51 @@ int test_create(void)
                         )
                 );
 
-
-
-
-        /* n = JSON_OBJ( */
-        /*         JS("Model","gpt-3.5-turbo"), */
-        /*         JO("response_format", */
-        /*            JSON_OBJ( */
-        /*                    JS( */
-        /*                            "type","json_object" */
-        /*                            ) */
-        /*                    ) */
-        /*                 ), */
-        /*         JA("messages", */
-        /*            JSON_ARR( */
-        /*                    JO(NULL,JSON_OBJ( */
-        /*                            JS( */
-        /*                                    "role","system" */
-        /*                                    ), */
-        /*                            JS( */
-        /*                                    "content",message */
-        /*                                    ) */
-        /*                               )), */
-        /*                    JO(NULL,JSON_OBJ( */
-        /*                            JS( */
-        /*                                    "role","user" */
-        /*                                    ), */
-        /*                            JS( */
-        /*                                    "content","Write a limerick about python exceptions." */
-        /*                                    ) */
-        /*                               )) */
-        /*                    ) */
-        /*                 )); */
-
-
-
         tld_strbuf_clear(b);
         tld_json_dump(n, b, 0);
         fprintf(stdout,"%s\n", TLD_STR(b));
+        tld_json_obj_free(n);
+        tld_strbuf_clear(b);
+
+        n = JSON_OBJ(
+                JO("response_format",JSON_OBJ(
+                           JS("type", "json_object"),
+                           JO("schema",JSON_OBJ(
+                                      JS("type", "object"),
+                                      JO("properties",JSON_OBJ(
+                                                 JO("name",
+                                                    JSON_OBJ(
+                                                            JS("type", "string"),
+                                                            JS("minLength", "1"),
+                                                            JS("maxLength", "100")
+                                                            )
+                                                         ),
+                                                 JO("age",
+                                                    JSON_OBJ(
+                                                            JS("type", "integer"),
+                                                            JS("minimum", "0"),
+                                                            JS("maximum", "120")
+                                                            )
+                                                         )
+                                                 )
+                                              ),
+                                      JA("required",
+                                         JSON_ARR(
+                                                 JS(NULL,"message"),
+                                                 JS(NULL,"age"),
+                                                 )
+                                              )
+                                      )
+                                   )
+                           )
+                        )
+                );
+        tld_strbuf_clear(b);
+        tld_json_dump(n, b, 0);
+        fprintf(stdout,"%s\n", TLD_STR(b));
+        tld_json_obj_free(n);
+        tld_strbuf_clear(b);
+
         return OK;
 }
 
