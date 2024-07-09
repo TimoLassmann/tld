@@ -133,7 +133,7 @@ int detect_type(char*s, int len, tld_json_type* type)
 int is_open_obj(tld_json_val *v)
 {
         if(v->type == TLD_JSON_STR){
-                if(v->value.str->str[0] == '{'){
+                if(v->value.str->str[0] == '{' && v->value.str->len == 1){
                         return 1;
                 }
         }
@@ -143,7 +143,7 @@ int is_open_obj(tld_json_val *v)
 int is_close_obj(tld_json_val *v)
 {
         if(v->type == TLD_JSON_STR){
-                if(v->value.str->str[0] == '}'){
+                if(v->value.str->str[0] == '}' && v->value.str->len == 1){
                         return 1;
                 }
         }
@@ -153,9 +153,10 @@ int is_close_obj(tld_json_val *v)
 int is_open_arr(tld_json_val *v)
 {
         if(v->type == TLD_JSON_STR){
-                if(v->value.str->str[0] == '['){
+                if(v->value.str->str[0] == '[' && v->value.str->len == 1){
                         return 1;
                 }
+                /* LOG_MSG("%s (len: %d) in open arr test...",v->value.str->str, v->value.str->len); */
         }
         return 0;
 }
@@ -163,7 +164,7 @@ int is_open_arr(tld_json_val *v)
 int is_close_arr(tld_json_val *v)
 {
         if(v->type == TLD_JSON_STR){
-                if(v->value.str->str[0] == ']'){
+                if(v->value.str->str[0] == ']' && v->value.str->len == 1){
                         return 1;
                 }
         }
@@ -173,9 +174,12 @@ int is_close_arr(tld_json_val *v)
 int is_colon(tld_json_val *v)
 {
         if(v->type == TLD_JSON_STR){
-                if(v->value.str->str[0] == ':'){
+
+                if(v->value.str->str[0] == ':' && v->value.str->len == 1){
                         return 1;
                 }
+                /* LOG_MSG("%s in colon test...",v->value.str->str); */
+
         }
         return 0;
 }
@@ -183,7 +187,7 @@ int is_colon(tld_json_val *v)
 int is_comma(tld_json_val *v)
 {
         if(v->type == TLD_JSON_STR){
-                if(v->value.str->str[0] == ','){
+                if(v->value.str->str[0] == ',' && v->value.str->len == 1){
                         return 1;
                 }
         }

@@ -734,9 +734,9 @@ int tld_json_arr_print(tld_json_arr *n, FILE *out)
 int lex_error_print(tld_json_arr *lex)
 {
         int s = 0;
-        s = lex->read_head - 10;
+        s = 0;//lex->read_head - 10;
         s = MACRO_MAX(0, s);
-        for(int i = s; i < lex->read_head;i++){
+        for(int i = s; i <= lex->read_head;i++){
                 fprintf(stdout,"Tok %5d : ", i);
                 print_val(lex->v[i], stdout);
                 fprintf(stdout,"\n");

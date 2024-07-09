@@ -3,11 +3,12 @@
 int test_file_parser(char *infile);
 int test_obj_parser(void);
 int test_parser(void);
+int test_parser2(void);
 int test_parser_list(void);
 int test_create(void);
 int main(int argc, char *argv[])
 {
-
+        test_parser2();
         test_create();
         exit(0);
         if(argc > 1){
@@ -24,6 +25,22 @@ ERROR:
         return EXIT_FAILURE;
 }
 
+int test_parser2(void)
+
+{
+        char in[] = "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"{ \\\"age\\\" : 28, \\\"name\\\" : \\\"assistant\\\" }\\n   <|eot_id|>\",\"role\":\"assistant\"}}],\"created\":1720516888,\"model\":\"gpt-3.5-turbo\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":20,\"prompt_tokens\":49,\"total_tokens\":69},\"id\":\"chatcmpl-Zq01pMCDL2F3oBNKhdVBtEbR4bi68FIf\"}";
+
+        tld_strbuf* buf = NULL;
+        tld_json_obj *n = NULL;
+        tld_strbuf_alloc(&buf, 1024);
+        tld_append(buf, in);
+        fprintf(stdout,"%s\n", TLD_STR(buf));
+        tld_json_parse(buf, &n);
+        tld_strbuf_clear(buf);
+        tld_json_dump(n, buf, 0);
+        fprintf(stdout,"%s\n", TLD_STR(buf));
+        return OK;
+}
 int test_create(void)
 {
         /* tld_json_obj *n = NULL; */
