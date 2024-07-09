@@ -9,6 +9,11 @@
 #define TLD_JSON_IMPORT
 #include "tld-json.h"
 
+
+
+
+static int tld_json_dump_val(tld_json_val *val, tld_strbuf *b);
+static int tld_json_add_indent(tld_strbuf *b, int indent);
 /* static int tld_json_get_ret_val(tld_json_val *v, tld_json_ret **ret); */
 /* static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_val **res); */
 static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj* res);
@@ -24,6 +29,177 @@ int print_arr(tld_json_arr* n);
 /* static int tld_json_parse_arr(tld_json_arr *lex, tld_json_arr **out); */
 /* static int tld_json_parse_node(tld_json_arr *lex,tld_json_obj** out); */
 static int search(tld_json_obj *n, char *key, tld_json_obj* r);
+
+
+
+static tld_json_obj* tld_json_obj_add_val(tld_json_obj *obj, char* key, char* val);
+static tld_json_obj* tld_json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val);
+static tld_json_obj *tld_json_obj_add_arr(tld_json_obj *obj, char *key, tld_json_arr *val);
+static tld_json_arr* tld_json_arr_add_val(tld_json_arr *arr, char* val);
+static tld_json_arr* tld_json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val);
+static tld_json_arr *tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj *val);
+
+tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs, int count)
+{
+        for (int i = 0; i < count; i++) {
+                switch (kvs[i].type) {
+                case VAL_STRING:
+                        obj = tld_json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
+                        break;
+                case VAL_OBJ:
+                        obj = tld_json_obj_add_obj(obj, kvs[i].key, (tld_json_obj*)kvs[i].value);
+                        break;
+                case VAL_ARR:
+                        obj = tld_json_obj_add_arr(obj, kvs[i].key, (tld_json_arr*)kvs[i].value);
+                        break;
+                }
+        }
+        return obj;
+}
+
+
+tld_json_obj* tld_json_obj_add_val(tld_json_obj *obj, char* key, char* val)
+{
+        tld_json_obj* n = NULL;
+        int len;
+        if(obj == NULL){
+                tld_json_obj_alloc(&n);
+        }else{
+                n = obj;
+        }
+
+        tld_append(n->key[n->n], key);
+
+        len = strlen(val);
+        add_val(val,len, n->v[n->n]);
+
+        n->n++;
+
+        tld_json_obj_chk_space(n);
+        if(obj == NULL){
+                return n;
+        }
+        return obj;
+}
+
+tld_json_obj* tld_json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val)
+{
+        tld_json_obj* n = NULL;
+        if(obj == NULL){
+                tld_json_obj_alloc(&n);
+        }else{
+                n = obj;
+        }
+
+        tld_append(n->key[n->n], key);
+        n->v[n->n]->type = TLD_JSON_OBJ;
+        n->v[n->n]->value.obj = val;
+
+        n->n++;
+        tld_json_obj_chk_space(n);
+        if(obj == NULL){
+                return n;
+        }
+        return obj;
+}
+
+
+
+tld_json_obj* tld_json_obj_add_arr(tld_json_obj *obj, char* key, tld_json_arr*val)
+{
+        tld_json_obj* n = NULL;
+        if(obj == NULL){
+                tld_json_obj_alloc(&n);
+        }else{
+                n = obj;
+        }
+
+        tld_append(n->key[n->n], key);
+        n->v[n->n]->type = TLD_JSON_ARR;
+        n->v[n->n]->value.arr = val;
+        n->n++;
+
+        tld_json_obj_chk_space(n);
+        if(obj == NULL){
+                return n;
+        }
+        return obj;
+}
+
+tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs, int count)
+{
+        for (int i = 0; i < count; i++) {
+                switch (kvs[i].type) {
+                case VAL_STRING:
+                        arr = tld_json_arr_add_val(arr,  (char*)kvs[i].value);
+                        break;
+                case VAL_OBJ:
+                        arr = tld_json_arr_add_obj(arr, (tld_json_obj*)kvs[i].value);
+                        break;
+                case VAL_ARR:
+                        arr = tld_json_arr_add_arr(arr,  (tld_json_arr*)kvs[i].value);
+                        break;
+                }
+        }
+        return arr;
+}
+
+
+tld_json_arr* tld_json_arr_add_val(tld_json_arr *arr, char* val)
+{
+        tld_json_arr* n = NULL;
+        int len;
+        if(arr == NULL){
+                tld_json_arr_alloc(&n);
+        }else{
+                n = arr;
+        }
+        len = strlen(val);
+        add_val(val,len, n->v[n->n]);
+        n->n++;
+        tld_json_arr_chk_space(n);
+        if(arr == NULL){
+                return n;
+        }
+        return arr;
+}
+
+tld_json_arr* tld_json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val)
+{
+        tld_json_arr* n = NULL;
+        if(arr == NULL){
+                tld_json_arr_alloc(&n);
+        }else{
+                n = arr;
+        }
+        n->v[n->n]->type = TLD_JSON_ARR;
+        n->v[n->n]->value.arr = val;
+        n->n++;
+        tld_json_arr_chk_space(n);
+        if(arr == NULL){
+                return n;
+        }
+        return arr;
+}
+
+tld_json_arr* tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj*val)
+{
+        tld_json_arr* n = NULL;
+        if(arr == NULL){
+                tld_json_arr_alloc(&n);
+        }else{
+                n = arr;
+        }
+        n->v[n->n]->type = TLD_JSON_OBJ;
+        n->v[n->n]->value.obj = val;
+        n->n++;
+        tld_json_arr_chk_space(n);
+        if(arr == NULL){
+                return n;
+        }
+        return arr;
+}
+
 
 int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret)
 {
@@ -76,67 +252,6 @@ int search(tld_json_obj *n, char *key, tld_json_obj* r)
 ERROR:
         return FAIL;
 }
-
-/* int tld_json_obj_get_str(tld_json_obj *n, char *key, tld_strbuf* res) */
-/* { */
-/*         if(n){ */
-/*                 for(int i = 0; i < n->n;i++){ */
-/*                         LOG_MSG("%s %d --- in get %s", TLD_STR(n->key[i]),n->key[i]->len,key); */
-/*                         if(strncmp((char*)n->key[i]->str, key, n->key[i]->len)==0){ */
-/*                                 LOG_MSG("FOUNE!!!! type: %d", n->v[i]->type); */
-/*                                 if(n->v[i]->type == TLD_JSON_STR){ */
-/*                                         /\* fprintf(stdout, "%d %s key: %s\n",i ,TLD_STR(n->key[i]),key); *\/ */
-/*                                         tld_append(res, TLD_STR( n->v[i]->value.str)); */
-/*                                 }else if(n->v[i]->type == TLD_JSON_ARR){ */
-/*                                         tld_json_arr *arr = n->v[i]->value.arr; */
-/*                                         LOG_MSG("num entries: %d",arr->n); */
-/*                                         for(int j = 0; j < arr->n;j++){ */
-/*                                                 switch (arr->v[j]->type) { */
-/*                                                 case TLD_JSON_BOOL_TRUE: */
-/*                                                         fprintf(stdout,"true\n" ); */
-/*                                                         break; */
-/*                                                 case TLD_JSON_BOOL_FALSE: */
-/*                                                         fprintf(stdout,"false\n" ); */
-/*                                                         break; */
-/*                                                 case TLD_JSON_INT: */
-/*                                                         fprintf(stdout,"%d\n",arr->v[j]->value.i_num ); */
-/*                                                         break; */
-/*                                                 case TLD_JSON_DBL: */
-/*                                                         fprintf(stdout,"%f\n",arr->v[j]->value.d_num ); */
-/*                                                         break; */
-/*                                                 case TLD_JSON_OBJ: */
-/*                                                 case TLD_JSON_ARR: */
-/*                                                 case TLD_JSON_STR: */
-/*                                                 case TLD_JSON_UNDEF: */
-/*                                                         LOG_MSG("Dunno what to do!"); */
-/*                                                         break; */
-/*                                                 } */
-
-
-
-
-/*                                         } */
-/*                                         /\* n->v[i]->value *\/ */
-/*                                 }else{ */
-/*                                         LOG_MSG("Got a different value %d !",n->v[i]->type); */
-/*                                 } */
-/*                         } */
-/*                         if(n->v[i]->type == TLD_JSON_ARR){ */
-/*                                 if(!TLD_STRLEN(res)){ */
-/*                                         tld_json_get_arr_str(n->v[i]->value.arr,key,res); */
-/*                                 } */
-/*                         }else if(n->v[i]->type == TLD_JSON_OBJ){ */
-/*                                 if(!TLD_STRLEN(res)){ */
-/*                                         tld_json_obj_get_str(n->v[i]->value.obj, key,res); */
-/*                                 } */
-/*                         } */
-/*                 } */
-/*         } */
-
-/*         return OK; */
-/* /\* ERROR: *\/ */
-/* /\*         return FAIL; *\/ */
-/* } */
 
 int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj* res)
 {
@@ -474,6 +589,100 @@ ERROR:
         return FAIL;
 }
 
+int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
+{
+        if(n){
+                tld_append(b, "{\n");
+
+                for(int i = 0; i < n->n;i++){
+                        tld_json_add_indent(b, indent + 4);
+                        tld_append(b, "\"");
+                        tld_append(b, TLD_STR(n->key[i]));
+                        tld_append(b, "\": ");
+
+                        if(n->v[i]->type == TLD_JSON_ARR){
+                                tld_json_dump_arr(n->v[i]->value.arr, b,indent + 4);
+                        }else if(n->v[i]->type == TLD_JSON_OBJ){
+                                tld_json_dump(n->v[i]->value.obj, b,indent + 4);
+                        }else{
+                                tld_json_dump_val(n->v[i], b);
+                        }
+                        if (i < n->n - 1) {
+                                tld_append(b, ",");
+                        }
+                        tld_append(b, "\n");
+                }
+                tld_json_add_indent(b, indent);
+                tld_append(b, "}");
+        }
+        return OK;
+}
+
+int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
+{
+
+        if(n){
+                tld_append(b, "[\n");
+
+                for (int i = 0; i < n->n; i++) {
+                        tld_json_add_indent(b, indent + 4);
+                        if (n->v[i]->type == TLD_JSON_ARR) {
+                                tld_json_dump_arr(n->v[i]->value.arr, b,indent + 4);
+                        } else if (n->v[i]->type == TLD_JSON_OBJ) {
+                                tld_json_dump(n->v[i]->value.obj, b,indent + 4);
+                        } else {
+                                tld_json_dump_val(n->v[i], b);
+                        }
+                        if (i < n->n - 1) {
+                                tld_append(b, ",");
+                        }
+                        tld_append(b, "\n");
+                }
+                tld_json_add_indent(b, indent);
+                tld_append(b, "]");
+        }
+        return OK;
+}
+
+int tld_json_dump_val(tld_json_val *val, tld_strbuf *b)
+{
+        char buf[16];
+        if(val->type == TLD_JSON_STR){
+                tld_append(b, "\"");
+                tld_append(b, TLD_STR(val->value.str));
+                tld_append(b, "\"");
+        }else if(val->type == TLD_JSON_INT) {
+                snprintf(buf, 16, "%d", val->value.i_num);
+                tld_append(b, buf);
+        }else if(val->type == TLD_JSON_DBL){
+                snprintf(buf, 16, "%f", val->value.d_num);
+                tld_append(b, buf);
+        }else if(val->type == TLD_JSON_BOOL_TRUE){
+                tld_append(b, "true");
+        }else if(val->type == TLD_JSON_BOOL_FALSE){
+                tld_append(b, "false");
+        }else{
+                tld_append(b, "null");
+        }
+        return OK;
+}
+
+int tld_json_add_indent(tld_strbuf *b, int indent)
+{
+
+        char buf[32];
+        if(indent > 31){
+                indent = 31;
+        }
+
+        for (int i = 0; i < indent; i++) {
+                buf[i] = ' ';
+        }
+        buf[indent] = 0;
+        tld_append(b, buf);
+        return OK;
+}
+
 int tld_json_obj_print(tld_json_obj *n, FILE *out)
 {
         if(out == NULL){
@@ -608,72 +817,6 @@ ERROR:
         return FAIL;
 }
 
-
-/* static  int tld_json_val_copy(tld_json_val *t, tld_json_val *s); */
-/* static  int tld_json_val_alloc(tld_json_val **node); */
-/* static void tld_json_val_free(tld_json_val *n); */
-
-/* int detect_type(char*s, int len, tld_json_type* type); */
-/* int eat_space(uint8_t *s, int len, int *pos); */
-/* int print_arr(tld_json_arr* n); */
-/* int get_key(uint8_t *s, int len, int *pos, int *p_len); */
-
-/* int get_key(uint8_t *s, int len, int *pos, int *p_len) */
-/* { */
-/*         int start = -1; */
-/*         int stop = -1; */
-
-/*         int p = *pos; */
-/*         for(int i = p;i < len;i++){ */
-/*                 if(s[i] == '"'){ */
-/*                         if(start == -1){ */
-/*                                 start = i+1; */
-/*                         }else{ */
-/*                                 stop = i; */
-/*                                 i = len; */
-/*                         } */
-/*                 } */
-/*         } */
-/*         *pos = start; */
-/*         *p_len = stop; */
-/*         return OK; */
-/* } */
-
-/* int eat_space(uint8_t *s, int len,int *pos) */
-/* { */
-/*         int p = *pos; */
-/*         while(p < len){ */
-/*                 if(s[p] == ' ' || s[p] == '\t' || s[p] == '\n'){ */
-/*                         p++; */
-/*                 }else{ */
-/*                         break; */
-/*                 } */
-/*         } */
-/*         *pos = p; */
-/*         return OK; */
-/* } */
-
-
-/* int tld_json_parser(tld_json_arr *lex,tld_json_node** out) */
-/* { */
-
-/*         tld_json_node*  n = NULL; */
-/*         RUN(tld_json_node_alloc(&n)); */
-
-/*         for(int i = 0; i < lex->n;i++){ */
-
-/*         } */
-
-/*         tld_json_node_free(n); */
-/*         return OK; */
-/* ERROR: */
-/*         tld_json_node_free(n); */
-/*         return FAIL; */
-/* } */
-
-
-
-
 int tld_json_val_copy(tld_json_val *t, tld_json_val *s)
 {
         ASSERT(t != NULL,"No target");
@@ -709,146 +852,4 @@ int tld_json_val_copy(tld_json_val *t, tld_json_val *s)
         return OK;
 ERROR:
         return FAIL;
-}
-
-/* int tld_json_get_ret_val(tld_json_val* v, tld_json_ret **ret) */
-/* { */
-/*         tld_json_ret* r = NULL; */
-/*         tld_json_arr *arr = NULL; */
-/*         int max; */
-/*         int max_idx; */
-/*         int n_elem = 0; */
-/*         int type[8]; */
-/*         RUN(tld_json_ret_alloc(&r)); */
-/*         /\* print_val(v,stdout); *\/ */
-/*         switch (v->type) { */
-/*         case TLD_JSON_OBJ: */
-
-/*         case TLD_JSON_STR: */
-/*                 LOG_MSG("Got a string %s", TLD_STR(v->value.str)); */
-/*                 r->type = TLD_JSON_RET_STR; */
-/*                 tld_strbuf_alloc(&r->value.string,16); */
-/*                 tld_append(r->value.string, TLD_STR(v->value.str)); */
-/*                 break; */
-/*         case TLD_JSON_DBL: */
-/*                 r->type = TLD_JSON_RET_DBL; */
-/*                 r->value.d_num = v->value.d_num; */
-/*                 break; */
-/*         case TLD_JSON_INT: */
-/*                 r->type = TLD_JSON_RET_INT; */
-/*                 r->value.d_num = v->value.i_num; */
-/*                 break; */
-/*         case TLD_JSON_BOOL_TRUE: */
-/*                 r->type = TLD_JSON_RET_BOOL; */
-/*                 r->value.b_num = 1; */
-/*                 break; */
-/*         case TLD_JSON_BOOL_FALSE: */
-/*                 r->type = TLD_JSON_RET_BOOL; */
-/*                 r->value.b_num = 0; */
-/*                 break; */
-/*         case TLD_JSON_UNDEF: */
-/*                 ERROR_MSG("Node has no type!"); */
-/*                 break; */
-/*         case TLD_JSON_ARR: */
-/*                 arr = v->value.arr; */
-/*                 n_elem = arr->n; */
-/*                 r->n = n_elem; */
-/*                 r->n_alloc = n_elem; */
-/*                 for(int i = 0; i < 8;i++){ */
-/*                         type[i] = 0; */
-/*                 } */
-/*                 for(int i = 0; i < n_elem;i++){ */
-/*                         type[arr->v[i]->type]++; */
-/*                 } */
-/*                 max = -1; */
-/*                 max_idx = -1; */
-/*                 for(int i = 0; i < 8;i++){ */
-/*                         if(type[i] > max){ */
-/*                                 max = type[i]; */
-/*                                 max_idx = i; */
-/*                         } */
-/*                 } */
-/*                 type[TLD_JSON_BOOL_TRUE] = type[TLD_JSON_BOOL_TRUE] + type[TLD_JSON_BOOL_FALSE]; */
-/*                 if(type[TLD_JSON_BOOL_TRUE] > max){ */
-/*                         max = type[TLD_JSON_BOOL_TRUE]; */
-/*                         max_idx = TLD_JSON_BOOL_TRUE; */
-/*                 } */
-
-/*                 if(max != n_elem){ */
-/*                         ERROR_MSG("Mixed types (?) in json arr!"); */
-/*                 } */
-/*                 switch (max_idx) { */
-/*                 case TLD_JSON_DBL: */
-/*                         r->type = TLD_JSON_RET_DBL_ARR; */
-/*                         galloc(&r->value.dbl_arr, n_elem); */
-/*                         for(int i = 0; i < n_elem;i++){ */
-/*                                 r->value.dbl_arr[i] = arr->v[i]->value.d_num; */
-/*                         } */
-/*                         break; */
-/*                 case TLD_JSON_INT: */
-/*                         r->type = TLD_JSON_RET_INT_ARR; */
-/*                         galloc(&r->value.int_arr, n_elem); */
-/*                         for(int i = 0; i < n_elem;i++){ */
-/*                                 r->value.int_arr[i] = arr->v[i]->value.i_num; */
-/*                         } */
-/*                         break; */
-/*                 case TLD_JSON_BOOL_TRUE: */
-/*                 case TLD_JSON_BOOL_FALSE: */
-/*                         r->type = TLD_JSON_RET_BOOL_ARR; */
-/*                         galloc(&r->value.bool_arr, n_elem); */
-/*                         for(int i = 0; i < n_elem;i++){ */
-/*                                 r->value.int_arr[i] = arr->v[i]->value.b_num; */
-/*                         } */
-/*                         break; */
-/*                 default: */
-/*                         ERROR_MSG("Cannot parse %d json type.",max_idx); */
-/*                         break; */
-/*                 } */
-/*                 break; */
-/*         } */
-/*         *ret = r; */
-/*         return OK; */
-/* ERROR: */
-/*         return FAIL; */
-/* } */
-
-int tld_json_ret_alloc(tld_json_ret** ret)
-{
-        tld_json_ret* n = NULL;
-        MMALLOC(n, sizeof(tld_json_ret));
-        n->type = TLD_JSON_RET_UNDEF;
-        n->n = 0;
-        n->n_alloc = 0;
-        *ret = n;
-        return OK;
-ERROR:
-        tld_json_ret_free(n);
-        return FAIL;
-}
-
-void tld_json_ret_free(tld_json_ret* n)
-{
-        if(n){
-                switch (n->type) {
-                case TLD_JSON_RET_UNDEF:
-                case TLD_JSON_RET_BOOL:
-                case TLD_JSON_RET_DBL:
-                case TLD_JSON_RET_INT:
-                        break;
-                case TLD_JSON_RET_STR:
-                        tld_strbuf_free(n->value.string);
-                        break;
-                case TLD_JSON_RET_BOOL_ARR:
-                        gfree(n->value.bool_arr);
-                        break;
-                case TLD_JSON_RET_DBL_ARR:
-                        gfree(n->value.dbl_arr);
-                        break;
-                case TLD_JSON_RET_INT_ARR:
-                        gfree(n->value.int_arr);
-                        break;
-                }
-
-                MFREE(n);
-        }
 }

@@ -4,9 +4,12 @@ int test_file_parser(char *infile);
 int test_obj_parser(void);
 int test_parser(void);
 int test_parser_list(void);
-
+int test_create(void);
 int main(int argc, char *argv[])
 {
+
+        test_create();
+        exit(0);
         if(argc > 1){
 
                 RUN(test_file_parser(argv[1]));
@@ -20,6 +23,86 @@ int main(int argc, char *argv[])
 ERROR:
         return EXIT_FAILURE;
 }
+
+int test_create(void)
+{
+        /* tld_json_obj *n = NULL; */
+        tld_strbuf* b = NULL;
+        tld_json_arr* a = NULL;
+        tld_json_obj* tmp = NULL;
+
+        tld_strbuf_alloc(&b, 1024);
+        a = JSON_ARR( JO(NULL,JSON_OBJ(JS("Model","gpt-3.5-turbo"))));
+
+
+                
+        tld_json_dump_arr(a, b, 0);
+        fprintf(stdout,"%s\n", TLD_STR(b));
+        /* char message[] = "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests."; */
+        const char* message = "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests.";
+
+        tld_json_obj* n = JSON_OBJ(
+                JS("model", "gpt-3.5-turbo"),
+                JO("response_format",
+                   JSON_OBJ(
+                           JS("type", "json_object")
+                           )
+                        ),
+                JA("messages",
+                   JSON_ARR(
+                           JO(NULL, JSON_OBJ(
+                                      JS("role", "system"),
+                                      JS("content", message)
+                                      )),
+                           JO(NULL, JSON_OBJ(
+                                      JS("role", "user"),
+                                      JS("content", "Write a limerick about python exceptions.")
+                                      ))
+                           )
+                        )
+                );
+
+
+
+
+        /* n = JSON_OBJ( */
+        /*         JS("Model","gpt-3.5-turbo"), */
+        /*         JO("response_format", */
+        /*            JSON_OBJ( */
+        /*                    JS( */
+        /*                            "type","json_object" */
+        /*                            ) */
+        /*                    ) */
+        /*                 ), */
+        /*         JA("messages", */
+        /*            JSON_ARR( */
+        /*                    JO(NULL,JSON_OBJ( */
+        /*                            JS( */
+        /*                                    "role","system" */
+        /*                                    ), */
+        /*                            JS( */
+        /*                                    "content",message */
+        /*                                    ) */
+        /*                               )), */
+        /*                    JO(NULL,JSON_OBJ( */
+        /*                            JS( */
+        /*                                    "role","user" */
+        /*                                    ), */
+        /*                            JS( */
+        /*                                    "content","Write a limerick about python exceptions." */
+        /*                                    ) */
+        /*                               )) */
+        /*                    ) */
+        /*                 )); */
+
+
+
+        tld_strbuf_clear(b);
+        tld_json_dump(n, b, 0);
+        fprintf(stdout,"%s\n", TLD_STR(b));
+        return OK;
+}
+
 
 int test_file_parser(char *infile)
 {
@@ -49,17 +132,17 @@ int test_file_parser(char *infile)
 
         tld_json_obj_print(n, stdout);
         /* tld_strbuf* res = NULL; */
-        tld_json_ret* res = NULL;
+        /* tld_json_ret* res = NULL; */
         /* tld_strbuf_alloc(&res, 16); */
         LOG_MSG("Getting title");
         /* tld_json_obj_get(n, "title",&res); */
 
 
-        LOG_MSG("RESULT:::: %s", TLD_STR(res->value.string));
+        /* LOG_MSG("RESULT:::: %s", TLD_STR(res->value.string)); */
 
         tld_json_obj_free(n);
         tld_strbuf_free(buf);
-        tld_json_ret_free(res);
+        /* tld_json_ret_free(res); */
         return OK;
 ERROR:
         if(f_ptr){
@@ -92,41 +175,41 @@ int test_obj_parser(void)
 
 }
 
-int test_parser_list(void)
+/* int test_parser_list(void) */
 
-{
-        char test[] = "{\n\
-\"embedding\":[ 0.31691884994506836,5.225735664367676,1.9427547454833984]\n\
-}\n";
+/* { */
+/*         char test[] = "{\n\ */
+/* \"embedding\":[ 0.31691884994506836,5.225735664367676,1.9427547454833984]\n\ */
+/* }\n"; */
 
-        tld_strbuf  * buf = NULL;
-        tld_json_ret* ret = NULL;
-        tld_json_obj *n = NULL;
-        tld_strbuf_alloc(&buf, 1024);
-        tld_append(buf, test);
-        fprintf(stdout,"%s - input ", TLD_STR(buf));
-        tld_json_parse(buf, &n);
+/*         tld_strbuf  * buf = NULL; */
+/*         tld_json_ret* ret = NULL; */
+/*         tld_json_obj *n = NULL; */
+/*         tld_strbuf_alloc(&buf, 1024); */
+/*         tld_append(buf, test); */
+/*         fprintf(stdout,"%s - input ", TLD_STR(buf)); */
+/*         tld_json_parse(buf, &n); */
 
-        /* LOG_MSG("Printing objecT:"); */
-        /* tld_json_obj_print(n, stdout); */
-        buf->len = 0;
-        /* tld_json_obj_get(n, "embedding", &ret); */
-        if(ret->type == TLD_JSON_RET_DBL_ARR){
-                for(int i = 0; i < ret->n;i++){
-                        fprintf(stdout,"%d %f - parsed\n",i,ret->value.dbl_arr[i]);
-                }
-        }else{
-                ERROR_MSG("TYPE:::: %d", ret->type);
-        }
-        /* LOG_MSG("%s", TLD_STR(ret->value.string)); */
-        /* tld_json_get_arr_str(tld_json_arr *n, char *key, tld_strbuf* res) */
-        tld_json_obj_free(n);
-        tld_strbuf_free(buf);
+/*         /\* LOG_MSG("Printing objecT:"); *\/ */
+/*         /\* tld_json_obj_print(n, stdout); *\/ */
+/*         buf->len = 0; */
+/*         /\* tld_json_obj_get(n, "embedding", &ret); *\/ */
+/*         if(ret->type == TLD_JSON_RET_DBL_ARR){ */
+/*                 for(int i = 0; i < ret->n;i++){ */
+/*                         fprintf(stdout,"%d %f - parsed\n",i,ret->value.dbl_arr[i]); */
+/*                 } */
+/*         }else{ */
+/*                 ERROR_MSG("TYPE:::: %d", ret->type); */
+/*         } */
+/*         /\* LOG_MSG("%s", TLD_STR(ret->value.string)); *\/ */
+/*         /\* tld_json_get_arr_str(tld_json_arr *n, char *key, tld_strbuf* res) *\/ */
+/*         tld_json_obj_free(n); */
+/*         tld_strbuf_free(buf); */
 
-        return OK;
-ERROR:
-        return FAIL;
-}
+/*         return OK; */
+/* ERROR: */
+/*         return FAIL; */
+/* } */
 
 int test_parser(void)
 {
@@ -176,8 +259,19 @@ int test_parser(void)
 
         tld_json_obj_print(n, stdout);
 
+        tld_strbuf_clear(buf);
+        tld_json_dump(n, buf,0);
+        tld_json_obj_free(n);
+        LOG_MSG("%s", TLD_STR(buf));
 
+        tld_json_parse(buf, &n);
+        tld_strbuf_clear(buf);
 
+        tld_json_dump(n, buf,0);
+        LOG_MSG("%s", TLD_STR(buf));
+
+        tld_json_obj_free(n);
+        exit(0);
 
         /* tld_json_val* ret = NULL; */
 
