@@ -28,10 +28,15 @@ ERROR:
 int test_parser2(void)
 
 {
+
+        int *leak = (int *)malloc(sizeof(int) * 10);
+        leak[0] = 42;  // Do something with the allocated memory
+
         char in[] = "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"{ \\\"age\\\" : 28, \\\"name\\\" : \\\"assistant\\\" }\\n   <|eot_id|>\",\"role\":\"assistant\"}}],\"created\":1720516888,\"model\":\"gpt-3.5-turbo\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":20,\"prompt_tokens\":49,\"total_tokens\":69},\"id\":\"chatcmpl-Zq01pMCDL2F3oBNKhdVBtEbR4bi68FIf\"}";
 
         tld_strbuf* buf = NULL;
         tld_json_obj *n = NULL;
+        tld_json_obj *res = NULL;
         tld_strbuf_alloc(&buf, 1024);
         tld_append(buf, in);
         fprintf(stdout,"%s\n", TLD_STR(buf));
@@ -39,6 +44,12 @@ int test_parser2(void)
         tld_strbuf_clear(buf);
         tld_json_dump(n, buf, 0);
         fprintf(stdout,"%s\n", TLD_STR(buf));
+
+        tld_json_search(n, "content", &res);
+        tld_strbuf_clear(buf);
+        tld_json_dump(res, buf, 0);
+        fprintf(stdout,"%s\n", TLD_STR(buf));
+        tld_json_obj_free(res);
 
         char in2[] = "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"Let me see...\n\nI've got it!\n\nMeet Kaelin \\\"Kae\\\" Valtor, a 32-year-old skilled astrobiologist and explorer from the planet of Xeridia. Kae is a brilliant scientist with a passion for uncovering the secrets of the universe. Born on a remote research station\",\"role\":\"assistant\"}}],\"created\":1720583143,\"model\":\"gpt-3.5-turbo\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":64,\"prompt_tokens\":58,\"total_tokens\":122},\"id\":\"chatcmpl-C0uWNFiitSmQwefVTnsllXDvcilXoIah\"}";
         tld_strbuf_clear(buf);
@@ -59,7 +70,6 @@ int test_create(void)
         /* tld_json_obj *n = NULL; */
         tld_strbuf* b = NULL;
         tld_json_arr* a = NULL;
-        tld_json_obj* tmp = NULL;
 
         tld_strbuf_alloc(&b, 1024);
         a = JSON_ARR( JO(NULL,JSON_OBJ(JS("Model","gpt-3.5-turbo"))));

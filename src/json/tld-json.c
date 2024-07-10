@@ -206,11 +206,11 @@ int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret)
         tld_json_obj* r = NULL;
         RUN(tld_json_obj_alloc(&r));
         search(n, key, r);
-        for(int i =0; i < r->n;i++){
-                fprintf(stdout,"KEY: %s\n",TLD_STR(r->key[i]));
-                print_val(r->v[i],stdout);
-                fprintf(stdout,"\n");
-        }
+        /* for(int i =0; i < r->n;i++){ */
+        /*         fprintf(stdout,"KEY: %s\n",TLD_STR(r->key[i])); */
+        /*         print_val(r->v[i],stdout); */
+        /*         fprintf(stdout,"\n"); */
+        /* } */
         *ret = r;
         return OK;
 ERROR:
@@ -813,43 +813,6 @@ int print_arr(tld_json_arr* n)
                         break;
                 }
         }
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_json_val_copy(tld_json_val *t, tld_json_val *s)
-{
-        ASSERT(t != NULL,"No target");
-        ASSERT(s != NULL,"No source");
-
-
-        switch(s->type){
-        case TLD_JSON_OBJ:
-                ERROR_MSG("Node copy not implemented!");
-                break;
-        case TLD_JSON_DBL:
-                t->value.d_num = s->value.d_num;
-                break;
-        case TLD_JSON_INT:
-                t->value.i_num = s->value.i_num;
-                break;
-        case TLD_JSON_BOOL_TRUE:
-        case TLD_JSON_BOOL_FALSE:
-                t->value.b_num = s->value.b_num;
-                break;
-        case TLD_JSON_STR:
-                if(t->type == TLD_JSON_UNDEF){
-                        tld_strbuf_alloc(&t->value.str, 16);
-                }
-                tld_strbuf_copy(t->value.str, s->value.str);
-                break;
-        case TLD_JSON_ARR:
-                ERROR_MSG("Copy of list not implemented. ");
-        case TLD_JSON_UNDEF:
-                break;
-        }
-        t->type = s->type;
         return OK;
 ERROR:
         return FAIL;

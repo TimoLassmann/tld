@@ -38,7 +38,7 @@ EXTERN int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
 /* EXTERN int tld_json_obj_get_str(tld_json_obj *n, char *key, tld_strbuf* res); */
 /* EXTERN  int tld_json_obj_get(tld_json_obj *n, char *key, tld_json_val **ret); */
 
-EXTERN void tld_json_obj_free(tld_json_obj *n);
+
 
 EXTERN int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
 EXTERN int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
