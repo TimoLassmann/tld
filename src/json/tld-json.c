@@ -276,7 +276,7 @@ int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
         tld_json_val* tok = NULL;
         tld_json_obj* n = NULL;
         tld_json_lex(t, &lex);
-        /* print_arr(lex); */
+        print_arr(lex);
 
         tok = lex->v[lex->read_head];
         lex->read_head++;
@@ -353,6 +353,7 @@ static int tld_json_parse_obj(tld_json_arr *lex, tld_json_obj **out)
                         n->n++;
                         tld_json_obj_chk_space(n);
                 }else if(is_open_obj(val)){
+                        tld_append(n->key[n->n], TLD_STR(key->value.str));
                         n->v[n->n]->type = TLD_JSON_OBJ;
                         RUN(tld_json_parse_obj(lex, &n->v[n->n]->value.obj));
                         n->n++;
