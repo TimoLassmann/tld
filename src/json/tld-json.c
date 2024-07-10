@@ -276,7 +276,7 @@ int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
         tld_json_val* tok = NULL;
         tld_json_obj* n = NULL;
         tld_json_lex(t, &lex);
-        print_arr(lex);
+        /* print_arr(lex); */
 
         tok = lex->v[lex->read_head];
         lex->read_head++;
