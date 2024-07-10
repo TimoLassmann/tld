@@ -26,12 +26,7 @@ ERROR:
 }
 
 int test_parser2(void)
-
 {
-
-        int *leak = (int *)malloc(sizeof(int) * 10);
-        leak[0] = 42;  // Do something with the allocated memory
-
         char in[] = "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"{ \\\"age\\\" : 28, \\\"name\\\" : \\\"assistant\\\" }\\n   <|eot_id|>\",\"role\":\"assistant\"}}],\"created\":1720516888,\"model\":\"gpt-3.5-turbo\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":20,\"prompt_tokens\":49,\"total_tokens\":69},\"id\":\"chatcmpl-Zq01pMCDL2F3oBNKhdVBtEbR4bi68FIf\"}";
 
         tld_strbuf* buf = NULL;
@@ -46,6 +41,8 @@ int test_parser2(void)
         fprintf(stdout,"%s\n", TLD_STR(buf));
 
         tld_json_search(n, "content", &res);
+        tld_json_obj_free(n);
+
         tld_strbuf_clear(buf);
         tld_json_dump(res, buf, 0);
         fprintf(stdout,"%s\n", TLD_STR(buf));
@@ -62,6 +59,7 @@ int test_parser2(void)
         LOG_MSG("Message 2 - parsed");
         fprintf(stdout,"%s\n", TLD_STR(buf));
         tld_strbuf_free(buf);
+        tld_json_obj_free(n);
         return OK;
 }
 
@@ -78,6 +76,8 @@ int test_create(void)
                 
         tld_json_dump_arr(a, b, 0);
         fprintf(stdout,"%s\n", TLD_STR(b));
+
+        tld_json_arr_free(a);
         /* char message[] = "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests."; */
         const char* message = "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests.";
 
@@ -146,6 +146,7 @@ int test_create(void)
         fprintf(stdout,"%s\n", TLD_STR(b));
         tld_json_obj_free(n);
         tld_strbuf_clear(b);
+        tld_strbuf_free(b);
 
         return OK;
 }
@@ -282,7 +283,7 @@ int test_parser(void)
         \"Damage resistance\",\n\
         \"Superhuman reflexes\"\n\
       ]\n\
-    },\n\
+    },\n \
     {\n\
       \"name\": \"Eternal Flame\",\n\
       \"age\": 1000000,\n\
