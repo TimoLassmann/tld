@@ -42,6 +42,10 @@ static tld_json_arr *tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj *val);
 tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs, int count)
 {
         for (int i = 0; i < count; i++) {
+
+                if(kvs[i].value == NULL){
+                        continue;
+                }
                 switch (kvs[i].type) {
                 case VAL_STRING:
                         obj = tld_json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
@@ -129,6 +133,9 @@ tld_json_obj* tld_json_obj_add_arr(tld_json_obj *obj, char* key, tld_json_arr*va
 tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs, int count)
 {
         for (int i = 0; i < count; i++) {
+                if(kvs[i].value == NULL){
+                        continue;
+                }
                 switch (kvs[i].type) {
                 case VAL_STRING:
                         arr = tld_json_arr_add_val(arr,  (char*)kvs[i].value);

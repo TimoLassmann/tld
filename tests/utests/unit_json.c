@@ -145,6 +145,43 @@ int test_create(void)
         tld_json_dump(n, b, 0);
         fprintf(stdout,"%s\n", TLD_STR(b));
         tld_json_obj_free(n);
+        LOG_MSG("Create a JSON OBJECT with a NULL schema");
+        n = JSON_OBJ(
+                JO("response_format",JSON_OBJ(
+                           JS("type", "json_object"),
+                           JO("schema",JSON_OBJ(
+                                      JS("type", "object"),
+                                      JO("properties",JSON_OBJ(
+                                                 JO("name",NULL),
+                                                 JO("age",
+                                                    JSON_OBJ(
+                                                            JS("type", "integer"),
+                                                            JS("minimum", "0"),
+                                                            JS("maximum", "120")
+                                                            )
+                                                         )
+                                                 )
+                                              ),
+                                      JA("required",
+                                         JSON_ARR(
+                                                 JS(NULL,"message"),
+                                                 JS(NULL,"age"),
+                                                 )
+                                              )
+                                      )
+                                   )
+                           )
+                        )
+                );
+
+
+        tld_strbuf_clear(b);
+        tld_json_dump(n, b, 0);
+        fprintf(stdout,"%s\n", TLD_STR(b));
+
+        LOG_MSG("Create a JSON OBJECT with a NULL schema - Done");
+        tld_json_obj_free(n);
+
         tld_strbuf_clear(b);
         tld_strbuf_free(b);
 
