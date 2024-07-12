@@ -6,6 +6,7 @@ int test_parser(void);
 int test_parser2(void);
 int test_parser_list(void);
 int test_create(void);
+
 int main(int argc, char *argv[])
 {
         test_parser2();
@@ -180,6 +181,18 @@ int test_create(void)
         fprintf(stdout,"%s\n", TLD_STR(b));
 
         LOG_MSG("Create a JSON OBJECT with a NULL schema - Done");
+        tld_json_val* v = NULL;
+        tld_json_val_alloc(&v);
+        v->type = TLD_JSON_STR;
+        tld_strbuf_alloc(&v->value.str, 64);
+        tld_append(v->value.str, "AGARGAGAGA");
+        tld_json_set_val(n, "type", v);
+        tld_json_val_free(v);
+        tld_json_dump(n, b, 0);
+        fprintf(stdout,"%s\n", TLD_STR(b));
+
+        LOG_MSG("Create a JSON OBJECT with a NULL schema - Done");
+
         tld_json_obj_free(n);
 
         tld_strbuf_clear(b);

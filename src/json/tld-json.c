@@ -16,7 +16,9 @@ static int tld_json_dump_val(tld_json_val *val, tld_strbuf *b);
 static int tld_json_add_indent(tld_strbuf *b, int indent);
 /* static int tld_json_get_ret_val(tld_json_val *v, tld_json_ret **ret); */
 /* static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_val **res); */
-static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj* res);
+static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj *res);
+
+static int tld_json_set_arr_val(tld_json_arr *n, char *key, tld_json_val *v);
 /* static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_strbuf *res); */
 static int tld_json_parse_obj(tld_json_arr *lex, tld_json_obj **out);
 static int tld_json_parse_arr(tld_json_arr *lex, tld_json_arr **out);
@@ -205,6 +207,47 @@ tld_json_arr* tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj*val)
                 return n;
         }
         return arr;
+}
+
+int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
+{
+        if(n){
+                for(int i = 0; i < n->n;i++){
+                        int len = strnlen(key, 256);
+                        /* fprintf(stdout,"NAME: %s  LEN: %d %d\n",TLD_STR(n->key[i]),n->key[i]->len,len); */
+                        if(len == n->key[i]->len){
+                                if(strncmp((char*)n->key[i]->str, key, n->key[i]->len)==0){
+                                        tld_json_val_copy(n->v[i], v);
+                                        tld_json_obj_chk_space(n);
+                                        break;
+                                }
+                        }
+
+                        if(n->v[i]->type == TLD_JSON_ARR){
+                                tld_json_set_arr_val(n->v[i]->value.arr,key,v);
+                        }else if(n->v[i]->type == TLD_JSON_OBJ){
+                                tld_json_set_val(n->v[i]->value.obj, key,v);
+                        }
+                }
+        }
+
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_json_set_arr_val(tld_json_arr *n, char *key, tld_json_val *v)
+{
+        if(n){
+                for(int i = 0; i < n->n;i++){
+                        if(n->v[i]->type == TLD_JSON_ARR){
+                                tld_json_set_arr_val(n->v[i]->value.arr,key,v);
+                        }else if(n->v[i]->type == TLD_JSON_OBJ){
+                                tld_json_set_val(n->v[i]->value.obj, key,v);
+                        }
+                }
+        }
+        return OK;
 }
 
 
