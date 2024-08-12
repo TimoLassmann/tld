@@ -44,6 +44,11 @@
 #define MESSAGE_TYPE_MSG 0
 #define MESSAGE_TYPE_WARNING 1
 #define MESSAGE_TYPE_ERROR 2
+
+#define H1_MSG(...) (tld_heading(1, __VA_ARGS__));
+#define H2_MSG(...) (tld_heading(2, __VA_ARGS__));
+#define H3_MSG(...) (tld_heading(3, __VA_ARGS__));
+
 #define LOG_MSG(...) (tld_message(MESSAGE_TYPE_MSG, __VA_ARGS__ ))
 #define WARNING_MSG(...) (tld_message(MESSAGE_TYPE_WARNING, __VA_ARGS__ ))
 #define ERROR_MSG(...) do {                                     \
@@ -61,7 +66,7 @@
         }
 
 
-
+tld_external void tld_heading(uint8_t level, const char *format, ...);
 tld_external void tld_message(uint8_t type, const char *format, ...);
 
 #endif

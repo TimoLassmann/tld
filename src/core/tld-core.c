@@ -16,6 +16,43 @@ tld_internal void verror(FILE* f_ptr, const char *format,  va_list argp);
 
 tld_internal int get_time(char* time_ptr, int size);
 
+void tld_heading(uint8_t level, const char *format, ...)
+{
+        const char* color_reset = "\033[0m";
+        const char* color_h1 = "\033[1;34m"; // Blue and bold
+        const char* color_h2 = "\033[1;32m"; // Green and bold
+        const char* color_h3 = "\033[1;31m"; // Red and bold
+        const char* color_default = "\033[0m"; // Default color
+
+        va_list argp = {0};
+        va_start(argp, format);
+        switch(level) {
+        case 1:
+                fprintf(stdout,"%s",color_h1);
+                vfprintf(stdout, format, argp);
+                fprintf(stdout,"\n%s",color_reset);
+                break;
+        case 2:
+                fprintf(stdout,"%s",color_h2);
+                vfprintf(stdout, format, argp);
+                fprintf(stdout,"\n%s",color_reset);
+                break;
+        case 3:
+                fprintf(stdout,"%s",color_h3);
+                vfprintf(stdout, format, argp);
+                fprintf(stdout,"\n%s",color_reset);
+                break;
+        default:
+                fprintf(stdout,"%s",color_default);
+                vfprintf(stdout, format, argp);
+                fprintf(stdout,"\n%s",color_reset);
+
+                break;
+        }
+        va_end(argp);
+}
+
+
 void tld_message(uint8_t type, const char *format, ...)
 {
         va_list argp = {0};
