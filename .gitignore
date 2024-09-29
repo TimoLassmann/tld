@@ -12,7 +12,7 @@
 
 !.gitattributes
 !.gitignore
-!.val_build.sh
+!val_build.sh
 !src/
 !tests/
 !cmake/
