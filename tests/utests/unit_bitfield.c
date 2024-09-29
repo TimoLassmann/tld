@@ -18,6 +18,7 @@ int tl_bitfield_test1(void)
         if(status != FAIL){
                 ERROR_MSG("tl_bitfield_set failed");
         }
+        tl_bitfield_free(b);
         return OK;
 ERROR:
         return FAIL;
@@ -40,6 +41,7 @@ int tl_bitfield_test2(void)
         if(status != FAIL){
                 ERROR_MSG("tl_bitfield_set failed");
         }
+        tl_bitfield_free(b);
         return OK;
 ERROR:
         return FAIL;
@@ -68,6 +70,7 @@ int tl_bitfield_test3(void) {
         if(status != FAIL){
                 ERROR_MSG("tl_bitfield_get failed");
         }
+        tl_bitfield_free(b);
         return OK;
 ERROR:
         return FAIL;
@@ -106,6 +109,8 @@ int tl_bitfield_test4(void)
         if(dist != 1){
                 ERROR_MSG("tl_bitfield_hamming failed (d = %d) B", dist);
         }
+        tl_bitfield_free(b1);
+        tl_bitfield_free(b2);
         return OK;
 ERROR:
         return FAIL;
@@ -133,6 +138,7 @@ int tl_bitfield_test5(void)
         if(status != FAIL){
                 ERROR_MSG("tl_bitfield_get failed");
         }
+        tl_bitfield_free(b);
         return OK;
 ERROR:
         return FAIL;

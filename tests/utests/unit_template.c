@@ -91,6 +91,8 @@ int test_new_template(void)
         char* test_templates[] = {
                 // Basic template with variable substitution
                 "Hello, {{name}}!",
+                // IF block without a variable
+                "{{IF age}}You are 12 years old.{{ENDIF}}",
 
                 // IF block with a variable
                 "{{IF age}}You are {{age}} years old.{{ENDIF}}",
@@ -144,8 +146,8 @@ int test_new_template(void)
                 "Hello {{name}}! {{IF age}}You are {{age}} years old.{{ELSE}}Your age is unknown.{{ENDIF}} {{IF is_student}}You are a student studying {{major}}.{{ENDIF}}"
         };
 
-// Size of the array
-        const int num_test_templates = sizeof(test_templates) / sizeof(test_templates[0]);
+        // Size of the array
+        int num_test_templates = sizeof(test_templates) / sizeof(test_templates[0]);
 
         // Create a sample template map
         char* identifiers[] = {"name", "age",  "is_student","major"};
@@ -154,15 +156,18 @@ int test_new_template(void)
         tld_strbuf* template = NULL;
         tld_strbuf_alloc(&template, 64);
         tld_template_init(&map, identifiers, replacements, 4);
-
+        /* num_test_templates = 2; */
         for (int i = 0; i < num_test_templates; i++) {
                 tld_strbuf_clear(template);
                 tld_append(template, test_templates[i]);
                 /* const char *template = test_templates[i]; */
+                LOG_MSG("--------------------------------------");
                 LOG_MSG("%s", TLD_STR(template));
                 tld_template_apply(template, map);
                 LOG_MSG("%s", TLD_STR(template));
         }
+        tld_strbuf_free(template);
+        tld_template_free(map);
 
         return OK;
 ERROR:

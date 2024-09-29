@@ -45,19 +45,6 @@ tld_internal int find_end(tld_strbuf *txt,int offset, tld_strbuf* delim, int*pos
 tld_internal int tld_template_allocate(tld_template_map **map, int n);
 tld_internal int tld_template_resize(tld_template_map *m);
 
-/* Node *create_node(NodeType type, const char *content) { */
-/*         Node *node = (Node *)malloc(sizeof(Node)); */
-/*         if (!node) { */
-/*                 fprintf(stderr, "Memory allocation failed\n"); */
-/*                 exit(1); */
-/*         } */
-/*         node->type = type; */
-/*         node->content = content ? strdup(content) : NULL; */
-/*         node->child_count = 0; */
-/*         node->parent = NULL; */
-/*         return node; */
-/* } */
-
 Node *create_node(NodeType type, const char *content) {
         Node *node = (Node *)malloc(sizeof(Node));
         if (!node) {
@@ -76,58 +63,45 @@ Node *create_node(NodeType type, const char *content) {
         return node;
 }
 
-void free_node(Node *node) {
-        if (node) {
-                free(node->content);
-                for (int i = 0; i < node->child_count; i++) {
-                        free_node(node->children[i]);
+void free_node(Node *node)
+{
+        if(node){
+                for(int i = 0; i < node->child_count; i++){
+                        if(node->children[i]){
+                                free_node(node->children[i]);
+                        }
+                }
+                if(node->content){
+                        free(node->content);
                 }
                 free(node);
         }
 }
 
-void add_child(Node *parent, Node *child) {
-        if (parent->child_count < MAX_CHILDREN) {
+void add_child(Node *parent, Node *child)
+{
+        if(parent->child_count < MAX_CHILDREN){
                 parent->children[parent->child_count++] = child;
                 child->parent = parent;
-        } else {
+        }else{
                 fprintf(stderr, "Maximum number of children exceeded\n");
                 free_node(child);
         }
 }
 
-/* void free_node(Node *node) { */
-/*         if (node) { */
-/*                 free(node->content); */
-/*                 for (int i = 0; i < node->child_count; i++) { */
-/*                         free_node(node->children[i]); */
-/*                 } */
-/*                 free(node); */
-/*         } */
-/* } */
-
-
-/* void add_child(Node *parent, Node *child) { */
-/*         if (parent->child_count < MAX_CHILDREN) { */
-/*                 parent->children[parent->child_count++] = child; */
-/*                 child->parent = parent; */
-/*         } else { */
-/*                 fprintf(stderr, "Error: Maximum number of children exceeded\n"); */
-/*                 free_node(child); */
-/*         } */
-/* } */
-
-
-int is_end_of_input(Parser *parser) {
+int is_end_of_input(Parser *parser)
+{
         return parser->input[parser->position] == '\0';
 }
 
-char peek(Parser *parser) {
+char peek(Parser *parser)
+{
         return parser->input[parser->position];
 }
 
-char parser_next(Parser *parser) {
-        if (is_end_of_input(parser)) {
+char parser_next(Parser *parser)
+{
+        if(is_end_of_input(parser)){
                 snprintf(parser->error, MAX_ERROR_MSG, "Unexpected end of input");
                 return '\0';
         }
@@ -154,7 +128,9 @@ Node *parse_text(Parser *parser) {
                 }
                 strncpy(text, start, length);
                 text[length] = '\0';
-                return create_node(NODE_TEXT, text);
+                Node *node = create_node(NODE_TEXT, text);
+                free(text);
+                return node;//create_node(NODE_TEXT, text);
         }
         return NULL;
 }
@@ -175,18 +151,18 @@ Node *parse_tag(Parser *parser) {
                 }
         }
         tag_content[i] = '\0';
-        if (parser_next(parser) != '}' || parser_next(parser) != '}') {
+        if(parser_next(parser) != '}' || parser_next(parser) != '}'){
                 snprintf(parser->error, MAX_ERROR_MSG, "Invalid tag closing");
                 return NULL;
         }
 
-        if (strcmp(tag_content, "ELSE") == 0) {
+        if(strcmp(tag_content, "ELSE") == 0){
                 return create_node(NODE_ELSE, NULL);
-        } else if (strcmp(tag_content, "ENDIF") == 0) {
+        }else if(strcmp(tag_content, "ENDIF") == 0){
                 return create_node(NODE_ENDIF, NULL);
-        } else if (strncmp(tag_content, "IF ", 3) == 0) {
+        }else if(strncmp(tag_content, "IF ", 3) == 0){
                 return create_node(NODE_IF, tag_content + 3);
-        } else {
+        }else{
                 return create_node(NODE_VARIABLE, tag_content);
         }
 }
@@ -200,8 +176,8 @@ Node *parse_template(Parser *parser) {
         while (!is_end_of_input(parser)) {
                 if (strncmp(parser->input + parser->position, "{{", 2) == 0) {
                         Node *tag_node = parse_tag(parser);
-                        if (tag_node) {
-                                switch (tag_node->type) {
+                        if(tag_node){
+                                switch(tag_node->type){
                                 case NODE_IF:
                                         add_child(current, tag_node);
                                         if (stack_top >= MAX_CHILDREN) {
@@ -212,19 +188,20 @@ Node *parse_template(Parser *parser) {
                                         current = tag_node;
                                         break;
                                 case NODE_ELSE:
-                                        if (stack_top > 0 && current->type == NODE_IF) {
+                                        if(stack_top > 0 && current->type == NODE_IF){
                                                 current = stack[stack_top - 1];
                                                 add_child(current, tag_node);
                                                 current = tag_node;
-                                        } else {
+                                        }else{
                                                 snprintf(parser->error, MAX_ERROR_MSG, "ELSE without matching IF");
                                                 free_node(tag_node);
                                         }
                                         break;
                                 case NODE_ENDIF:
-                                        if (stack_top > 0) {
+                                        if(stack_top > 0){
                                                 current = stack[--stack_top];
-                                        } else {
+                                                free_node(tag_node);
+                                        }else{
                                                 snprintf(parser->error, MAX_ERROR_MSG, "ENDIF without matching IF");
                                                 free_node(tag_node);
                                         }
@@ -232,24 +209,24 @@ Node *parse_template(Parser *parser) {
                                 default:
                                         add_child(current, tag_node);
                                 }
-                        } else if (parser->error[0] == '\0') {
+                        }else if(parser->error[0] == '\0'){
                                 snprintf(parser->error, MAX_ERROR_MSG, "Failed to parse tag");
                         }
-                } else {
+                }else{
                         Node *text_node = parse_text(parser);
-                        if (text_node) {
+                        if(text_node){
                                 add_child(current, text_node);
-                        } else if (parser->error[0] == '\0') {
+                        }else if(parser->error[0] == '\0'){
                                 snprintf(parser->error, MAX_ERROR_MSG, "Failed to parse text");
                         }
                 }
 
-                if (parser->error[0] != '\0') {
+                if(parser->error[0] != '\0'){
                         break;
                 }
         }
 
-        if (stack_top > 0) {
+        if(stack_top > 0){
                 snprintf(parser->error, MAX_ERROR_MSG, "Unclosed IF statement");
         }
 
@@ -375,16 +352,18 @@ int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
         galloc(&tmp,txt->len+1);
 
         memcpy((void*)tmp, txt->str, txt->len);
-
+        tmp[txt->len] = '\0';
         Parser parser = {tmp, 0, ""};
         root = parse_template(&parser);
         if (parser.error[0] != '\0') {
-                ERROR_MSG("Error parsing template");
+                ERROR_MSG("Error parsing template: %s",parser.error);
         }
         /* print_tree(root, 0); */
         RUN(tld_strbuf_alloc(&out, 256));
         process_tree(root, map, stdout,out);
         RUN(tld_strbuf_copy(txt, out));
+
+        free_node(root);
         tld_strbuf_free(out);
         gfree(tmp);
         return OK;

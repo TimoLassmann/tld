@@ -2,253 +2,105 @@ cmake_minimum_required(VERSION 3.18)
 
 project(tld-tests LANGUAGES C)
 
-find_program(MEMORYCHECK_COMMAND valgrind)
+find_program(MEMORYCHECK_COMMAND valgrind NO_CACHE)
 if (MEMORYCHECK_COMMAND)
-    message(STATUS "Found Valgrind: ${MEMORYCHECK_COMMAND}")
-    set(MEMORYCHECK_COMMAND_OPTIONS "--leak-check=full --error-exitcode=1")
-    set(MEMORYCHECK_SUPPRESSIONS_FILE "${PROJECT_SOURCE_DIR}/.valgrind-suppressions")
+  message(STATUS "Found Valgrind: ${MEMORYCHECK_COMMAND}")
+  set(MEMORYCHECK_COMMAND ${MEMORYCHECK_COMMAND})
+  #set(MEMORYCHECK_COMMAND_OPTIONS "--show-leak-kinds=all")
+  set(MEMORYCHECK_COMMAND_OPTIONS
+    "--leak-check=full"
+    "--show-leak-kinds=all"
+    "--error-exitcode=1"
+  )
+  #set(MEMORYCHECK_COMMAND_OPTIONS "--leak-check=full --show-leak-kinds=all --exit-on-first-error=yes --error-exitcode=1")
 else()
-    message(WARNING "Valgrind not found; memory checks will not be available.")
+  message(STATUS "Valgrind not found")
+  set(MEMORYCHECK_COMMAND "")
+  set(MEMORYCHECK_COMMAND_OPTIONS "")
+  
 endif()
+
+
+
+function(add_custom_test TEST_NAME)
+  add_executable(${TEST_NAME} ${ARGN})
+  target_link_libraries(${TEST_NAME}
+    PRIVATE
+    tld-dev
+  )
+  message(STATUS "Running test: ${TEST_NAME} with command: ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${TEST_NAME}")
+  add_test(
+    NAME ${TEST_NAME}
+    COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/${TEST_NAME}
+  )
+endfunction()
+
 # add_executable(unit-generic utests/generic.c) 
 # target_link_libraries(unit-generic PRIVATE tld-dev)
 find_package(Threads REQUIRED)
 if(Threads_FOUND)
-add_executable(unit-tpool
- utests/unit_tpool.c
+  add_executable(unit-tpool
+    utests/unit_tpool.c
   )
-target_link_libraries(unit-tpool PRIVATE tld-dev Threads::Threads)
-# add_test(
-#     NAME unit-tpool
-#     COMMAND unit-tpool
-# )
-
+  target_link_libraries(unit-tpool PRIVATE tld-dev Threads::Threads)
 endif(Threads_FOUND)
 
-add_executable(unit-core
-  utests/unit_core.c 
-)
-target_link_libraries(unit-core PRIVATE tld-dev)
-add_test(
-    NAME unit-core 
-    COMMAND unit-core 
-)
+add_custom_test(unit-core utests/unit_core.c)
+add_custom_test(unit-bit utests/unit_bitfield.c)
+add_custom_test(unit-kdtree utests/unit_kdtree.c)
+add_custom_test(unit-json utests/unit_json.c)
+add_custom_test(unit-template utests/unit_template.c)
+add_custom_test(unit-qnorm utests/unit_qnorm.c)
+add_custom_test(unit-auc utests/unit_auc.c)
+add_custom_test(unit-shuffle utests/unit_shuffle.c)
+add_custom_test(unit-misc utests/unit_misc.c)
+add_custom_test(unit-timing utests/unit_timing.c)
+add_custom_test(unit-sort utests/unit_sort.c)
+add_custom_test(unit-sigmoid utests/unit_sigmoid.c)
+add_custom_test(kde_itest itests/kde_itest.c) 
+add_custom_test(unit-str utests/unit_str.c) 
+add_custom_test(unit-seq-rev utests/unit_seq_rev.c) 
+add_custom_test(int-noise itests/noise.c) 
+add_custom_test(unit-stats utests/unit_stats.c) 
+add_custom_test(unit-pearson utests/unit_pearson.c) 
+add_custom_test(unit-hdf5 utests/unit_hdf5.c) 
+add_custom_test(unit-test-suite utests/unit_tests.c) 
+add_custom_test(unit-rng utests/unit_rng.c) 
+add_custom_test(unit-alpha utests/unit_alphabet.c) 
+add_custom_test(unit-logsum utests/unit_logsum.c) 
 
-
-add_executable(unit-bit
-  utests/unit_bitfield.c
-)
-target_link_libraries(unit-bit PRIVATE tld-dev)
-add_test(
-    NAME unit-bit
-    COMMAND unit-bit
-)
-
-add_executable(unit-kdtree utests/unit_kdtree.c)
-target_link_libraries(unit-kdtree PRIVATE tld-dev)
-add_test(
-    NAME unit-kdtree
-    COMMAND unit-kdtree
-)
-
-
-add_executable(unit-json utests/unit_json.c)
-target_link_libraries(unit-json PRIVATE tld-dev)
-add_test(
-    NAME unit-json
-    COMMAND unit-json
-)
-
-
-add_executable(unit-template utests/unit_template.c)
-target_link_libraries(unit-template PRIVATE tld-dev)
-add_test(
-    NAME unit-template
-    COMMAND unit-template
-)
-
-
-add_executable(unit-qnorm utests/unit_qnorm.c)
-target_link_libraries(unit-qnorm PRIVATE tld-dev)
-add_test(
-    NAME unit-qnorm
-    COMMAND unit-qnorm
-)
-
-
-add_executable(unit-auc utests/unit_auc.c)
-target_link_libraries(unit-auc PRIVATE tld-dev)
-add_test(
-    NAME unit-auc
-    COMMAND unit-auc
-)
-
-
-add_executable(unit-shuffle utests/unit_shuffle.c)
-target_link_libraries(unit-shuffle PRIVATE tld-dev)
-add_test(
-    NAME unit-shuffle
-    COMMAND unit-shuffle
-)
-
-
-add_executable(unit-misc utests/unit_misc.c)
-target_link_libraries(unit-misc PRIVATE tld-dev)
-add_test(
-    NAME unit-misc
-    COMMAND unit-misc
-)
-
-
-add_executable(unit-timing utests/unit_timing.c)
-target_link_libraries(unit-timing PRIVATE tld-dev)
-add_test(
-    NAME unit-timing
-    COMMAND unit-timing
-)
-
-add_executable(unit-sort utests/unit_sort.c)
-target_link_libraries(unit-sort PRIVATE tld-dev)
-add_test(
-    NAME unit-sort 
-    COMMAND unit-sort
-)
-
-add_executable(unit-sigmoid utests/unit_sigmoid.c)
-target_link_libraries(unit-sigmoid PRIVATE tld-dev)
-add_test(
-    NAME unit-sigmoid 
-    COMMAND unit-sigmoid
-)
-
-
-
-add_executable(kde_itest itests/kde_itest.c) 
-target_link_libraries(kde_itest PRIVATE tld-dev)
-add_test(
-    NAME kde_itest
-    COMMAND kde_itest
-)
-
-add_executable(unit-str utests/unit_str.c) 
-target_link_libraries(unit-str PRIVATE tld-dev)
-add_test(
-    NAME unit-str
-    COMMAND unit-str
-)
-
-add_executable(unit-seq-rev utests/unit_seq_rev.c) 
-target_link_libraries(unit-seq-rev PRIVATE tld-dev)
-add_test(
-    NAME unit-seq-rev
-    COMMAND unit-seq-rev
-)
-
-
-add_executable(int-noise itests/noise.c) 
-target_link_libraries(int-noise PRIVATE tld-dev)
-add_test(
-    NAME int-noise
-    COMMAND int-noise
-)
 
 add_executable(seq_shannon itests/seq_shannon.c) 
 target_link_libraries(seq_shannon PRIVATE tld-dev)
 add_test(
     NAME seq_shannon
-    COMMAND seq_shannon ${CMAKE_CURRENT_SOURCE_DIR}/test_data/BB11001.fa
+    COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/seq_shannon ${CMAKE_CURRENT_SOURCE_DIR}/test_data/BB11001.fa
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 
 
 
-add_executable(unit-stats utests/unit_stats.c) 
-target_link_libraries(unit-stats PRIVATE tld-dev)
-add_test(
-    NAME unit-stats
-    COMMAND unit-stats
-)
-
-add_executable(unit-pearson utests/unit_pearson.c) 
-target_link_libraries(unit-pearson PRIVATE tld-dev)
-add_test(
-    NAME unit-pearson
-    COMMAND unit-pearson
-)
-
-
-add_executable(unit-hdf5 utests/unit_hdf5.c) 
-target_link_libraries(unit-hdf5 PRIVATE tld-dev)
-add_test(
-    NAME unit-hdf5
-    COMMAND unit-hdf5
-)
-
-# Setup unit-tests
-add_executable(unit-test-suite utests/unit_tests.c) 
-target_link_libraries(unit-test-suite PRIVATE tld-dev)
-#set_property(TARGET unit-test-suite PROPERTY C_STANDARD 11)
-
-# set_target_properties(unit-test-suite PROPERTIES
-#         C_STANDARD 11
-#         C_STANDARD_REQUIRED YES
-#         C_EXTENSIONS NO
-# )
-
-add_test(
-    NAME unit-test
-    COMMAND unit-test-suite
-)
-
-add_executable(unit-rng utests/unit_rng.c) 
-target_link_libraries(unit-rng PRIVATE tld-dev)
-# set_property(TARGET unit-rng PROPERTY C_STANDARD 11)
-# set_target_properties(unit-rng PROPERTIES
-#         C_STANDARD 11
-#         C_STANDARD_REQUIRED YES
-#         C_EXTENSIONS NO
-# )
-
-add_test(
-    NAME unit-rng
-    COMMAND unit-rng
-)
-
-add_executable(unit-alpha utests/unit_alphabet.c) 
-target_link_libraries(unit-alpha PRIVATE tld-dev)
-add_test(
-  NAME unit-alpha
-  COMMAND unit-alpha  
-  )
-
-
-add_executable(unit-logsum utests/unit_logsum.c) 
-target_link_libraries(unit-logsum PRIVATE tld-dev)
-add_test(
-  NAME unit-logsum
-  COMMAND unit-logsum  
-  )
 
 add_executable(unit-seq utests/unit_seq.c) 
 target_link_libraries(unit-seq PRIVATE tld-dev)
 
 add_test(
   NAME unit-seq-nano
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/nano.fastq
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/nano.fastq
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
 
 add_test(
   NAME unit-seq-BB11001
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/BB11001.fa
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/BB11001.fa
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
 add_test(
   NAME unit-seq-broken1
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/broken_fasta1.fa
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/broken_fasta1.fa
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 set_property(TEST unit-seq-broken1
@@ -257,7 +109,7 @@ set_property(TEST unit-seq-broken1
 
 add_test(
   NAME unit-seq-broken2
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/broken_fasta2.fa
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/broken_fasta2.fa
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 set_property(TEST unit-seq-broken2
@@ -269,36 +121,36 @@ set_property(TEST unit-seq-broken2
 
 add_test(
   NAME unit-seq-fastq-gz-1
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR142YZV_chr19only_10000_reads_R1.fastq.gz
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR142YZV_chr19only_10000_reads_R1.fastq.gz
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
 add_test(
   NAME unit-seq-fastq-gz-2
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR142YZV_chr19only_10000_reads_R2.fastq.gz
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR142YZV_chr19only_10000_reads_R2.fastq.gz
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
 add_test(
   NAME unit-seq-fastq-gz-3
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep2_chr19_10000reads_R1.fastq.gz
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep2_chr19_10000reads_R1.fastq.gz
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
 add_test(
   NAME unit-seq-fastq-gz-4
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep1_chr19_10000reads_R2.fastq.gz
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep1_chr19_10000reads_R2.fastq.gz
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
 add_test(
   NAME unit-seq-fastq-gz-5
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep1_chr19_10000reads_R1.fastq.gz
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep1_chr19_10000reads_R1.fastq.gz
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )
 
 add_test(
   NAME unit-seq-fastq-gz-6
-  COMMAND unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep2_chr19_10000reads_R2.fastq.gz
+  COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/unit-seq ${CMAKE_CURRENT_SOURCE_DIR}/test_data/ENCSR653DFZ_rep2_chr19_10000reads_R2.fastq.gz
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   )

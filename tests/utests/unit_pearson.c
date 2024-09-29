@@ -46,7 +46,8 @@ int test_pearson(void)
         }
         RUN(tld_pearson_corr(a, b, n, &cor));
         LOG_MSG("%*s: %f", 10,"Corr", cor);
-
+        gfree(a);
+        gfree(b);
         return OK;
 ERROR:
         return FAIL;
