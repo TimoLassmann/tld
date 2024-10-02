@@ -699,6 +699,31 @@ ERROR:
         return FAIL;
 }
 
+int tld_template_rename_var(tld_template_map *m, char *key, char* new_key)
+{
+        ASSERT(m != NULL," No Map!!");
+        ASSERT(key != NULL, "No key)");
+
+        int k_len = strnlen(key, 1024);
+
+
+        for(int i = 0 ; i < m->n;i++){
+                int t_len = TLD_STRLEN(m->identifier[i]);
+                if(k_len == t_len){
+                        if(strncmp(key, TLD_STR(m->identifier[i]), k_len) == 0){
+                                tld_strbuf_clear(m->identifier[i]);
+                                tld_append(m->identifier[i], new_key);
+                                break;
+                        }
+                }
+        }
+
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+
 int template_node_create(template_node **node, template_node_type type, char *content)
 {
         template_node* n = NULL;
