@@ -15,6 +15,175 @@
 #define MAX_CHILDREN 10
 #define MAX_ERROR_MSG 256
 
+typedef struct tld_template_hash_entry {
+    tld_strbuf* key;
+    tld_strbuf* value;
+    struct tld_template_hash_entry* next; // For handling collisions using chaining
+} tld_template_hash_entry;
+
+typedef struct tld_template_hash {
+    tld_template_hash_entry** table; // Array of pointers to entries
+    int table_size;             // Size of the hash table
+    int n;                      // Number of entries
+    int n_rep;
+    int status;
+} tld_template_hash;
+
+static unsigned int str_hash(char *str, int table_size);
+
+static unsigned int str_hash(char *str, int table_size)
+{
+        unsigned int hash = 5381;
+        int c;
+        while ((c = *str++)){
+                hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+        }
+        return hash % table_size;
+}
+
+int tld_template_add(tld_template_hash **hash, char *key, char *val)
+{
+        tld_template_hash* h = NULL;
+
+        if(*hash){
+                h = *hash;
+        }else{
+                RUN(tld_template_hash_alloc(&h, 1024));
+        }
+
+        ASSERT(h != NULL, "No Map");
+
+        unsigned int index = str_hash(key, h->table_size);
+
+        // Create a new entry
+        tld_template_hash_entry* new_entry = NULL;//(tld_template_hash_entry*)malloc(sizeof(tld_template_hash_entry));
+        MMALLOC(new_entry, sizeof(tld_template_hash_entry));
+        tld_strbuf_alloc(&new_entry->key, 16);
+        tld_strbuf_alloc(&new_entry->value, 16);
+        tld_append(new_entry->key, key);
+        tld_append(new_entry->value, val);
+        new_entry->next = h->table[index];
+        h->table[index] = new_entry;
+        h->n++;
+
+        *hash = h;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_template_get(tld_template_hash *h, char *key, char **val)
+{
+        ASSERT(h != NULL, "No Map!!");
+        ASSERT(key != NULL, "No key");
+
+        unsigned int index = str_hash(key, h->table_size);
+        tld_template_hash_entry* entry = h->table[index];
+
+        while (entry) {
+                if (strcmp(TLD_STR(entry->key), key) == 0) {
+                        *val = TLD_STR(entry->value);
+                        return OK;
+                }
+                entry = entry->next;
+        }
+
+        *val = NULL; // Key not found
+        return FAIL;
+ERROR:
+        return FAIL;
+}
+
+int tld_template_rename_var(tld_template_hash *h, char *key, char* new_key) {
+        ASSERT(h != NULL, "No Map!!");
+        ASSERT(key != NULL, "No key");
+
+        unsigned int index = str_hash(key, h->table_size);
+        tld_template_hash_entry* entry = h->table[index];
+
+        while (entry) {
+                if (strcmp(TLD_STR(entry->key), key) == 0) {
+                        // Remove the old key from the hash table
+                        tld_template_remove(h, key);
+                        // Add the new key with the existing replacement
+                        tld_template_add(&h, new_key, TLD_STR(entry->value));
+                        return OK;
+                }
+                entry = entry->next;
+        }
+
+        return FAIL; // Key not found
+ERROR:
+        return FAIL;
+}
+
+int tld_template_remove(tld_template_hash *h, char *key)
+{
+        ASSERT(h != NULL, "No Map!!");
+        ASSERT(key != NULL, "No key");
+
+        unsigned int index = str_hash(key, h->table_size);
+        tld_template_hash_entry* entry = h->table[index];
+        tld_template_hash_entry* prev = NULL;
+
+        while(entry){
+                if(strcmp(TLD_STR(entry->key), key) == 0){
+                        if(prev){
+                                prev->next = entry->next;
+                        }else{
+                                h->table[index] = entry->next;
+                        }
+                        // Free the entry
+                        tld_strbuf_free(entry->key);
+                        tld_strbuf_free(entry->value);
+                        MFREE(entry);
+                        h->n--;
+                        return OK;
+                }
+                prev = entry;
+                entry = entry->next;
+        }
+
+        return FAIL; // Key not found
+ERROR:
+        return FAIL;
+}
+
+int tld_template_hash_alloc(tld_template_hash **hash, int size)
+{
+        tld_template_hash* h = NULL;
+        MMALLOC(h, sizeof(tld_template_hash));
+        h->table_size = size; // Choose an appropriate size
+        // Initialize the map with a default size
+        MMALLOC(h->table, sizeof(tld_template_hash_entry*) * h->table_size);
+        h->n = 0;
+        *hash = h;
+        return OK;
+ERROR:
+        if(h){
+                tld_template_hash_free(h);
+        }
+        return FAIL;
+}
+
+void tld_template_hash_free(tld_template_hash *h)
+{
+        if(h){
+                for(int i = 0; i < h->table_size; i++){
+                        tld_template_hash_entry* entry = h->table[i];
+                        while(entry){
+                                tld_template_hash_entry* next = entry->next;
+                                tld_strbuf_free(entry->key);
+                                tld_strbuf_free(entry->value);
+                                MFREE(entry);
+                                entry = next;
+                        }
+                }
+                MFREE(h->table);
+                MFREE(h);
+        }
+}
+
 typedef enum {
         NODE_ROOT,
         NODE_TEXT,
@@ -44,11 +213,11 @@ typedef struct {
 } Parser;
 
 /* tld_internal int find(tld_strbuf *txt, int offset, tld_strbuf *delim,int*start_pos,int* end_pos); */
-tld_internal int find_open(tld_strbuf *txt,int offset, tld_strbuf *delim, int*pos);
-tld_internal int find_end(tld_strbuf *txt,int offset, tld_strbuf* delim, int*pos);
+/* tld_internal int find_open(tld_strbuf *txt,int offset, tld_strbuf *delim, int*pos); */
+/* tld_internal int find_end(tld_strbuf *txt,int offset, tld_strbuf* delim, int*pos); */
 
-tld_internal int tld_template_allocate(tld_template_map **map, int n);
-tld_internal int tld_template_resize(tld_template_map *m);
+/* tld_internal int tld_template_allocate(tld_template_map **map, int n); */
+/* tld_internal int tld_template_resize(tld_template_map *m); */
 
 tld_internal  int parse_text(Parser *parser, template_node **node);
 tld_internal  int parse_tag(Parser *parser, template_node **node);
@@ -316,22 +485,12 @@ void print_tree(template_node *node, int depth) {
         }
 }
 
-char* find_in_map(const tld_template_map* map, const char* key) {
-        for (int i = 0; i < map->n; i++) {
-                if (strcmp(TLD_STR(map->identifier[i]), key) == 0) {
-                        return TLD_STR(map->replacement[i]);
-                }
-        }
-
-        return NULL;
-}
-
-void process_tree(template_node *node, const tld_template_map *map, FILE *output,tld_strbuf* out)
+void process_tree(template_node *node, tld_template_hash *hash, FILE *output,tld_strbuf* out)
 {
         switch(node->type){
         case NODE_ROOT:
                 for(int i = 0; i < node->n; i++){
-                        process_tree(node->children[i], map, output,out);
+                        process_tree(node->children[i], hash, output,out);
                 }
                 break;
 
@@ -342,7 +501,9 @@ void process_tree(template_node *node, const tld_template_map *map, FILE *output
 
         case NODE_VARIABLE:
         {
-                char* replacement = find_in_map(map, TLD_STR(node->content));
+                char* replacement = NULL;
+                tld_template_get(hash, TLD_STR(node->content), &replacement);
+                /* char* replacement = find_in_map(hash, TLD_STR(node->content)); */
                 if(replacement){
                         tld_append(out, replacement);
                         /* fprintf(output, "%s", replacement); */
@@ -353,13 +514,15 @@ void process_tree(template_node *node, const tld_template_map *map, FILE *output
 
         case NODE_IF:
         {
-                const char* condition_value = find_in_map(map, TLD_STR(node->content));
+                char* condition_value = NULL;//f ind_in_map(hash, TLD_STR(node->content));
+
+                tld_template_get(hash, TLD_STR(node->content), &condition_value);
                 int condition_met = (condition_value != NULL && strcmp(condition_value, "") != 0);
 
                 if(condition_met){
                         // Process the 'if' branch
                         for(int i = 0; i < node->n; i++){
-                                process_tree(node->children[i], map, output,out);
+                                process_tree(node->children[i], hash, output,out);
                         }
                 }else{
                         // Find and process the 'else' branch
@@ -376,7 +539,7 @@ void process_tree(template_node *node, const tld_template_map *map, FILE *output
                                         template_node* next_sibling = current->parent->children[sibling_index + 1];
                                         if(next_sibling->type == NODE_ELSE){
                                                 for(int i = 0; i < next_sibling->n; i++){
-                                                        process_tree(next_sibling->children[i], map, output,out);
+                                                        process_tree(next_sibling->children[i], hash, output,out);
                                                 }
                                                 break;
                                         }
@@ -394,7 +557,7 @@ void process_tree(template_node *node, const tld_template_map *map, FILE *output
         }
 }
 
-int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
+int tld_template_apply(tld_strbuf *txt, tld_template_hash *hash)
 {
         char* tmp = NULL;
 
@@ -415,7 +578,7 @@ int tld_template_apply(tld_strbuf *txt, tld_template_map *map)
         }
         /* print_tree(root, 0); */
         RUN(tld_strbuf_alloc(&out, 256));
-        process_tree(root, map, stdout,out);
+        process_tree(root, hash, stdout,out);
         RUN(tld_strbuf_copy(txt, out));
 
         template_node_free(root);
@@ -438,121 +601,121 @@ ERROR:
 }
 
 
-int tld_template_apply2(tld_strbuf *txt, tld_template_map *map)
-{
-        /* loop until there are no more valid reps  */
-        tld_strbuf* out = NULL;
-        tld_strbuf* pattern = NULL;
-        int offset = 0;
-        int start;
-        int stop;
+/* int tld_template_apply2(tld_strbuf *txt, tld_template_map *map) */
+/* { */
+/*         /\* loop until there are no more valid reps  *\/ */
+/*         tld_strbuf* out = NULL; */
+/*         tld_strbuf* pattern = NULL; */
+/*         int offset = 0; */
+/*         int start; */
+/*         int stop; */
 
-        int read_header = 0;
-        /* int substitutions_made = 0; */
+/*         int read_header = 0; */
+/*         /\* int substitutions_made = 0; *\/ */
 
-        map->status = TEMPLATE_OK;
-        map->n_rep = 0;
+/*         map->status = TEMPLATE_OK; */
+/*         map->n_rep = 0; */
 
-        RUN(tld_strbuf_alloc(&out, 32));
-        RUN(tld_strbuf_alloc(&pattern, 32));
-
-        
-        while(1){
-                start = -1;
-                stop  = -1;
-                find_open(txt, offset, map->delim_start, &start);
-                if(start != -1){
-                        find_end(txt, start, map->delim_end, &stop);
-                        if(stop != -1){
-                                offset = stop;
-                                pattern->len = 0;
-                                for(int i = start; i < stop;i++){
-                                        RUN(tld_append_char(pattern, txt->str[i]));
-                                        /* fprintf(stdout,"%c",txt->str[i]); */
-                                }
-                                int internal_start = -1;
-                                find_open(pattern, 0, map->delim_start, &internal_start);
-                                if(internal_start != -1){
-                                        map->status = TEMPLATE_MISMATCH_DELIM;
-                                }
-
-                                /* fprintf(stdout,"%s (%d - %d)\n", TLD_STR(pattern), start , stop); */
-                                int idx = -1;
-                                int a = TLD_STRLEN(pattern);
-                                for(int i = 0; i < map->n;i++){
-                                        int b = TLD_STRLEN(map->identifier[i]);
-                                        if(a == b){
-                                                if(strncmp(TLD_STR(pattern), TLD_STR(map->identifier[i]), a) == 0){
-                                                        idx = i;
-                                                        break;
-                                                }
-                                        }
-                                }
-                                if(idx != -1){
-                                        /* fprintf(stdout,"%s -> %s \n", TLD_STR(map->identifier[idx]), TLD_STR(map->replacement[idx])); */
-
-                                        for(int i = read_header; i < start-TLD_STRLEN(map->delim_start);i++){
-                                                RUN(tld_append_char(out, txt->str[i]));
-                                        }
-                                        RUN(tld_append(out,TLD_STR(map->replacement[idx])));
-                                        read_header = stop + TLD_STRLEN(map->delim_end);
-                                        map->n_rep++;
-                                }else{
-                                        map->status = TEMPLATE_NOREP;
-                                        /* WARNING_MSG("No replacement found"); */
-                                }
-                        }else{
-                                map->status = TEMPLATE_MISMATCH_DELIM;
-                                /* break; */
-                        }
-                }else{
-                        break;
-                }
-        }
-        if(read_header < TLD_STRLEN(txt)){
-                RUN(tld_append(out, TLD_STR(txt) + read_header));
-        }
-
-        /* LOG_MSG("%s", TLD_STR(text)); */
-        /* LOG_MSG("READ HEADER: %d", read_header); */
-        RUN(tld_strbuf_copy(txt, out));
-
-        tld_strbuf_free(pattern);
-        tld_strbuf_free(out);
-        return OK;
-ERROR:
-        if(pattern){
-                tld_strbuf_free(pattern);
-        }
-        if(out){
-                tld_strbuf_free(out);
-        }
-        return FAIL;
-
-}
+/*         RUN(tld_strbuf_alloc(&out, 32)); */
+/*         RUN(tld_strbuf_alloc(&pattern, 32)); */
 
 
+/*         while(1){ */
+/*                 start = -1; */
+/*                 stop  = -1; */
+/*                 find_open(txt, offset, map->delim_start, &start); */
+/*                 if(start != -1){ */
+/*                         find_end(txt, start, map->delim_end, &stop); */
+/*                         if(stop != -1){ */
+/*                                 offset = stop; */
+/*                                 pattern->len = 0; */
+/*                                 for(int i = start; i < stop;i++){ */
+/*                                         RUN(tld_append_char(pattern, txt->str[i])); */
+/*                                         /\* fprintf(stdout,"%c",txt->str[i]); *\/ */
+/*                                 } */
+/*                                 int internal_start = -1; */
+/*                                 find_open(pattern, 0, map->delim_start, &internal_start); */
+/*                                 if(internal_start != -1){ */
+/*                                         map->status = TEMPLATE_MISMATCH_DELIM; */
+/*                                 } */
 
-int tld_template_chk(tld_template_map *map, int verbose)
-{
-        if(verbose){
-                LOG_MSG("%d replacement made", map->n_rep);
-        }
-        switch (map->status) {
-        case TEMPLATE_OK:
-                break;
-        case TEMPLATE_NOREP:
+/*                                 /\* fprintf(stdout,"%s (%d - %d)\n", TLD_STR(pattern), start , stop); *\/ */
+/*                                 int idx = -1; */
+/*                                 int a = TLD_STRLEN(pattern); */
+/*                                 for(int i = 0; i < map->n;i++){ */
+/*                                         int b = TLD_STRLEN(map->identifier[i]); */
+/*                                         if(a == b){ */
+/*                                                 if(strncmp(TLD_STR(pattern), TLD_STR(map->identifier[i]), a) == 0){ */
+/*                                                         idx = i; */
+/*                                                         break; */
+/*                                                 } */
+/*                                         } */
+/*                                 } */
+/*                                 if(idx != -1){ */
+/*                                         /\* fprintf(stdout,"%s -> %s \n", TLD_STR(map->identifier[idx]), TLD_STR(map->replacement[idx])); *\/ */
 
-                ERROR_MSG("tag found in text but no matching replacement!");
-                break;
-        case TEMPLATE_MISMATCH_DELIM:
-                ERROR_MSG("Mismatched deliminters!");
-                break;
-        }
-        return OK;
-ERROR:
-        return FAIL;
-}
+/*                                         for(int i = read_header; i < start-TLD_STRLEN(map->delim_start);i++){ */
+/*                                                 RUN(tld_append_char(out, txt->str[i])); */
+/*                                         } */
+/*                                         RUN(tld_append(out,TLD_STR(map->replacement[idx]))); */
+/*                                         read_header = stop + TLD_STRLEN(map->delim_end); */
+/*                                         map->n_rep++; */
+/*                                 }else{ */
+/*                                         map->status = TEMPLATE_NOREP; */
+/*                                         /\* WARNING_MSG("No replacement found"); *\/ */
+/*                                 } */
+/*                         }else{ */
+/*                                 map->status = TEMPLATE_MISMATCH_DELIM; */
+/*                                 /\* break; *\/ */
+/*                         } */
+/*                 }else{ */
+/*                         break; */
+/*                 } */
+/*         } */
+/*         if(read_header < TLD_STRLEN(txt)){ */
+/*                 RUN(tld_append(out, TLD_STR(txt) + read_header)); */
+/*         } */
+
+/*         /\* LOG_MSG("%s", TLD_STR(text)); *\/ */
+/*         /\* LOG_MSG("READ HEADER: %d", read_header); *\/ */
+/*         RUN(tld_strbuf_copy(txt, out)); */
+
+/*         tld_strbuf_free(pattern); */
+/*         tld_strbuf_free(out); */
+/*         return OK; */
+/* ERROR: */
+/*         if(pattern){ */
+/*                 tld_strbuf_free(pattern); */
+/*         } */
+/*         if(out){ */
+/*                 tld_strbuf_free(out); */
+/*         } */
+/*         return FAIL; */
+
+/* } */
+
+
+
+/* int tld_template_chk(tld_template_map *map, int verbose) */
+/* { */
+/*         if(verbose){ */
+/*                 LOG_MSG("%d replacement made", map->n_rep); */
+/*         } */
+/*         switch (map->status) { */
+/*         case TEMPLATE_OK: */
+/*                 break; */
+/*         case TEMPLATE_NOREP: */
+
+/*                 ERROR_MSG("tag found in text but no matching replacement!"); */
+/*                 break; */
+/*         case TEMPLATE_MISMATCH_DELIM: */
+/*                 ERROR_MSG("Mismatched deliminters!"); */
+/*                 break; */
+/*         } */
+/*         return OK; */
+/* ERROR: */
+/*         return FAIL; */
+/* } */
 
 #undef TEMPLATE_OK
 #undef TEMPLATE_MISMATCH_DELIM
@@ -649,79 +812,79 @@ int find_end(tld_strbuf *txt, int offset, tld_strbuf *delim,int*pos)
 }
 
 
-int tld_template_add(tld_template_map **map, char *id, char *rep)
-{
-        tld_template_map* m = NULL;
-        int idx;
+/* int tld_template_add(tld_template_map **map, char *id, char *rep) */
+/* { */
+/*         tld_template_map* m = NULL; */
+/*         int idx; */
 
-        if(*map){
-                m = *map;
-        }else{
-                RUN(tld_template_allocate(&m, 16));
-        }
+/*         if(*map){ */
+/*                 m = *map; */
+/*         }else{ */
+/*                 RUN(tld_template_allocate(&m, 16)); */
+/*         } */
 
-        ASSERT(m != NULL,"No Map");
+/*         ASSERT(m != NULL,"No Map"); */
 
-        idx = m->n;
+/*         idx = m->n; */
 
-        tld_append(m->identifier[idx], id);
-        tld_append(m->replacement[idx], rep);
-        m->n++;
-        if(m->n == m->n_alloc){
-                tld_template_resize(m);
-        }
-        *map = m;
-        return OK;
-ERROR:
-        return FAIL;
-}
+/*         tld_append(m->identifier[idx], id); */
+/*         tld_append(m->replacement[idx], rep); */
+/*         m->n++; */
+/*         if(m->n == m->n_alloc){ */
+/*                 tld_template_resize(m); */
+/*         } */
+/*         *map = m; */
+/*         return OK; */
+/* ERROR: */
+/*         return FAIL; */
+/* } */
 
-int tld_template_get(tld_template_map *m, char *key, char** val)
-{
-        ASSERT(m != NULL," No Map!!");
-        ASSERT(key != NULL, "No key)");
+/* int tld_template_get(tld_template_map *m, char *key, char** val) */
+/* { */
+/*         ASSERT(m != NULL," No Map!!"); */
+/*         ASSERT(key != NULL, "No key)"); */
 
-        int k_len = strnlen(key, 1024);
+/*         int k_len = strnlen(key, 1024); */
 
-        *val = NULL;
-        for(int i = 0 ; i < m->n;i++){
-                int t_len = TLD_STRLEN(m->identifier[i]);
-                if(k_len == t_len){
-                        if(strncmp(key, TLD_STR(m->identifier[i]), k_len) == 0){
-                                *val = TLD_STR(m->replacement[i]);
-                                break;
-                        }
-                }
-        }
+/*         *val = NULL; */
+/*         for(int i = 0 ; i < m->n;i++){ */
+/*                 int t_len = TLD_STRLEN(m->identifier[i]); */
+/*                 if(k_len == t_len){ */
+/*                         if(strncmp(key, TLD_STR(m->identifier[i]), k_len) == 0){ */
+/*                                 *val = TLD_STR(m->replacement[i]); */
+/*                                 break; */
+/*                         } */
+/*                 } */
+/*         } */
 
-        return OK;
-ERROR:
-        return FAIL;
-}
+/*         return OK; */
+/* ERROR: */
+/*         return FAIL; */
+/* } */
 
-int tld_template_rename_var(tld_template_map *m, char *key, char* new_key)
-{
-        ASSERT(m != NULL," No Map!!");
-        ASSERT(key != NULL, "No key)");
+/* int tld_template_rename_var(tld_template_map *m, char *key, char* new_key) */
+/* { */
+/*         ASSERT(m != NULL," No Map!!"); */
+/*         ASSERT(key != NULL, "No key)"); */
 
-        int k_len = strnlen(key, 1024);
+/*         int k_len = strnlen(key, 1024); */
 
 
-        for(int i = 0 ; i < m->n;i++){
-                int t_len = TLD_STRLEN(m->identifier[i]);
-                if(k_len == t_len){
-                        if(strncmp(key, TLD_STR(m->identifier[i]), k_len) == 0){
-                                tld_strbuf_clear(m->identifier[i]);
-                                tld_append(m->identifier[i], new_key);
-                                break;
-                        }
-                }
-        }
+/*         for(int i = 0 ; i < m->n;i++){ */
+/*                 int t_len = TLD_STRLEN(m->identifier[i]); */
+/*                 if(k_len == t_len){ */
+/*                         if(strncmp(key, TLD_STR(m->identifier[i]), k_len) == 0){ */
+/*                                 tld_strbuf_clear(m->identifier[i]); */
+/*                                 tld_append(m->identifier[i], new_key); */
+/*                                 break; */
+/*                         } */
+/*                 } */
+/*         } */
 
-        return OK;
-ERROR:
-        return FAIL;
-}
+/*         return OK; */
+/* ERROR: */
+/*         return FAIL; */
+/* } */
 
 
 int template_node_create(template_node **node, template_node_type type, char *content)
@@ -804,118 +967,118 @@ void skip_whitespace(Parser *parser)
 }
 
 
-int tld_template_init(tld_template_map **map, char **id, char **rep, int n)
-{
-        tld_template_map* m = NULL;
+/* int tld_template_init(tld_template_map **map, char **id, char **rep, int n) */
+/* { */
+/*         tld_template_map* m = NULL; */
 
-        RUN(tld_template_allocate(&m, n));
-        /* MMALLOC(m, sizeof(tld_template_map)); */
-        m->n = 0;
-        for(int i = 0; i < n;i++){
-                tld_append(m->identifier[i], id[i]);
-                tld_append(m->replacement[i], rep[i]);
-                m->n++;
-        }
+/*         RUN(tld_template_allocate(&m, n)); */
+/*         /\* MMALLOC(m, sizeof(tld_template_map)); *\/ */
+/*         m->n = 0; */
+/*         for(int i = 0; i < n;i++){ */
+/*                 tld_append(m->identifier[i], id[i]); */
+/*                 tld_append(m->replacement[i], rep[i]); */
+/*                 m->n++; */
+/*         } */
 
-        *map = m;
-        return OK;
-ERROR:
-        tld_template_free(m);
-        return FAIL;
-}
+/*         *map = m; */
+/*         return OK; */
+/* ERROR: */
+/*         tld_template_free(m); */
+/*         return FAIL; */
+/* } */
 
-int tld_template_allocate(tld_template_map **map, int n)
-{
-        tld_template_map* m = NULL;
-        MMALLOC(m, sizeof(tld_template_map));
-        m->identifier = NULL;
-        m->replacement = NULL;
-        m->delim_start = NULL;
-        m->delim_end = NULL;
-        m->if_delim_start = NULL;
-        m->if_delim_end = NULL;
-        m->n = 0;
-        m->n_alloc = n;
-        m->status = 0;
-        m->n_rep = 0;
-        MMALLOC(m->identifier, sizeof(tld_strbuf*) * m->n_alloc);
-        MMALLOC(m->replacement, sizeof(tld_strbuf*) * m->n_alloc);
-
-
-        for(int i = 0; i < m->n_alloc;i++){
-                m->identifier[i] = NULL;
-                m->replacement[i] = NULL;
-                tld_strbuf_alloc(&m->identifier[i], 16);
-                tld_strbuf_alloc(&m->replacement[i], 16);
-        }
-        /* Default delim = {{ and }} */
-        tld_strbuf_alloc(&m->delim_start, 3);
-        tld_strbuf_alloc(&m->delim_end, 3);
-
-        tld_append(m->delim_start, "{{");
-        tld_append(m->delim_end,"}}");
-
-        tld_strbuf_alloc(&m->if_delim_start, 8);
-        tld_strbuf_alloc(&m->if_delim_end, 16);
-        tld_append(m->if_delim_start, "{{IF ");
-        tld_append(m->if_delim_end,"{{ENDIF}}");
-
-        *map = m;
-
-        return OK;
-ERROR:
-        tld_template_free(m);
-        return FAIL;
-}
-
-int tld_template_resize(tld_template_map *m)
-{
-        int old_size = m->n_alloc;
-        m->n_alloc = m->n_alloc + m->n_alloc /2;
+/* int tld_template_allocate(tld_template_map **map, int n) */
+/* { */
+/*         tld_template_map* m = NULL; */
+/*         MMALLOC(m, sizeof(tld_template_map)); */
+/*         m->identifier = NULL; */
+/*         m->replacement = NULL; */
+/*         m->delim_start = NULL; */
+/*         m->delim_end = NULL; */
+/*         m->if_delim_start = NULL; */
+/*         m->if_delim_end = NULL; */
+/*         m->n = 0; */
+/*         m->n_alloc = n; */
+/*         m->status = 0; */
+/*         m->n_rep = 0; */
+/*         MMALLOC(m->identifier, sizeof(tld_strbuf*) * m->n_alloc); */
+/*         MMALLOC(m->replacement, sizeof(tld_strbuf*) * m->n_alloc); */
 
 
-        MREALLOC(m->identifier, sizeof(tld_strbuf*) * m->n_alloc);
-        MREALLOC(m->replacement, sizeof(tld_strbuf*) * m->n_alloc);
+/*         for(int i = 0; i < m->n_alloc;i++){ */
+/*                 m->identifier[i] = NULL; */
+/*                 m->replacement[i] = NULL; */
+/*                 tld_strbuf_alloc(&m->identifier[i], 16); */
+/*                 tld_strbuf_alloc(&m->replacement[i], 16); */
+/*         } */
+/*         /\* Default delim = {{ and }} *\/ */
+/*         tld_strbuf_alloc(&m->delim_start, 3); */
+/*         tld_strbuf_alloc(&m->delim_end, 3); */
+
+/*         tld_append(m->delim_start, "{{"); */
+/*         tld_append(m->delim_end,"}}"); */
+
+/*         tld_strbuf_alloc(&m->if_delim_start, 8); */
+/*         tld_strbuf_alloc(&m->if_delim_end, 16); */
+/*         tld_append(m->if_delim_start, "{{IF "); */
+/*         tld_append(m->if_delim_end,"{{ENDIF}}"); */
+
+/*         *map = m; */
+
+/*         return OK; */
+/* ERROR: */
+/*         tld_template_free(m); */
+/*         return FAIL; */
+/* } */
+
+/* int tld_template_resize(tld_template_map *m) */
+/* { */
+/*         int old_size = m->n_alloc; */
+/*         m->n_alloc = m->n_alloc + m->n_alloc /2; */
 
 
-        for(int i = old_size; i < m->n_alloc;i++){
-                m->identifier[i] = NULL;
-                m->replacement[i] = NULL;
-                tld_strbuf_alloc(&m->identifier[i], 16);
-                tld_strbuf_alloc(&m->replacement[i], 16);
-        }
-
-        return OK;
-ERROR:
-        tld_template_free(m);
-        return FAIL;
-}
+/*         MREALLOC(m->identifier, sizeof(tld_strbuf*) * m->n_alloc); */
+/*         MREALLOC(m->replacement, sizeof(tld_strbuf*) * m->n_alloc); */
 
 
-void tld_template_free(tld_template_map *m)
-{
-        if(m){
-                if(m->n_alloc){
-                        for(int i = 0; i < m->n_alloc;i++){
-                                tld_strbuf_free(m->identifier[i]);
-                                tld_strbuf_free(m->replacement[i]);
+/*         for(int i = old_size; i < m->n_alloc;i++){ */
+/*                 m->identifier[i] = NULL; */
+/*                 m->replacement[i] = NULL; */
+/*                 tld_strbuf_alloc(&m->identifier[i], 16); */
+/*                 tld_strbuf_alloc(&m->replacement[i], 16); */
+/*         } */
 
-                        }
-                        MFREE(m->identifier);
-                        MFREE(m->replacement);
-                }
-                if(m->delim_start){
-                        tld_strbuf_free(m->delim_start);
-                }
-                if(m->delim_end){
-                        tld_strbuf_free(m->delim_end);
-                }
-                if(m->if_delim_start){
-                        tld_strbuf_free(m->if_delim_start);
-                }
-                if(m->if_delim_end){
-                        tld_strbuf_free(m->if_delim_end);
-                }
-                MFREE(m);
-        }
-}
+/*         return OK; */
+/* ERROR: */
+/*         tld_template_free(m); */
+/*         return FAIL; */
+/* } */
+
+
+/* void tld_template_free(tld_template_map *m) */
+/* { */
+/*         if(m){ */
+/*                 if(m->n_alloc){ */
+/*                         for(int i = 0; i < m->n_alloc;i++){ */
+/*                                 tld_strbuf_free(m->identifier[i]); */
+/*                                 tld_strbuf_free(m->replacement[i]); */
+
+/*                         } */
+/*                         MFREE(m->identifier); */
+/*                         MFREE(m->replacement); */
+/*                 } */
+/*                 if(m->delim_start){ */
+/*                         tld_strbuf_free(m->delim_start); */
+/*                 } */
+/*                 if(m->delim_end){ */
+/*                         tld_strbuf_free(m->delim_end); */
+/*                 } */
+/*                 if(m->if_delim_start){ */
+/*                         tld_strbuf_free(m->if_delim_start); */
+/*                 } */
+/*                 if(m->if_delim_end){ */
+/*                         tld_strbuf_free(m->if_delim_end); */
+/*                 } */
+/*                 MFREE(m); */
+/*         } */
+/* } */

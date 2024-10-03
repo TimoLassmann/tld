@@ -5,29 +5,38 @@
 
 #include "../string/str.h"
 
-typedef struct tld_template_map {
-        tld_strbuf** identifier;
-        tld_strbuf** replacement;
-        tld_strbuf* delim_start;
-        tld_strbuf* delim_end;
-        tld_strbuf* if_delim_start;
-        tld_strbuf* if_delim_end;
-        int n;
-        int n_alloc;
-        int n_rep;
-        int status;
-} tld_template_map;
+/* typedef struct tld_template_map { */
+/*         tld_strbuf** identifier; */
+/*         tld_strbuf** replacement; */
+/*         tld_strbuf* delim_start; */
+/*         tld_strbuf* delim_end; */
+/*         tld_strbuf* if_delim_start; */
+/*         tld_strbuf* if_delim_end; */
+/*         int n; */
+/*         int n_alloc; */
+/*         int n_rep; */
+/*         int status; */
+/* } tld_template_map; */
 
+
+typedef struct tld_template_hash tld_template_hash;
+tld_external  int tld_template_add(tld_template_hash **hash, char *key, char *val);
+tld_external  int tld_template_get(tld_template_hash *h, char *key, char **val);
+tld_external  int tld_template_rename_var(tld_template_hash *h, char *key, char* new_key);
+tld_external int tld_template_remove(tld_template_hash *h, char *key);
+
+tld_external  int tld_template_hash_alloc(tld_template_hash **hash, int size);
+tld_external void tld_template_hash_free(tld_template_hash *h);
 
 /* tld_external  int parse_template(tld_strbuf *txt); */
 /* tld_external  int parse_content(tld_strbuf *txt); */
-tld_external  int tld_template_apply2(tld_strbuf *txt, tld_template_map *map);
-tld_external  int tld_template_apply(tld_strbuf *txt, tld_template_map *map);
-tld_external  int tld_template_chk(tld_template_map *map, int verbose);
-tld_external  int tld_template_add(tld_template_map **map, char *id, char *rep);
-tld_external  int tld_template_get(tld_template_map *m, char *key, char **val);
-tld_external  int tld_template_rename_var(tld_template_map *m, char *key, char* new_key);
-tld_external  int tld_template_init(tld_template_map **map, char **id, char **rep, int n);
-tld_external void tld_template_free(tld_template_map *m);
+/* tld_external  int tld_template_apply2(tld_strbuf *txt, tld_template_map *map); */
+tld_external  int tld_template_apply(tld_strbuf *txt, tld_template_hash *map);
+/* tld_external  int tld_template_chk(tld_template_map *map, int verbose); */
+/* tld_external  int tld_template_add(tld_template_map **map, char *id, char *rep); */
+/* tld_external  int tld_template_get(tld_template_map *m, char *key, char **val); */
+/* tld_external  int tld_template_rename_var(tld_template_map *m, char *key, char* new_key); */
+/* tld_external  int tld_template_init(tld_template_map **map, char **id, char **rep, int n); */
+/* tld_external void tld_template_free(tld_template_map *m); */
 
 #endif
