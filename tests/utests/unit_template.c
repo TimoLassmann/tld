@@ -1,24 +1,184 @@
 #include "tld.h"
 
 
-/* int test_default(tld_template_map *map); */
-/* int test_mismatch(tld_template_map *map); */
-/* int test_mismatch2(tld_template_map *map); */
-/* int test_norep (tld_template_map *map); */
-/* int test_ifrep(tld_template_map *map); */
 int test_new_template(void);
-
+int test_hash_operations(void);
 
 int main(void)
 {
         test_new_template();
-                /* LOG_MSG("Success"); */
+
+        test_hash_operations();
+        /* LOG_MSG("Success"); */
         return EXIT_SUCCESS;
 ERROR:
         /* LOG_MSG("FAIL"); */
         return EXIT_FAILURE;
-
 }
+
+int test_hash_operations(void) {
+        tld_template_hash *hash = NULL;
+
+        // Step 1: Initialize the hash
+        printf("Initializing hash...\n");
+        if (tld_template_hash_alloc(&hash, 1024) != 0) {
+                fprintf(stderr, "Error: Hash initialization failed!\n");
+                return -1;
+        }
+
+        // Step 2: Add key-value pairs
+        printf("Adding key-value pairs...\n");
+        tld_template_add(&hash, "key1", "value1");
+        tld_template_add(&hash, "key2", "value2");
+        tld_template_add(&hash, "key3", "value3");
+
+        // Step 3: Retrieve values and verify correctness
+        printf("Retrieving values...\n");
+        char *value;
+        if (tld_template_get(hash, "key1", &value) == 0 && strcmp(value, "value1") == 0) {
+                printf("key1: %s\n", value); // Expected: value1
+        } else {
+                printf("Error: key1 retrieval failed\n");
+        }
+
+        if (tld_template_get(hash, "key2", &value) == 0 && strcmp(value, "value2") == 0) {
+                printf("key2: %s\n", value); // Expected: value2
+        } else {
+                printf("Error: key2 retrieval failed\n");
+        }
+
+        // Step 4: Test overwriting a key
+        printf("Overwriting key1...\n");
+        tld_template_add(&hash, "key1", "new_value1");
+        tld_template_get(hash, "key1", &value);
+        printf("key1 (overwritten): %s\n", value); // Expected: new_value1
+
+        // Step 5: Test retrieving non-existent key
+        printf("Retrieving non-existent key...\n");
+        if (tld_template_get(hash, "nonexistent", &value) == -1) {
+                printf("nonexistent key not found\n");
+        } else {
+                printf("Error: nonexistent key found: %s\n", value);
+        }
+
+        // Step 6: Test deleting a key
+        printf("Deleting key2...\n");
+        tld_template_remove(hash, "key2");
+        if (tld_template_get(hash, "key2", &value) == -1) {
+                printf("key2 deleted successfully\n");
+        } else {
+                printf("Error: key2 still exists\n");
+        }
+
+        // Step 7: Test hash collisions by adding many keys with similar prefixes
+        printf("Testing hash collisions...\n");
+        char key[20], val[20];
+        for (int i = 0; i < 1000; i++) {
+                snprintf(key, 20,"collide_key%d", i);
+                snprintf(val,20, "value%d", i);
+                tld_template_add(&hash, key, val);
+        }
+
+        // Verify a few random keys
+        printf("Verifying collision keys...\n");
+        for (int i = 0; i < 1000; i += 100) {
+                snprintf(key, 20,"collide_key%d", i);
+                tld_template_get(hash, key, &value);
+                printf("%s: %s\n", key, value); // Expected: valuei
+        }
+
+        // Step 8: Test hash size limit and expansion
+        printf("Testing hash size limit and expansion...\n");
+        for (int i = 1000; i < 1100; i++) {
+                snprintf(key,20, "extra_key%d", i);
+                snprintf(val,20, "value%d", i);
+                tld_template_add(&hash, key, val);
+        }
+
+        // Verify new keys
+        for (int i = 1000; i < 1100; i++) {
+                snprintf(key, 20,"extra_key%d", i);
+                tld_template_get(hash, key, &value);
+                printf("%s: %s\n", key, value); // Expected: valuei
+        }
+
+        // Step 9: Stress test with large amounts of data
+        printf("Stress test with large amount of data...\n");
+        for (int i = 1100; i < 2100; i++) {
+                snprintf(key, 20,"large_key%d", i);
+                snprintf(val, 20,"value%d", i);
+                tld_template_add(&hash, key, val);
+        }
+
+        // Verify a few random keys
+        for (int i = 1100; i < 2100; i += 100) {
+                snprintf(key, 20, "large_key%d", i);
+                tld_template_get(hash, key, &value);
+                printf("%s: %s\n", key, value); // Expected: valuei
+        }
+
+        // Step 10: Clean up
+        printf("Freeing hash...\n");
+        tld_template_hash_free(hash);
+
+        return 0;
+}
+
+
+/* int test_hash_operations(void) */
+/* { */
+/*         tld_template_hash *hash = NULL; */
+
+/*         // Step 1: Initialize the hash */
+/*         printf("Initializing hash...\n"); */
+/*         if (tld_template_hash_alloc(&hash,1024) != 0) { */
+/*                 ERROR_MSG("Hash initialization failed!"); */
+/*         } */
+
+/*         // Step 2: Add key-value pairs */
+/*         printf("Adding key-value pairs...\n"); */
+/*         tld_template_add(&hash, "key1", "value1"); */
+/*         tld_template_add(&hash, "key2", "value2"); */
+/*         tld_template_add(&hash, "key3", "value3"); */
+
+/*         // Step 3: Retrieve values */
+/*         printf("Retrieving values...\n"); */
+/*         char *value; */
+/*         tld_template_get(hash, "key1", &value); */
+/*         printf("key1: %s\n", value); // Expected: value1 */
+/*         tld_template_get(hash, "key2", &value); */
+/*         printf("key2: %s\n", value); // Expected: value2 */
+
+/*         // Step 4: Test overwriting a key */
+/*         printf("Overwriting key1...\n"); */
+/*         tld_template_add(&hash, "key1", "new_value1"); */
+/*         tld_template_add(&hash, "key1", value); */
+/*         printf("key1 (overwritten): %s\n", value); // Expected: new_value1 */
+
+/*         // Step 5: Test retrieving non-existent key */
+/*         printf("Retrieving non-existent key...\n"); */
+/*         if (tld_template_get(hash, "nonexistent", &value) == -1) { */
+/*                 printf("nonexistent key not found\n"); */
+/*         } else { */
+/*                 printf("nonexistent key found: %s\n", value); // Should not happen */
+/*         } */
+
+/*         // Step 6: Delete a key */
+/*         printf("Deleting key2...\n"); */
+/*         tld_template_remove(hash, "key2"); */
+/*         if (tld_template_get(hash, "key2", &value) == -1) { */
+/*                 printf("key2 deleted successfully\n"); */
+/*         } else { */
+/*                 printf("Error: key2 still exists\n"); */
+/*         } */
+
+/*         // Step 7: Clean up */
+/*         printf("Freeing hash...\n"); */
+/*         tld_template_hash_free(hash); */
+/*         return OK; */
+/* ERROR: */
+/*         return FAIL; */
+/* } */
 
 int test_new_template(void)
 {
