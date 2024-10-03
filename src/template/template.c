@@ -44,7 +44,6 @@ static unsigned int str_hash(char *str, int table_size)
 int tld_template_add(tld_template_hash **hash, char *key, char *val)
 {
         tld_template_hash* h = NULL;
-
         if(*hash){
                 h = *hash;
         }else{
@@ -55,8 +54,20 @@ int tld_template_add(tld_template_hash **hash, char *key, char *val)
 
         unsigned int index = str_hash(key, h->table_size);
 
-        // Create a new entry
-        tld_template_hash_entry* new_entry = NULL;//(tld_template_hash_entry*)malloc(sizeof(tld_template_hash_entry));
+        // Check if key already exists
+        tld_template_hash_entry* current = h->table[index];
+        while (current) {
+                if (strcmp(TLD_STR(current->key), key) == 0) {
+                        // Key exists, replace the value
+                        tld_strbuf_clear(current->value);
+                        tld_append(current->value, val);
+                        return OK;
+                }
+                current = current->next;
+        }
+
+        // Key does not exist, create a new entry
+        tld_template_hash_entry* new_entry = NULL;
         MMALLOC(new_entry, sizeof(tld_template_hash_entry));
         tld_strbuf_alloc(&new_entry->key, 16);
         tld_strbuf_alloc(&new_entry->value, 16);
