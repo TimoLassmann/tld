@@ -114,10 +114,14 @@ int tld_template_rename_var(tld_template_hash *h, char *key, char* new_key) {
 
         while (entry) {
                 if (strcmp(TLD_STR(entry->key), key) == 0) {
+                        tld_strbuf* tmp = NULL;
                         // Remove the old key from the hash table
+                        tld_strbuf_copy(tmp, entry->value);
+
                         tld_template_remove(h, key);
                         // Add the new key with the existing replacement
-                        tld_template_add(&h, new_key, TLD_STR(entry->value));
+                        tld_template_add(&h, new_key, TLD_STR(tmp));
+                        tld_strbuf_free(tmp);
                         return OK;
                 }
                 entry = entry->next;
