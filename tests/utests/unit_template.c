@@ -116,7 +116,7 @@ int test_hash_operations(void) {
                 tld_template_get(hash, key, &value);
                 printf("%s: %s\n", key, value); // Expected: valuei
         }
-
+        tld_template_hash_print(hash);
         // Step 10: Clean up
         printf("Freeing hash...\n");
         tld_template_hash_free(hash);

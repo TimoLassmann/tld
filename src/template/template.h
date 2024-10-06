@@ -14,6 +14,7 @@ tld_external int tld_template_remove(tld_template_hash *h, char *key);
 
 tld_external  int tld_template_hash_alloc(tld_template_hash **hash, int size);
 tld_external void tld_template_hash_free(tld_template_hash *h);
+tld_external  int tld_template_hash_print(tld_template_hash *h);
 
 tld_external  int tld_template_apply(tld_strbuf *txt, tld_template_hash *map);
 

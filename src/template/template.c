@@ -182,6 +182,20 @@ ERROR:
         return FAIL;
 }
 
+int tld_template_hash_print(tld_template_hash *h)
+{
+        if(h){
+                for(int i = 0; i < h->table_size; i++){
+                        tld_template_hash_entry* entry = h->table[i];
+                        while(entry){
+                                fprintf(stdout,"%s: %s\n", TLD_STR(entry->key), TLD_STR(entry->value));
+                                entry = entry->next;
+                        }
+                }
+        }
+        return OK;
+}
+
 void tld_template_hash_free(tld_template_hash *h)
 {
         if(h){
