@@ -28,7 +28,7 @@ function(add_custom_test TEST_NAME)
     PRIVATE
     tld-dev
   )
-  message(STATUS "Running test: ${TEST_NAME} with command: ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${TEST_NAME}")
+  # message(STATUS "Running test: ${TEST_NAME} with command: ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${TEST_NAME}")
   add_test(
     NAME ${TEST_NAME}
     COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} ${CMAKE_BINARY_DIR}/tests/${TEST_NAME}
@@ -45,11 +45,14 @@ if(Threads_FOUND)
   target_link_libraries(unit-tpool PRIVATE tld-dev Threads::Threads)
 endif(Threads_FOUND)
 
+add_custom_test(unit-template utests/unit_template.c)
+add_custom_test(unit-hash utests/unit_hash.c)
+
 add_custom_test(unit-core utests/unit_core.c)
 add_custom_test(unit-bit utests/unit_bitfield.c)
 add_custom_test(unit-kdtree utests/unit_kdtree.c)
 add_custom_test(unit-json utests/unit_json.c)
-add_custom_test(unit-template utests/unit_template.c)
+
 add_custom_test(unit-qnorm utests/unit_qnorm.c)
 add_custom_test(unit-auc utests/unit_auc.c)
 add_custom_test(unit-shuffle utests/unit_shuffle.c)

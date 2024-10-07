@@ -17,7 +17,7 @@
 #include "rng/tld-rng.h"
 
 #include "kdtree/tld-kdtree.h"
-
+#include "hash/hash.h"
 #ifndef BOOT
 #include "seq/tld-seq.h"
 #endif
