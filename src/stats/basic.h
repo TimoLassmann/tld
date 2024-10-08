@@ -22,7 +22,7 @@ EXTERN int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov);
 EXTERN int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr);
 
 EXTERN int tld_sigmoid(double x, double *out);
-
+EXTERN int tld_sigmoid_safe(double x, double *out);
 EXTERN int tld_normal_pdf(double x, double mu, double sigma, double* p);
 
 

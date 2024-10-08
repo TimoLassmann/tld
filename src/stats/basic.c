@@ -190,3 +190,55 @@ int tld_sigmoid(double x, double *out)
 ERROR:
         return FAIL;
 }
+
+
+int tld_sigmoid_safe(double x, double *out)
+{
+        // Define truncation limits based on double-precision floating point
+        const double MAX_X = 709.782712893384;   // Approximately log(DBL_MAX)
+        const double MIN_X = -709.782712893384;  // Approximately log(DBL_MIN)
+        double y;
+        // Handle NaN
+        if(isnan(x)){
+                y = NAN;
+                *out = y;
+                return OK;
+                /* return NAN; */
+        }
+
+        // Handle positive and negative infinity
+        if(isinf(x)){
+                if (x > 0){
+                        y = 1.0;
+                        *out = y;
+                        return OK;
+
+                }else{
+                        y = 0.0;
+                        *out = y;
+                        return OK;
+                }
+        }
+
+        // Truncate x to prevent overflow
+        if(x > MAX_X){
+                y = 1.0;
+                *out = y;
+                return OK;
+        }else if(x < MIN_X){
+                y = 0.0;
+                *out = y;
+                return OK;
+        }
+
+        // Compute sigmoid in a numerically stable way
+
+        if(x < 0.0){
+                y = exp(x);
+                y = y / (1.0 + y);
+        }else{
+                y = 1.0 / (1.0 + exp(-x));
+        }
+        *out = y;
+        return OK;
+}
