@@ -165,7 +165,9 @@ int auc_pt_sort(const void *a, const void *b)
 
         if((*one)->Y_hat > (*two)->Y_hat){
                 return -1;
-        }else{
+        }else if((*one)->Y_hat < (*two)->Y_hat){
                 return 1;
+        }else{
+                return 0;
         }
 }
