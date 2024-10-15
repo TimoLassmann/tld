@@ -79,6 +79,22 @@ int auc_test(void)
         tld_auc(labels, pred, n,&thres, &auc);
         LOG_MSG("AUC: %f Thres : %f ",auc,thres);
 
+        for(int i = 0; i  < n; i++){
+                int c=  i%3;
+                switch (c) {
+                case 0:
+                        pred[i] = 0.5;
+                        break;
+                case 1:
+                        pred[i] = 0.730001;
+                        break;
+                case 2:
+                        pred[i] = 0.9;
+                }
+        }
+        tld_auc(labels, pred, n,&thres, &auc);
+        LOG_MSG("AUC: %f Thres : %f ",auc,thres);
+
         int n_error = 0;
         int n_error_test  = 0;
         struct rng_state* rng = NULL;
@@ -101,7 +117,7 @@ int auc_test(void)
                         }
                 }
                 if(n_error_test < n_error){
-                        LOG_MSG("Threshold %f is better", t);
+                        /* LOG_MSG("Threshold %f is better", t); */
                 }
         }
         free_rng(rng);
