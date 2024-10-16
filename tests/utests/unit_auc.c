@@ -78,7 +78,9 @@ int auc_test(void)
         double thres = 0.0;
         tld_auc(labels, pred, n,&thres, &auc);
         LOG_MSG("AUC: %f Thres : %f ",auc,thres);
-
+        tld_auc_calculate(labels, pred, n, &auc);
+        tld_auc_best_threshold(labels, pred, n,&thres);
+        LOG_MSG("AUC: %f Thres : %f ",auc,thres);
         for(int i = 0; i  < n; i++){
                 int c=  i%3;
                 switch (c) {
@@ -94,6 +96,10 @@ int auc_test(void)
         }
         tld_auc(labels, pred, n,&thres, &auc);
         LOG_MSG("AUC: %f Thres : %f ",auc,thres);
+        tld_auc_calculate(labels, pred, n, &auc);
+        tld_auc_best_threshold(labels, pred, n,&thres);
+        LOG_MSG("AUC: %f Thres : %f ",auc,thres);
+
 
         int n_error = 0;
         int n_error_test  = 0;

@@ -129,3 +129,167 @@ ERROR:
         }
         return FAIL;
 }
+
+int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
+{
+        struct auc_pt** l = NULL;
+        double auc;
+
+        if (n <= 0) {
+                ERROR_MSG("TLD auc needs more than 0 datapoints");
+        }
+
+        MMALLOC(l, sizeof(struct auc_pt*) * n);
+
+        /* Populate the auc_pt list */
+        for(int i = 0; i < n; i++) {
+                l[i] = NULL;
+                if(Y[i] < 0.0 || Y[i] > 1.0) {
+                        fprintf(stderr, "label %d out of range: %f\n", i, Y[i]);
+                        goto ERROR;
+                }
+                MMALLOC(l[i], sizeof(struct auc_pt));
+                l[i]->Y = Y[i];
+                l[i]->Y_hat = Y_hat[i];
+        }
+
+        qsort(l, n, sizeof(struct auc_pt*), auc_pt_sort);
+
+        double tpr = 0.0, last_tpr = 0.0, last_fpr = 0.0;
+        int tp = 0, fp = 0;
+        int total_positive = 0, total_negative = 0;
+
+        for (int i = 0; i < n; i++) {
+                if (l[i]->Y == 1.0) {
+                        total_positive++;
+                } else {
+                        total_negative++;
+                }
+        }
+
+        auc = 0.0;
+
+        for (int i = n - 1; i >= 0; i--) {
+                if(l[i]->Y == 1.0){
+                        tp++;
+                } else {
+                        fp++;
+                }
+
+                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat){
+                        tpr = (double)tp / total_positive;
+                        double fpr = (double)fp / total_negative;
+
+                        if (i != n - 1) {
+                                auc += (fpr - last_fpr) * (tpr + last_tpr) / 2.0;
+                        }
+
+                        last_tpr = tpr;
+                        last_fpr = fpr;
+                }
+        }
+
+        *ret = auc;
+
+        for(int i = 0; i < n; i++) {
+                if(l[i]) {
+                        MFREE(l[i]);
+                }
+        }
+        MFREE(l);
+
+        return OK;
+ERROR:
+        if(l){
+                for(int i = 0; i < n; i++) {
+                        if(l[i]){
+                                MFREE(l[i]);
+                        }
+                }
+                MFREE(l);
+        }
+        return FAIL;
+}
+
+int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold)
+{
+        struct auc_pt** l = NULL;
+        double thres = 0.0;
+
+        if (n <= 0) {
+                ERROR_MSG("TLD threshold function needs more than 0 datapoints");
+        }
+
+        MMALLOC(l, sizeof(struct auc_pt*) * n);
+
+        /* Populate the auc_pt list */
+        for(int i = 0; i < n; i++) {
+                l[i] = NULL;
+                if(Y[i] < 0.0 || Y[i] > 1.0) {
+                        fprintf(stderr, "label %d out of range: %f\n", i, Y[i]);
+                        goto ERROR;
+                }
+                MMALLOC(l[i], sizeof(struct auc_pt));
+                l[i]->Y = Y[i];
+                l[i]->Y_hat = Y_hat[i];
+        }
+
+        qsort(l, n, sizeof(struct auc_pt*), auc_pt_sort);
+
+        double tpr = 0.0, last_tpr = 0.0, last_fpr = 0.0;
+        int tp = 0, fp = 0;
+        int total_positive = 0, total_negative = 0;
+
+        for (int i = 0; i < n; i++) {
+                if (l[i]->Y == 1.0) {
+                        total_positive++;
+                } else {
+                        total_negative++;
+                }
+        }
+
+        double best_distance = INFINITY;
+
+        for (int i = n - 1; i >= 0; i--) {
+                if(l[i]->Y == 1.0){
+                        tp++;
+                } else {
+                        fp++;
+                }
+
+                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat){
+                        tpr = (double)tp / total_positive;
+                        double fpr = (double)fp / total_negative;
+
+                        double distance = sqrt(pow(0.0 - fpr, 2.0) + pow(1.0 - tpr, 2.0));
+                        if (distance < best_distance) {
+                                best_distance = distance;
+                                thres = l[i]->Y_hat;
+                        }
+
+                        last_tpr = tpr;
+                        last_fpr = fpr;
+                }
+        }
+
+        *best_threshold = thres;
+
+        for(int i = 0; i < n; i++) {
+                if(l[i]) {
+                        MFREE(l[i]);
+                }
+        }
+        MFREE(l);
+
+        return OK;
+ERROR:
+        if(l){
+                for(int i = 0; i < n; i++) {
+                        if(l[i]){
+                                MFREE(l[i]);
+                        }
+                }
+                MFREE(l);
+        }
+        return FAIL;
+}
