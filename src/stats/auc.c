@@ -249,7 +249,7 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
                 }
         }
 
-        double best_distance = INFINITY;
+        double best_distance = DBL_MAX;
 
 
         for (int i = n - 1; i >= 0; i--) {
@@ -264,7 +264,7 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
                         double fpr = (double)fp / total_negative;
 
                         double distance = sqrt(pow(0.0 - fpr, 2.0) + pow(1.0 - tpr, 2.0));
-                        if (distance < best_distance && fabs(l[i]->Y_hat - thres) > FLT_EPSILON){
+                        if (distance < best_distance && fabs(l[i]->Y_hat - thres) > DBL_EPSILON){
                                 best_distance = distance;
                                 thres = l[i]->Y_hat;
                         }
@@ -290,9 +290,9 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
                         }
 
                         // Check for proximity to last unique Y_hat
-                        if (fabs(adjusted_threshold - l[i]->Y_hat) < FLT_EPSILON) {
+                        if (fabs(adjusted_threshold - l[i]->Y_hat) < DBL_EPSILON) {
                                 // Adjust the threshold if it's too close to an existing Y_hat
-                                adjusted_threshold += (adjusted_threshold > l[i]->Y_hat) ? FLT_EPSILON : -FLT_EPSILON;
+                                adjusted_threshold += (adjusted_threshold > l[i]->Y_hat) ? DBL_EPSILON : -DBL_EPSILON;
                         }
 
                         // Ensure adjusted threshold is clamped within [0, 1]
