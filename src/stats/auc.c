@@ -3,6 +3,7 @@
 
 #include "../alloc/tld-alloc.h"
 
+#include <float.h>
 #include <stdio.h>
 #include <math.h>
 
@@ -236,7 +237,7 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
 
         qsort(l, n, sizeof(struct auc_pt*), auc_pt_sort);
 
-        double tpr = 0.0, last_tpr = 0.0, last_fpr = 0.0;
+        double tpr = 0.0;
         int tp = 0, fp = 0;
         int total_positive = 0, total_negative = 0;
 
@@ -250,6 +251,7 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
 
         double best_distance = INFINITY;
 
+
         for (int i = n - 1; i >= 0; i--) {
                 if(l[i]->Y == 1.0){
                         tp++;
@@ -257,22 +259,49 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
                         fp++;
                 }
 
-                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat){
+                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat) {
+                        tpr = (double)tp / total_positive;
+                        double fpr = (double)fp / total_negative;
+
+                        double distance = sqrt(pow(0.0 - fpr, 2.0) + pow(1.0 - tpr, 2.0));
+                        if (distance < best_distance && fabs(l[i]->Y_hat - thres) > FLT_EPSILON){
+                                best_distance = distance;
+                                thres = l[i]->Y_hat;
+                        }
+                }
+        }
+
+        double adjusted_threshold = thres;
+        for (int i = n - 1; i >= 0; i--) {
+                if(l[i]->Y == 1.0) {
+                        tp++;
+                } else {
+                        fp++;
+                }
+
+                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat) {
                         tpr = (double)tp / total_positive;
                         double fpr = (double)fp / total_negative;
 
                         double distance = sqrt(pow(0.0 - fpr, 2.0) + pow(1.0 - tpr, 2.0));
                         if (distance < best_distance) {
                                 best_distance = distance;
-                                thres = l[i]->Y_hat;
+                                thres = l[i]->Y_hat;  // Update the best threshold
                         }
 
-                        last_tpr = tpr;
-                        last_fpr = fpr;
+                        // Check for proximity to last unique Y_hat
+                        if (fabs(adjusted_threshold - l[i]->Y_hat) < FLT_EPSILON) {
+                                // Adjust the threshold if it's too close to an existing Y_hat
+                                adjusted_threshold += (adjusted_threshold > l[i]->Y_hat) ? FLT_EPSILON : -FLT_EPSILON;
+                        }
+
+                        // Ensure adjusted threshold is clamped within [0, 1]
+                        adjusted_threshold = MACRO_MAX(0.0, MACRO_MIN(1.0, adjusted_threshold));
                 }
         }
 
-        *best_threshold = thres;
+        // Assign the best threshold found
+        *best_threshold = adjusted_threshold;
 
         for(int i = 0; i < n; i++) {
                 if(l[i]) {
