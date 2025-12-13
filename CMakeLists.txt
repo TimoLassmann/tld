@@ -64,11 +64,11 @@ add_subdirectory(src)
 # set(tld tld-dev)
 #add_subdirectory(dev)
 
-include(CTest)
-
-
-
-add_subdirectory(tests)
+# Only build tests when tld is the main project, not a subproject
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  include(CTest)
+  add_subdirectory(tests)
+endif()
 
   
 # Package Generator  #######################################################
