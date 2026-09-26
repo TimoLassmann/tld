@@ -3,6 +3,7 @@
 
 #include "../core/tld-core.h"
 #include <string.h>
+#include <stdlib.h>
 
 #define MFREE(p)                                        \
         if (p) {                                        \
@@ -25,6 +26,30 @@
                 ERROR_MSG("malloc of size %d failed", size);    \
                 goto ERROR;                                     \
         }                                                       \
+        memset(p, 0, size);
+
+/* MMALLOC_ALIGNED: like MMALLOC, for a struct whose declaration asks for more alignment
+ * than malloc guarantees (16 bytes on 64-bit), e.g. __attribute__((aligned(64))). Using
+ * plain malloc for such a struct breaks the promise the declaration makes to the compiler
+ * (undefined behaviour; UBSan reports "misaligned address ... requires 64 byte alignment").
+ * Pass the struct's own alignment: MMALLOC_ALIGNED(p, sizeof(struct s), _Alignof(struct s)).
+ * C11 aligned_alloc requires the size to be a multiple of the alignment, so the size is
+ * rounded up. The block is freed with plain free(), so MFREE works unchanged. */
+#define MMALLOC_ALIGNED(p, size, align)                                         \
+        if ((p) != NULL) {                                                      \
+                ERROR_MSG("malloc on a nun-null pointer");                      \
+                goto ERROR;                                                     \
+        }                                                                       \
+        if ((size) == 0) {                                                      \
+                ERROR_MSG("malloc of size %d failed", size);                    \
+                goto ERROR;                                                     \
+        }                                                                       \
+        if (((p) = aligned_alloc((align),                                       \
+                                 (((size) + (align) - 1) / (align)) * (align))) == NULL) { \
+                ERROR_MSG("aligned malloc of size %d (alignment %d) failed",    \
+                          (int)(size), (int)(align));                           \
+                goto ERROR;                                                     \
+        }                                                                       \
         memset(p, 0, size);
 
 #define MREALLOC(p, size)                                               \

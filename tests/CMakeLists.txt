@@ -71,6 +71,7 @@ add_custom_test(unit-test-suite utests/unit_tests.c)
 add_custom_test(unit-rng utests/unit_rng.c) 
 add_custom_test(unit-alpha utests/unit_alphabet.c) 
 add_custom_test(unit-logsum utests/unit_logsum.c) 
+add_custom_test(unit-align utests/unit_align.c)
 
 
 add_executable(seq_shannon itests/seq_shannon.c) 

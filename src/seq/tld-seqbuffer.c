@@ -273,7 +273,7 @@ int alloc_tl_seq_buffer(struct tl_seq_buffer** seq_buf, int size)
         struct tl_seq_buffer* sb = NULL;
         int i = 0;
         ASSERT(size > 0, "Size of sequence buffer is %d",size);
-        MMALLOC(sb,sizeof(struct tl_seq_buffer));
+        MMALLOC_ALIGNED(sb, sizeof(struct tl_seq_buffer), _Alignof(struct tl_seq_buffer));
         sb->malloc_num = size;
         sb->max_len = 0;
         sb->num_seq = 0;
@@ -348,7 +348,7 @@ int alloc_tl_seq(struct tl_seq** sequence)
 {
         struct tl_seq* s = NULL;
         /* int i = 0; */
-        MMALLOC(s, sizeof(struct tl_seq));
+        MMALLOC_ALIGNED(s, sizeof(struct tl_seq), _Alignof(struct tl_seq));
         /* s->malloc_len = 1024; */
         s->len = 0;
         s->seq = NULL;

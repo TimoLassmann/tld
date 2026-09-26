@@ -31,7 +31,7 @@ int create_alphabet(struct alphabet** alphabet, struct rng_state* rng,int type)
         int i = 0;
 
 
-        MMALLOC(a, sizeof(struct alphabet));
+        MMALLOC_ALIGNED(a, sizeof(struct alphabet), _Alignof(struct alphabet));
         a->L = 0;
 
         a->r_type = UINT8_MAX;

@@ -106,7 +106,7 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         double sum = 0.0;
         int a = 0;
         int g = 0;
-        MMALLOC(d, sizeof(struct rng_dist));
+        MMALLOC_ALIGNED(d, sizeof(struct rng_dist), _Alignof(struct rng_dist));
         d->p = NULL;
         d->a = NULL;
         d->rng = NULL;
@@ -356,7 +356,7 @@ int init_rng(struct rng_state** rng,uint64_t seed)
         /* uint64_t z = 0U; */
         /* uint64_t sanity = 0U; */
 
-        MMALLOC(s, sizeof(struct rng_state));
+        MMALLOC_ALIGNED(s, sizeof(struct rng_state), _Alignof(struct rng_state));
         s->gen = 0;
         s->z1 = 0.0F;
         s->gauss = 0.0;
@@ -463,7 +463,7 @@ int init_rng_from_rng(struct rng_state** target, struct rng_state* rng)
 {
         struct rng_state* s = NULL;
         int i = 0;
-        MMALLOC(s, sizeof(struct rng_state));
+        MMALLOC_ALIGNED(s, sizeof(struct rng_state), _Alignof(struct rng_state));
 
         for(i = 0; i < 4;i++){
                 s->s[i] = rng->s[i];
