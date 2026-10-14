@@ -48,6 +48,7 @@ int tld_strbuf_resize(tld_strbuf *b, int new_size)
 
                 gfree(b->str);
                 b->str = tmp;
+                b->alloc_len = new_size;
         }
         return OK;
 ERROR:
