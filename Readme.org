@@ -41,7 +41,7 @@ gfree(arr);
 
 =galloc= support all standard data types (=int=, =float=, =double=) any types found in =stdint.h= (uint8_t etc...). 
 
-*tld* also contains a simple wrapper for writing and reading [[ https://www.hdfgroup.org][hdf5]] files. For example this code writes an array to file =test.h5=
+*tld* also contains a simple wrapper for writing and reading [[ https://www.hdfgroup.org][hdf5]] files. This wrapper is optional and is not built by default (see [[*Optional HDF5 support][Optional HDF5 support]] below). For example this code writes an array to file =test.h5=
 
 #+begin_src C :eval never 
 struct hdf5_data* hdf5_data = NULL;
@@ -62,7 +62,17 @@ tld_hdf5_close_file(&hdf5_data);
 
 * How to build
 
-*tld* depends on the hdf5 library. To install on linux:
+#+begin_src bash :eval never 
+mkdir build
+cd build
+cmake ..
+make
+make test
+#+end_src
+
+** Optional HDF5 support
+
+HDF5 support is off by default. To enable it, first install the hdf5 library.
 
 Ubuntu/Debian:
 
@@ -76,12 +86,10 @@ On a mac via [[https://brew.sh][brew]]:
 brew install hdf5
 #+end_src
 
-Then:
+Then configure with =TLD_USE_HDF5= switched on:
 
 #+begin_src bash :eval never 
-mkdir build
-cd build
-cmake ..
-make
-make test
+cmake -DTLD_USE_HDF5=ON ..
 #+end_src
+
+When HDF5 is off, =TLD_NO_HDF5= is defined for *tld* and for any target linking against it, and the =tld_hdf5_*= functions and =HDF_*= macros are not available.

@@ -25,7 +25,7 @@
 #include "logsum/tld-logsum.h"
 
 /* #include "./hdf5/tld-hdf5_struct.h" */
-#ifndef BOOT
+#if !defined(BOOT) && !defined(TLD_NO_HDF5)
 #include "hdf5/tld-hdf5.h"
 #include "hdf5/tld-hdf5_types.h"
 #include "hdf5/tld-hdf5_tree.h"

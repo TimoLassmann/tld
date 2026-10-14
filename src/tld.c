@@ -19,7 +19,7 @@
 
 #include "logsum/tld-logsum.c"
 
-#ifndef BOOT
+#if !defined(BOOT) && !defined(TLD_NO_HDF5)
 #include "hdf5/tld-hdf5.c"
 #include "hdf5/tld-hdf5_types.c"
 #include "hdf5/tld-hdf5_tree.c"
