@@ -15,10 +15,14 @@
     X(account, "Login, passwords and access")
 AI_CHOICE(team, "Which team should handle this ticket?", TEAM)
 
-#define URGENCY(X)                                \
-    X(routine, "Can wait a week")                 \
-    X(soon,    "Should be handled this week")     \
-    X(urgent,  "Blocks the customer today")
+/* Decision models score on exactly 6 levels, lowest first. */
+#define URGENCY(X)                                      \
+    X(none,     "Needs no action")                      \
+    X(someday,  "Can wait a month or more")             \
+    X(routine,  "Can wait a week")                      \
+    X(soon,     "Should be handled this week")          \
+    X(urgent,   "Blocks the customer today")            \
+    X(critical, "Many customers are affected right now")
 AI_SCALE(urgency, "How urgent is this ticket?", URGENCY)
 
 #define FIX(X)                                                    \

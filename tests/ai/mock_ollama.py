@@ -150,10 +150,16 @@ class H(BaseHTTPRequestHandler):
                 elif q["type"] == "noul":
                     ans[name] = {"type": "noul", "noul": 0.9 if "refund" in state else 0.05}
                 else:
-                    levels = len(q["criteria"])
+                    # Shapes as returned by autotrust-jev: exactly 6 levels; score is the
+                    # probability-weighted position 0..5; legend maps position -> label.
+                    crit = list(q["criteria"])
+                    if len(crit) != 6:
+                        self.reply({"error": f'question "{name}": score criteria must '
+                                             'contain exactly 6 levels'}, 400)
+                        return
                     ans[name] = {"type": "score", "score": 1.6, "confidence": 0.7,
-                                 "legend": q["criteria"],
-                                 "probabilities": {str(i): 1 / levels for i in range(levels)}}
+                                 "legend": {str(i): c for i, c in enumerate(crit)},
+                                 "probabilities": {str(i): 1 / 6 for i in range(6)}}
             self.reply({"model": req["model"], "answers": ans,
                         "usage": {"input_tokens": 150, "output_tokens": 1}})
         else:

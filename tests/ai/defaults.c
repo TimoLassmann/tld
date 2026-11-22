@@ -14,6 +14,7 @@
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
 #include "tld_ai.h"
+#include "test.h"
 #include "status_name.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -171,6 +172,17 @@ static int mode_afterexit(void) {
 }
 
 int main(int argc, char **argv) {
+    test_init_keep(&argc, argv, "MODE ARGS...",
+                   "ai_defaults() checks, driven by tests/ai/run.sh against tests/ai/mock_ollama.py:\n"
+                   "  set HOST DB REVIEWS SRC   set every default, call each endpoint, check validation\n"
+                   "                            (SRC is \"defaults\", or \"env\" when TLD_AI_* must win)\n"
+                   "  reset HOST                a later call replaces the defaults, NULL resets\n"
+                   "  timeout HOST              a 1 s default timeout against a slow mock\n"
+                   "  stress HOST               8 threads calling while defaults change\n"
+                   "  afterexit                 a call after the exit cleanup fails cleanly\n"
+                   "HOST must be a local mock (TLD_AI_HOST wins over it).\n"
+                   "Example: ai-defaults afterexit");
+    if (argc >= 2) SECTION_MSG("ai_defaults: %s", argv[1]);
     if (argc >= 6 && !strcmp(argv[1], "set")) return mode_set(argv[2], argv[3], argv[4], argv[5]);
     if (argc >= 3 && !strcmp(argv[1], "reset")) return mode_reset(argv[2]);
     if (argc >= 3 && !strcmp(argv[1], "timeout")) return mode_timeout(argv[2]);

@@ -1,11 +1,11 @@
-# tld_ai.h tests (PRD 6.9/6.10). Programs are built from ./ai.h and ./tld.h only, with the
+# tld_ai.h tests (PRD 6.9/6.10). Programs are built from ./tld_ai.h and ./tld.h only, with the
 # same compile flags as everything else in this build; tests/ai/run.sh drives them
 # against tests/ai/mock_ollama.py. No test ever talks to a real Ollama server.
 find_package(Threads REQUIRED)
 
 function(ai_program name src)
   add_executable(${name} ${src})
-  target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/ai)
+  target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/ai)
   set_target_properties(${name} PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
   target_link_libraries(${name} PRIVATE m Threads::Threads)
 endfunction()

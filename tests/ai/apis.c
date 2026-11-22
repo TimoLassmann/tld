@@ -5,6 +5,7 @@
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
 #include "tld_ai.h"
+#include "test.h"
 #include "status_name.h"
 #include <stdio.h>
 #include <string.h>
@@ -12,8 +13,9 @@
 
 #define T2(X) X(alpha, "First") X(beta, "Second")
 AI_CHOICE(pick, "Which one?", T2)
-#define L3(X) X(low, "Low") X(mid, "Mid") X(high, "High")
-AI_SCALE(level, "How much?", L3)
+#define L6(X) X(l0, "None") X(l1, "Very low") X(l2, "Low") X(l3, "Mid") X(l4, "High") \
+              X(l5, "Very high")
+AI_SCALE(level, "How much?", L6)
 #define F(X) X(str, title, "Title") X(int, n, "Count")
 AI_STRUCT(rec, F)
 
@@ -24,15 +26,23 @@ static void check(const char *api, int failed) {
     const char *got = status_name(ai_status());
     int ok = failed && !strcmp(got, want) && ai_error()[0];
     printf("%s  %-18s %s: %s\n", ok ? "ok  " : "BAD ", api, got, ai_error());
+    if (ok) OK_MSG("%s fails with %s", api, got);
+    else KV_MSG("unexpected", "%s: %s (wanted %s)", api, got, want);
     if (!ok) bad = 1;
 }
 
 int main(int argc, char **argv) {
+    test_init_keep(&argc, argv, "EXPECTED_STATUS [MAX_SECONDS]",
+                   "Calls every tld_ai.h API that needs a server and checks that each fails with\n"
+                   "ai_status() == EXPECTED_STATUS (a name such as AI_ENOSERVER) within MAX_SECONDS\n"
+                   "(default 3). Driven by tests/ai/run.sh against a closed port or an https host.\n"
+                   "Example: TLD_AI_HOST=http://127.0.0.1:9 ai-apis AI_ENOSERVER 3");
     if (argc < 2) {
         fprintf(stderr, "usage: apis EXPECTED_STATUS [MAX_SECONDS]\n");
         return 2;
     }
     want = argv[1];
+    SECTION_MSG("every API must fail with %s", want);
     double max = argc > 2 ? atof(argv[2]) : 3.0;
     struct timespec t0, t1;
     clock_gettime(CLOCK_MONOTONIC, &t0);

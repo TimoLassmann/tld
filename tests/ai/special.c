@@ -4,6 +4,8 @@
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
 #include "tld_ai.h"
+#include "test.h"
+#include "show.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -25,17 +27,28 @@ static int put(const char *path, const char *suffix, const char *s) {
 }
 
 int main(int argc, char **argv) {
+    test_init_keep(&argc, argv, "OUT",
+                   "Sends a prompt full of quotes, control characters and UTF-8 and checks that the\n"
+                   "mock echoes it back intact; writes the exact prompt and state to OUT.prompt and\n"
+                   "OUT.state for run.sh to compare with the logged requests. Needs TLD_AI_HOST at the mock.\n"
+                   "Example: TLD_AI_HOST=http://127.0.0.1:PORT ai-special /tmp/sp");
     if (argc < 2 || put(argv[1], "prompt", prompt) || put(argv[1], "state", plain_state)) {
         fprintf(stderr, "usage: special OUT\n");
         return 2;
     }
     int bad = 0;
+    SECTION_MSG("special characters round trip");
     char *s = ai_text_with(AI_OPTS(.system = prompt), "%s", prompt);
+    show_call("ai_text_with (prompt and system full of special characters)", s != NULL);
     if (!s || strncmp(s, "Mock reply to: ", 15) || strcmp(s + 15, prompt)) {
         fprintf(stderr, "special: reply did not round-trip: %s\n", s ? s : ai_error());
         bad = 1;
     }
-    if (ai_yesno(prompt, state) < 0 || ai_yesno(prompt, plain_state) < 0) {
+    double y1 = ai_yesno(prompt, state);
+    show_call("ai_yesno (JSON state)", y1 >= 0);
+    double y2 = ai_yesno(prompt, plain_state);
+    show_call("ai_yesno (plain state)", y2 >= 0);
+    if (y1 < 0 || y2 < 0) {
         fprintf(stderr, "special: yesno: %s\n", ai_error());
         bad = 1;
     }
