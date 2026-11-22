@@ -49,6 +49,11 @@
  *   TLD_AI_TIMEOUT must be positive integers. A value that does not parse is ignored with a
  *   warning.
  *
+ *   TLD_AI_TIMEOUT bounds a whole request: loading the model and generating every token.
+ *   On a slow machine, or with a thinking model that writes long answers, raise it (for
+ *   example TLD_AI_TIMEOUT=1800). Two waits stay short whatever it says: opening the
+ *   connection gives up after 5 s, and listing the server's models after 30 s.
+ *
  * DEFAULTS SET IN CODE
  *   ai_defaults(AI_CONFIG(.host = "http://192.168.1.20:11434", .llm = "inkling-2-mini",
  *                         .decider = "autotrust-jev", .embedder = "embeddinggemma-2",

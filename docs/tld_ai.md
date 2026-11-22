@@ -95,6 +95,11 @@ TLD_AI_FRESH accepts 1/0, true/false, yes/no, on/off (any case); TLD_AI_NUM_CTX 
 TLD_AI_TIMEOUT must be positive integers. A value that does not parse is ignored with a
 warning.
 
+TLD_AI_TIMEOUT bounds a whole request: loading the model and generating every token.
+On a slow machine, or with a thinking model that writes long answers, raise it (for
+example TLD_AI_TIMEOUT=1800). Two waits stay short whatever it says: opening the
+connection gives up after 5 s, and listing the server's models after 30 s.
+
 <a id="sec-defaults-set-in-code"></a>
 
 ## Defaults set in code

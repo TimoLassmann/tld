@@ -1236,10 +1236,11 @@ int tld_template_apply(tld_strbuf *txt, tld_hash *map);
 
 Render the template in txt in place. {{name}} becomes map's value for name (nothing
 when absent); {{IF name}}A{{ELSE}}B{{ENDIF}} keeps A when name has a non-empty value
-and B otherwise (ELSE is optional; IFs nest). The text between the braces is the key
-as written (no trimming, 1 to 63 characters). map must not be NULL. A malformed
-template (unclosed IF or tag, ELSE or ENDIF without IF, an empty {{}}, an IF with no
-name) prints the reason with its byte offset and returns FAIL with txt unchanged.
+and B otherwise (ELSE is optional; IFs nest up to 512 deep). The text between the
+braces is the key as written (no trimming, 1 to 63 characters). map must not be NULL.
+A malformed template (unclosed IF or tag, ELSE or ENDIF without IF, an empty {{}}, an
+IF with no name, IFs nested deeper than 512) prints the reason with its byte offset
+and returns FAIL with txt unchanged.
 
 ```c
 tld_hash *m = NULL;
