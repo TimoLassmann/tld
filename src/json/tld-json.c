@@ -60,14 +60,8 @@ static int tld__jp_arr(tld__json_parser *p, tld_json_arr **out);
 /* path getters */
 static int tld__json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out);
 
-static tld_json_obj* tld__json_obj_add_val(tld_json_obj *obj, char* key, char* val);
-static tld_json_obj* tld__json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val);
-static tld_json_obj *tld__json_obj_add_arr(tld_json_obj *obj, char *key, tld_json_arr *val);
-static tld_json_obj *tld__json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d);
-static tld_json_arr* tld__json_arr_add_val(tld_json_arr *arr, char* val);
-static tld_json_arr* tld__json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val);
-static tld_json_arr *tld__json_arr_add_obj(tld_json_arr *arr, tld_json_obj *val);
-static tld_json_arr *tld__json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d);
+static tld_json_obj *tld__json_obj_add_entry(tld_json_obj *obj, tld_json_decoration *d);
+static tld_json_arr *tld__json_arr_add_entry(tld_json_arr *arr, tld_json_decoration *d);
 
 /* ------------------------------------------------------------------ */
 /* Parser: recursive descent directly over the input text.             */
@@ -1167,67 +1161,15 @@ static void tld__json_free_unattached(tld_json_decoration *kvs, int from, int co
         }
 }
 
-/* The add helpers return the (possibly new) container. When an entry cannot be added it
- * is dropped; a container allocated by the call is freed and NULL returned. */
-tld_json_obj* tld__json_obj_add_val(tld_json_obj *obj, char* key, char* val)
+/* The add helpers put the entry d into the next slot and return the (possibly new)
+ * container. When the entry cannot be added it is dropped (an object or array it holds
+ * stays unattached); a container allocated by the call is freed and NULL returned. */
+tld_json_obj *tld__json_obj_add_entry(tld_json_obj *obj, tld_json_decoration *d)
 {
         tld_json_obj* n = NULL;
         RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
-        RUN(tld_strbuf_append(n->key[n->n], key ? key : ""));
-        RUN(tld__json_add_val(val, (int)strlen(val), n->v[n->n]));
-        n->n++;
-        return n;
-ERROR:
-        if(obj == NULL && n){
-                tld_json_obj_free(n);
-                return NULL;
-        }
-        return obj;
-}
-
-tld_json_obj* tld__json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val)
-{
-        tld_json_obj* n = NULL;
-        RUN(tld__json_obj_slot(obj, &n));
-        tld_strbuf_clear(n->key[n->n]);
-        RUN(tld_strbuf_append(n->key[n->n], key ? key : ""));
-        n->v[n->n]->type = TLD_JSON_OBJ;
-        n->v[n->n]->value.obj = val;
-        n->n++;
-        return n;
-ERROR:
-        if(obj == NULL && n){
-                tld_json_obj_free(n);
-                return NULL;
-        }
-        return obj;
-}
-
-tld_json_obj* tld__json_obj_add_arr(tld_json_obj *obj, char* key, tld_json_arr*val)
-{
-        tld_json_obj* n = NULL;
-        RUN(tld__json_obj_slot(obj, &n));
-        tld_strbuf_clear(n->key[n->n]);
-        RUN(tld_strbuf_append(n->key[n->n], key ? key : ""));
-        n->v[n->n]->type = TLD_JSON_ARR;
-        n->v[n->n]->value.arr = val;
-        n->n++;
-        return n;
-ERROR:
-        if(obj == NULL && n){
-                tld_json_obj_free(n);
-                return NULL;
-        }
-        return obj;
-}
-
-tld_json_obj *tld__json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d)
-{
-        tld_json_obj* n = NULL;
-        RUN(tld__json_obj_slot(obj, &n));
-        tld_strbuf_clear(n->key[n->n]);
-        RUN(tld_strbuf_append(n->key[n->n], key ? key : ""));
+        RUN(tld_strbuf_append(n->key[n->n], d->key ? d->key : ""));
         RUN(tld__json_val_from_decoration(n->v[n->n], d));
         n->n++;
         return n;
@@ -1237,6 +1179,21 @@ ERROR:
                 return NULL;
         }
         return obj;
+}
+
+tld_json_arr *tld__json_arr_add_entry(tld_json_arr *arr, tld_json_decoration *d)
+{
+        tld_json_arr* n = NULL;
+        RUN(tld__json_arr_slot(arr, &n));
+        RUN(tld__json_val_from_decoration(n->v[n->n], d));
+        n->n++;
+        return n;
+ERROR:
+        if(arr == NULL && n){
+                tld_json_arr_free(n);
+                return NULL;
+        }
+        return arr;
 }
 
 /* Used by TLD_JAUTO(): the type is guessed from the text (callers rely on
@@ -1285,10 +1242,24 @@ ERROR:
         return FAIL;
 }
 
-/* Fill an empty (TLD_JSON_NULL) slot from one of the typed decorations. */
+/* Fill an empty (TLD_JSON_NULL) slot from a decoration of any kind. An object or
+   array is attached, not copied. */
 int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
 {
         switch(d->type){
+        case TLD__JVAL_AUTO:{
+                char* s = (char*)d->value;
+                RUN(tld__json_add_val(s, (int)strlen(s), v));
+                break;
+        }
+        case TLD__JVAL_OBJ:
+                v->type = TLD_JSON_OBJ;
+                v->value.obj = (tld_json_obj*)d->value;
+                break;
+        case TLD__JVAL_ARR:
+                v->type = TLD_JSON_ARR;
+                v->value.arr = (tld_json_arr*)d->value;
+                break;
         case TLD__JVAL_STR:{
                 const char* s = (const char*)d->value;
                 RUN(tld__json_val_set_str(v, s, (int)strlen(s)));
@@ -1339,24 +1310,7 @@ tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, i
                         }
                         continue;
                 }
-                switch (kvs[i].type) {
-                case TLD__JVAL_AUTO:
-                        obj = tld__json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
-                        break;
-                case TLD__JVAL_OBJ:
-                        obj = tld__json_obj_add_obj(obj, kvs[i].key, (tld_json_obj*)kvs[i].value);
-                        break;
-                case TLD__JVAL_ARR:
-                        obj = tld__json_obj_add_arr(obj, kvs[i].key, (tld_json_arr*)kvs[i].value);
-                        break;
-                case TLD__JVAL_STR:
-                case TLD__JVAL_NUM:
-                case TLD__JVAL_INT:
-                case TLD__JVAL_BOOL:
-                case TLD__JVAL_NULL:
-                        obj = tld__json_obj_add_typed(obj, kvs[i].key, &kvs[i]);
-                        break;
-                }
+                obj = tld__json_obj_add_entry(obj, &kvs[i]);
                 if(obj == NULL || obj->n != before + 1){
                         ERROR_MSG("Could not add entry %d", i + 1);
                 }
@@ -1368,68 +1322,6 @@ ERROR:
                 tld_json_obj_free(obj);
         }
         return NULL;
-}
-
-tld_json_arr* tld__json_arr_add_val(tld_json_arr *arr, char* val)
-{
-        tld_json_arr* n = NULL;
-        RUN(tld__json_arr_slot(arr, &n));
-        RUN(tld__json_add_val(val, (int)strlen(val), n->v[n->n]));
-        n->n++;
-        return n;
-ERROR:
-        if(arr == NULL && n){
-                tld_json_arr_free(n);
-                return NULL;
-        }
-        return arr;
-}
-
-tld_json_arr* tld__json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val)
-{
-        tld_json_arr* n = NULL;
-        RUN(tld__json_arr_slot(arr, &n));
-        n->v[n->n]->type = TLD_JSON_ARR;
-        n->v[n->n]->value.arr = val;
-        n->n++;
-        return n;
-ERROR:
-        if(arr == NULL && n){
-                tld_json_arr_free(n);
-                return NULL;
-        }
-        return arr;
-}
-
-tld_json_arr* tld__json_arr_add_obj(tld_json_arr *arr, tld_json_obj*val)
-{
-        tld_json_arr* n = NULL;
-        RUN(tld__json_arr_slot(arr, &n));
-        n->v[n->n]->type = TLD_JSON_OBJ;
-        n->v[n->n]->value.obj = val;
-        n->n++;
-        return n;
-ERROR:
-        if(arr == NULL && n){
-                tld_json_arr_free(n);
-                return NULL;
-        }
-        return arr;
-}
-
-tld_json_arr *tld__json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d)
-{
-        tld_json_arr* n = NULL;
-        RUN(tld__json_arr_slot(arr, &n));
-        RUN(tld__json_val_from_decoration(n->v[n->n], d));
-        n->n++;
-        return n;
-ERROR:
-        if(arr == NULL && n){
-                tld_json_arr_free(n);
-                return NULL;
-        }
-        return arr;
 }
 
 tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, int count)
@@ -1444,24 +1336,7 @@ tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, i
                         }
                         continue;
                 }
-                switch (kvs[i].type) {
-                case TLD__JVAL_AUTO:
-                        arr = tld__json_arr_add_val(arr,  (char*)kvs[i].value);
-                        break;
-                case TLD__JVAL_OBJ:
-                        arr = tld__json_arr_add_obj(arr, (tld_json_obj*)kvs[i].value);
-                        break;
-                case TLD__JVAL_ARR:
-                        arr = tld__json_arr_add_arr(arr,  (tld_json_arr*)kvs[i].value);
-                        break;
-                case TLD__JVAL_STR:
-                case TLD__JVAL_NUM:
-                case TLD__JVAL_INT:
-                case TLD__JVAL_BOOL:
-                case TLD__JVAL_NULL:
-                        arr = tld__json_arr_add_typed(arr, &kvs[i]);
-                        break;
-                }
+                arr = tld__json_arr_add_entry(arr, &kvs[i]);
                 if(arr == NULL || arr->n != before + 1){
                         ERROR_MSG("Could not add entry %d", i + 1);
                 }

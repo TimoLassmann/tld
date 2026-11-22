@@ -82,6 +82,7 @@ static uint64_t tld__rng_next(struct tld_rng* s);
 static void tld__rng_jump(struct tld_rng* s);
 
 static uint64_t tld__rng_entropy_seed(void);
+static uint64_t tld__rng_mix64(uint64_t z);
 
 static double tld__rng_standard_gamma(struct tld_rng* rng, double shape);
 static double tld__rng_standard_exponential(struct tld_rng* rng);
@@ -197,47 +198,16 @@ ERROR:
 
 int tld_rng_set_seed(struct tld_rng *s, uint64_t seed)
 {
-        uint64_t sanity = 0U;
-        uint64_t z = 0U;
-
         ASSERT(s != NULL, "No rng allocated in set seed");
         s->gauss = 0.0;
         s->has_gauss = 0;
-
-        while(!sanity){
-                sanity = 0;
-                z = (seed += 0x9e3779b97f4a7c15);
-                z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9;
-                z = (z ^ (z >> 27U)) * 0x94d049bb133111eb;
-                s->s[0] = z ^ (z >> 31U);
-                if(s->s[0]){
-                        sanity++;
+        /* splitmix64 fills the state; xoshiro needs it not all zero */
+        do{
+                for(int i = 0; i < 4; i++){
+                        seed += 0x9e3779b97f4a7c15ULL;
+                        s->s[i] = tld__rng_mix64(seed);
                 }
-                z = (seed += 0x9e3779b97f4a7c15);
-                z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9;
-                z = (z ^ (z >> 27U)) * 0x94d049bb133111eb;
-                s->s[1] = z ^ (z >> 31U);
-                if(s->s[1]){
-                        sanity++;
-                }
-
-                z = (seed += 0x9e3779b97f4a7c15);
-                z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9;
-                z = (z ^ (z >> 27U)) * 0x94d049bb133111eb;
-                s->s[2] = z ^ (z >> 31U);
-                if(s->s[2]){
-                        sanity++;
-                }
-
-                z = (seed += 0x9e3779b97f4a7c15);
-                z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9;
-                z = (z ^ (z >> 27U)) * 0x94d049bb133111eb;
-                s->s[3] = z ^ (z >> 31U);
-                if(s->s[3]){
-                        sanity++;
-                }
-        }
-
+        }while(!(s->s[0] | s->s[1] | s->s[2] | s->s[3]));
         return OK;
 ERROR:
         return FAIL;
@@ -249,8 +219,9 @@ void tld_rng_free(struct tld_rng* rng)
                 MFREE(rng);
         }
 }
+
 /* The splitmix64 output function: spreads the bits of z over all 64 bits. */
-static uint64_t tld__rng_mix64(uint64_t z)
+uint64_t tld__rng_mix64(uint64_t z)
 {
         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9ULL;
         z = (z ^ (z >> 27U)) * 0x94d049bb133111ebULL;

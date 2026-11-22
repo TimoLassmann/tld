@@ -12,6 +12,7 @@
 static int tld__kde_copy_steps(double *data, int data_len, double ***ret);
 static int tld__kde_create_steps(double *data, int data_len, int n_steps, double band, double*** ret);
 static int tld__kde_default_bandwidth(double *x,double* cnt, int len, double* band);
+static int tld__kde_eval(double **ladder, int n_pts, const double *data, const double *cnt, int data_len, double band, double total);
 
 int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
 {
@@ -30,18 +31,7 @@ int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
         RUN(tld__kde_create_steps(data,data_len, n_steps, band, &ladder));
 
         total_cnt = data_len;
-
-        for(int i = 0; i < n_steps;i++){
-                double d = 0.0;
-
-                for(int j = 0; j < data_len; j++){
-                        double add_d = 0.0;
-                        RUN(tld_normal_pdf(ladder[i][0], data[j], band,&add_d));
-                        d+= add_d;
-                }
-                d  = d / total_cnt;
-                ladder[i][1] = d;
-        }
+        RUN(tld__kde_eval(ladder, n_steps, data, NULL, data_len, band, total_cnt));
 
         *out = ladder;
 
@@ -76,18 +66,7 @@ int tld_kde_count_pdf(double *data,double* cnt, int data_len, double*** out)
 
         RUN(tld__kde_default_bandwidth(data,cnt,data_len,&band));
 
-        for(int i = 0; i < data_len;i++){
-                double d = 0.0;
-
-                for(int j = 0; j < data_len; j++){
-                        double add_d = 0.0;
-                        RUN(tld_normal_pdf(ladder[i][0], data[j], band,&add_d));
-                        add_d = add_d * cnt[j];
-                        d+= add_d;
-                }
-                d  = d / total_cnt;
-                ladder[i][1] = d;
-        }
+        RUN(tld__kde_eval(ladder, data_len, data, cnt, data_len, band, total_cnt));
 
         *out = ladder;
 
@@ -96,6 +75,26 @@ ERROR:
         if(ladder){
                 gfree(ladder);
         }
+        return FAIL;
+}
+
+/* ladder[i][1] = sum over j of w[j] * N(ladder[i][0]; data[j], band) / total, for
+   i < n_pts, with w = cnt, or 1 when cnt is NULL. */
+int tld__kde_eval(double **ladder, int n_pts, const double *data, const double *cnt, int data_len, double band, double total)
+{
+        for(int i = 0; i < n_pts; i++){
+                double d = 0.0;
+                for(int j = 0; j < data_len; j++){
+                        double add_d = 0.0;
+                        RUN(tld_normal_pdf(ladder[i][0], data[j], band, &add_d));
+                        /* two statements: one expression may be fused into an fma */
+                        add_d = add_d * (cnt ? cnt[j] : 1.0);
+                        d += add_d;
+                }
+                ladder[i][1] = d / total;
+        }
+        return OK;
+ERROR:
         return FAIL;
 }
 

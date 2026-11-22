@@ -2008,45 +2008,25 @@ ERROR:
         return FAIL;
 }
 /* ---- src/timing/tld-timing.c ---- */
-#include <sys/time.h>
+#include <time.h>
 #include <stdio.h>
 
 
-static int tld__timeval_subtract(struct timeval *result, struct timeval end, struct timeval start);
-
-int tld__timeval_subtract(struct timeval *result, struct timeval end, struct timeval start)
-{
-        if (start.tv_usec < end.tv_usec) {
-                int nsec = (end.tv_usec - start.tv_usec) / 1000000 + 1;
-                end.tv_usec -= 1000000 * nsec;
-                end.tv_sec += nsec;
-        }
-        if (start.tv_usec - end.tv_usec > 1000000) {
-                int nsec = (end.tv_usec - start.tv_usec) / 1000000;
-                end.tv_usec += 1000000 * nsec;
-                end.tv_sec -= nsec;
-        }
-
-        result->tv_sec = end.tv_sec - start.tv_sec;
-        result->tv_usec = end.tv_usec - start.tv_usec;
-
-        return end.tv_sec < start.tv_sec;
-}
-
 void tld__timer(int end)
 {
-        static struct timeval time_start;
-        struct timeval time_end;
-        struct timeval time_diff;
+        static double time_start;
+        struct timespec now = {0};
+        double t = 0.0;
 
-        if (end) {
-                gettimeofday(&time_end, NULL);
-                if (tld__timeval_subtract(&time_diff, time_end, time_start) == 0) {
-                        LOG_MSG("exec time: %1.2fs", time_diff.tv_sec + (time_diff.tv_usec / 1000000.0));
-                }
+        if(timespec_get(&now, TIME_UTC) != TIME_UTC){
+                now.tv_sec = time(NULL);
+        }
+        t = (double) now.tv_sec + (double) now.tv_nsec / 1e9;
+        if(end){
+                LOG_MSG("exec time: %1.2fs", t - time_start);
                 return;
         }
-        gettimeofday(&time_start, NULL);
+        time_start = t;
 }
 /* ---- src/bitfield/tld-bitfield.c ---- */
 
@@ -2813,31 +2793,6 @@ ERROR:
         return FAIL;
 }
 
-void tld_json_val_free(tld_json_val* n)
-{
-        if(n){
-                switch (n->type) {
-                case TLD_JSON_DBL:
-                case TLD_JSON_INT:
-                case TLD_JSON_BOOL_TRUE:
-                case TLD_JSON_BOOL_FALSE:
-                        break;
-                case TLD_JSON_STR:
-                        tld_strbuf_free(n->value.str);
-                        break;
-                case TLD_JSON_ARR:
-                        tld_json_arr_free(n->value.arr);
-                        break;
-                case TLD_JSON_OBJ:
-                        tld_json_obj_free(n->value.obj);
-                        break;
-                case TLD_JSON_NULL:
-                        break;
-                }
-                MFREE(n);
-        }
-}
-
 /* Release whatever v owns and mark it empty. */
 static void tld__json_val_clear(tld_json_val *v)
 {
@@ -2855,6 +2810,14 @@ static void tld__json_val_clear(tld_json_val *v)
                 break;
         }
         v->type = TLD_JSON_NULL;
+}
+
+void tld_json_val_free(tld_json_val* n)
+{
+        if(n){
+                tld__json_val_clear(n);
+                MFREE(n);
+        }
 }
 
 /* Deep copy s into t. Whatever t held before is released, so t may hold a
@@ -2978,14 +2941,8 @@ static int tld__jp_arr(tld__json_parser *p, tld_json_arr **out);
 /* path getters */
 static int tld__json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out);
 
-static tld_json_obj* tld__json_obj_add_val(tld_json_obj *obj, char* key, char* val);
-static tld_json_obj* tld__json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val);
-static tld_json_obj *tld__json_obj_add_arr(tld_json_obj *obj, char *key, tld_json_arr *val);
-static tld_json_obj *tld__json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d);
-static tld_json_arr* tld__json_arr_add_val(tld_json_arr *arr, char* val);
-static tld_json_arr* tld__json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val);
-static tld_json_arr *tld__json_arr_add_obj(tld_json_arr *arr, tld_json_obj *val);
-static tld_json_arr *tld__json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d);
+static tld_json_obj *tld__json_obj_add_entry(tld_json_obj *obj, tld_json_decoration *d);
+static tld_json_arr *tld__json_arr_add_entry(tld_json_arr *arr, tld_json_decoration *d);
 
 /* ------------------------------------------------------------------ */
 /* Parser: recursive descent directly over the input text.             */
@@ -4085,67 +4042,15 @@ static void tld__json_free_unattached(tld_json_decoration *kvs, int from, int co
         }
 }
 
-/* The add helpers return the (possibly new) container. When an entry cannot be added it
- * is dropped; a container allocated by the call is freed and NULL returned. */
-tld_json_obj* tld__json_obj_add_val(tld_json_obj *obj, char* key, char* val)
+/* The add helpers put the entry d into the next slot and return the (possibly new)
+ * container. When the entry cannot be added it is dropped (an object or array it holds
+ * stays unattached); a container allocated by the call is freed and NULL returned. */
+tld_json_obj *tld__json_obj_add_entry(tld_json_obj *obj, tld_json_decoration *d)
 {
         tld_json_obj* n = NULL;
         RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
-        RUN(tld_strbuf_append(n->key[n->n], key ? key : ""));
-        RUN(tld__json_add_val(val, (int)strlen(val), n->v[n->n]));
-        n->n++;
-        return n;
-ERROR:
-        if(obj == NULL && n){
-                tld_json_obj_free(n);
-                return NULL;
-        }
-        return obj;
-}
-
-tld_json_obj* tld__json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val)
-{
-        tld_json_obj* n = NULL;
-        RUN(tld__json_obj_slot(obj, &n));
-        tld_strbuf_clear(n->key[n->n]);
-        RUN(tld_strbuf_append(n->key[n->n], key ? key : ""));
-        n->v[n->n]->type = TLD_JSON_OBJ;
-        n->v[n->n]->value.obj = val;
-        n->n++;
-        return n;
-ERROR:
-        if(obj == NULL && n){
-                tld_json_obj_free(n);
-                return NULL;
-        }
-        return obj;
-}
-
-tld_json_obj* tld__json_obj_add_arr(tld_json_obj *obj, char* key, tld_json_arr*val)
-{
-        tld_json_obj* n = NULL;
-        RUN(tld__json_obj_slot(obj, &n));
-        tld_strbuf_clear(n->key[n->n]);
-        RUN(tld_strbuf_append(n->key[n->n], key ? key : ""));
-        n->v[n->n]->type = TLD_JSON_ARR;
-        n->v[n->n]->value.arr = val;
-        n->n++;
-        return n;
-ERROR:
-        if(obj == NULL && n){
-                tld_json_obj_free(n);
-                return NULL;
-        }
-        return obj;
-}
-
-tld_json_obj *tld__json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d)
-{
-        tld_json_obj* n = NULL;
-        RUN(tld__json_obj_slot(obj, &n));
-        tld_strbuf_clear(n->key[n->n]);
-        RUN(tld_strbuf_append(n->key[n->n], key ? key : ""));
+        RUN(tld_strbuf_append(n->key[n->n], d->key ? d->key : ""));
         RUN(tld__json_val_from_decoration(n->v[n->n], d));
         n->n++;
         return n;
@@ -4155,6 +4060,21 @@ ERROR:
                 return NULL;
         }
         return obj;
+}
+
+tld_json_arr *tld__json_arr_add_entry(tld_json_arr *arr, tld_json_decoration *d)
+{
+        tld_json_arr* n = NULL;
+        RUN(tld__json_arr_slot(arr, &n));
+        RUN(tld__json_val_from_decoration(n->v[n->n], d));
+        n->n++;
+        return n;
+ERROR:
+        if(arr == NULL && n){
+                tld_json_arr_free(n);
+                return NULL;
+        }
+        return arr;
 }
 
 /* Used by TLD_JAUTO(): the type is guessed from the text (callers rely on
@@ -4203,10 +4123,24 @@ ERROR:
         return FAIL;
 }
 
-/* Fill an empty (TLD_JSON_NULL) slot from one of the typed decorations. */
+/* Fill an empty (TLD_JSON_NULL) slot from a decoration of any kind. An object or
+   array is attached, not copied. */
 int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
 {
         switch(d->type){
+        case TLD__JVAL_AUTO:{
+                char* s = (char*)d->value;
+                RUN(tld__json_add_val(s, (int)strlen(s), v));
+                break;
+        }
+        case TLD__JVAL_OBJ:
+                v->type = TLD_JSON_OBJ;
+                v->value.obj = (tld_json_obj*)d->value;
+                break;
+        case TLD__JVAL_ARR:
+                v->type = TLD_JSON_ARR;
+                v->value.arr = (tld_json_arr*)d->value;
+                break;
         case TLD__JVAL_STR:{
                 const char* s = (const char*)d->value;
                 RUN(tld__json_val_set_str(v, s, (int)strlen(s)));
@@ -4257,24 +4191,7 @@ tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, i
                         }
                         continue;
                 }
-                switch (kvs[i].type) {
-                case TLD__JVAL_AUTO:
-                        obj = tld__json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
-                        break;
-                case TLD__JVAL_OBJ:
-                        obj = tld__json_obj_add_obj(obj, kvs[i].key, (tld_json_obj*)kvs[i].value);
-                        break;
-                case TLD__JVAL_ARR:
-                        obj = tld__json_obj_add_arr(obj, kvs[i].key, (tld_json_arr*)kvs[i].value);
-                        break;
-                case TLD__JVAL_STR:
-                case TLD__JVAL_NUM:
-                case TLD__JVAL_INT:
-                case TLD__JVAL_BOOL:
-                case TLD__JVAL_NULL:
-                        obj = tld__json_obj_add_typed(obj, kvs[i].key, &kvs[i]);
-                        break;
-                }
+                obj = tld__json_obj_add_entry(obj, &kvs[i]);
                 if(obj == NULL || obj->n != before + 1){
                         ERROR_MSG("Could not add entry %d", i + 1);
                 }
@@ -4286,68 +4203,6 @@ ERROR:
                 tld_json_obj_free(obj);
         }
         return NULL;
-}
-
-tld_json_arr* tld__json_arr_add_val(tld_json_arr *arr, char* val)
-{
-        tld_json_arr* n = NULL;
-        RUN(tld__json_arr_slot(arr, &n));
-        RUN(tld__json_add_val(val, (int)strlen(val), n->v[n->n]));
-        n->n++;
-        return n;
-ERROR:
-        if(arr == NULL && n){
-                tld_json_arr_free(n);
-                return NULL;
-        }
-        return arr;
-}
-
-tld_json_arr* tld__json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val)
-{
-        tld_json_arr* n = NULL;
-        RUN(tld__json_arr_slot(arr, &n));
-        n->v[n->n]->type = TLD_JSON_ARR;
-        n->v[n->n]->value.arr = val;
-        n->n++;
-        return n;
-ERROR:
-        if(arr == NULL && n){
-                tld_json_arr_free(n);
-                return NULL;
-        }
-        return arr;
-}
-
-tld_json_arr* tld__json_arr_add_obj(tld_json_arr *arr, tld_json_obj*val)
-{
-        tld_json_arr* n = NULL;
-        RUN(tld__json_arr_slot(arr, &n));
-        n->v[n->n]->type = TLD_JSON_OBJ;
-        n->v[n->n]->value.obj = val;
-        n->n++;
-        return n;
-ERROR:
-        if(arr == NULL && n){
-                tld_json_arr_free(n);
-                return NULL;
-        }
-        return arr;
-}
-
-tld_json_arr *tld__json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d)
-{
-        tld_json_arr* n = NULL;
-        RUN(tld__json_arr_slot(arr, &n));
-        RUN(tld__json_val_from_decoration(n->v[n->n], d));
-        n->n++;
-        return n;
-ERROR:
-        if(arr == NULL && n){
-                tld_json_arr_free(n);
-                return NULL;
-        }
-        return arr;
 }
 
 tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, int count)
@@ -4362,24 +4217,7 @@ tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, i
                         }
                         continue;
                 }
-                switch (kvs[i].type) {
-                case TLD__JVAL_AUTO:
-                        arr = tld__json_arr_add_val(arr,  (char*)kvs[i].value);
-                        break;
-                case TLD__JVAL_OBJ:
-                        arr = tld__json_arr_add_obj(arr, (tld_json_obj*)kvs[i].value);
-                        break;
-                case TLD__JVAL_ARR:
-                        arr = tld__json_arr_add_arr(arr,  (tld_json_arr*)kvs[i].value);
-                        break;
-                case TLD__JVAL_STR:
-                case TLD__JVAL_NUM:
-                case TLD__JVAL_INT:
-                case TLD__JVAL_BOOL:
-                case TLD__JVAL_NULL:
-                        arr = tld__json_arr_add_typed(arr, &kvs[i]);
-                        break;
-                }
+                arr = tld__json_arr_add_entry(arr, &kvs[i]);
                 if(arr == NULL || arr->n != before + 1){
                         ERROR_MSG("Could not add entry %d", i + 1);
                 }
@@ -5162,6 +5000,7 @@ static uint64_t tld__rng_next(struct tld_rng* s);
 static void tld__rng_jump(struct tld_rng* s);
 
 static uint64_t tld__rng_entropy_seed(void);
+static uint64_t tld__rng_mix64(uint64_t z);
 
 static double tld__rng_standard_gamma(struct tld_rng* rng, double shape);
 static double tld__rng_standard_exponential(struct tld_rng* rng);
@@ -5277,47 +5116,16 @@ ERROR:
 
 int tld_rng_set_seed(struct tld_rng *s, uint64_t seed)
 {
-        uint64_t sanity = 0U;
-        uint64_t z = 0U;
-
         ASSERT(s != NULL, "No rng allocated in set seed");
         s->gauss = 0.0;
         s->has_gauss = 0;
-
-        while(!sanity){
-                sanity = 0;
-                z = (seed += 0x9e3779b97f4a7c15);
-                z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9;
-                z = (z ^ (z >> 27U)) * 0x94d049bb133111eb;
-                s->s[0] = z ^ (z >> 31U);
-                if(s->s[0]){
-                        sanity++;
+        /* splitmix64 fills the state; xoshiro needs it not all zero */
+        do{
+                for(int i = 0; i < 4; i++){
+                        seed += 0x9e3779b97f4a7c15ULL;
+                        s->s[i] = tld__rng_mix64(seed);
                 }
-                z = (seed += 0x9e3779b97f4a7c15);
-                z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9;
-                z = (z ^ (z >> 27U)) * 0x94d049bb133111eb;
-                s->s[1] = z ^ (z >> 31U);
-                if(s->s[1]){
-                        sanity++;
-                }
-
-                z = (seed += 0x9e3779b97f4a7c15);
-                z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9;
-                z = (z ^ (z >> 27U)) * 0x94d049bb133111eb;
-                s->s[2] = z ^ (z >> 31U);
-                if(s->s[2]){
-                        sanity++;
-                }
-
-                z = (seed += 0x9e3779b97f4a7c15);
-                z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9;
-                z = (z ^ (z >> 27U)) * 0x94d049bb133111eb;
-                s->s[3] = z ^ (z >> 31U);
-                if(s->s[3]){
-                        sanity++;
-                }
-        }
-
+        }while(!(s->s[0] | s->s[1] | s->s[2] | s->s[3]));
         return OK;
 ERROR:
         return FAIL;
@@ -5329,8 +5137,9 @@ void tld_rng_free(struct tld_rng* rng)
                 MFREE(rng);
         }
 }
+
 /* The splitmix64 output function: spreads the bits of z over all 64 bits. */
-static uint64_t tld__rng_mix64(uint64_t z)
+uint64_t tld__rng_mix64(uint64_t z)
 {
         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9ULL;
         z = (z ^ (z >> 27U)) * 0x94d049bb133111ebULL;
@@ -5756,19 +5565,30 @@ ERROR:
         return FAIL;
 }
 
+/* sum of (a[i] - mean(a)) * (b[i] - mean(b)): n times the population covariance, and
+   with a == b n times the population variance. */
+static int tld__stats_codev(const double *a, const double *b, int n, double *sum)
+{
+        double mean_a = 0.0;
+        double mean_b = 0.0;
+        double c = 0.0;
+        RUN(tld_mean((double *) a, n, &mean_a));
+        RUN(tld_mean((double *) b, n, &mean_b));
+        for(int i = 0; i < n; i++){
+                c += (a[i] - mean_a) * (b[i] - mean_b);
+        }
+        *sum = c;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 int tld_pop_variance(double *vec, int n, double *variance)
 {
-        ASSERT(vec != NULL, "No vector");
-        ASSERT(variance != NULL, "No output pointer");
-        double m = 0.0;
         double v = 0.0;
-        RUN(tld_mean(vec, n, &m));
-        v = 0.0;
-        for(int i = 0; i < n;i++){
-                v += pow(vec[i] - m, 2.0);
-        }
-        v /= (double) n;
-        *variance = v;
+        ASSERT(variance != NULL, "No output pointer");
+        RUN(tld__stats_codev(vec, vec, n, &v));
+        *variance = v / (double) n;
         return OK;
 ERROR:
         return FAIL;
@@ -5776,18 +5596,11 @@ ERROR:
 
 int tld_sample_variance(double *vec, int n, double *variance)
 {
-        ASSERT(vec != NULL, "No vector");
+        double v = 0.0;
         ASSERT(variance != NULL, "No output pointer");
         ASSERT(n > 1, "Sample variance needs at least two values");
-        double m = 0.0;
-        double v = 0.0;
-        RUN(tld_mean(vec, n, &m));
-        v = 0.0;
-        for(int i = 0; i < n;i++){
-                v += pow(vec[i] - m, 2.0);
-        }
-        v /= (double) (n-1);
-        *variance = v;
+        RUN(tld__stats_codev(vec, vec, n, &v));
+        *variance = v / (double) (n - 1);
         return OK;
 ERROR:
         return FAIL;
@@ -5821,21 +5634,11 @@ ERROR:
 
 int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov)
 {
-        double mean_a;
-        double mean_b;
-        double c;
+        double c = 0.0;
         ASSERT(cov != NULL, "No output pointer");
         ASSERT(n > 1, "Sample covariance needs at least two values");
-        RUN(tld_mean(vec_a, n, &mean_a));
-        RUN(tld_mean(vec_b, n, &mean_b));
-
-        c = 0.0;
-        for(int i = 0; i < n; i++){
-                c += (vec_a[i] - mean_a) * (vec_b[i] - mean_b);
-        }
-        c = c / (double) (n-1);
-
-        *cov = c;
+        RUN(tld__stats_codev(vec_a, vec_b, n, &c));
+        *cov = c / (double) (n - 1);
         return OK;
 ERROR:
         return FAIL;
@@ -5843,20 +5646,10 @@ ERROR:
 
 int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov)
 {
-        double mean_a;
-        double mean_b;
-        double c;
+        double c = 0.0;
         ASSERT(cov != NULL, "No output pointer");
-        RUN(tld_mean(vec_a, n, &mean_a));
-        RUN(tld_mean(vec_b, n, &mean_b));
-
-        c = 0.0;
-        for(int i = 0; i < n; i++){
-                c += (vec_a[i] - mean_a) * (vec_b[i] - mean_b);
-        }
-        c = c / (double) n;
-
-        *cov = c;
+        RUN(tld__stats_codev(vec_a, vec_b, n, &c));
+        *cov = c / (double) n;
         return OK;
 ERROR:
         return FAIL;
@@ -5965,6 +5758,7 @@ ERROR:
 static int tld__kde_copy_steps(double *data, int data_len, double ***ret);
 static int tld__kde_create_steps(double *data, int data_len, int n_steps, double band, double*** ret);
 static int tld__kde_default_bandwidth(double *x,double* cnt, int len, double* band);
+static int tld__kde_eval(double **ladder, int n_pts, const double *data, const double *cnt, int data_len, double band, double total);
 
 int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
 {
@@ -5983,18 +5777,7 @@ int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
         RUN(tld__kde_create_steps(data,data_len, n_steps, band, &ladder));
 
         total_cnt = data_len;
-
-        for(int i = 0; i < n_steps;i++){
-                double d = 0.0;
-
-                for(int j = 0; j < data_len; j++){
-                        double add_d = 0.0;
-                        RUN(tld_normal_pdf(ladder[i][0], data[j], band,&add_d));
-                        d+= add_d;
-                }
-                d  = d / total_cnt;
-                ladder[i][1] = d;
-        }
+        RUN(tld__kde_eval(ladder, n_steps, data, NULL, data_len, band, total_cnt));
 
         *out = ladder;
 
@@ -6029,18 +5812,7 @@ int tld_kde_count_pdf(double *data,double* cnt, int data_len, double*** out)
 
         RUN(tld__kde_default_bandwidth(data,cnt,data_len,&band));
 
-        for(int i = 0; i < data_len;i++){
-                double d = 0.0;
-
-                for(int j = 0; j < data_len; j++){
-                        double add_d = 0.0;
-                        RUN(tld_normal_pdf(ladder[i][0], data[j], band,&add_d));
-                        add_d = add_d * cnt[j];
-                        d+= add_d;
-                }
-                d  = d / total_cnt;
-                ladder[i][1] = d;
-        }
+        RUN(tld__kde_eval(ladder, data_len, data, cnt, data_len, band, total_cnt));
 
         *out = ladder;
 
@@ -6049,6 +5821,26 @@ ERROR:
         if(ladder){
                 gfree(ladder);
         }
+        return FAIL;
+}
+
+/* ladder[i][1] = sum over j of w[j] * N(ladder[i][0]; data[j], band) / total, for
+   i < n_pts, with w = cnt, or 1 when cnt is NULL. */
+int tld__kde_eval(double **ladder, int n_pts, const double *data, const double *cnt, int data_len, double band, double total)
+{
+        for(int i = 0; i < n_pts; i++){
+                double d = 0.0;
+                for(int j = 0; j < data_len; j++){
+                        double add_d = 0.0;
+                        RUN(tld_normal_pdf(ladder[i][0], data[j], band, &add_d));
+                        /* two statements: one expression may be fused into an fma */
+                        add_d = add_d * (cnt ? cnt[j] : 1.0);
+                        d += add_d;
+                }
+                ladder[i][1] = d / total;
+        }
+        return OK;
+ERROR:
         return FAIL;
 }
 
@@ -6173,7 +5965,7 @@ static int tld__qnorm_item_cmp (const void *a, const void *b);
 int tld_quantile_normalise(double **data, int n, int m)
 {
         double** data_rank = NULL;
-        tld__qnorm_item** l = NULL;
+        tld__qnorm_item* l = NULL;
 
         double sum = 0.0;
 
@@ -6188,26 +5980,18 @@ int tld_quantile_normalise(double **data, int n, int m)
         }
 
         galloc(&data_rank,n,m);
-        MMALLOC(l, sizeof(tld__qnorm_item*) * n );
-        for(int i = 0; i < n;i++){
-                l[i] = NULL;
-        }
-        for(int i = 0; i < n;i++){
-                MMALLOC(l[i], sizeof(tld__qnorm_item));
-                l[i]->v = 0.0;
-                l[i]->idx = 0;
-        }
+        MMALLOC(l, sizeof(tld__qnorm_item) * (size_t) n);
 
         /* Sorted values of each column */
         for(int column = 0; column < m; column++){
                 for(int i = 0; i < n; i++){
-                        l[i]->idx = i;
-                        l[i]->v = data[i][column];
+                        l[i].idx = i;
+                        l[i].v = data[i][column];
                 }
-                qsort(l,n,  sizeof(tld__qnorm_item*), tld__qnorm_item_cmp);
+                qsort(l, (size_t) n, sizeof(tld__qnorm_item), tld__qnorm_item_cmp);
 
                 for(int i = 0;i < n;i++){
-                        data_rank[i][column] = l[i]->v;
+                        data_rank[i][column] = l[i].v;
                 }
         }
 
@@ -6223,15 +6007,15 @@ int tld_quantile_normalise(double **data, int n, int m)
 
         for(int column = 0; column < m; column++){
                 for(int i = 0; i < n; i++){
-                        l[i]->idx = i;
-                        l[i]->v = data[i][column];
+                        l[i].idx = i;
+                        l[i].v = data[i][column];
                 }
-                qsort(l,n,  sizeof(tld__qnorm_item*), tld__qnorm_item_cmp);
+                qsort(l, (size_t) n, sizeof(tld__qnorm_item), tld__qnorm_item_cmp);
 
                 int start = 0;
                 while(start < n){
                         int end = start + 1;
-                        while(end < n && l[end]->v == l[start]->v){
+                        while(end < n && l[end].v == l[start].v){
                                 end++;
                         }
                         sum = 0.0;
@@ -6240,16 +6024,13 @@ int tld_quantile_normalise(double **data, int n, int m)
                         }
                         sum /= (double) (end - start);
                         for(int k = start; k < end; k++){
-                                data[l[k]->idx][column] = sum;
+                                data[l[k].idx][column] = sum;
                         }
                         start = end;
                 }
         }
 
         gfree(data_rank);
-        for(int i = 0; i < n;i++){
-                MFREE(l[i]);
-        }
         MFREE(l);
         return OK;
 ERROR:
@@ -6257,11 +6038,6 @@ ERROR:
                 gfree(data_rank);
         }
         if(l){
-                for(int i = 0; i < n;i++){
-                        if(l[i]){
-                                MFREE(l[i]);
-                        }
-                }
                 MFREE(l);
         }
         return FAIL;
@@ -6269,17 +6045,17 @@ ERROR:
 
 int tld__qnorm_item_cmp (const void *a, const void *b)
 {
-        tld__qnorm_item * const *one = a;
-        tld__qnorm_item * const *two = b;
-        if((*one)->v > (*two)->v){
+        const tld__qnorm_item *one = a;
+        const tld__qnorm_item *two = b;
+        if(one->v > two->v){
                 return 1;
-        }else if((*one)->v < (*two)->v){
+        }else if(one->v < two->v){
                 return -1;
         }
         /* Equal values: order by original index so the sort is deterministic */
-        if((*one)->idx > (*two)->idx){
+        if(one->idx > two->idx){
                 return 1;
-        }else if((*one)->idx < (*two)->idx){
+        }else if(one->idx < two->idx){
                 return -1;
         }
         return 0;
@@ -6290,7 +6066,6 @@ int tld__qnorm_item_cmp (const void *a, const void *b)
 #include <float.h>
 #include <math.h>
 
-/* Unified Struct Definition */
 struct tld__auc_pt {
         double Y;
         double Y_hat;
@@ -6298,14 +6073,14 @@ struct tld__auc_pt {
 
 static int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out);
 
-/* Comparator function for qsort to sort in ascending order */
+/* qsort comparator: ascending Y_hat */
 static int tld__auc_pt_sort(const void *a, const void *b) {
-        struct tld__auc_pt * const *one = a;
-        struct tld__auc_pt * const *two = b;
+        const struct tld__auc_pt *one = a;
+        const struct tld__auc_pt *two = b;
 
-        if ((*one)->Y_hat < (*two)->Y_hat) {
+        if (one->Y_hat < two->Y_hat) {
                 return -1;
-        } else if ((*one)->Y_hat > (*two)->Y_hat) {
+        } else if (one->Y_hat > two->Y_hat) {
                 return 1;
         } else {
                 return 0;
@@ -6317,7 +6092,7 @@ static int tld__auc_pt_sort(const void *a, const void *b) {
    step) and records the score nearest to the (0,1) corner. */
 int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out)
 {
-        struct tld__auc_pt** l = NULL;
+        struct tld__auc_pt* l = NULL;
         double thres = 0.0;
         double auc = 0.0;
         double tpr = 0.0;
@@ -6334,10 +6109,7 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
         ASSERT(Y != NULL, "No labels");
         ASSERT(Y_hat != NULL, "No predictions");
 
-        MMALLOC(l, sizeof(struct tld__auc_pt*) * n);
-        for(int i = 0; i < n; i++) {
-                l[i] = NULL;
-        }
+        MMALLOC(l, sizeof(struct tld__auc_pt) * (size_t) n);
 
         for(int i = 0; i < n; i++) {
                 if(!(Y[i] >= 0.0 && Y[i] <= 1.0)) {
@@ -6346,9 +6118,8 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
                 if(isnan(Y_hat[i])) {
                         ERROR_MSG("prediction %d is NaN", i);
                 }
-                MMALLOC(l[i], sizeof(struct tld__auc_pt));
-                l[i]->Y = Y[i];
-                l[i]->Y_hat = Y_hat[i];
+                l[i].Y = Y[i];
+                l[i].Y_hat = Y_hat[i];
                 if (Y[i] == 1.0) {
                         total_positive++;
                 } else {
@@ -6360,16 +6131,16 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
                 ERROR_MSG("AUC needs both classes (%d positive, %d negative)", total_positive, total_negative);
         }
 
-        qsort(l, n, sizeof(struct tld__auc_pt*), tld__auc_pt_sort);
+        qsort(l, (size_t) n, sizeof(struct tld__auc_pt), tld__auc_pt_sort);
 
         for (int i = n - 1; i >= 0; i--) {
-                if(l[i]->Y == 1.0){
+                if(l[i].Y == 1.0){
                         tp++;
                 } else {
                         fp++;
                 }
 
-                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat){
+                if(i == 0 || l[i].Y_hat != l[i-1].Y_hat){
                         tpr = (double)tp / (double)total_positive;
                         fpr = (double)fp / (double)total_negative;
 
@@ -6378,7 +6149,7 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
                         double distance = sqrt(fpr * fpr + (1.0 - tpr) * (1.0 - tpr));
                         if (distance < best_distance) {
                                 best_distance = distance;
-                                thres = l[i]->Y_hat;
+                                thres = l[i].Y_hat;
                         }
 
                         last_tpr = tpr;
@@ -6389,18 +6160,10 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
         *auc_out = auc;
         *thres_out = thres;
 
-        for(int i = 0; i < n; i++) {
-                MFREE(l[i]);
-        }
         MFREE(l);
         return OK;
 ERROR:
         if(l){
-                for(int i = 0; i < n; i++) {
-                        if(l[i]){
-                                MFREE(l[i]);
-                        }
-                }
                 MFREE(l);
         }
         return FAIL;

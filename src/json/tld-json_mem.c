@@ -212,31 +212,6 @@ ERROR:
         return FAIL;
 }
 
-void tld_json_val_free(tld_json_val* n)
-{
-        if(n){
-                switch (n->type) {
-                case TLD_JSON_DBL:
-                case TLD_JSON_INT:
-                case TLD_JSON_BOOL_TRUE:
-                case TLD_JSON_BOOL_FALSE:
-                        break;
-                case TLD_JSON_STR:
-                        tld_strbuf_free(n->value.str);
-                        break;
-                case TLD_JSON_ARR:
-                        tld_json_arr_free(n->value.arr);
-                        break;
-                case TLD_JSON_OBJ:
-                        tld_json_obj_free(n->value.obj);
-                        break;
-                case TLD_JSON_NULL:
-                        break;
-                }
-                MFREE(n);
-        }
-}
-
 /* Release whatever v owns and mark it empty. */
 static void tld__json_val_clear(tld_json_val *v)
 {
@@ -254,6 +229,14 @@ static void tld__json_val_clear(tld_json_val *v)
                 break;
         }
         v->type = TLD_JSON_NULL;
+}
+
+void tld_json_val_free(tld_json_val* n)
+{
+        if(n){
+                tld__json_val_clear(n);
+                MFREE(n);
+        }
 }
 
 /* Deep copy s into t. Whatever t held before is released, so t may hold a

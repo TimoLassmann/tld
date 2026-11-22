@@ -47,19 +47,30 @@ ERROR:
         return FAIL;
 }
 
+/* sum of (a[i] - mean(a)) * (b[i] - mean(b)): n times the population covariance, and
+   with a == b n times the population variance. */
+static int tld__stats_codev(const double *a, const double *b, int n, double *sum)
+{
+        double mean_a = 0.0;
+        double mean_b = 0.0;
+        double c = 0.0;
+        RUN(tld_mean((double *) a, n, &mean_a));
+        RUN(tld_mean((double *) b, n, &mean_b));
+        for(int i = 0; i < n; i++){
+                c += (a[i] - mean_a) * (b[i] - mean_b);
+        }
+        *sum = c;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 int tld_pop_variance(double *vec, int n, double *variance)
 {
-        ASSERT(vec != NULL, "No vector");
-        ASSERT(variance != NULL, "No output pointer");
-        double m = 0.0;
         double v = 0.0;
-        RUN(tld_mean(vec, n, &m));
-        v = 0.0;
-        for(int i = 0; i < n;i++){
-                v += pow(vec[i] - m, 2.0);
-        }
-        v /= (double) n;
-        *variance = v;
+        ASSERT(variance != NULL, "No output pointer");
+        RUN(tld__stats_codev(vec, vec, n, &v));
+        *variance = v / (double) n;
         return OK;
 ERROR:
         return FAIL;
@@ -67,18 +78,11 @@ ERROR:
 
 int tld_sample_variance(double *vec, int n, double *variance)
 {
-        ASSERT(vec != NULL, "No vector");
+        double v = 0.0;
         ASSERT(variance != NULL, "No output pointer");
         ASSERT(n > 1, "Sample variance needs at least two values");
-        double m = 0.0;
-        double v = 0.0;
-        RUN(tld_mean(vec, n, &m));
-        v = 0.0;
-        for(int i = 0; i < n;i++){
-                v += pow(vec[i] - m, 2.0);
-        }
-        v /= (double) (n-1);
-        *variance = v;
+        RUN(tld__stats_codev(vec, vec, n, &v));
+        *variance = v / (double) (n - 1);
         return OK;
 ERROR:
         return FAIL;
@@ -112,21 +116,11 @@ ERROR:
 
 int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov)
 {
-        double mean_a;
-        double mean_b;
-        double c;
+        double c = 0.0;
         ASSERT(cov != NULL, "No output pointer");
         ASSERT(n > 1, "Sample covariance needs at least two values");
-        RUN(tld_mean(vec_a, n, &mean_a));
-        RUN(tld_mean(vec_b, n, &mean_b));
-
-        c = 0.0;
-        for(int i = 0; i < n; i++){
-                c += (vec_a[i] - mean_a) * (vec_b[i] - mean_b);
-        }
-        c = c / (double) (n-1);
-
-        *cov = c;
+        RUN(tld__stats_codev(vec_a, vec_b, n, &c));
+        *cov = c / (double) (n - 1);
         return OK;
 ERROR:
         return FAIL;
@@ -134,20 +128,10 @@ ERROR:
 
 int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov)
 {
-        double mean_a;
-        double mean_b;
-        double c;
+        double c = 0.0;
         ASSERT(cov != NULL, "No output pointer");
-        RUN(tld_mean(vec_a, n, &mean_a));
-        RUN(tld_mean(vec_b, n, &mean_b));
-
-        c = 0.0;
-        for(int i = 0; i < n; i++){
-                c += (vec_a[i] - mean_a) * (vec_b[i] - mean_b);
-        }
-        c = c / (double) n;
-
-        *cov = c;
+        RUN(tld__stats_codev(vec_a, vec_b, n, &c));
+        *cov = c / (double) n;
         return OK;
 ERROR:
         return FAIL;

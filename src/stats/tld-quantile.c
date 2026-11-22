@@ -17,7 +17,7 @@ static int tld__qnorm_item_cmp (const void *a, const void *b);
 int tld_quantile_normalise(double **data, int n, int m)
 {
         double** data_rank = NULL;
-        tld__qnorm_item** l = NULL;
+        tld__qnorm_item* l = NULL;
 
         double sum = 0.0;
 
@@ -32,26 +32,18 @@ int tld_quantile_normalise(double **data, int n, int m)
         }
 
         galloc(&data_rank,n,m);
-        MMALLOC(l, sizeof(tld__qnorm_item*) * n );
-        for(int i = 0; i < n;i++){
-                l[i] = NULL;
-        }
-        for(int i = 0; i < n;i++){
-                MMALLOC(l[i], sizeof(tld__qnorm_item));
-                l[i]->v = 0.0;
-                l[i]->idx = 0;
-        }
+        MMALLOC(l, sizeof(tld__qnorm_item) * (size_t) n);
 
         /* Sorted values of each column */
         for(int column = 0; column < m; column++){
                 for(int i = 0; i < n; i++){
-                        l[i]->idx = i;
-                        l[i]->v = data[i][column];
+                        l[i].idx = i;
+                        l[i].v = data[i][column];
                 }
-                qsort(l,n,  sizeof(tld__qnorm_item*), tld__qnorm_item_cmp);
+                qsort(l, (size_t) n, sizeof(tld__qnorm_item), tld__qnorm_item_cmp);
 
                 for(int i = 0;i < n;i++){
-                        data_rank[i][column] = l[i]->v;
+                        data_rank[i][column] = l[i].v;
                 }
         }
 
@@ -67,15 +59,15 @@ int tld_quantile_normalise(double **data, int n, int m)
 
         for(int column = 0; column < m; column++){
                 for(int i = 0; i < n; i++){
-                        l[i]->idx = i;
-                        l[i]->v = data[i][column];
+                        l[i].idx = i;
+                        l[i].v = data[i][column];
                 }
-                qsort(l,n,  sizeof(tld__qnorm_item*), tld__qnorm_item_cmp);
+                qsort(l, (size_t) n, sizeof(tld__qnorm_item), tld__qnorm_item_cmp);
 
                 int start = 0;
                 while(start < n){
                         int end = start + 1;
-                        while(end < n && l[end]->v == l[start]->v){
+                        while(end < n && l[end].v == l[start].v){
                                 end++;
                         }
                         sum = 0.0;
@@ -84,16 +76,13 @@ int tld_quantile_normalise(double **data, int n, int m)
                         }
                         sum /= (double) (end - start);
                         for(int k = start; k < end; k++){
-                                data[l[k]->idx][column] = sum;
+                                data[l[k].idx][column] = sum;
                         }
                         start = end;
                 }
         }
 
         gfree(data_rank);
-        for(int i = 0; i < n;i++){
-                MFREE(l[i]);
-        }
         MFREE(l);
         return OK;
 ERROR:
@@ -101,11 +90,6 @@ ERROR:
                 gfree(data_rank);
         }
         if(l){
-                for(int i = 0; i < n;i++){
-                        if(l[i]){
-                                MFREE(l[i]);
-                        }
-                }
                 MFREE(l);
         }
         return FAIL;
@@ -113,17 +97,17 @@ ERROR:
 
 int tld__qnorm_item_cmp (const void *a, const void *b)
 {
-        tld__qnorm_item * const *one = a;
-        tld__qnorm_item * const *two = b;
-        if((*one)->v > (*two)->v){
+        const tld__qnorm_item *one = a;
+        const tld__qnorm_item *two = b;
+        if(one->v > two->v){
                 return 1;
-        }else if((*one)->v < (*two)->v){
+        }else if(one->v < two->v){
                 return -1;
         }
         /* Equal values: order by original index so the sort is deterministic */
-        if((*one)->idx > (*two)->idx){
+        if(one->idx > two->idx){
                 return 1;
-        }else if((*one)->idx < (*two)->idx){
+        }else if(one->idx < two->idx){
                 return -1;
         }
         return 0;

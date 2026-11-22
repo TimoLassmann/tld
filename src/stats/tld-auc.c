@@ -5,7 +5,6 @@
 #include <float.h>
 #include <math.h>
 
-/* Unified Struct Definition */
 struct tld__auc_pt {
         double Y;
         double Y_hat;
@@ -13,14 +12,14 @@ struct tld__auc_pt {
 
 static int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out);
 
-/* Comparator function for qsort to sort in ascending order */
+/* qsort comparator: ascending Y_hat */
 static int tld__auc_pt_sort(const void *a, const void *b) {
-        struct tld__auc_pt * const *one = a;
-        struct tld__auc_pt * const *two = b;
+        const struct tld__auc_pt *one = a;
+        const struct tld__auc_pt *two = b;
 
-        if ((*one)->Y_hat < (*two)->Y_hat) {
+        if (one->Y_hat < two->Y_hat) {
                 return -1;
-        } else if ((*one)->Y_hat > (*two)->Y_hat) {
+        } else if (one->Y_hat > two->Y_hat) {
                 return 1;
         } else {
                 return 0;
@@ -32,7 +31,7 @@ static int tld__auc_pt_sort(const void *a, const void *b) {
    step) and records the score nearest to the (0,1) corner. */
 int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out)
 {
-        struct tld__auc_pt** l = NULL;
+        struct tld__auc_pt* l = NULL;
         double thres = 0.0;
         double auc = 0.0;
         double tpr = 0.0;
@@ -49,10 +48,7 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
         ASSERT(Y != NULL, "No labels");
         ASSERT(Y_hat != NULL, "No predictions");
 
-        MMALLOC(l, sizeof(struct tld__auc_pt*) * n);
-        for(int i = 0; i < n; i++) {
-                l[i] = NULL;
-        }
+        MMALLOC(l, sizeof(struct tld__auc_pt) * (size_t) n);
 
         for(int i = 0; i < n; i++) {
                 if(!(Y[i] >= 0.0 && Y[i] <= 1.0)) {
@@ -61,9 +57,8 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
                 if(isnan(Y_hat[i])) {
                         ERROR_MSG("prediction %d is NaN", i);
                 }
-                MMALLOC(l[i], sizeof(struct tld__auc_pt));
-                l[i]->Y = Y[i];
-                l[i]->Y_hat = Y_hat[i];
+                l[i].Y = Y[i];
+                l[i].Y_hat = Y_hat[i];
                 if (Y[i] == 1.0) {
                         total_positive++;
                 } else {
@@ -75,16 +70,16 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
                 ERROR_MSG("AUC needs both classes (%d positive, %d negative)", total_positive, total_negative);
         }
 
-        qsort(l, n, sizeof(struct tld__auc_pt*), tld__auc_pt_sort);
+        qsort(l, (size_t) n, sizeof(struct tld__auc_pt), tld__auc_pt_sort);
 
         for (int i = n - 1; i >= 0; i--) {
-                if(l[i]->Y == 1.0){
+                if(l[i].Y == 1.0){
                         tp++;
                 } else {
                         fp++;
                 }
 
-                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat){
+                if(i == 0 || l[i].Y_hat != l[i-1].Y_hat){
                         tpr = (double)tp / (double)total_positive;
                         fpr = (double)fp / (double)total_negative;
 
@@ -93,7 +88,7 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
                         double distance = sqrt(fpr * fpr + (1.0 - tpr) * (1.0 - tpr));
                         if (distance < best_distance) {
                                 best_distance = distance;
-                                thres = l[i]->Y_hat;
+                                thres = l[i].Y_hat;
                         }
 
                         last_tpr = tpr;
@@ -104,18 +99,10 @@ int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thr
         *auc_out = auc;
         *thres_out = thres;
 
-        for(int i = 0; i < n; i++) {
-                MFREE(l[i]);
-        }
         MFREE(l);
         return OK;
 ERROR:
         if(l){
-                for(int i = 0; i < n; i++) {
-                        if(l[i]){
-                                MFREE(l[i]);
-                        }
-                }
                 MFREE(l);
         }
         return FAIL;

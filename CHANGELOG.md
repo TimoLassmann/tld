@@ -124,6 +124,12 @@ tld.h to this. Old → new:
   `tld_global_stop_run`; it stops every pool for the rest of the program and is safe to
   call from a signal handler. `tld_global_stop_run`, `tld_global_cond_mutex` and
   `tld_global_cond` are gone.
+- Internal: duplicated code collapsed with no change in results (checked bit for bit
+  against the previous build): one splitmix64 seeding loop, one deviation-sum helper
+  behind the variance and covariance functions, one kde evaluator, one array of
+  structs (not one allocation per element) in quantile normalisation and AUC, one add
+  helper per JSON container, `tld_json_val_free` through the clear routine, and a timer
+  without the hand-written timeval arithmetic.
 
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,
