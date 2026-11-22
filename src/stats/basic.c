@@ -7,8 +7,15 @@ int tld_shannon(double *vec, int n, double *entropy)
 {
         double t = 0.0;
         double s = 0.0;
+        ASSERT(vec != NULL, "No vector");
+        ASSERT(n > 0, "Need at least one value");
         for(int i = 0; i < n;i++){
+                ASSERT(vec[i] >= 0.0, "Value %d is negative or NaN", i);
                 t += vec[i];
+        }
+        if(t == 0.0){
+                *entropy = 0.0;
+                return OK;
         }
         for(int i = 0; i < n;i++){
                 if(vec[i]){
@@ -20,11 +27,14 @@ int tld_shannon(double *vec, int n, double *entropy)
         s = s * -1.0;
         *entropy = s;
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_mean(double *vec, int n, double *mean)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(n > 0, "Need at least one value");
         double m = 0.0;
         for(int i = 0; i < n;i++){
                 m += vec[i];
@@ -57,6 +67,7 @@ ERROR:
 int tld_sample_variance(double *vec, int n, double *variance)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(n > 1, "Sample variance needs at least two values");
         double m = 0.0;
         double v = 0.0;
         RUN(tld_mean(vec, n, &m));
@@ -100,6 +111,7 @@ int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov)
         double mean_a;
         double mean_b;
         double c;
+        ASSERT(n > 1, "Sample covariance needs at least two values");
         RUN(tld_mean(vec_a, n, &mean_a));
         RUN(tld_mean(vec_b, n, &mean_b));
 
@@ -163,7 +175,7 @@ ERROR:
 int tld_normal_pdf(double x, double mu, double sigma, double* p)
 {
         double z;
-        ASSERT(sigma != 0.0, "stdev is 0.")
+        ASSERT(sigma > 0.0, "stdev must be positive.");
         z = (x - mu) / sigma;
 
         *p = exp(-z*z*0.5) / (sigma * sqrt(2. * 3.14159265358979323846264338328));
