@@ -1100,7 +1100,7 @@ obj itself. out may be NULL to test whether the path exists.
 ### `tld_json_set_val`
 
 ```c
-TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
+TLD_API int tld_json_set_val(tld_json_obj *n, const char *path, tld_json_val *v);
 ```
 
 Set the value at a path to a deep copy of v. key is a path in the syntax of the

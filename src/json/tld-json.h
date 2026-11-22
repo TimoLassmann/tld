@@ -50,7 +50,7 @@ TLD_API int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr *
  * end of an array (v is appended). An existing value is replaced, even by one of
  * another type, and v may be part of n. Returns FAIL for a missing parent, an index
  * further past the end, or no memory. Keys containing '.' or '[' cannot be addressed. */
-TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
+TLD_API int tld_json_set_val(tld_json_obj *n, const char *path, tld_json_val *v);
 
 /* Entries for TLD_JSON_OBJECT / TLD_JSON_ARRAY. TLD_JAUTO(k, s): the string s, with its type guessed from
  * the text: "12" becomes an integer, "0.2" a number, true/false (also True, TRUE, ...) a

@@ -568,12 +568,6 @@ static double ai__now(void) {
     return (double)t.tv_sec + (double)t.tv_nsec / 1e9;
 }
 
-static char *ai__strdup(const char *s) {
-    size_t n = strlen(s) + 1;
-    char *d = malloc(n);
-    if (d) memcpy(d, s, n);
-    return d;
-}
 
 static char *ai__vfmt(const char *fmt, va_list ap) {
     va_list cp;
@@ -642,7 +636,7 @@ static void *ai__keep(void *p) {
 
 static char *ai__kdup(const char *s) {
     if (!s) return NULL;
-    char *d = ai__strdup(s);
+    char *d = strdup(s);
     if (!d) {
         ai__nomem();
         return NULL;
@@ -823,7 +817,7 @@ static int ai__strv_dup(const char *const *v, const char *const **out) {
     char **d = calloc(n + 1, sizeof *d);
     if (!d) return -1;
     for (size_t i = 0; i < n; i++)
-        if (!(d[i] = ai__strdup(v[i]))) {
+        if (!(d[i] = strdup(v[i]))) {
             ai__strv_free(d);
             return -1;
         }
@@ -849,10 +843,10 @@ static ai_opts *ai__opts_dup(const ai_opts *s) {
     *o = *s;
     o->model = o->system = o->think = o->keep_alive = o->extra_options = NULL;
     o->stop = o->images = NULL;
-    if ((s->system && !(o->system = ai__strdup(s->system))) ||
-        (s->think && !(o->think = ai__strdup(s->think))) ||
-        (s->keep_alive && !(o->keep_alive = ai__strdup(s->keep_alive))) ||
-        (s->extra_options && !(o->extra_options = ai__strdup(s->extra_options))) ||
+    if ((s->system && !(o->system = strdup(s->system))) ||
+        (s->think && !(o->think = strdup(s->think))) ||
+        (s->keep_alive && !(o->keep_alive = strdup(s->keep_alive))) ||
+        (s->extra_options && !(o->extra_options = strdup(s->extra_options))) ||
         ai__strv_dup(s->stop, &o->stop) || ai__strv_dup(s->images, &o->images)) {
         ai__opts_free(o);
         return NULL;
@@ -903,7 +897,7 @@ static int ai__env_read(ai__layer *l) {
         const char *v = getenv(names[i]);
         if (!v || !*v) continue;
         if (i < AI__NSTR) {
-            if (!(l->str[i] = ai__strdup(v))) return -1;
+            if (!(l->str[i] = strdup(v))) return -1;
             continue;
         }
         ai_f *n = &l->num[i - AI__NSTR];
@@ -988,7 +982,7 @@ static ai__conf *ai__resolve(const ai__layer *env, const ai__layer *def) {
     for (int i = 0; i < AI__NSTR; i++) {
         const char *v = env->str[i] ? env->str[i] : def->str[i] ? def->str[i]
                                                                  : ai__s_builtin[i];
-        if (!(c->str[i] = ai__strdup(v))) {
+        if (!(c->str[i] = strdup(v))) {
             ai__conf_free(c);
             return NULL;
         }
@@ -1079,7 +1073,7 @@ static int ai__layer_from(const ai_config *c, ai__layer *l) {
     const char *s[AI__NSTR] = {c->host, c->llm, c->decider, c->embedder, c->db, c->reviews};
     const ai_i *n[AI__NNUM] = {&c->num_ctx, &c->timeout, &c->fresh, &c->embed_dimensions};
     for (int i = 0; i < AI__NSTR; i++)
-        if (s[i] && !(l->str[i] = ai__strdup(s[i]))) goto nomem;
+        if (s[i] && !(l->str[i] = strdup(s[i]))) goto nomem;
     for (int i = 0; i < AI__NNUM; i++)
         if (n[i]->set) l->num[i] = AI_F((double)n[i]->v);
     if (c->opts && !(l->opts = ai__opts_dup(c->opts))) goto nomem;
@@ -1126,14 +1120,14 @@ static int ai__cache_line(tld_strbuf *line, int *skipped) {
     if (!*p) return 0;
     if (ai__parse_buf(line, &o) || !(k = ai__str(o, "key")) ||
         tld_json_get_obj(o, "response", &resp) != OK) {
-        if (o) tld_json_obj_free(o);
+        tld_json_obj_free(o);
         if (ai__t_st == AI_ENOMEM) return -1;
         (*skipped)++;
         return 0;
     }
     tld_strbuf *txt = NULL;
     int rc = ai__dump(resp, &txt, 0);
-    if (!rc && tld_hash_add(&ai__cache, (char *)k, TLD_STR(txt)) != OK) rc = ai__nomem();
+    if (!rc && tld_hash_add(&ai__cache, k, TLD_STR(txt)) != OK) rc = ai__nomem();
     tld_strbuf_free(txt);
     tld_json_obj_free(o);
     return rc;
@@ -1183,7 +1177,7 @@ static int ai__cache_open(void) {
     int rc = 0;
     pthread_mutex_lock(&ai__cache_mu);
     if (!ai__cache_file) {
-        char *path = ai__strdup(ai__c->str[AI__S_DB]);
+        char *path = strdup(ai__c->str[AI__S_DB]);
         if (!path)
             rc = ai__nomem();
         else if ((rc = ai__cache_load(path))) {
@@ -1361,11 +1355,7 @@ static int ai__dechunk(const char *s, size_t n, tld_strbuf *out) {
         i++;
         if (sz == 0) return 1; /* trailers are ignored */
         if (sz > n - i || n - i - sz < 2) return 0; /* no sz + 2: it wraps on 32-bit */
-        char save = s[i + sz];
-        ((char *)s)[i + sz] = 0;
-        int rc = tld_strbuf_append(out, (char *)s + i);
-        ((char *)s)[i + sz] = save;
-        if (rc != OK) return -2;
+        if (tld_strbuf_append_n(out, s + i, sz) != OK) return -2;
         i += sz;
         if (s[i] == '\r') i++;
         if (i >= n) return 0;
@@ -1384,7 +1374,7 @@ static void ai__http_error(const char *method, const char *path, int status,
     int st = AI_EHTTP;
     if (status == 404 && strstr(msg, "not found")) st = AI_ENOMODEL;
     ai__fail(st, "%s %s: HTTP %d: %.300s", method, path, status, msg);
-    if (o) tld_json_obj_free(o);
+    tld_json_obj_free(o);
 }
 
 /* One HTTP/1.1 request with Connection: close. body NULL = GET. On HTTP 200 returns
@@ -1414,7 +1404,7 @@ static int ai__http(const char *method, const char *path, const char *body,
                  "Content-Type: application/json\r\nContent-Length: %zu\r\n", blen);
         if (tld_strbuf_append(req, line) != OK) goto nomem;
     }
-    if (tld_strbuf_append(req, "\r\n") != OK || (body && tld_strbuf_append(req, (char *)body) != OK))
+    if (tld_strbuf_append(req, "\r\n") != OK || (body && tld_strbuf_append(req, body) != OK))
         goto nomem;
     if (ai__send_all(fd, TLD_STR(req), (size_t)req->len, deadline)) {
         if (errno == ETIMEDOUT)
@@ -1633,7 +1623,7 @@ static int ai__model_info(const char *model, char *digest, size_t dn) {
         char nm[300], key[900];
         ai__norm(name, nm, sizeof nm);
         ai__hkey(nm, key, sizeof key);
-        if (tld_hash_add(&ai__dig, key, (char *)(dg ? dg : "")) != OK) rc = ai__nomem();
+        if (tld_hash_add(&ai__dig, key, dg ? dg : "") != OK) rc = ai__nomem();
     }
     pthread_mutex_unlock(&ai__dig_mu);
     tld_json_obj_free(r);
@@ -1648,17 +1638,9 @@ static int ai__model_info(const char *model, char *digest, size_t dn) {
 /* ---- logged, cached call ------------------------------------------------ */
 
 static void ai__iso_now(char out[64]) {
-    long long t = (long long)time(NULL);
-    long long days = t / 86400, sec = t % 86400;
-    /* civil from days (Howard Hinnant) */
-    long long z = days + 719468, era = (z >= 0 ? z : z - 146096) / 146097;
-    long long doe = z - era * 146097;
-    long long yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    long long y = yoe + era * 400, doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    long long mp = (5 * doy + 2) / 153, d = doy - (153 * mp + 2) / 5 + 1;
-    long long m = mp < 10 ? mp + 3 : mp - 9;
-    snprintf(out, 64, "%04lld-%02lld-%02lldT%02lld:%02lld:%02lldZ", y + (m <= 2), m, d,
-             sec / 3600, sec / 60 % 60, sec % 60);
+    time_t t = time(NULL);
+    struct tm tm;
+    if (!gmtime_r(&t, &tm) || !strftime(out, 64, "%Y-%m-%dT%H:%M:%SZ", &tm)) out[0] = 0;
 }
 
 /* Reserve the next occurrence of base. Caller holds ai__cache_mu. */
@@ -1666,9 +1648,9 @@ static int ai__seen_next(const char *base) {
     const char *v = NULL;
     char s[24];
     int n = 0;
-    if (ai__seen && tld_hash_get(ai__seen, (char *)base, &v) == OK && v) n = atoi(v);
+    if (ai__seen && tld_hash_get(ai__seen, base, &v) == OK && v) n = atoi(v);
     snprintf(s, sizeof s, "%d", n + 1);
-    if (tld_hash_add(&ai__seen, (char *)base, s) != OK) return -1;
+    if (tld_hash_add(&ai__seen, base, s) != OK) return -1;
     return n + 1;
 }
 
@@ -1680,9 +1662,9 @@ static void ai__seen_release(const char *base, int occ) {
     const char *v = NULL;
     char s[24];
     pthread_mutex_lock(&ai__cache_mu);
-    if (ai__seen && tld_hash_get(ai__seen, (char *)base, &v) == OK && v && atoi(v) == occ) {
+    if (ai__seen && tld_hash_get(ai__seen, base, &v) == OK && v && atoi(v) == occ) {
         snprintf(s, sizeof s, "%d", occ - 1);
-        tld_hash_add(&ai__seen, (char *)base, s); /* replaces in place, cannot grow */
+        tld_hash_add(&ai__seen, base, s); /* replaces in place, cannot grow */
     }
     pthread_mutex_unlock(&ai__cache_mu);
 }
@@ -1811,7 +1793,7 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
         snprintf(key, sizeof key, "%s#%d", base, occ);
         const char *v = NULL;
         if (!fresh && !ai__c->fresh && ai__c->cache_on && ai__cache &&
-            tld_hash_get(ai__cache, key, &v) == OK && v && !(hit = ai__strdup(v)))
+            tld_hash_get(ai__cache, key, &v) == OK && v && !(hit = strdup(v)))
             occ = -1;
     }
     pthread_mutex_unlock(&ai__cache_mu);
@@ -1916,7 +1898,7 @@ static int ai__add_images(tld_json_obj **obj, const ai_opts *o) {
         char *e = NULL;
         if (ai__b64_file(*p, &e) || ai__push(&a, TLD_JSTR(NULL, e))) {
             free(e);
-            if (a) tld_json_arr_free(a);
+            tld_json_arr_free(a);
             return -1;
         }
         free(e);
@@ -1928,23 +1910,23 @@ static int ai__add_images(tld_json_obj **obj, const ai_opts *o) {
 static int ai__add_options(tld_json_obj **req, const ai_opts *o) {
     tld_json_obj *op = NULL;
     int rc = 0;
-    if (o && o->temperature.set) rc = rc || ai__put(&op, TLD_JNUM("temperature", o->temperature.v));
-    if (o && o->top_p.set) rc = rc || ai__put(&op, TLD_JNUM("top_p", o->top_p.v));
-    if (o && o->min_p.set) rc = rc || ai__put(&op, TLD_JNUM("min_p", o->min_p.v));
-    if (o && o->top_k.set) rc = rc || ai__put(&op, TLD_JINT("top_k", o->top_k.v));
-    if (o && o->seed.set) rc = rc || ai__put(&op, TLD_JINT("seed", o->seed.v));
-    if (o && o->num_ctx.set)
+    if (o->temperature.set) rc = rc || ai__put(&op, TLD_JNUM("temperature", o->temperature.v));
+    if (o->top_p.set) rc = rc || ai__put(&op, TLD_JNUM("top_p", o->top_p.v));
+    if (o->min_p.set) rc = rc || ai__put(&op, TLD_JNUM("min_p", o->min_p.v));
+    if (o->top_k.set) rc = rc || ai__put(&op, TLD_JINT("top_k", o->top_k.v));
+    if (o->seed.set) rc = rc || ai__put(&op, TLD_JINT("seed", o->seed.v));
+    if (o->num_ctx.set)
         rc = rc || ai__put(&op, TLD_JINT("num_ctx", o->num_ctx.v));
     else if (ai__c->num_ctx > 0)
         rc = rc || ai__put(&op, TLD_JINT("num_ctx", ai__c->num_ctx));
-    if (o && o->num_predict.set) rc = rc || ai__put(&op, TLD_JINT("num_predict", o->num_predict.v));
-    if (!rc && o && o->stop) {
+    if (o->num_predict.set) rc = rc || ai__put(&op, TLD_JINT("num_predict", o->num_predict.v));
+    if (!rc && o->stop) {
         tld_json_arr *a = NULL;
         for (const char *const *p = o->stop; *p && !rc; p++) rc = ai__push(&a, TLD_JSTR(NULL, *p));
         if (rc && a) tld_json_arr_free(a);
         if (!rc) rc = ai__put(&op, TLD_JARR("stop", a));
     }
-    if (!rc && o && o->extra_options) {
+    if (!rc && o->extra_options) {
         tld_json_obj *x = NULL;
         if (ai__parse(o->extra_options, &x)) {
             if (ai__t_st == AI_OK)
@@ -1961,12 +1943,12 @@ static int ai__add_options(tld_json_obj **req, const ai_opts *o) {
                 rc = ai__fail(AI_EARG, "extra_options: option name \"%.100s\" is empty or contains '.' or '['", k);
                 break;
             }
-            if (tld_json_set_val(op, (char *)k, x->v[i]) != OK) rc = ai__nomem();
+            if (tld_json_set_val(op, k, x->v[i]) != OK) rc = ai__nomem();
         }
-        if (x) tld_json_obj_free(x);
+        tld_json_obj_free(x);
     }
     if (rc) {
-        if (op) tld_json_obj_free(op);
+        tld_json_obj_free(op);
         return -1;
     }
     if (op && op->n > 0) {
@@ -1974,13 +1956,13 @@ static int ai__add_options(tld_json_obj **req, const ai_opts *o) {
     } else if (op) {
         tld_json_obj_free(op);
     }
-    if (o && o->think) {
+    if (o->think) {
         if (!strcmp(o->think, "true") || !strcmp(o->think, "false"))
             rc = ai__put(req, TLD_JBOOL("think", !strcmp(o->think, "true")));
         else
             rc = ai__put(req, TLD_JSTR("think", o->think));
     }
-    if (!rc && o && o->keep_alive) rc = ai__put(req, TLD_JSTR("keep_alive", o->keep_alive));
+    if (!rc && o->keep_alive) rc = ai__put(req, TLD_JSTR("keep_alive", o->keep_alive));
     return rc;
 }
 
@@ -1990,12 +1972,12 @@ static char *ai__chat(const ai_opts *call, const char *prompt, tld_json_obj *for
     ai_opts merged; /* the call's options over the defaults' options */
     ai__merge(call, ai__c->opts, &merged);
     const ai_opts *o = &merged;
-    const char *model = o && o->model ? o->model : ai__c->str[AI__S_LLM];
+    const char *model = o->model ? o->model : ai__c->str[AI__S_LLM];
     tld_json_obj *req = NULL, *sys = NULL, *user = NULL;
     tld_json_arr *msgs = NULL;
     char *out = NULL;
     int rc = ai__put(&req, TLD_JSTR("model", model));
-    if (!rc && o && o->system) {
+    if (!rc && o->system) {
         rc = ai__put(&sys, TLD_JSTR("role", "system")) || ai__put(&sys, TLD_JSTR("content", o->system));
         if (rc && sys) tld_json_obj_free(sys);
         if (!rc) rc = ai__push(&msgs, TLD_JOBJ(NULL, sys));
@@ -2014,9 +1996,9 @@ static char *ai__chat(const ai_opts *call, const char *prompt, tld_json_obj *for
         format = NULL;
     }
     if (!rc) rc = ai__add_options(&req, o);
-    if (format) tld_json_obj_free(format);
+    tld_json_obj_free(format);
     if (!rc) {
-        tld_json_obj *r = ai__call("/api/chat", model, req, o && o->fresh);
+        tld_json_obj *r = ai__call("/api/chat", model, req, o->fresh);
         if (r) {
             const char *c = ai__str(r, "message.content");
             const char *th = ai__str(r, "message.thinking");
@@ -2025,12 +2007,12 @@ static char *ai__chat(const ai_opts *call, const char *prompt, tld_json_obj *for
             if (th && *th) ai__t_last.thinking = ai__kdup(th);
             if (!c)
                 ai__fail(AI_EPARSE, "/api/chat: no message content in the reply");
-            else if (!(out = ai__strdup(c)))
+            else if (!(out = strdup(c)))
                 ai__nomem();
             tld_json_obj_free(r);
         }
     }
-    if (req) tld_json_obj_free(req);
+    tld_json_obj_free(req);
     return out;
 }
 
@@ -2094,10 +2076,10 @@ static tld_json_obj *ai__schema(const ai_type *t) {
         rc = ai__put(&s, TLD_JARR("required", req));
         req = NULL;
     }
-    if (props) tld_json_obj_free(props);
-    if (req) tld_json_arr_free(req);
+    tld_json_obj_free(props);
+    tld_json_arr_free(req);
     if (rc) {
-        if (s) tld_json_obj_free(s);
+        tld_json_obj_free(s);
         return NULL;
     }
     return s;
@@ -2125,7 +2107,7 @@ static int ai__unpack(void *out, const ai_type *t, const char *text) {
         case AI_T_str:
             if (tld_json_get_str(j, f->name, &s) != OK)
                 rc = -1;
-            else if (!(*(const char **)dst = ai__strdup(s)))
+            else if (!(*(const char **)dst = strdup(s)))
                 rc = ai__nomem();
             break;
         case AI_T_num:
@@ -2191,8 +2173,8 @@ int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...
     }
     snprintf(prompt, pn, "%s\n\nRespond with JSON matching this schema:\n%s", task,
              TLD_STR(sch_txt));
-    int tries = 1 + (o && o->max_retries.set ? (o->max_retries.v > 0 ? (int)o->max_retries.v : 0)
-                                            : (o && o->retries > 0 ? o->retries : 2));
+    int tries = 1 + (o->max_retries.set ? (o->max_retries.v > 0 ? (int)o->max_retries.v : 0)
+                                            : (o->retries > 0 ? o->retries : 2));
     for (int k = 0; k < tries && rc; k++) {
         tld_json_obj *fmt_copy = NULL;
         if (tld_json_obj_copy(&fmt_copy, sch) != OK) {
@@ -2222,7 +2204,7 @@ out:
     free(prompt);
     free(tmp);
     tld_strbuf_free(sch_txt);
-    if (sch) tld_json_obj_free(sch);
+    tld_json_obj_free(sch);
     ai__leave();
     return rc ? -1 : 0;
 }
@@ -2245,7 +2227,7 @@ static tld_json_obj *ai__decide(const ai_opts *call, const char *name, const cha
         ai__fail(AI_EARG, "decision: NULL question or state");
         return NULL;
     }
-    const char *model = o && o->model ? o->model : ai__c->str[AI__S_DECIDER];
+    const char *model = o->model ? o->model : ai__c->str[AI__S_DECIDER];
     tld_json_obj *req = NULL, *q = NULL, *qs = NULL, *st = NULL, *r = NULL;
     int rc = ai__put(&req, TLD_JSTR("model", model));
     const char *p = state;
@@ -2269,7 +2251,7 @@ static tld_json_obj *ai__decide(const ai_opts *call, const char *name, const cha
     ai__drop(criteria);
     if (!rc) rc = ai__add_images(&req, o);
     if (!rc) {
-        r = ai__call("/v1/systemone", model, req, o && o->fresh);
+        r = ai__call("/v1/systemone", model, req, o->fresh);
         if (r) {
             char path[300];
             snprintf(path, sizeof path, "answers.%s", name);
@@ -2282,7 +2264,7 @@ static tld_json_obj *ai__decide(const ai_opts *call, const char *name, const cha
             }
         }
     }
-    if (req) tld_json_obj_free(req);
+    tld_json_obj_free(req);
     return r;
 }
 
@@ -2293,7 +2275,7 @@ static int ai__choose_impl(const char *name, const char *question, const ai_labe
     if (!L || n <= 0) return ai__fail(AI_EARG, "%s: no labels", name ? name : "choice");
     for (int i = 0; i < n; i++)
         if (ai__put(&crit, TLD_JSTR(L[i].name, L[i].desc))) {
-            if (crit) tld_json_obj_free(crit);
+            tld_json_obj_free(crit);
             return -1;
         }
     tld_json_obj *r = ai__decide(o, name, "choice", question, TLD_JOBJ(NULL, crit), state, &a);
@@ -2324,7 +2306,7 @@ static int ai__rate_impl(const char *name, const char *question, const ai_label 
     tld_json_obj *a = NULL;
     for (int i = 0; i < n; i++)
         if (ai__push(&crit, TLD_JSTR(NULL, L[i].desc))) {
-            if (crit) tld_json_arr_free(crit);
+            tld_json_arr_free(crit);
             return -1;
         }
     tld_json_obj *r = ai__decide(o, name, "score", question, TLD_JARR(NULL, crit), state, &a);
@@ -2407,7 +2389,7 @@ static ai_vecs ai__embed_impl(const ai_opts *call, const char *const *texts, int
         ai__fail(AI_EARG, "ai_embed_all: no texts");
         return out;
     }
-    const char *model = o && o->model ? o->model : ai__c->str[AI__S_EMBEDDER];
+    const char *model = o->model ? o->model : ai__c->str[AI__S_EMBEDDER];
     tld_json_obj *req = NULL;
     tld_json_arr *in = NULL;
     int rc = ai__put(&req, TLD_JSTR("model", model));
@@ -2417,11 +2399,11 @@ static ai_vecs ai__embed_impl(const ai_opts *call, const char *const *texts, int
     }
     if (rc && in) tld_json_arr_free(in);
     if (!rc) rc = ai__put(&req, TLD_JARR("input", in));
-    if (!rc && o && o->no_truncate) rc = ai__put(&req, TLD_JBOOL("truncate", 0));
-    if (!rc && o && o->dimensions.set) rc = ai__put(&req, TLD_JINT("dimensions", o->dimensions.v));
+    if (!rc && o->no_truncate) rc = ai__put(&req, TLD_JBOOL("truncate", 0));
+    if (!rc && o->dimensions.set) rc = ai__put(&req, TLD_JINT("dimensions", o->dimensions.v));
     if (!rc) rc = ai__add_options(&req, o);
-    tld_json_obj *r = rc ? NULL : ai__call("/api/embed", model, req, o && o->fresh);
-    if (req) tld_json_obj_free(req);
+    tld_json_obj *r = rc ? NULL : ai__call("/api/embed", model, req, o->fresh);
+    tld_json_obj_free(req);
     if (!r) return out;
     ai__t_last.prompt_tokens = ai__long(r, "prompt_eval_count");
     tld_json_arr *rows = NULL;
@@ -2590,7 +2572,7 @@ static const char *ai__review_impl(const char *what, const char *payload) {
                 LOG_MSG("tld_ai: review still open: %s: %s", path, what);
             }
         }
-        if (o) tld_json_obj_free(o);
+        tld_json_obj_free(o);
     } else if (rc == 1) { /* new review */
         tld_json_obj *o = NULL;
         tld_strbuf *txt = NULL;
@@ -2612,7 +2594,7 @@ static const char *ai__review_impl(const char *what, const char *payload) {
                 LOG_MSG("tld_ai: review opened: %s: %s", path, what);
             }
         }
-        if (o) tld_json_obj_free(o);
+        tld_json_obj_free(o);
         tld_strbuf_free(txt);
     }
     pthread_mutex_unlock(&ai__review_mu);
@@ -2641,15 +2623,13 @@ static void ai__shutdown(void) {
     tld_hash_free(ai__cache);
     tld_hash_free(ai__seen);
     ai__cache = ai__seen = NULL;
+    free(ai__cache_file);
+    ai__cache_file = NULL;
     pthread_mutex_unlock(&ai__cache_mu);
     pthread_mutex_lock(&ai__dig_mu);
     tld_hash_free(ai__dig);
     ai__dig = NULL;
     pthread_mutex_unlock(&ai__dig_mu);
-    pthread_mutex_lock(&ai__cache_mu);
-    free(ai__cache_file);
-    ai__cache_file = NULL;
-    pthread_mutex_unlock(&ai__cache_mu);
     pthread_mutex_lock(&ai__cfg_mu); /* later calls fail cleanly (ai__enter) */
     if (ai__conf_cur && ai__conf_cur->refs == 0) ai__conf_free(ai__conf_cur);
     ai__conf_cur = NULL; /* one still in use is freed by its last ai__leave */

@@ -124,6 +124,18 @@ __attribute__((unused)) static void *oom_aligned_alloc(size_t a, size_t n)
         return p;
 }
 
+/* strdup allocates inside libc, out of reach of the malloc macro below: copy through
+   oom_malloc so its allocations are counted and can fail like the others. */
+__attribute__((unused)) static char *oom_strdup(const char *s)
+{
+        size_t n = strlen(s) + 1;
+        char *d = oom_malloc(n);
+        if(d){
+                memcpy(d, s, n);
+        }
+        return d;
+}
+
 __attribute__((unused)) static void oom_free(void *p)
 {
         if(p){
@@ -312,5 +324,7 @@ static int oom_main(int argc, char *argv[], const struct oom_scenario *s, int n,
 #define realloc oom_realloc
 #define aligned_alloc oom_aligned_alloc
 #define free oom_free
+#undef strdup
+#define strdup oom_strdup
 
 #endif

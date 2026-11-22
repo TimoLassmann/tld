@@ -800,7 +800,7 @@ TLD_API int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr *
  * end of an array (v is appended). An existing value is replaced, even by one of
  * another type, and v may be part of n. Returns FAIL for a missing parent, an index
  * further past the end, or no memory. Keys containing '.' or '[' cannot be addressed. */
-TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
+TLD_API int tld_json_set_val(tld_json_obj *n, const char *path, tld_json_val *v);
 
 /* Entries for TLD_JSON_OBJECT / TLD_JSON_ARRAY. TLD_JAUTO(k, s): the string s, with its type guessed from
  * the text: "12" becomes an integer, "0.2" a number, true/false (also True, TRUE, ...) a
@@ -3918,9 +3918,8 @@ ERROR:
 /* Set the value at path (same syntax as the tld_json_get_* getters) to a deep copy of v.
    The last step may name a missing key (it is added) or the index one past the end of an
    array (the value is appended); everything before it must exist. */
-int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
+int tld_json_set_val(tld_json_obj *n, const char *path, tld_json_val *v)
 {
-        const char* path = key;
         const char* last = NULL;
         tld_json_val* pv = NULL;
         tld_json_obj* po = NULL;
@@ -4018,7 +4017,7 @@ int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
                 }
                 RUN(tld__json_obj_slot(po, &r));
                 tld_strbuf_clear(po->key[po->n]);
-                RUN(tld_strbuf_append(po->key[po->n], (char*)k));
+                RUN(tld_strbuf_append(po->key[po->n], k));
                 RUN(tld_json_val_copy(po->v[po->n], v));
                 po->n++;
         }
