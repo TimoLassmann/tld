@@ -33,7 +33,9 @@ $CC -std=c11 -c -I"$SRC" "$T/impl.c" -o "$T/impl.o" || { bad "tld.h implementati
 $NM "$T/impl.o" | awk 'NF == 3 && $2 ~ /^[TDBSRCtdbsrc]$/ {print $2, $3}' | sed 's/ _/ /' > "$T/syms"
 n=$(wc -l < "$T/syms" | tr -d ' ')
 awk '$1 ~ /^[TDBSRC]$/ && $2 !~ /^tld_/ {print "global " $2}' "$T/syms" > "$T/badsym"
-awk '$1 ~ /^[tdbsrc]$/ && $2 !~ /^tld__/ && $2 !~ /[.$]/ && $2 !~ /^(l_|ltmp|L)/ {print "static " $2}' "$T/syms" >> "$T/badsym"
+# a static whose name starts with __ (still _ after the strip above) is the C library's,
+# e.g. musl's math.h inline helpers __DOUBLE_BITS / __FLOAT_BITS when not inlined
+awk '$1 ~ /^[tdbsrc]$/ && $2 !~ /^tld__/ && $2 !~ /[.$]/ && $2 !~ /^(l_|ltmp|L|_)/ {print "static " $2}' "$T/syms" >> "$T/badsym"
 if [ -s "$T/badsym" ]; then bad "symbols outside tld_ / tld__:"; sed 's/^/        /' "$T/badsym"; else echo "ok    $n symbols: globals tld_, statics tld__"; fi
 
 # macros
