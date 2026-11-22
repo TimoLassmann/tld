@@ -705,12 +705,6 @@ static int ai__push(tld_json_arr **a, tld_json_decoration d) {
     return 0;
 }
 
-/* Detach a borrowed object or array stored under key, so freeing o leaves it alone. */
-static void ai__detach(tld_json_obj *o, const char *key) {
-    for (int i = 0; o && i < o->n; i++)
-        if (!strcmp(TLD_STR(o->key[i]), key)) o->v[i]->type = TLD_JSON_UNDEF;
-}
-
 /* tld_json_dump writes indented text; drop the whitespace outside strings. */
 static void ai__compact(tld_strbuf *b) {
     char *s = (char *)b->str;
@@ -1769,39 +1763,70 @@ out:
     return rc;
 }
 
+/* One cache line in *out: {"key", "endpoint", "model", "digest", "request", "response",
+ * "seconds", "created"}. req and resp stay the caller's: they are written as text and
+ * never attached to an object that could free them. */
+static int ai__cache_entry(tld_strbuf **out, const char *key, const char *ep, const char *model,
+                          const char *digest, tld_json_obj *req, tld_json_obj *resp,
+                          double seconds, const char *created) {
+    tld_json_obj *head = NULL, *tail = NULL;
+    tld_strbuf *line = NULL, *rq = NULL, *rs = NULL, *tl = NULL;
+    int rc = ai__put(&head, JSTR("key", key)) || ai__put(&head, JSTR("endpoint", ep)) ||
+             ai__put(&head, JSTR("model", model)) || ai__put(&head, JSTR("digest", digest)) ||
+             ai__put(&tail, JNUM("seconds", seconds)) || ai__put(&tail, JSTR("created", created)) ||
+             ai__dump(head, &line, 0) || ai__dump(req, &rq, 0) || ai__dump(resp, &rs, 0) ||
+             ai__dump(tail, &tl, 0);
+    if (!rc) {
+        /* line and tl are compact {...}: drop line's '}' and tl's '{' and join */
+        line->str[--line->len] = 0;
+        const char *sep = line->len > 1 ? "," : "";
+        if (tld_append(line, sep) != OK || tld_append(line, "\"request\":") != OK ||
+            tld_append(line, TLD_STR(rq)) != OK || tld_append(line, ",\"response\":") != OK ||
+            tld_append(line, TLD_STR(rs)) != OK || tld_append(line, ",") != OK ||
+            tld_append(line, TLD_STR(tl) + 1) != OK)
+            rc = ai__nomem();
+    }
+    tld_json_obj_free(head);
+    tld_json_obj_free(tail);
+    tld_strbuf_free(rq);
+    tld_strbuf_free(rs);
+    tld_strbuf_free(tl);
+    if (rc) {
+        tld_strbuf_free(line);
+        return -1;
+    }
+    *out = line;
+    return 0;
+}
+
 static void ai__cache_store(const char *key, const char *ep, const char *model,
                             const char *digest, tld_json_obj *req, tld_json_obj *resp,
                             double seconds) {
     char created[64];
     ai__iso_now(created);
-    tld_json_obj *o = NULL;
     tld_strbuf *line = NULL;
-    int err = ai__t_st, rc;
+    int err = ai__t_st;
     char msg[512];
     ai__setstr(msg, sizeof msg, ai__t_err);
-    rc = ai__put(&o, JSTR("key", key)) || ai__put(&o, JSTR("endpoint", ep)) ||
-         ai__put(&o, JSTR("model", model)) || ai__put(&o, JSTR("digest", digest)) ||
-         ai__put(&o, JO("request", req)) || ai__put(&o, JO("response", resp)) ||
-         ai__put(&o, JNUM("seconds", seconds)) || ai__put(&o, JSTR("created", created)) ||
-         ai__dump(o, &line, 0);
-    ai__detach(o, "request");
-    ai__detach(o, "response");
-    if (o) tld_json_obj_free(o);
-    char path[1024] = "";
-    if (!rc) {
+    if (ai__cache_entry(&line, key, ep, model, digest, req, resp, seconds, created)) {
+        AI_LOG(1, "cannot write a cache entry: out of memory");
+    } else {
+        char path[1024] = "";
+        int rc = 0, e = 0;
         pthread_mutex_lock(&ai__cache_mu);
         if (ai__cache_file) {
             ai__setstr(path, sizeof path, ai__cache_file);
             rc = ai__append_line(ai__cache_file, line);
+            e = errno;
         }
         pthread_mutex_unlock(&ai__cache_mu);
+        if (rc) {
+            char m[1200];
+            snprintf(m, sizeof m, "cannot append to cache %s: %s", path, strerror(e));
+            AI_LOG(1, m);
+        }
     }
     tld_strbuf_free(line);
-    if (rc) {
-        char m[1200];
-        snprintf(m, sizeof m, "cannot append to cache %s: %s", path, strerror(errno));
-        AI_LOG(1, m);
-    }
     ai__t_st = err; /* the call itself succeeded */
     ai__setstr(ai__t_err, sizeof ai__t_err, msg);
 }

@@ -36,6 +36,7 @@ changes listed here fix bugs.
 - string: a buffer growing past about 1 GB overflowed its int size, returned OK and wrote
   past the end of the block. Sizes are computed in size_t; a buffer holds at most
   INT32_MAX - 1 bytes and an append past that fails, leaving the buffer unchanged.
+- tld_ai.h: running out of memory while writing a cache entry no longer frees the caller's request or the reply (double free or use after free in `ai_text`, `ai_text_with`, `ai_choose`, `ai_rate`, `ai_yesno`, `ai_fill` and `ai_embed_all`). The entry is now written as text and the request and reply are never attached to it. The warning then says "cannot write a cache entry: out of memory"; it said "cannot append to cache : Inappropriate ioctl for device" (no path, unrelated errno). A failed append names the file and its own error.
 - tld_ai.h: the chunked-reply decoder could wrap a size check on 32-bit systems and read past
   the reply.
 
