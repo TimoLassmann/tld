@@ -189,10 +189,10 @@ static int sc_kdtree(void)
         double q[3] = {0.5, 0.5, 0.5};
         double p[3];
         RUN(tld_kdtree_alloc(&t, 3));
-        t->rebalance_at = 40;                           /* documented as settable */
+        t->rebalance_at = 40;                           /* internal: visible with TLD_IMPLEMENTATION */
         for(int i = 0; i < 150; i++){                   /* sorted input: a degenerate tree, so it rebalances */
                 p[0] = i; p[1] = i * 0.5; p[2] = -i;
-                RUN(tld_kdtree_insert(t, p, (uint32_t)i, 3));
+                RUN(tld_kdtree_insert(t, p, (uint32_t)i));
         }
         RUN(tld_kdtree_rebalance(t));
         RUN(tld_kdtree_nn_search(t, q, &id));
@@ -200,7 +200,7 @@ static int sc_kdtree(void)
         galloc(&x, 60, 3);
         galloc(&ids, 60);
         for(int i = 0; i < 60; i++){ x[i][0] = i % 7; x[i][1] = i % 5; x[i][2] = i; ids[i] = (uint32_t)i; }
-        RUN(tld_kdtree_build(t, x, ids, 60, 3));
+        RUN(tld_kdtree_build(t, x, ids, 60));
         RUN(tld_kdtree_nn_search(t, q, &id));
         gfree(x); gfree(ids); tld_kdtree_free(t);
         return OK;
@@ -219,7 +219,7 @@ static int sc_kdtree_reuse(void)        /* a failed operation, then the tree is 
         t->rebalance_at = 30;
         for(int i = 0; i < 100; i++){
                 p[0] = i; p[1] = i;
-                if(tld_kdtree_insert(t, p, (uint32_t)i, 2) != OK){
+                if(tld_kdtree_insert(t, p, (uint32_t)i) != OK){
                         failed++;                       /* out of memory: carry on with the tree */
                 }
         }
@@ -243,12 +243,12 @@ static int sc_kdtree_grow(void)         /* growing past the initial 1024 nodes; 
         RUN(tld_kdtree_alloc(&t, 2));
         for(int i = 0; i < 1100; i++){
                 p[0] = (i * 37) % 101; p[1] = i % 13;
-                if(tld_kdtree_insert(t, p, (uint32_t)i, 2) != OK) failed++;
+                if(tld_kdtree_insert(t, p, (uint32_t)i) != OK) failed++;
         }
         galloc(&x, 900, 2);
         galloc(&ids, 900);
         for(int i = 0; i < 900; i++){ x[i][0] = i % 30 + 0.5; x[i][1] = i / 30 + 0.25; ids[i] = (uint32_t)(5000 + i); }
-        if(tld_kdtree_build(t, x, ids, 900, 2) != OK) failed++;
+        if(tld_kdtree_build(t, x, ids, 900) != OK) failed++;
         p[0] = 3.3; p[1] = 4.4;
         if(tld_kdtree_nn_search(t, p, &id) == OK && tld_kdtree_bf_search(t, p, &id_bf) == OK && id != id_bf){
                 /* a wrong answer must not hide behind the expected failure: crash */

@@ -59,9 +59,6 @@ nearly_equal_double tld_nearly_equal_double
 TLSAFE_EQ TLD_NEARLY_EQUAL
 norm_quantile tld_quantile_normalise
 kdtree tld_kdtree
-kd_node tld_kdtree_node
-kddist_euclidian tld_kdtree_dist_euclidean
-kdplane_check_euclidian tld_kdtree_plane_euclidean
 kdtree_alloc tld_kdtree_alloc
 kdtree_free tld_kdtree_free
 kdtree_reset tld_kdtree_reset

@@ -53,7 +53,7 @@ static int test_build_with_ties(void)
                 x[i][1] = (double) (i / 60);
                 ids[i] = (uint32_t) i;
         }
-        RUN(tld_kdtree_build(kd, x, ids, n, vec_len));
+        RUN(tld_kdtree_build(kd, x, ids, n));
         RUN(check_nn(kd, rng, vec_len, 50));
 
         tld_kdtree_free(kd);
@@ -87,7 +87,6 @@ static int test_insert_quiet(void)
 
         RUN(tld_rng_alloc(&rng, 17));
         RUN(tld_kdtree_alloc(&kd, vec_len));
-        kd->rebalance_at = 500;
 
         fflush(stdout);
         fd = mkstemp(path);
@@ -96,13 +95,13 @@ static int test_insert_quiet(void)
         saved = dup(STDOUT_FILENO);
         ASSERT(saved >= 0, "dup failed");
         dup2(fd, STDOUT_FILENO);
-        /* 5000 inserts: grows the yard past its initial 1024 nodes and runs
-           the rebalance check ten times. Sorted input makes a deep tree so
-           the rebalance itself is exercised too. */
-        for(int i = 0; i < 5000 && status == OK; i++){
+        /* 12000 inserts: grows the yard past its initial 1024 nodes and runs
+           the rebalance check (every 10000 inserts). Sorted input makes a deep
+           tree so the rebalance itself is exercised too. */
+        for(int i = 0; i < 12000 && status == OK; i++){
                 p[0] = (double) i;
                 p[1] = (double) (i % 7);
-                status = tld_kdtree_insert(kd, p, (uint32_t) i, vec_len);
+                status = tld_kdtree_insert(kd, p, (uint32_t) i);
         }
         fflush(stdout);
         dup2(saved, STDOUT_FILENO);
@@ -116,7 +115,7 @@ static int test_insert_quiet(void)
         for(int i = 0; i < 2000; i++){
                 uint32_t id_nn = 0;
                 uint32_t id_bf = 0;
-                p[0] = tld_rng_double(rng) * 5000.0;
+                p[0] = tld_rng_double(rng) * 12000.0;
                 p[1] = tld_rng_double(rng) * 7.0;
                 RUN(tld_kdtree_nn_search(kd, p, &id_nn));
                 RUN(tld_kdtree_bf_search(kd, p, &id_bf));
@@ -146,7 +145,7 @@ static int test_empty(void)
         ASSERT(tld_kdtree_nn_search(kd, p, &id) == FAIL, "nn search of an empty tree returned OK");
         ASSERT(tld_kdtree_bf_search(kd, p, &id) == FAIL, "bf search of an empty tree returned OK");
         ASSERT(id == 77, "a failed search changed *id to %u", id);
-        RUN(tld_kdtree_insert(kd, p, 5, 2));
+        RUN(tld_kdtree_insert(kd, p, 5));
         RUN(tld_kdtree_reset(kd));
         ASSERT(tld_kdtree_nn_search(kd, p, &id) == FAIL, "nn search after reset returned OK");
         tld_kdtree_free(kd);
@@ -197,7 +196,7 @@ static int test_concurrent_search(void)
                 for(int j = 0; j < 3; j++){
                         p[j] = tld_rng_double(rng);
                 }
-                RUN(tld_kdtree_insert(kd, p, (uint32_t) i, 3));
+                RUN(tld_kdtree_insert(kd, p, (uint32_t) i));
         }
         galloc(&q, n_q * 3);
         galloc(&want, n_q);
@@ -230,10 +229,9 @@ ERROR:
         return FAIL;
 }
 
-/* Points shorter than the tree's length: insert split on the point's own length while
-   search split on the tree's, so the two disagreed. A reused node also kept stale
-   coordinates past the new point's length. */
-static int test_mixed_length(void)
+/* Points inserted again after a reset reuse the old nodes; searches must see only the
+   new coordinates. */
+static int test_reset_reuse(void)
 {
         tld_kdtree *kd = NULL;
         struct tld_rng *rng = NULL;
@@ -244,7 +242,7 @@ static int test_mixed_length(void)
                 for(int i = 0; i < 300; i++){
                         p[0] = tld_rng_double(rng);
                         p[1] = tld_rng_double(rng);
-                        RUN(tld_kdtree_insert(kd, p, (uint32_t) i, (i % 3 == 0) ? 1 : 2));
+                        RUN(tld_kdtree_insert(kd, p, (uint32_t) i));
                 }
                 for(int i = 0; i < 2000; i++){
                         uint32_t id_nn = 0;
@@ -282,8 +280,8 @@ static int test_build_adds(void)
         double q[2] = {0.5, 0.5};
         uint32_t id = 0;
         RUN(tld_kdtree_alloc(&kd, 2));
-        RUN(tld_kdtree_build(kd, xa, ia, 3, 2));
-        RUN(tld_kdtree_build(kd, xb, ib, 2, 2));
+        RUN(tld_kdtree_build(kd, xa, ia, 3));
+        RUN(tld_kdtree_build(kd, xb, ib, 2));
         ASSERT(xa[0] == a[0] && xa[1] == a[1] && xa[2] == a[2] && ia[0] == 1 && ia[1] == 2 && ia[2] == 3,
                "tld_kdtree_build reordered its input");
         RUN(tld_kdtree_nn_search(kd, q, &id));
@@ -306,10 +304,10 @@ static const struct {
         const char *about;
 } checks[] = {
         {"ties", test_build_with_ties, "build with many tied coordinates (three-way compare)"},
-        {"insert-quiet", test_insert_quiet, "5000 inserts: no stdout, yard grows, rebalance"},
+        {"insert-quiet", test_insert_quiet, "12000 inserts: no stdout, yard grows, rebalance"},
         {"empty", test_empty, "searching an empty tree fails"},
         {"concurrent", test_concurrent_search, "4 threads search one tree at the same time"},
-        {"mixed-length", test_mixed_length, "points shorter than the tree's length"},
+        {"reset-reuse", test_reset_reuse, "points inserted after a reset reuse the nodes"},
         {"build-adds", test_build_adds, "tld_kdtree_build adds to a tree and keeps its input"},
 };
 
@@ -322,10 +320,10 @@ int main(int argc, char *argv[])
                   "\n"
                   "CHECK names (default: all, in this order):\n"
                   "  ties          build with many tied coordinates (three-way compare)\n"
-                  "  insert-quiet  5000 inserts: no stdout, yard grows, rebalance\n"
+                  "  insert-quiet  12000 inserts: no stdout, yard grows, rebalance\n"
                   "  empty         searching an empty tree fails\n"
                   "  concurrent    4 threads search one tree at the same time\n"
-                  "  mixed-length  points shorter than the tree's length\n"
+                  "  reset-reuse   points inserted after a reset reuse the nodes\n"
                   "  build-adds    tld_kdtree_build adds to a tree and keeps its input\n"
                   "\n"
                   "Example: regress-kdtree ties");

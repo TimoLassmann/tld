@@ -37,11 +37,10 @@ static int demo(int n, char **args)
         SECTION_MSG("%d points, query (%g, %g)", np, q[0], q[1]);
         RUN(tld_kdtree_alloc(&kd, 2));
         for(int i = 0; i < np; i++){
-                RUN(tld_kdtree_insert(kd, pts[i], (uint32_t)i, 2));
+                RUN(tld_kdtree_insert(kd, pts[i], (uint32_t)i));
                 DEBUG_MSG("insert #%d (%g, %g)", i, pts[i][0], pts[i][1]);
         }
         RUN(tld_kdtree_rebalance(kd));
-        KV_MSG("depth", "%d..%d", kd->min_depth, kd->max_depth);
         RUN(tld_kdtree_nn_search(kd, q, &id_nn));
         RUN(tld_kdtree_bf_search(kd, q, &id_bf));
         fprintf(stdout, "nearest (k-d tree):    #%u (%g, %g)\n", id_nn, pts[id_nn][0], pts[id_nn][1]);
@@ -109,7 +108,7 @@ int test_search_speed(int n)
                 for(int j = 0; j < vec_len;j++){
                         p[j] = tld_rng_double(rng);
                 }
-                tld_kdtree_insert(kd, p, i,vec_len);
+                tld_kdtree_insert(kd, p, i);
         }
 
         tld_rng_set_seed(rng, 42);
@@ -168,7 +167,7 @@ int test_random_inserts(void)
                 for(int j = 0; j < vec_len;j++){
                         p[j] = tld_rng_double(rng);
                 }
-                tld_kdtree_insert(kd, p, i,vec_len);
+                tld_kdtree_insert(kd, p, i);
         }
         tld_kdtree_rebalance(kd);
 
@@ -219,23 +218,19 @@ int test_build_opt_tree(void)
 
         {
         T_START
-                tld_kdtree_build(kd, x, ids, dim1,  dim2);
+                tld_kdtree_build(kd, x, ids, dim1);
 
         T_END("build")
         }
 
-        KV_MSG("depth", "min %d max %d", kd->min_depth, kd->max_depth);
         tld_kdtree_reset(kd);
-        tld_kdtree_build(kd, x, ids, dim1,  dim2);
-        KV_MSG("depth", "min %d max %d", kd->min_depth, kd->max_depth);
+        tld_kdtree_build(kd, x, ids, dim1);
         tld_kdtree_reset(kd);
         for(int i = 0; i < dim1;i++){
-                tld_kdtree_insert(kd, x[i],i, dim2);
+                tld_kdtree_insert(kd, x[i], i);
         }
-        KV_MSG("depth", "min %d max %d", kd->min_depth, kd->max_depth);
 
         tld_kdtree_rebalance(kd);
-        KV_MSG("depth", "min %d max %d", kd->min_depth, kd->max_depth);
 
         rnd_mat_free(x, dim1);
         gfree(ids);

@@ -115,6 +115,11 @@ tld.h to this. Old → new:
 - rng: the alias table holds no generator: `tld_rng_dist_alloc(&d, w, n)` (no seed) and
   `tld_rng_dist_sample(d, rng)` draw from the caller's generator, so one table serves
   several threads.
+- kdtree: `tld_kdtree` is opaque. A tree holds points of the dimension given to
+  `tld_kdtree_alloc`, so `tld_kdtree_insert(t, x, id)` and `tld_kdtree_build(t, x, ids, n)`
+  lose their size argument. The node type, the `fptr_cmp`/`fptr_plane` distance hooks,
+  `tld_kdtree_dist_euclidean`, `tld_kdtree_plane_euclidean` and the settable
+  `rebalance_at` are gone; distance is Euclidean.
 
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,

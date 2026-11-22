@@ -73,7 +73,7 @@ static int setup(int with_pool)
         RUN(tld_bitfield_alloc(&BF2, 64));
         RUN(tld_bitfield_alloc(&BF3, 64));
         RUN(tld_kdtree_alloc(&KD, 2));
-        RUN(tld_kdtree_insert(KD, P2, 1, 2));
+        RUN(tld_kdtree_insert(KD, P2, 1));
         RUN(tld_rng_alloc(&R, 1));
         RUN(tld_rng_dist_alloc(&D_, V, 4));
         galloc(&G, 4);
@@ -183,11 +183,11 @@ ERROR:
         X(NUL, 0, FAILS(tld_kdtree_alloc(NULL, 2))) \
         X(FRE, 0, NONE(tld_kdtree_free(NULL))) \
         X(NUL, 0, FAILS(tld_kdtree_reset(NULL))) \
-        X(NUL, 0, FAILS(tld_kdtree_build(NULL, X2, IDS, 2, 2))) \
-        X(NUL, 0, FAILS(tld_kdtree_build(KD, NULL, IDS, 2, 2))) \
-        X(NUL, 0, FAILS(tld_kdtree_build(KD, X2, NULL, 2, 2))) \
-        X(NUL, 0, FAILS(tld_kdtree_insert(NULL, P2, 1, 2))) \
-        X(NUL, 0, FAILS(tld_kdtree_insert(KD, NULL, 1, 2))) \
+        X(NUL, 0, FAILS(tld_kdtree_build(NULL, X2, IDS, 2))) \
+        X(NUL, 0, FAILS(tld_kdtree_build(KD, NULL, IDS, 2))) \
+        X(NUL, 0, FAILS(tld_kdtree_build(KD, X2, NULL, 2))) \
+        X(NUL, 0, FAILS(tld_kdtree_insert(NULL, P2, 1))) \
+        X(NUL, 0, FAILS(tld_kdtree_insert(KD, NULL, 1))) \
         X(NUL, 0, FAILS(tld_kdtree_rebalance(NULL))) \
         X(NUL, 0, FAILS(tld_kdtree_nn_search(NULL, P2, &U32))) \
         X(NUL, 0, FAILS(tld_kdtree_nn_search(KD, NULL, &U32))) \
@@ -195,11 +195,6 @@ ERROR:
         X(NUL, 0, FAILS(tld_kdtree_bf_search(NULL, P2, &U32))) \
         X(NUL, 0, FAILS(tld_kdtree_bf_search(KD, NULL, &U32))) \
         X(NUL, 0, FAILS(tld_kdtree_bf_search(KD, P2, NULL))) \
-        X(NUL, 0, FAILS(tld_kdtree_dist_euclidean(NULL, P2, 2, &D))) \
-        X(NUL, 0, FAILS(tld_kdtree_dist_euclidean(P2, NULL, 2, &D))) \
-        X(NUL, 0, FAILS(tld_kdtree_dist_euclidean(P2, P2, 2, NULL))) \
-        X(NUL, 0, FAILS(tld_kdtree_plane_euclidean(NULL, P2, 0, 1.0))) \
-        X(NUL, 0, FAILS(tld_kdtree_plane_euclidean(P2, NULL, 0, 1.0))) \
         \
         X(NUL, 0, (tld_path_exists(NULL) == 0)) \
         X(NUL, 0, (tld_path_is_dir(NULL) == 0)) \

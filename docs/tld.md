@@ -36,7 +36,7 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [quantile](#mod-quantile): 1 symbol (`src/stats/tld-quantile.h`)
 - [auc](#mod-auc): 1 symbol (`src/stats/tld-auc.h`)
 - [logsum](#mod-logsum): 5 symbols (`src/logsum/tld-logsum.h`)
-- [kdtree](#mod-kdtree): 12 symbols (`src/kdtree/tld-kdtree.h`)
+- [kdtree](#mod-kdtree): 9 symbols (`src/kdtree/tld-kdtree.h`)
 - [tpool](#mod-tpool): 8 symbols (`src/tpool/tld-tpool.h`)
 - [Index](#index)
 
@@ -1721,58 +1721,28 @@ TLD_NEARLY_EQUAL(X, Y): tld_nearly_equal_float or tld_nearly_equal_double, chose
 
 ## kdtree
 
-`src/kdtree/tld-kdtree.h`: A k-d tree of double vectors with caller-chosen ids for nearest-neighbour search (squared Euclidean distance by default); points can be built in bulk or inserted one at a time. Not locked: changing a tree (alloc, build, insert, rebalance, reset) needs it to itself, but searches only read it and may run at the same time.
-
-<a id="tld_kdtree_node"></a>
-
-### `tld_kdtree_node`
-
-```c
-typedef struct tld_kdtree_node {
-        double* p;
-        struct tld_kdtree_node* left;
-        struct tld_kdtree_node* right;
-        uint32_t id;
-        int n;
-} tld_kdtree_node;
-```
-
-A tree node: p is the point (n doubles, owned by the tree), id the caller's id.
+`src/kdtree/tld-kdtree.h`: A k-d tree of double vectors with caller-chosen ids for nearest-neighbour search by Euclidean distance; points can be built in bulk or inserted one at a time. Not locked: changing a tree (alloc, build, insert, rebalance, reset) needs it to itself, but searches only read it and may run at the same time.
 
 <a id="tld_kdtree"></a>
 
 ### `tld_kdtree`
 
 ```c
-typedef struct tld_kdtree {
-        tld_kdtree_node* root;
-        struct tld__kdyard* yard;
-        int(*fptr_cmp)(double*, double*, int, double*);
-        int(*fptr_plane)(double*, double*, int, double);
-        int rebalance_at;
-        int n_step;
-        int depth;
-        int max_depth;
-        int min_depth;
-        int vec_len;
-} tld_kdtree;
+typedef struct tld_kdtree tld_kdtree;
 ```
 
-A k-d tree; create with tld_kdtree_alloc, free with tld_kdtree_free. Fields a caller may set:
-fptr_cmp (distance, default tld_kdtree_dist_euclidean) with the matching fptr_plane (default
-tld_kdtree_plane_euclidean), and rebalance_at (insertions between balance checks, default
-10000). The rest is internal.
+Opaque tree; create with tld_kdtree_alloc, free with tld_kdtree_free.
 
 <a id="tld_kdtree_alloc"></a>
 
 ### `tld_kdtree_alloc`
 
 ```c
-TLD_API  int tld_kdtree_alloc(tld_kdtree **tree, int size);
+TLD_API int tld_kdtree_alloc(tld_kdtree **tree, int dim);
 ```
 
-Allocate in *tree an empty tree for points of size (> 0) dimensions, using squared
-Euclidean distance. Storage grows as points are added. Free with tld_kdtree_free.
+Allocate in *tree an empty tree for points of dim (> 0) doubles. Storage grows as
+points are added. Free with tld_kdtree_free.
 
 <a id="tld_kdtree_free"></a>
 
@@ -1789,7 +1759,7 @@ Free the tree and all its points; NULL is ignored.
 ### `tld_kdtree_reset`
 
 ```c
-TLD_API  int tld_kdtree_reset(tld_kdtree *t);
+TLD_API int tld_kdtree_reset(tld_kdtree *t);
 ```
 
 Remove every point and keep the memory for reuse.
@@ -1799,31 +1769,31 @@ Remove every point and keep the memory for reuse.
 ### `tld_kdtree_build`
 
 ```c
-TLD_API  int tld_kdtree_build(tld_kdtree *t, double **x,uint32_t* ids, int n, int size);
+TLD_API int tld_kdtree_build(tld_kdtree *t, double **x, uint32_t *ids, int n);
 ```
 
-Add n points x[i] of size doubles (size <= the length given to tld_kdtree_alloc) with
-ids[i] and rebuild the tree balanced. The points are copied; x and ids are not
-changed. On failure (no memory) the tree is unchanged.
+Add n points x[i] (each of the tree's dim doubles) with ids[i] and rebuild the tree
+balanced. The points are copied; x and ids are not changed. On failure (no memory)
+the tree is unchanged.
 
 <a id="tld_kdtree_insert"></a>
 
 ### `tld_kdtree_insert`
 
 ```c
-TLD_API  int tld_kdtree_insert(tld_kdtree* t, double *x,uint32_t id, int size);
+TLD_API int tld_kdtree_insert(tld_kdtree *t, double *x, uint32_t id);
 ```
 
-Insert one point x of size doubles with id (copied). Every rebalance_at insertions
-the tree is rebuilt if its depth is more than 10 levels off the balanced depth. On
-failure (no memory) the tree is unchanged.
+Insert one point x (dim doubles) with id (copied). Every 10000 insertions the tree is
+rebuilt if its depth is more than 10 levels off the balanced depth. On failure (no
+memory) the tree is unchanged.
 
 <a id="tld_kdtree_rebalance"></a>
 
 ### `tld_kdtree_rebalance`
 
 ```c
-TLD_API  int tld_kdtree_rebalance(tld_kdtree *t);
+TLD_API int tld_kdtree_rebalance(tld_kdtree *t);
 ```
 
 Rebuild the tree balanced from the points it holds (allocates nothing).
@@ -1833,45 +1803,22 @@ Rebuild the tree balanced from the points it holds (allocates nothing).
 ### `tld_kdtree_nn_search`
 
 ```c
-TLD_API  int tld_kdtree_nn_search(tld_kdtree *t, double *x, uint32_t *id);
+TLD_API int tld_kdtree_nn_search(tld_kdtree *t, double *x, uint32_t *id);
 ```
 
-The id of the stored point nearest to x (a vector of the tree's length) into *id.
-FAIL (with an error) when the tree is empty.
+The id of the stored point nearest to x (dim doubles) into *id. FAIL (with an error)
+when the tree is empty.
 
 <a id="tld_kdtree_bf_search"></a>
 
 ### `tld_kdtree_bf_search`
 
 ```c
-TLD_API  int tld_kdtree_bf_search(tld_kdtree *t, double *x, uint32_t *id);
+TLD_API int tld_kdtree_bf_search(tld_kdtree *t, double *x, uint32_t *id);
 ```
 
 Brute force: the id of the stored point nearest to x, comparing every point; FAIL
 (with an error) when the tree is empty. For checking tld_kdtree_nn_search.
-
-<a id="tld_kdtree_dist_euclidean"></a>
-
-### `tld_kdtree_dist_euclidean`
-
-```c
-TLD_API  int tld_kdtree_dist_euclidean(double *a, double *b, int vec_len, double *dist);
-```
-
-Squared Euclidean distance between a and b (vec_len doubles) into *dist. The default
-fptr_cmp.
-
-<a id="tld_kdtree_plane_euclidean"></a>
-
-### `tld_kdtree_plane_euclidean`
-
-```c
-TLD_API  int tld_kdtree_plane_euclidean(double *a, double *b, int cd, double min_dist);
-```
-
-OK when the squared distance between a and b along dimension cd is below min_dist
-(the far side of the splitting plane may hold a nearer point), FAIL otherwise. The
-default fptr_plane.
 
 <a id="mod-tpool"></a>
 
@@ -2081,12 +2028,9 @@ is ignored.
 | [`tld_kdtree_alloc`](#tld_kdtree_alloc) | function | [kdtree](#mod-kdtree) |
 | [`tld_kdtree_bf_search`](#tld_kdtree_bf_search) | function | [kdtree](#mod-kdtree) |
 | [`tld_kdtree_build`](#tld_kdtree_build) | function | [kdtree](#mod-kdtree) |
-| [`tld_kdtree_dist_euclidean`](#tld_kdtree_dist_euclidean) | function | [kdtree](#mod-kdtree) |
 | [`tld_kdtree_free`](#tld_kdtree_free) | function | [kdtree](#mod-kdtree) |
 | [`tld_kdtree_insert`](#tld_kdtree_insert) | function | [kdtree](#mod-kdtree) |
 | [`tld_kdtree_nn_search`](#tld_kdtree_nn_search) | function | [kdtree](#mod-kdtree) |
-| [`tld_kdtree_node`](#tld_kdtree_node) | type | [kdtree](#mod-kdtree) |
-| [`tld_kdtree_plane_euclidean`](#tld_kdtree_plane_euclidean) | function | [kdtree](#mod-kdtree) |
 | [`tld_kdtree_rebalance`](#tld_kdtree_rebalance) | function | [kdtree](#mod-kdtree) |
 | [`tld_kdtree_reset`](#tld_kdtree_reset) | function | [kdtree](#mod-kdtree) |
 | [`tld_logsum`](#tld_logsum) | function | [logsum](#mod-logsum) |
