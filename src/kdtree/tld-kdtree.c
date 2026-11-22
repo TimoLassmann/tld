@@ -24,29 +24,24 @@ struct kdyard {
         int vec_len;
 };
 
-int nn_search(kdtree *t,kd_node* n, double *x,double* min_d, uint32_t *id);
+static int nn_search(kdtree *t,kd_node* n, double *x,double* min_d, uint32_t *id);
 
-int kdyard_node_get(struct kdyard *y, kd_node **ret);
-int kdyard_snode_get(struct kdyard *y, kd_node **ret);
+static int kdyard_node_get(struct kdyard *y, kd_node **ret);
 
-int kdyard_alloc(struct kdyard ** yard, int size, int len);
-int kdyard_realloc(struct kdyard *n);
-void kdyard_free(struct kdyard *n);
+static int kdyard_alloc(struct kdyard ** yard, int size, int len);
+static int kdyard_realloc(struct kdyard *n);
+static void kdyard_free(struct kdyard *n);
 
+static int mat_sort(double **x,uint32_t* ids, int dim1,int cd);
+static int sort_nodes(const void *a, const void *b);
 
-int mat_sort(double **x,uint32_t* ids, int dim1,int cd);
-int sort_nodes(const void *a, const void *b);
+static int insert(kdtree* t,kd_node **slot, double *x,uint32_t id, int size);
+static int kdtree_node_create(kdtree* t, double *x, uint32_t id,int size, kd_node **ret);
+static int kdtree_node_alloc(kd_node **node, int size);
+static int kdtree_node_reset(kd_node *n);
+static void kdtree_node_free(kd_node *n);
 
-/* kd_node * insert(kdtree* t,kd_node *root, double *x, int size); */
-kd_node * insert(kdtree* t,kd_node *n, double *x,uint32_t id, int size);
-int  kdtree_node_create(kdtree* t, double *x, uint32_t id,int size, kd_node **ret);
-/* int  kdtree_node_create(kdtree* t, double *x, int size, kd_node **ret); */
-int  kdtree_node_alloc(kd_node **node, int size);
-int  kdtree_node_reset(kd_node *n);
-void kdtree_node_free(kd_node *n);
-
-int rebuild(kdtree* t,kd_node** root, double **x,uint32_t* ids, int n, int size);
-/* int rebuild(kdtree* t,kd_node** root, double **x, int n, int size); */
+static int rebuild(kdtree* t,kd_node** root, double **x,uint32_t* ids, int n, int size);
 
 int kdtree_bf_search(kdtree *t, double *x, uint32_t *id)
 {
@@ -87,7 +82,6 @@ int nn_search(kdtree *t,kd_node* n, double *x,double* min_d, uint32_t *id)
         }
 
         depth = t->depth;
-        /* fprintf(stdout,"Search: depth %d at node: %d (min: %f)\n", depth,n->id, *min_d); */
         d = 0.0;
         t->fptr_cmp(n->p,x,t->vec_len, &d);
 
@@ -109,7 +103,6 @@ int nn_search(kdtree *t,kd_node* n, double *x,double* min_d, uint32_t *id)
                 /* Note this has to be the REVERSE from above
                    Because I need to search the other branch!
                 */
-                /* fprintf(stdout,"Search: at node: %d (plane search)\n", n->id); */
                 if(x[cd] < n->p[cd]){
                         t->depth = depth + 1;
                         nn_search(t,n->right,x,min_d,id);
@@ -134,7 +127,7 @@ int kdtree_rebalance(kdtree *t)
 
         }
 
-        kdtree_reset(t);
+        RUN(kdtree_reset(t));
 
         RUN(kdtree_build(t, t->yard->tmp_mat, t->yard->ids,  n_nodes, t->vec_len));
 
@@ -169,14 +162,11 @@ int rebuild(kdtree* t,kd_node** root, double **x,uint32_t* ids, int n, int size)
         if( n <= 0){
                 return OK;
         }
-        /* ASSERT(n > 0,"No points!!!"); */
 
         int cd = d % size;
         RUN(mat_sort(x,ids,n, cd));
 
-        /* kdyard_node_get(struct kdyard *y, kd_node **ret) */
         RUN(kdtree_node_create(t,x[n/2], ids[n/2], size, &node));
-        /* LOG_MSG("%d ", d); */
         t->depth = d+1;
         RUN(rebuild(t,&nl,x,ids, n/2, size));
         t->depth = d+1;
@@ -232,27 +222,19 @@ ERROR:
         return FAIL;
 }
 
-
-int compare_x_cd(const void *a, const void *b, void *arg)
-{
-        int d = *(int*) arg;
-        double* one = *(double**) a;
-        double* two = *(double**) b;
-        return (one[d] < two[d]) ? -1 : one[d] > two[d];
-}
-
 int kdtree_insert(kdtree* t, double *x,uint32_t id, int size)
 {
+        ASSERT(t != NULL, "No tree");
+        ASSERT(x != NULL, "No point");
 
         t->depth = 0;
-        t->root = insert(t,t->root, x,id, size);
+        RUN(insert(t,&t->root, x,id, size));
 
         if(size > t->vec_len){
                 t->vec_len = size;
         }
 
         t->n_step = t->n_step + 1;
-        /* fprintf(stdout,"Step: %d\n", t->n_step); */
 
         if(t->n_step == t->rebalance_at){
                 int test =  t->yard->n_node;
@@ -261,14 +243,10 @@ int kdtree_insert(kdtree* t, double *x,uint32_t id, int size)
                         test = test / 2;
                         opt_d++;
                 }
-
-                fprintf(stdout,"opt: %d real %d\n", opt_d, t->max_depth);
-                if(abs(t->max_depth  - opt_d) > 10){
-                        fprintf(stdout,"re-balancing tree!! (size: %d depth : %d)\n", t->yard->n_node,t->max_depth);
-                        kdtree_rebalance(t);
-                        fprintf(stdout,"opt: %d real %d (afterwards)\n", opt_d, t->max_depth);
-                }
                 t->n_step = 0;
+                if(abs(t->max_depth  - opt_d) > 10){
+                        RUN(kdtree_rebalance(t));
+                }
         }
 
         return OK;
@@ -276,37 +254,31 @@ ERROR:
         return FAIL;
 }
 
-kd_node * insert(kdtree* t,kd_node *n, double *x,uint32_t id, int size)
+/* Descends from *slot to the empty child where x belongs and creates the
+   node there. */
+int insert(kdtree* t,kd_node **slot, double *x,uint32_t id, int size)
 {
-
-        if(n == NULL){
-                if(t->depth > t->max_depth){
-                        t->max_depth = t->depth;
+        ASSERT(size > 0,"Size less than one!");
+        while(*slot != NULL){
+                kd_node* n = *slot;
+                const int cd = t->depth % size;
+                t->depth = t->depth + 1;
+                if(x[cd] < n->p[cd]){
+                        slot = &n->left;
+                }else{
+                        slot = &n->right;
                 }
-                if(t->depth < t->min_depth){
-                        t->min_depth = t->depth;
-                }
-
-                /* kdyard_node_get(t->yard, &n); */
-
-                kdtree_node_create(t,x,id, size, &n);
-
-                return n;
         }
-        int depth = t->depth;
-        int cd = t->depth % size;
-        /* fprintf(stdout,"%d -> %f , %f\n", t->depth, x[cd], n->p[cd]); */
-
-        if(x[cd] < n->p[cd]){
-                t->depth = depth+1;
-                n->left = insert(t,n->left, x, id,size);
-
-        }else{
-                t->depth = depth+1;
-                n->right = insert(t,n->right, x,id, size);
+        if(t->depth > t->max_depth){
+                t->max_depth = t->depth;
         }
-
-        return n;
+        if(t->depth < t->min_depth){
+                t->min_depth = t->depth;
+        }
+        RUN(kdtree_node_create(t,x,id, size, slot));
+        return OK;
+ERROR:
+        return FAIL;
 }
 
 
@@ -315,12 +287,15 @@ int kdtree_node_create(kdtree* t, double *x, uint32_t id,int size, kd_node **ret
         kd_node* n = NULL;
 
         ASSERT(size > 0,"Size less than one!");
+        ASSERT(size <= t->yard->vec_len, "Point length %d exceeds the tree's vector length %d", size, t->yard->vec_len);
 
-        kdyard_node_get(t->yard, &n);
+        RUN(kdyard_node_get(t->yard, &n));
         n->left = NULL;
         n->right = NULL;
         n->id = id;
         if(n->p == NULL){
+                /* only during kdtree_rebalance: x is a buffer taken from a
+                   yard node, so ownership moves back to a node */
                 n->p = x;
         }else{
                 for(int i = 0; i < size;i++){
@@ -332,7 +307,7 @@ int kdtree_node_create(kdtree* t, double *x, uint32_t id,int size, kd_node **ret
 
         return OK;
 ERROR:
-        kdtree_node_free(n);
+        /* nodes belong to the yard; nothing to free here */
         return FAIL;
 }
 
@@ -379,7 +354,6 @@ int kdtree_node_alloc(kd_node **node, int size)
         n->p = NULL;
         n->left = NULL;
         n->right = NULL;
-        /* n->split = -1; */
         n->n = size;
         n->id = 0;
         galloc(&n->p,n->n);
@@ -398,12 +372,6 @@ ERROR:
 void kdtree_node_free(kd_node *n)
 {
         if(n){
-                /* if(n->left){ */
-                /*         kdtree_node_free(n->left); */
-                /* } */
-                /* if(n->right){ */
-                /*         kdtree_node_free(n->right); */
-                /* } */
                 if(n->p){
                         gfree(n->p);
                 }
@@ -415,25 +383,21 @@ void kdtree_node_free(kd_node *n)
 
 int mat_sort(double **x,uint32_t* ids, int dim1,int cd)
 {
-        struct sort_node** node_list = NULL;
+        struct sort_node* node_list = NULL;
 
-        MMALLOC(node_list, sizeof(struct sort_node*) * dim1);
+        MMALLOC(node_list, sizeof(struct sort_node) * (size_t) dim1);
 
         for(int i = 0; i < dim1;i++){
-                node_list[i] = NULL;
-                MMALLOC(node_list[i], sizeof(struct sort_node));
-                node_list[i]->val = x[i][cd];
-                node_list[i]->vec = x[i];
-                node_list[i]->id = ids[i];
-
+                node_list[i].val = x[i][cd];
+                node_list[i].vec = x[i];
+                node_list[i].id = ids[i];
         }
 
-        qsort(node_list, dim1, sizeof(struct sort_node*), sort_nodes);
+        qsort(node_list, (size_t) dim1, sizeof(struct sort_node), sort_nodes);
 
         for(int i = 0; i < dim1;i++){
-                x[i] = node_list[i]->vec;
-                ids[i] = node_list[i]->id;
-                MFREE(node_list[i]);
+                x[i] = node_list[i].vec;
+                ids[i] = node_list[i].id;
         }
 
         MFREE(node_list);
@@ -445,18 +409,15 @@ ERROR:
 
 int sort_nodes(const void *a, const void *b)
 {
-        struct sort_node * const *one = a;
-        struct sort_node * const *two = b;
-        if((*one)->val >  (*two)->val){
-                return 1;
-        }else{
-                return -1;
-        }
+        const struct sort_node *one = a;
+        const struct sort_node *two = b;
+        return (one->val > two->val) - (one->val < two->val);
 }
 
 int kdtree_alloc(kdtree **tree, int size)
 {
         kdtree* t = NULL;
+        ASSERT(size > 0, "Vector length must be positive (got %d)", size);
         MMALLOC(t, sizeof(kdtree));
         t->yard = NULL;
         t->root = NULL;
@@ -474,6 +435,7 @@ int kdtree_alloc(kdtree **tree, int size)
         *tree = t;
         return OK;
 ERROR:
+        kdtree_free(t);
         return FAIL;
 }
 
@@ -487,28 +449,17 @@ void kdtree_free(kdtree *t)
         }
 }
 
+/* Hands out the next unused node, growing the yard first if it is full. */
 int kdyard_node_get(struct kdyard *y, kd_node **ret)
 {
-        kd_node*n = NULL;
-        n = y->nodes[y->n_node];
-        y->n_node++;
         if(y->n_node == y->n_alloc){
-                kdyard_realloc(y);
+                RUN(kdyard_realloc(y));
         }
-        *ret = n;
+        *ret = y->nodes[y->n_node];
+        y->n_node++;
         return OK;
-}
-
-int kdyard_snode_get(struct kdyard *y, kd_node **ret)
-{
-        kd_node*n = NULL;
-        n = y->nodes[y->n_snode];
-        y->n_snode++;
-        if(y->n_snode == y->n_alloc){
-                kdyard_realloc(y);
-        }
-        *ret = n;
-        return OK;
+ERROR:
+        return FAIL;
 }
 
 int kdyard_alloc(struct kdyard ** yard, int size, int len)
@@ -517,52 +468,60 @@ int kdyard_alloc(struct kdyard ** yard, int size, int len)
         MMALLOC(n, sizeof(struct kdyard));
         n->n_node = 0;
         n->n_snode = 0;
-        n->n_alloc = size;
+        n->n_alloc = 0;
         n->vec_len = len;
         n->n_mat = 0;
         n->nodes = NULL;
         n->s_nodes = NULL;
         n->tmp_mat = NULL;
         n->ids = NULL;
-        MMALLOC(n->nodes, sizeof( kd_node*) * n->n_alloc);
-        MMALLOC(n->s_nodes, sizeof(struct sort_node*) * n->n_alloc);
-        MMALLOC(n->tmp_mat, sizeof(double*) * n->n_alloc);
-        MMALLOC(n->ids, sizeof(uint32_t) * n->n_alloc);
+        MMALLOC(n->nodes, sizeof( kd_node*) * (size_t) size);
+        MMALLOC(n->s_nodes, sizeof(struct sort_node*) * (size_t) size);
+        MMALLOC(n->tmp_mat, sizeof(double*) * (size_t) size);
+        MMALLOC(n->ids, sizeof(uint32_t) * (size_t) size);
 
-        for(int i = 0;i < n->n_alloc;i++){
-                n->nodes[i] = NULL;
-                n->s_nodes[i] = NULL;
-
+        /* n_alloc counts slots whose node and sort node were allocated, so
+           kdyard_free only touches those */
+        for(int i = 0;i < size;i++){
                 MMALLOC(n->s_nodes[i], sizeof(struct sort_node));
                 RUN(kdtree_node_alloc(&n->nodes[i],n->vec_len));
+                n->n_alloc = i + 1;
         }
         *yard = n;
         return OK;
 ERROR:
+        if(n && n->s_nodes && n->n_alloc < size && n->s_nodes[n->n_alloc]){
+                MFREE(n->s_nodes[n->n_alloc]);
+        }
         kdyard_free(n);
         return FAIL;
 }
 
+/* Grows the yard by half. On failure the yard stays valid (n_alloc only
+   counts fully allocated slots) and FAIL is returned. */
 int kdyard_realloc(struct kdyard *n)
 {
-        int old_size = n->n_alloc;
+        const int old_size = n->n_alloc;
+        const int new_size = n->n_alloc + n->n_alloc / 2 + 1;
 
-        n->n_alloc = n->n_alloc + n->n_alloc / 2;
-
-        MREALLOC(n->nodes, sizeof( kd_node*) * n->n_alloc);
-        MREALLOC(n->s_nodes, sizeof(struct sort_node*) * n->n_alloc);
-        MREALLOC(n->tmp_mat, sizeof(double*) * n->n_alloc);
-        MREALLOC(n->ids, sizeof(uint32_t) * n->n_alloc);
-        for(int i = old_size;i < n->n_alloc;i++){
+        MREALLOC(n->nodes, sizeof( kd_node*) * (size_t) new_size);
+        MREALLOC(n->s_nodes, sizeof(struct sort_node*) * (size_t) new_size);
+        MREALLOC(n->tmp_mat, sizeof(double*) * (size_t) new_size);
+        MREALLOC(n->ids, sizeof(uint32_t) * (size_t) new_size);
+        for(int i = old_size;i < new_size;i++){
                 n->nodes[i] = NULL;
                 n->s_nodes[i] = NULL;
-
+        }
+        for(int i = old_size;i < new_size;i++){
                 MMALLOC(n->s_nodes[i], sizeof(struct sort_node));
                 RUN(kdtree_node_alloc(&n->nodes[i],n->vec_len));
+                n->n_alloc = i + 1;
         }
         return OK;
 ERROR:
-        kdyard_free(n);
+        if(n->n_alloc < new_size && n->s_nodes[n->n_alloc]){
+                MFREE(n->s_nodes[n->n_alloc]);
+        }
         return FAIL;
 }
 
@@ -573,10 +532,18 @@ void kdyard_free(struct kdyard *n)
                         MFREE(n->s_nodes[i]);
                         kdtree_node_free(n->nodes[i]);
                 }
-                MFREE(n->tmp_mat);
-                MFREE(n->ids);
-                MFREE(n->s_nodes);
-                MFREE(n->nodes);
+                if(n->tmp_mat){
+                        MFREE(n->tmp_mat);
+                }
+                if(n->ids){
+                        MFREE(n->ids);
+                }
+                if(n->s_nodes){
+                        MFREE(n->s_nodes);
+                }
+                if(n->nodes){
+                        MFREE(n->nodes);
+                }
                 MFREE(n);
         }
 }
@@ -592,7 +559,6 @@ int kddist_euclidian(double *a, double *b, int vec_len, double *dist)
                 x = a[i] - b[i];
                 d += x*x;
         }
-        /* d = sqrt(d); */
         *dist = d;
         return OK;
 ERROR:
@@ -605,8 +571,6 @@ int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist)
 
         x = a[cd]-b[cd];
         x = x * x;
-        /* x = sqrt(x); */
-        /* fprintf(stdout,"PLANE chk: %f %f\n", x, min_dist); */
         if(x < min_dist){
                 return OK;
         }else{

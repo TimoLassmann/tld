@@ -6,37 +6,51 @@
 #include "tpool_internal.c"
 
 #include <unistd.h>
-#include <signal.h>
 
 #define TPOOL_IMPORT
 #include "tpool.h"
 
+/* The library does not install signal handlers. A program that wants to
+   stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself;
+   workers check the flag between jobs. The mutex and condition are left for
+   programs that want to sleep until the flag is set. */
 atomic_int tld_global_stop_run;
-pthread_mutex_t tld_global_cond_mutex;
-pthread_cond_t tld_global_cond;
+pthread_mutex_t tld_global_cond_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t tld_global_cond = PTHREAD_COND_INITIALIZER;
 
 static void *pool_worker(void *data);
 static int pool_get_tid(tld_thread_pool *p);
+static void pool_set_stop_locked(tld_thread_pool *p);
+static void pool_shutdown(tld_thread_pool *p, int n_started);
 
 static int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run);
 
-static int setup_signals_and_thread_comms(void);
-static void catch_signal(int sig);
-
+/* Must be called with p->lock held. Marks the pool as stopped and wakes
+   every thread: idle workers (work_cond) so they can exit and waiters
+   (working_cond) so they can re-check their condition. */
+static void pool_set_stop_locked(tld_thread_pool *p)
+{
+        p->stop = 1;
+        pthread_cond_broadcast(&p->work_cond);
+        pthread_cond_broadcast(&p->working_cond);
+}
 
 int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end)
 {
-        /* LOG_MSG("Adding work"); */
+        int status = OK;
+        ASSERT(p != NULL, "No thread pool");
         pthread_mutex_lock(&p->lock);
-        if(tld_global_stop_run == 1){
-                p->stop = 1;
+        if(tld_global_stop_run == 1 && !p->stop){
+                pool_set_stop_locked(p);
         }
         if(!p->stop){
-                /* LOG_MSG("Adding work"); */
-                RUN(work_queue_push(p->work, func_ptr, data, start, end));
-                pthread_cond_broadcast(&p->work_cond);
+                status = work_queue_push(p->work, func_ptr, data, start, end);
+                if(status == OK){
+                        pthread_cond_broadcast(&p->work_cond);
+                }
         }
         pthread_mutex_unlock(&p->lock);
+        RUN(status);
         return OK;
 ERROR:
         return FAIL;
@@ -50,20 +64,19 @@ void *pool_worker(void *data)
         const int thread_id = pool_get_tid(p);
         int64_t start;
         int64_t end;
-        while(1){
 
-                pthread_mutex_lock(&p->lock);
-                /* LOG_MSG("Worker %5d entering holding pattern threads: %d work : %d ",thread_id, p->n_threads, work_queue_haswork(p->work)); */
+        pthread_mutex_lock(&p->lock);
+        while(1){
                 while(!work_queue_haswork(p->work) && !p->stop){
                         pthread_cond_wait(&p->work_cond, &p->lock);
                 }
-                /* LOG_MSG("Unlocked %5d -> stop %d", thread_id, p->stop); */
-                if(tld_global_stop_run == 1){
-                        p->stop = 1;
+                if(tld_global_stop_run == 1 && !p->stop){
+                        pool_set_stop_locked(p);
                 }
-
+                /* stop means abandon queued work (time limit or global
+                   stop flag); tld_thread_pool_free drains the queue
+                   before it sets stop. */
                 if(p->stop){
-                        /* LOG_MSG("Thread %d stopping", thread_id); */
                         break;
                 }
 
@@ -79,163 +92,146 @@ void *pool_worker(void *data)
                 p->n_jobs_processed++;
                 p->n_working--;
                 if(p->maxtime && !p->stop){
-                        test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &p->stop);
-                        if(p->stop == 1){
-                                LOG_MSG("Stopping because of time!");
-                                pthread_cond_broadcast(&p->working_cond);
+                        int timeout = 0;
+                        test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &timeout);
+                        if(timeout){
+                                pool_set_stop_locked(p);
                         }
                 }
-                if (!p->stop && p->n_working == 0 && !work_queue_haswork(p->work)){
-                        pthread_cond_signal(&p->working_cond);
+                if(p->n_working == 0 && !work_queue_haswork(p->work)){
+                        pthread_cond_broadcast(&p->working_cond);
                 }
-                pthread_mutex_unlock(&p->lock);
         }
         p->n_active_threads--;
-
-        pthread_cond_signal(&p->working_cond);
+        pthread_cond_broadcast(&p->working_cond);
         pthread_mutex_unlock(&p->lock);
-
-        pthread_exit(0);
         return NULL;
 }
 
 int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads)
 {
         tld_thread_pool* p = NULL;
+        int n_started = 0;
+        int sync_init = 0;
+        ASSERT(pool != NULL, "No pool pointer");
         MMALLOC(p, sizeof(tld_thread_pool));
-
 
         if(n_threads < 2){
                 n_threads = 2;
         }
         p->work = NULL;
         p->n_threads = n_threads;
-        p->n_active_threads = n_threads;
+        p->n_active_threads = 0;
         p->n_jobs_processed = 0;
         p->maxtime = max_time;
         p->n_working = 0;
-        /* p->n_working = 0; */
+        p->stop = 0;
 
         p->thread_id_map = NULL;
-        /* c->done = WORLD_RUN_CONTINUE; */
+        p->threads = NULL;
         galloc(&p->thread_id_map,p->n_threads);
         p->thread_id_idx = 0;
         MMALLOC(p->threads, sizeof(pthread_t) * p->n_threads);
-
+        RUN(work_queue_alloc(&p->work, 1024));
 
         pthread_mutex_init(&p->lock, NULL);
-
         pthread_cond_init(&p->work_cond, NULL);
         pthread_cond_init(&p->working_cond, NULL);
-
         pthread_attr_init(&p->attr);
         pthread_attr_setdetachstate(&p->attr, PTHREAD_CREATE_JOINABLE);
-
+        sync_init = 1;
 
         time(&p->internal_time);
         time(&p->stop_watch);
 
-        p->stop = 0;
-        /* p->n_work = 0; */
-        RUN(work_queue_alloc(&p->work, 1024));
-
-        /* if(p->maxtime){ */
-        /* tld_thread_pool_add(p, sleepy_job,p); */
-        /* } */
-
-        for(long t = 0; t < p->n_threads; t++){
-                int rc = pthread_create(&p->threads[t], &p->attr, pool_worker,  (void *)p);
-
+        for(int t = 0; t < p->n_threads; t++){
+                int rc = 0;
+                pthread_mutex_lock(&p->lock);
+                p->n_active_threads++;
+                pthread_mutex_unlock(&p->lock);
+                rc = pthread_create(&p->threads[t], &p->attr, pool_worker,  (void *)p);
                 if(rc){
-                        ERROR_MSG("ERROR; return code from pthread_create() is %d\n", rc);
+                        pthread_mutex_lock(&p->lock);
+                        p->n_active_threads--;
+                        pthread_mutex_unlock(&p->lock);
+                        ERROR_MSG("pthread_create() failed with return code %d", rc);
                 }
-                /* LOG_MSG("created thread %d  %ld", t , (uint64_t)p->threads[t]) ; */
+                n_started++;
         }
-        /* LOG_MSG("Setting up comms"); */
-        setup_signals_and_thread_comms();
-
 
         *pool = p;
-
-
-
         return OK;
 ERROR:
+        if(p){
+                if(sync_init){
+                        pool_shutdown(p, n_started);
+                }else{
+                        if(p->threads){
+                                MFREE(p->threads);
+                        }
+                        if(p->thread_id_map){
+                                gfree(p->thread_id_map);
+                        }
+                        work_queue_free(p->work);
+                        MFREE(p);
+                }
+        }
         return FAIL;
 }
 
 void tld_thread_pool_wait(tld_thread_pool *p)
 {
-        /* static struct timespec time_to_wait = {0, 0}; */
         if(p){
                 pthread_mutex_lock(&p->lock);
-                while (1) {
-                        /* LOG_MSG("Waiting:"); */
-
-                        /* LOG_MSG("Condition one: !stop && p->n_working: %d %d : %d",!p->stop, work_queue_haswork(p->work), (!p->stop && p->n_active_threads != 0)); */
-                        /* LOG_MSG("Condition two:  stop && p->n_threads: %d %d : %d",p->stop, p->n_threads, (p->stop && p->n_threads != 0)); */
-
-                        if((!p->stop &&  p->n_working != 0) || (p->stop && p->n_active_threads != 0)) {
-                                /* LOG_MSG("Waiting #################################!!!"); */
-                                /* time_to_wait.tv_sec = time(NULL) + 1L; */
-                                /* pthread_cond_timedwait(&p->working_cond, &p->lock, &time_to_wait); */
-                                pthread_cond_wait(&p->working_cond, &p->lock);
-                        }else{
+                while(1){
+                        if(p->stop){
+                                /* Queued work is abandoned; wait for every
+                                   worker to exit. */
+                                if(p->n_active_threads == 0){
+                                        break;
+                                }
+                        }else if(p->n_working == 0 && !work_queue_haswork(p->work)){
                                 break;
                         }
-                        /* if(global_stop_run == 1){ */
-                                /* p->stop = 1; */
-                        /* } */
-
+                        pthread_cond_wait(&p->working_cond, &p->lock);
                 }
                 pthread_mutex_unlock(&p->lock);
         }
+}
+
+/* Stops the workers and joins the first n_started threads, then frees the
+   pool. Does not drain the queue. */
+static void pool_shutdown(tld_thread_pool *p, int n_started)
+{
+        pthread_mutex_lock(&p->lock);
+        pool_set_stop_locked(p);
+        pthread_mutex_unlock(&p->lock);
+
+        for(int t = 0; t < n_started; t++) {
+                int rc = pthread_join(p->threads[t], NULL);
+                if(rc){
+                        WARNING_MSG("pthread_join() failed with return code %d", rc);
+                }
+        }
+
+        MFREE(p->threads);
+        gfree(p->thread_id_map);
+        work_queue_free(p->work);
+        pthread_attr_destroy(&p->attr);
+        pthread_mutex_destroy(&p->lock);
+        pthread_cond_destroy(&p->work_cond);
+        pthread_cond_destroy(&p->working_cond);
+        MFREE(p);
 }
 
 void tld_thread_pool_free(tld_thread_pool *p)
 {
-
         if(p){
-                pthread_mutex_lock(&p->lock);
-                LOG_MSG("Did %d jobs", p->n_jobs_processed);
-                /* p->n_work = 0; */
-                p->stop = 1;
-
-                pthread_cond_broadcast(&p->work_cond);
-                pthread_mutex_unlock(&p->lock);
-
-                /* WAIT;..  */
+                /* Run everything already queued before stopping. */
                 tld_thread_pool_wait(p);
-                /* LOG_MSG("Active: %d", p->n_active_threads); */
-                /* p->n_threads = 8; */
-                for(long t = 0; t < p->n_threads; t++) {
-                        void *status;
-                        /* LOG_MSG("Cancelling thread %d  %ld", t , (uint64_t)p->threads[t]) ; */
-                        int rc = pthread_join(p->threads[t], &status);
-                        if(rc){
-                                WARNING_MSG("ERROR::::: return code from pthread_join() is %d status: %d\n", rc, status );
-                        }
-                        if(status == PTHREAD_CANCELED){
-                                fprintf(stdout,"Main: completed join with thread %ld having a status of %ld (cancelled)\n",t,(long)status);
-                        }
-                }
-
-
-
-                MFREE(p->threads);
-                gfree(p->thread_id_map);
-                work_queue_free(p->work);
-                pthread_mutex_destroy(&p->lock);
-
-
-                pthread_cond_destroy(&p->work_cond);
-                pthread_cond_destroy(&p->working_cond);
-
-                MFREE(p);
+                pool_shutdown(p, p->n_threads);
         }
 }
-
-
 
 int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run)
 {
@@ -246,15 +242,11 @@ int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run
         diff_t = difftime(cur_time , *stop_watch) / 60.0;
 
         if(diff_t > 1.0){
-                diff_t = difftime(cur_time , internal_time) / 60.0;
-                /* LOG_MSG("%f minutes have elapsed", diff_t); */
                 time(stop_watch);
         }
 
         diff_t = difftime(cur_time , internal_time) / 60.0;
-        /* LOG_MSG("Diff time : %f", diff_t); */
         if(diff_t > maxtime){
-                /* LOG_MSG("Allocated time has elapsed!"); */
                 *run = 1;
         }
         return OK;
@@ -280,40 +272,4 @@ int pool_get_tid(tld_thread_pool *p)
         pthread_mutex_unlock(&p->lock);
 
         return ID;
-}
-
-
-int setup_signals_and_thread_comms(void)
-{
-        int status = 0;
-        tld_global_stop_run = 0;
-        status = pthread_mutex_init(&tld_global_cond_mutex, NULL);
-        if(status){
-                ERROR_MSG("pthread_mutex_init failed with %d", status);
-        }
-        status = pthread_cond_init(&tld_global_cond, NULL);
-        if(status){
-                ERROR_MSG("pthread_cond_init failed with %d", status);
-        }
-        signal(SIGINT, catch_signal);
-        signal(SIGABRT, catch_signal);
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-void catch_signal(int sig)
-{
-        static int n_inter = 0;
-        LOG_MSG("Interrupt!!");
-        if(n_inter == 5){
-                LOG_MSG("Caught five interrupts - exiting");
-                exit(EXIT_SUCCESS);
-        }
-        tld_global_stop_run = 1;
-        pthread_mutex_lock(&tld_global_cond_mutex);
-        LOG_MSG("Ohhh am being interupted.... %d ", sig);
-        pthread_cond_broadcast(&tld_global_cond);
-        pthread_mutex_unlock(&tld_global_cond_mutex);
-        n_inter++;
 }

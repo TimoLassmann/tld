@@ -106,6 +106,9 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         double sum = 0.0;
         int a = 0;
         int g = 0;
+        ASSERT(rng_dist != NULL, "No rng_dist pointer");
+        ASSERT(w != NULL, "No weights");
+        ASSERT(n > 0, "Number of weights must be positive (got %d)", n);
         MMALLOC_ALIGNED(d, sizeof(struct rng_dist), _Alignof(struct rng_dist));
         d->p = NULL;
         d->a = NULL;
@@ -124,16 +127,15 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         sum = 0.0;
 
         for(int i = 0; i < n;i++){
-                if(w[i] < 0){
-                        ERROR_MSG("invalid p : w[i] = %f ", w[i]);
+                if(!(w[i] >= 0.0)){
+                        ERROR_MSG("invalid weight: w[%d] = %f", i, w[i]);
                 }
                 sum += w[i];
         }
-        ASSERT(sum > 0.0, "Sum is zero.");
+        ASSERT(sum > 0.0 && isfinite(sum), "Sum of weights is zero or not finite.");
 
         for(int i = 0; i < n;i++){
                 p[i] = w[i] * (double) n / sum;
-                fprintf(stdout,"%f\n", p[i]);
         }
         n_s = 0;
         n_l = 0;
@@ -172,9 +174,6 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         while(n_s){
                 d->p[s[--n_s]] = 1.0;
         }
-        for(int i = 0; i < n;i++){
-                fprintf(stdout,"%f %d\n",d->p[i],d->a[i]);
-        }
         gfree(p);
         gfree(s);
         gfree(l);
@@ -182,9 +181,16 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         *rng_dist = d;
         return OK;
 ERROR:
-        gfree(p);
-        gfree(s);
-        gfree(l);
+        if(p){
+                gfree(p);
+        }
+        if(s){
+                gfree(s);
+        }
+        if(l){
+                gfree(l);
+        }
+        tl_random_sdist_free(d);
         return FAIL;
 }
 
@@ -192,7 +198,10 @@ int tl_random_sdist_smpl(struct rng_dist* d)
 {
         const double r1 = tl_random_double(d->rng);
         const double r2 = tl_random_double(d->rng);
-        const int i = (int) (d->n * r1);
+        int i = (int) (d->n * r1);
+        if(i >= d->n){
+                i = d->n - 1;
+        }
         return r2 < d->p[i] ? i : d->a[i];
 }
 
@@ -200,28 +209,44 @@ int tl_random_sdist_smpl(struct rng_dist* d)
 void tl_random_sdist_free(struct rng_dist* d)
 {
         if(d){
-                gfree(d->p);
-                gfree(d->a);
+                if(d->p){
+                        gfree(d->p);
+                }
+                if(d->a){
+                        gfree(d->a);
+                }
                 free_rng(d->rng);
                 MFREE(d);
         }
 }
 
+/* Uniform on the open interval (0,1): the top 53 bits of a draw give a
+   multiple of 2^-53 in [0, 1 - 2^-53]; zero is rejected. */
 double tl_random_double(struct rng_state* rng)
 {
-        const double m = 18446744073709551616.0;
         uint64_t x = 0U;
-        double y = 0.0;
         do{
-                x = next(rng);
-                y = ((double) x / m);
-        }while (y == 0.0);
-        return y;
+                x = next(rng) >> 11U;
+        }while (x == 0U);
+        return (double) x * 0x1.0p-53;
 }
 
+/* Uniform integer in [0, a). Unbiased: draws below 2^64 mod a are
+   rejected so that every residue is equally likely. Returns 0 if a <= 1. */
 int tl_random_int(struct rng_state* rng,int a)
 {
-        return (int) (tl_random_double(rng) * a);
+        uint64_t n = 0U;
+        uint64_t threshold = 0U;
+        uint64_t x = 0U;
+        if(a <= 1){
+                return 0;
+        }
+        n = (uint64_t) a;
+        threshold = ((uint64_t) 0 - n) % n;
+        do{
+                x = next(rng);
+        }while(x < threshold);
+        return (int) (x % n);
 }
 
 /* from:  */
@@ -414,12 +439,12 @@ int tld_rng_set_seed(struct rng_state *s, uint64_t seed)
         uint64_t sanity = 0U;
         uint64_t z = 0U;
 
+        ASSERT(s != NULL, "No rng allocated in set seed");
         s->gen = 0;
         s->z1 = 0.0F;
         s->gauss = 0.0;
         s->has_gauss = 0;
 
-        ASSERT(s != NULL, "No rng allocated in set seed");
         while(!sanity){
                 sanity = 0;
                 z = (seed += 0x9e3779b97f4a7c15);
@@ -467,12 +492,13 @@ int init_rng_from_rng(struct rng_state** target, struct rng_state* rng)
 
         for(i = 0; i < 4;i++){
                 s->s[i] = rng->s[i];
-                s->gen = 0;
-                s->z1 = 0.0;
-                s->gauss = rng->gauss;
-                s->has_gauss = rng->has_gauss;
-
         }
+        /* Do not inherit cached deviates: the child must not repeat the
+           parent's next gaussian. */
+        s->gen = 0;
+        s->z1 = 0.0;
+        s->gauss = 0.0;
+        s->has_gauss = 0;
         jump(rng);
         *target = s;
         return OK;
