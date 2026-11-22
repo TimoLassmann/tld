@@ -61,53 +61,49 @@ tld_internal  int template_node_create(template_node **node, template_node_type 
 tld_internal  int template_node_resize(template_node *node);
 tld_internal void template_node_free(template_node *node);
 
-int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash)
+/* Parse the text in txt into a new tree in *root (nodes copy their text, so the
+   temporary NUL-terminated copy is freed here). */
+static int template_parse_strbuf(tld_strbuf *txt, template_node **root)
 {
-        tld_hash* h = NULL;
         char* tmp = NULL;
-        template_node* root = NULL;
-        tld_strbuf* out = NULL;
-
+        template_node* r = NULL;
         galloc(&tmp,txt->len+1);
-
         memcpy((void*)tmp, txt->str, txt->len);
         tmp[txt->len] = '\0';
         Parser parser = {tmp, 0, ""};
-        RUN(parse_template(&parser, &root));
+        RUN(parse_template(&parser, &r));
         if (parser.error[0] != '\0') {
                 ERROR_MSG("Error parsing template: %s",parser.error);
         }
+        gfree(tmp);
+        *root = r;
+        return OK;
+ERROR:
+        if(r){
+                template_node_free(r);
+        }
+        gfree(tmp);
+        return FAIL;
+}
 
+int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash)
+{
+        tld_hash* h = NULL;
+        template_node* root = NULL;
 
+        RUN(template_parse_strbuf(txt, &root));
         RUN(tld_hash_alloc(&h,1024));
-
-
         RUN(get_vars(root, h));
 
-
-        /* RUN(tld_strbuf_alloc(&out, 256)); */
-        /* process_tree(root, hash, stdout,out); */
-        /* RUN(tld_strbuf_copy(txt, out)); */
-
         template_node_free(root);
-
-        tld_strbuf_free(out);
-        gfree(tmp);
-
         *hash = h;
         return OK;
 ERROR:
         if(h){
                 tld_hash_free(h);
         }
-        if(out){
-                tld_strbuf_free(out);
-        }
         if(root){
                 template_node_free(root);
-        }
-        if(tmp){
-                gfree(tmp);
         }
         return FAIL;
 }
@@ -115,19 +111,10 @@ ERROR:
 
 int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
 {
-        char* tmp = NULL;
         template_node* root = NULL;
         tld_strbuf* out = NULL;
 
-        galloc(&tmp,txt->len+1);
-
-        memcpy((void*)tmp, txt->str, txt->len);
-        tmp[txt->len] = '\0';
-        Parser parser = {tmp, 0, ""};
-        RUN(parse_template(&parser, &root));
-        if (parser.error[0] != '\0') {
-                ERROR_MSG("Error parsing template: %s",parser.error);
-        }
+        RUN(template_parse_strbuf(txt, &root));
         RUN(tld_strbuf_alloc(&out, 256));
         RUN(process_tree(root, hash, stdout,out));
         RUN(tld_strbuf_copy(txt, out));
@@ -135,7 +122,6 @@ int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
         template_node_free(root);
 
         tld_strbuf_free(out);
-        gfree(tmp);
         return OK;
 ERROR:
         if(out){
@@ -143,9 +129,6 @@ ERROR:
         }
         if(root){
                 template_node_free(root);
-        }
-        if(tmp){
-                gfree(tmp);
         }
         return FAIL;
 }

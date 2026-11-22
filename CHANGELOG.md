@@ -15,6 +15,7 @@ here fix bugs.
 - Licence: MIT (was BSD-style).
 
 ### Fixed: behaviour changes (bugs; no interface change)
+- Duplicated code removed: one prime-size table in hash (growing past the largest prime now refuses instead of overflowing int), one parse step shared by the two template functions, the dead `error()`/`verror()` in core; in tld_ai.h `strcasecmp`/`strncasecmp` replace two hand-written compares, and image and review files are read by one reader (a review file containing a NUL byte is now an error instead of being cut short).
 - json: `tld_json_set_val(obj, path, v)` takes a path in the getters' syntax (`"a.b[2].c"`, `"[0]"`) and sets exactly that value; a missing last key is added and index n appends. It used to replace same-named keys anywhere in the tree, skipping the rest of a level after the first match, and silently did nothing for a missing key.
 - json: `tld_json_obj_alloc` and `tld_json_arr_alloc` check every allocation and clean up on failure.
 - alloc: 2D `galloc` sizes the data block by the element type (it used the pointer size: 8x too much memory for char matrices, 2x for int/float, too little for 8-byte types on 32-bit).

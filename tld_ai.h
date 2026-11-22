@@ -464,6 +464,7 @@ int ai__rate(const char *name, const char *question, const ai_label *L, int n,
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/file.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -907,10 +908,6 @@ static void ai__env_ignored(const char *name, const char *v, const char *want) {
     AI_LOG(1, msg);
 }
 
-static int ai__icase(const char *a, const char *b) { /* equal, ignoring ASCII case */
-    for (; *a && tolower((unsigned char)*a) == tolower((unsigned char)*b); a++, b++) {}
-    return tolower((unsigned char)*a) == tolower((unsigned char)*b);
-}
 
 /* The environment, read once. Values that do not parse are ignored with a warning. */
 static int ai__env_read(ai__layer *l) {
@@ -930,8 +927,8 @@ static int ai__env_read(ai__layer *l) {
         ai_f *n = &l->num[i - AI__NSTR];
         if (i == AI__S_FRESH) {
             for (int k = 0; k < 4; k++) {
-                if (ai__icase(v, yes[k])) *n = AI_F(1);
-                if (ai__icase(v, no[k])) *n = AI_F(0);
+                if (!strcasecmp(v, yes[k])) *n = AI_F(1);
+                if (!strcasecmp(v, no[k])) *n = AI_F(0);
             }
             if (!n->set) ai__env_ignored(names[i], v, "1/0, true/false, yes/no or on/off");
             continue;
@@ -1365,12 +1362,6 @@ static int ai__send_all(int fd, const char *p, size_t n, double deadline) {
     return 0;
 }
 
-static int ai__ieq(const char *a, const char *b, size_t n) {
-    for (size_t i = 0; i < n; i++)
-        if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) return 0;
-    return 1;
-}
-
 /* Decode a chunked body. 1 = complete, 0 = incomplete, -1 = malformed. */
 static int ai__dechunk(const char *s, size_t n, tld_strbuf *out) {
     size_t i = 0;
@@ -1501,11 +1492,11 @@ static int ai__http(const char *method, const char *path, const char *body,
             for (const char *h = strstr(s, "\r\n") + 2; h < s + hdr - 2;) {
                 const char *eol = strstr(h, "\r\n");
                 size_t hl = (size_t)(eol - h);
-                if (hl > 15 && ai__ieq(h, "content-length:", 15))
+                if (hl > 15 && !strncasecmp(h, "content-length:", 15))
                     clen = strtol(h + 15, NULL, 10);
-                else if (hl > 18 && ai__ieq(h, "transfer-encoding:", 18)) {
+                else if (hl > 18 && !strncasecmp(h, "transfer-encoding:", 18)) {
                     for (const char *q = h + 18; q + 7 <= eol; q++)
-                        if (ai__ieq(q, "chunked", 7)) chunked = 1;
+                        if (!strncasecmp(q, "chunked", 7)) chunked = 1;
                 }
                 h = eol + 2;
             }
@@ -1854,38 +1845,66 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
 
 /* ---- request building --------------------------------------------------- */
 
-static int ai__b64_file(const char *path, char **out) {
-    *out = NULL;
+/* Read the whole file at path into a new NUL-terminated buffer (*data, *len bytes,
+ * free with free()). Returns 0, or 1 if the file does not exist and missing_ok is set,
+ * or -1 with the error set. what names the file in messages ("image", "review"). */
+static int ai__slurp(const char *path, const char *what, int missing_ok, char **data,
+                     size_t *len) {
+    *data = NULL;
+    *len = 0;
     FILE *f = fopen(path, "rb");
-    if (!f) return ai__fail(AI_EIO, "cannot read image %s: %s", path, strerror(errno));
-    long n = -1;
-    if (fseek(f, 0, SEEK_END) == 0) n = ftell(f);
-    if (n < 0 || fseek(f, 0, SEEK_SET) != 0 || n > (long)AI__MAX_BODY / 2) {
-        fclose(f);
-        return ai__fail(AI_EIO, "cannot read image %s", path);
+    if (!f) {
+        if (missing_ok && errno == ENOENT) return 1;
+        return ai__fail(AI_EIO, "cannot read %s %s: %s", what, path, strerror(errno));
     }
-    unsigned char *d = malloc((size_t)n + 1);
-    char *o = malloc(4 * (((size_t)n + 2) / 3) + 1);
-    if (!d || !o) {
-        free(d);
-        free(o);
-        fclose(f);
-        return ai__nomem();
+    size_t n = 0, cap = 4096;
+    char *d = malloc(cap);
+    for (;;) {
+        if (!d) {
+            fclose(f);
+            return ai__nomem();
+        }
+        n += fread(d + n, 1, cap - n - 1, f);
+        if (n < cap - 1 || ferror(f)) break;
+        if (cap > (size_t)AI__MAX_BODY) {
+            free(d);
+            fclose(f);
+            return ai__fail(AI_EIO, "%s %s is too large", what, path);
+        }
+        char *g = realloc(d, cap * 2);
+        if (!g) free(d);
+        d = g;
+        cap *= 2;
     }
-    size_t got = fread(d, 1, (size_t)n, f);
-    int bad = got != (size_t)n || ferror(f);
+    int bad = ferror(f);
     fclose(f);
     if (bad) {
         free(d);
-        free(o);
-        return ai__fail(AI_EIO, "short read from image %s", path);
+        return ai__fail(AI_EIO, "cannot read %s %s", what, path);
+    }
+    d[n] = 0;
+    *data = d;
+    *len = n;
+    return 0;
+}
+
+static int ai__b64_file(const char *path, char **out) {
+    *out = NULL;
+    char *d = NULL;
+    size_t got = 0;
+    if (ai__slurp(path, "image", 0, &d, &got)) return -1;
+    char *o = malloc(4 * ((got + 2) / 3) + 1);
+    if (!o) {
+        free(d);
+        return ai__nomem();
     }
     static const char t[] =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const unsigned char *u = (const unsigned char *)d;
     char *q = o;
     for (size_t i = 0; i < got; i += 3) {
-        uint32_t v = (uint32_t)d[i] << 16 | (i + 1 < got ? (uint32_t)d[i + 1] << 8 : 0) |
-                     (i + 2 < got ? d[i + 2] : 0);
+        uint32_t v = (uint32_t)u[i] << 16 | (i + 1 < got ? (uint32_t)u[i + 1] << 8 : 0) |
+                     (i + 2 < got ? u[i + 2] : 0);
         *q++ = t[v >> 18 & 63];
         *q++ = t[v >> 12 & 63];
         *q++ = i + 1 < got ? t[v >> 6 & 63] : '=';
@@ -2540,32 +2559,25 @@ void ai_parallel(int n, int threads, void (*fn)(int i, void *ctx), void *ctx) {
 
 static pthread_mutex_t ai__review_mu = PTHREAD_MUTEX_INITIALIZER;
 
+/* A review file as a strbuf: 0, 1 if it does not exist, -1 on error. */
 static int ai__read_file(const char *path, tld_strbuf **out) {
     *out = NULL;
-    FILE *f = fopen(path, "rb");
-    if (!f) return errno == ENOENT ? 1 : ai__fail(AI_EIO, "cannot read %s: %s", path,
-                                                   strerror(errno));
+    char *d = NULL;
+    size_t n = 0;
+    int rc = ai__slurp(path, "review", 1, &d, &n);
+    if (rc) return rc;
+    if (memchr(d, 0, n)) {
+        free(d);
+        return ai__fail(AI_EPARSE, "review %s contains a NUL byte", path);
+    }
     tld_strbuf *b = NULL;
-    char buf[4096];
-    size_t got;
-    if (tld_strbuf_alloc(&b, 4096) != OK) {
-        fclose(f);
+    if (n > (size_t)INT_MAX - 1 || tld_strbuf_alloc(&b, (int)n + 1) != OK ||
+        tld_append(b, d) != OK) {
+        free(d);
+        tld_strbuf_free(b);
         return ai__nomem();
     }
-    while ((got = fread(buf, 1, sizeof buf - 1, f)) > 0) {
-        buf[got] = 0;
-        if (tld_append(b, buf) != OK) {
-            fclose(f);
-            tld_strbuf_free(b);
-            return ai__nomem();
-        }
-    }
-    int bad = ferror(f);
-    fclose(f);
-    if (bad) {
-        tld_strbuf_free(b);
-        return ai__fail(AI_EIO, "cannot read %s", path);
-    }
+    free(d);
     *out = b;
     return 0;
 }

@@ -109,7 +109,8 @@
         } while (0)
 
 /* galloc with 3 arguments (a 2D matrix). Use galloc. tld__galloc returns the array of
- * row pointers (sized by sizeof(T *)); the data block (sized by sizeof(T)) and the data block hangs off its header. Row offsets are computed in size_t.
+ * row pointers (sizeof(T *) each); the data block (sizeof(T) per element) hangs off its
+ * header. Row offsets are computed in size_t.
  * The local names are chosen so they cannot capture an identifier used in the caller's
  * (b) or (c). */
 #define XGALLOC_ARGS_3(a, b, c)                                         \

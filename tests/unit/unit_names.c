@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
         const size_t nf = sizeof fns / sizeof fns[0];
         (void)vars;
         test_init(&argc, argv, "[PATTERN ...]",
-                  "With no arguments: checks that all 161 public functions and 48 public macros\n"
+                  "With no arguments: checks that all 158 public functions and 48 public macros\n"
                   "of tld exist (a lost or renamed one fails the compile or the link).\n"
                   "With PATTERNs: lists the public functions whose name contains any PATTERN.\n"
                   "Example: unit-names hash json_parse");

@@ -348,7 +348,8 @@ tld_external void tld_progress(long done, long total, const char *label);
         } while (0)
 
 /* galloc with 3 arguments (a 2D matrix). Use galloc. tld__galloc returns the array of
- * row pointers (sized by sizeof(T *)); the data block (sized by sizeof(T)) and the data block hangs off its header. Row offsets are computed in size_t.
+ * row pointers (sizeof(T *) each); the data block (sizeof(T) per element) hangs off its
+ * header. Row offsets are computed in size_t.
  * The local names are chosen so they cannot capture an identifier used in the caller's
  * (b) or (c). */
 #define XGALLOC_ARGS_3(a, b, c)                                         \
@@ -1448,12 +1449,8 @@ tld_external void tl_bitfield_free(tl_bitfield *b);
 /* #define AT __FILE__ " line " tld_tostring(__LINE__) */
 
 tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *file, int line,const char *format,  va_list argp);
-tld_internal void verror(FILE* f_ptr, const char *format,  va_list argp);
 
 tld_internal int get_time(char* time_ptr, int size);
-/* Not declared in any header. It used to be a global symbol named error(), which
-   collides with glibc's error(3) when linking statically; it is internal now. */
-tld_internal void error(const char *format, ...) __attribute__((unused));
 
 void tld_message(uint8_t type, const char *format, ...)
 {
@@ -1608,14 +1605,6 @@ void tld_progress(long done, long total, const char *label)
         fflush(stderr);
 }
 
-void error(const char *format, ...)
-{
-        va_list argp = {0};
-        va_start(argp, format);
-        verror(stderr,format,argp);
-        va_end(argp);
-}
-
 void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
 {
         char time_string[BUFSIZ];
@@ -1658,20 +1647,6 @@ void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *form
 
         fflush(f_ptr);
 }
-
-void verror(FILE* f_ptr, const char *format,  va_list argp)
-{
-        char time_string[BUFSIZ];
-        if(get_time(time_string, BUFSIZ) != OK){
-                fprintf(stderr,"notime");
-        }
-        fprintf(f_ptr,"%*s: ",MESSAGE_MARGIN,time_string);
-        fprintf(f_ptr,"%*s: ",TYPE_MARGIN,"ERROR ");
-        vfprintf(f_ptr, format, argp);
-        fprintf(f_ptr," (%s)\n",AT);
-        fflush(f_ptr);
-}
-
 
 int get_time(char* time_ptr, int size)
 {
@@ -3044,6 +3019,7 @@ int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist)
         }
 }
 /* ---- src/hash/hash.c ---- */
+#include <limits.h>
 
 #include <stdio.h>
 
@@ -3293,12 +3269,9 @@ ERROR:
 }
 
 
-int tld_hash_alloc(tld_hash **hash, int size)
+/* The smallest table size in the prime list that is larger than size; 0 if none is. */
+static int hash_next_size(int size)
 {
-        tld_hash* h = NULL;
-        int new_size = 0;
-        MMALLOC(h, sizeof(tld_hash));
-
         static const int prime_sizes[] = {
                 53, 97, 193, 389, 769, 1543, 3079, 6151,
                 12289, 24593, 49157, 98317, 196613, 393241,
@@ -3306,15 +3279,21 @@ int tld_hash_alloc(tld_hash **hash, int size)
                 25165843, 50331653, 100663319, 201326611,
                 402653189, 805306457, 1610612741
         };
-        static const int num_primes = sizeof(prime_sizes) / sizeof(prime_sizes[0]);
-
-        for (int i = 0; i < num_primes; i++) {
+        for (size_t i = 0; i < sizeof(prime_sizes) / sizeof(prime_sizes[0]); i++) {
                 if (prime_sizes[i] > size) {
-                        new_size = prime_sizes[i];
-                        break;
+                        return prime_sizes[i];
                 }
         }
+        return 0;
+}
 
+int tld_hash_alloc(tld_hash **hash, int size)
+{
+        tld_hash* h = NULL;
+        int new_size = 0;
+        MMALLOC(h, sizeof(tld_hash));
+
+        new_size = hash_next_size(size);
         ASSERT(new_size > 0, "Requested hash size %d is too large", size);
 
         /* table_size stays 0 until the table exists, so tld_hash_free on the
@@ -3346,24 +3325,10 @@ int tld_hash_resize(tld_hash *h)
 {
         tld_hash_entry **new_table = NULL;
 
-        int new_size = h->table_size;
-        static const int prime_sizes[] = {
-                53, 97, 193, 389, 769, 1543, 3079, 6151,
-                12289, 24593, 49157, 98317, 196613, 393241,
-                786433, 1572869, 3145739, 6291469, 12582917,
-                25165843, 50331653, 100663319, 201326611,
-                402653189, 805306457, 1610612741
-        };
-        static const int num_primes = sizeof(prime_sizes) / sizeof(prime_sizes[0]);
-
-        for (int i = 0; i < num_primes; i++) {
-                if (prime_sizes[i] > h->table_size) {
-                        new_size = prime_sizes[i];
-                        break;
-                }
-        }
-        if (new_size == h->table_size) {
-                // If no larger prime is found, double the size
+        int new_size = hash_next_size(h->table_size);
+        if (new_size == 0) {
+                /* past the prime list: double the size, if that still fits in an int */
+                ASSERT(h->table_size <= (INT_MAX - 1) / 2, "Hash table is too large to grow");
                 new_size = h->table_size * 2 + 1;
         }
 
@@ -6527,53 +6492,49 @@ tld_internal  int template_node_create(template_node **node, template_node_type 
 tld_internal  int template_node_resize(template_node *node);
 tld_internal void template_node_free(template_node *node);
 
-int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash)
+/* Parse the text in txt into a new tree in *root (nodes copy their text, so the
+   temporary NUL-terminated copy is freed here). */
+static int template_parse_strbuf(tld_strbuf *txt, template_node **root)
 {
-        tld_hash* h = NULL;
         char* tmp = NULL;
-        template_node* root = NULL;
-        tld_strbuf* out = NULL;
-
+        template_node* r = NULL;
         galloc(&tmp,txt->len+1);
-
         memcpy((void*)tmp, txt->str, txt->len);
         tmp[txt->len] = '\0';
         Parser parser = {tmp, 0, ""};
-        RUN(parse_template(&parser, &root));
+        RUN(parse_template(&parser, &r));
         if (parser.error[0] != '\0') {
                 ERROR_MSG("Error parsing template: %s",parser.error);
         }
+        gfree(tmp);
+        *root = r;
+        return OK;
+ERROR:
+        if(r){
+                template_node_free(r);
+        }
+        gfree(tmp);
+        return FAIL;
+}
 
+int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash)
+{
+        tld_hash* h = NULL;
+        template_node* root = NULL;
 
+        RUN(template_parse_strbuf(txt, &root));
         RUN(tld_hash_alloc(&h,1024));
-
-
         RUN(get_vars(root, h));
 
-
-        /* RUN(tld_strbuf_alloc(&out, 256)); */
-        /* process_tree(root, hash, stdout,out); */
-        /* RUN(tld_strbuf_copy(txt, out)); */
-
         template_node_free(root);
-
-        tld_strbuf_free(out);
-        gfree(tmp);
-
         *hash = h;
         return OK;
 ERROR:
         if(h){
                 tld_hash_free(h);
         }
-        if(out){
-                tld_strbuf_free(out);
-        }
         if(root){
                 template_node_free(root);
-        }
-        if(tmp){
-                gfree(tmp);
         }
         return FAIL;
 }
@@ -6581,19 +6542,10 @@ ERROR:
 
 int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
 {
-        char* tmp = NULL;
         template_node* root = NULL;
         tld_strbuf* out = NULL;
 
-        galloc(&tmp,txt->len+1);
-
-        memcpy((void*)tmp, txt->str, txt->len);
-        tmp[txt->len] = '\0';
-        Parser parser = {tmp, 0, ""};
-        RUN(parse_template(&parser, &root));
-        if (parser.error[0] != '\0') {
-                ERROR_MSG("Error parsing template: %s",parser.error);
-        }
+        RUN(template_parse_strbuf(txt, &root));
         RUN(tld_strbuf_alloc(&out, 256));
         RUN(process_tree(root, hash, stdout,out));
         RUN(tld_strbuf_copy(txt, out));
@@ -6601,7 +6553,6 @@ int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
         template_node_free(root);
 
         tld_strbuf_free(out);
-        gfree(tmp);
         return OK;
 ERROR:
         if(out){
@@ -6609,9 +6560,6 @@ ERROR:
         }
         if(root){
                 template_node_free(root);
-        }
-        if(tmp){
-                gfree(tmp);
         }
         return FAIL;
 }

@@ -494,7 +494,8 @@ galloc with 1 argument (an error: too few) and with 2 (a 1D array). Use galloc.
 ```
 
 galloc with 3 arguments (a 2D matrix). Use galloc. tld__galloc returns the array of
-row pointers (sized by sizeof(T *)); the data block (sized by sizeof(T)) and the data block hangs off its header. Row offsets are computed in size_t.
+row pointers (sizeof(T *) each); the data block (sizeof(T) per element) hangs off its
+header. Row offsets are computed in size_t.
 The local names are chosen so they cannot capture an identifier used in the caller's
 (b) or (c).
 

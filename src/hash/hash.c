@@ -1,4 +1,5 @@
 #include "hash.h"
+#include <limits.h>
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
 #include "../string/str.h"
@@ -221,12 +222,9 @@ ERROR:
 }
 
 
-int tld_hash_alloc(tld_hash **hash, int size)
+/* The smallest table size in the prime list that is larger than size; 0 if none is. */
+static int hash_next_size(int size)
 {
-        tld_hash* h = NULL;
-        int new_size = 0;
-        MMALLOC(h, sizeof(tld_hash));
-
         static const int prime_sizes[] = {
                 53, 97, 193, 389, 769, 1543, 3079, 6151,
                 12289, 24593, 49157, 98317, 196613, 393241,
@@ -234,15 +232,21 @@ int tld_hash_alloc(tld_hash **hash, int size)
                 25165843, 50331653, 100663319, 201326611,
                 402653189, 805306457, 1610612741
         };
-        static const int num_primes = sizeof(prime_sizes) / sizeof(prime_sizes[0]);
-
-        for (int i = 0; i < num_primes; i++) {
+        for (size_t i = 0; i < sizeof(prime_sizes) / sizeof(prime_sizes[0]); i++) {
                 if (prime_sizes[i] > size) {
-                        new_size = prime_sizes[i];
-                        break;
+                        return prime_sizes[i];
                 }
         }
+        return 0;
+}
 
+int tld_hash_alloc(tld_hash **hash, int size)
+{
+        tld_hash* h = NULL;
+        int new_size = 0;
+        MMALLOC(h, sizeof(tld_hash));
+
+        new_size = hash_next_size(size);
         ASSERT(new_size > 0, "Requested hash size %d is too large", size);
 
         /* table_size stays 0 until the table exists, so tld_hash_free on the
@@ -274,24 +278,10 @@ int tld_hash_resize(tld_hash *h)
 {
         tld_hash_entry **new_table = NULL;
 
-        int new_size = h->table_size;
-        static const int prime_sizes[] = {
-                53, 97, 193, 389, 769, 1543, 3079, 6151,
-                12289, 24593, 49157, 98317, 196613, 393241,
-                786433, 1572869, 3145739, 6291469, 12582917,
-                25165843, 50331653, 100663319, 201326611,
-                402653189, 805306457, 1610612741
-        };
-        static const int num_primes = sizeof(prime_sizes) / sizeof(prime_sizes[0]);
-
-        for (int i = 0; i < num_primes; i++) {
-                if (prime_sizes[i] > h->table_size) {
-                        new_size = prime_sizes[i];
-                        break;
-                }
-        }
-        if (new_size == h->table_size) {
-                // If no larger prime is found, double the size
+        int new_size = hash_next_size(h->table_size);
+        if (new_size == 0) {
+                /* past the prime list: double the size, if that still fits in an int */
+                ASSERT(h->table_size <= (INT_MAX - 1) / 2, "Hash table is too large to grow");
                 new_size = h->table_size * 2 + 1;
         }
 

@@ -14,12 +14,8 @@
 /* #define AT __FILE__ " line " tld_tostring(__LINE__) */
 
 tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *file, int line,const char *format,  va_list argp);
-tld_internal void verror(FILE* f_ptr, const char *format,  va_list argp);
 
 tld_internal int get_time(char* time_ptr, int size);
-/* Not declared in any header. It used to be a global symbol named error(), which
-   collides with glibc's error(3) when linking statically; it is internal now. */
-tld_internal void error(const char *format, ...) __attribute__((unused));
 
 void tld_message(uint8_t type, const char *format, ...)
 {
@@ -174,14 +170,6 @@ void tld_progress(long done, long total, const char *label)
         fflush(stderr);
 }
 
-void error(const char *format, ...)
-{
-        va_list argp = {0};
-        va_start(argp, format);
-        verror(stderr,format,argp);
-        va_end(argp);
-}
-
 void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
 {
         char time_string[BUFSIZ];
@@ -224,20 +212,6 @@ void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *form
 
         fflush(f_ptr);
 }
-
-void verror(FILE* f_ptr, const char *format,  va_list argp)
-{
-        char time_string[BUFSIZ];
-        if(get_time(time_string, BUFSIZ) != OK){
-                fprintf(stderr,"notime");
-        }
-        fprintf(f_ptr,"%*s: ",MESSAGE_MARGIN,time_string);
-        fprintf(f_ptr,"%*s: ",TYPE_MARGIN,"ERROR ");
-        vfprintf(f_ptr, format, argp);
-        fprintf(f_ptr," (%s)\n",AT);
-        fflush(f_ptr);
-}
-
 
 int get_time(char* time_ptr, int size)
 {
