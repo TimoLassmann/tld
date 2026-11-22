@@ -56,7 +56,9 @@ typedef struct tld_json_arr {
 typedef struct {
         char* key;
         void* value;
-        enum { VAL_STRING, VAL_OBJ, VAL_ARR } type;
+        /* VAL_STRING guesses the type from the text (JS); the values after
+           VAL_ARR are the typed decorations JSTR, JNUM, JINT, JBOOL, JNULL. */
+        enum { VAL_STRING, VAL_OBJ, VAL_ARR, VAL_JSTR, VAL_NUM, VAL_INT, VAL_BOOL, VAL_NULL } type;
 } tld_json_decoration;
 
 #undef TLD_JSON_STRUCT_IMPORT

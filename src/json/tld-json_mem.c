@@ -11,15 +11,18 @@ int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s)
         tld_json_obj* t = NULL;
         RUN(tld_json_obj_alloc(&t));
         for(int i = 0; i < s->n;i++){
-                tld_append(t->key[i], TLD_STR(s->key[i]));
-                tld_json_val_copy(t->v[i], s->v[i]);
+                RUN(tld_append(t->key[i], TLD_STR(s->key[i])));
+                RUN(tld_json_val_copy(t->v[i], s->v[i]));
                 t->n++;
-                tld_json_obj_chk_space(t);
+                RUN(tld_json_obj_chk_space(t));
         }
 
         *target = t;
         return OK;
 ERROR:
+        if(t){
+                tld_json_obj_free(t);
+        }
         return FAIL;
 }
 
@@ -91,44 +94,72 @@ void tld_json_obj_free(tld_json_obj *n)
         }
 }
 
+/* Release whatever v owns and mark it empty. */
+static void tld_json_val_clear(tld_json_val *v)
+{
+        switch (v->type) {
+        case TLD_JSON_STR:
+                tld_strbuf_free(v->value.str);
+                break;
+        case TLD_JSON_ARR:
+                tld_json_arr_free(v->value.arr);
+                break;
+        case TLD_JSON_OBJ:
+                tld_json_obj_free(v->value.obj);
+                break;
+        default:
+                break;
+        }
+        v->type = TLD_JSON_UNDEF;
+}
+
+/* Deep copy s into t. Whatever t held before is released, so t may hold a
+   value of another type. The copy is built first, so s may live inside t. */
 int tld_json_val_copy(tld_json_val *t, tld_json_val *s)
 {
+        tld_json_val tmp;
         ASSERT(t != NULL,"No target");
         ASSERT(s != NULL,"No source");
 
-
+        if(t == s){
+                return OK;
+        }
+        tmp.type = s->type;
         switch(s->type){
         case TLD_JSON_OBJ:
-                t->type = TLD_JSON_OBJ;
-                tld_json_obj_copy(&t->value.obj, s->value.obj);
-
-                /* ERROR_MSG("Node copy not implemented!"); */
+                tmp.value.obj = NULL;
+                if(s->value.obj){
+                        RUN(tld_json_obj_copy(&tmp.value.obj, s->value.obj));
+                }
                 break;
         case TLD_JSON_ARR:
-                tld_json_arr_copy(&t->value.arr, s->value.arr);
-                /* ERROR_MSG("Copy of list not implemented. "); */
+                tmp.value.arr = NULL;
+                if(s->value.arr){
+                        RUN(tld_json_arr_copy(&tmp.value.arr, s->value.arr));
+                }
                 break;
         case TLD_JSON_STR:
-                if(t->type == TLD_JSON_UNDEF){
-                        tld_strbuf_alloc(&t->value.str, 16);
+                tmp.value.str = NULL;
+                if(s->value.str){
+                        RUN(tld_strbuf_alloc(&tmp.value.str, s->value.str->len + 1));
+                        RUN(tld_strbuf_copy(tmp.value.str, s->value.str));
                 }
-                tld_strbuf_copy(t->value.str, s->value.str);
                 break;
         case TLD_JSON_DBL:
-                t->value.d_num = s->value.d_num;
+                tmp.value.d_num = s->value.d_num;
                 break;
         case TLD_JSON_INT:
-                t->value.i_num = s->value.i_num;
+                tmp.value.i_num = s->value.i_num;
                 break;
         case TLD_JSON_BOOL_TRUE:
         case TLD_JSON_BOOL_FALSE:
-                t->value.b_num = s->value.b_num;
+                tmp.value.b_num = s->value.b_num;
                 break;
-
         case TLD_JSON_UNDEF:
                 break;
         }
-        t->type = s->type;
+        tld_json_val_clear(t);
+        *t = tmp;
         return OK;
 ERROR:
         return FAIL;
@@ -180,10 +211,9 @@ int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s)
         tld_json_arr* n = NULL;
         RUN(tld_json_arr_alloc(&n));
         for(int i = 0; i < s->n;i++){
-                tld_json_val_copy(n->v[n->n] , s->v[i]);
+                RUN(tld_json_val_copy(n->v[n->n] , s->v[i]));
                 n->n++;
-                tld_json_arr_chk_space(n);
-
+                RUN(tld_json_arr_chk_space(n));
         }
         *t = n;
         return OK;
