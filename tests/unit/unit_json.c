@@ -51,18 +51,19 @@ int test_parser2(void)
 
         tld_json_search(n, "content", &res);
         tld_json_obj_free(n);
+        n = NULL;
 
         tld_strbuf_clear(buf);
         tld_json_dump(res, buf, 0);
         DEBUG_MSG("%s", TLD_STR(buf));
         tld_json_obj_free(res);
 
-        char in2[] = "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"Let me see...\n\nI've got it!\n\nMeet Kaelin \\\"Kae\\\" Valtor, a 32-year-old skilled astrobiologist and explorer from the planet of Xeridia. Kae is a brilliant scientist with a passion for uncovering the secrets of the universe. Born on a remote research station\",\"role\":\"assistant\"}}],\"created\":1720583143,\"model\":\"gpt-3.5-turbo\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":64,\"prompt_tokens\":58,\"total_tokens\":122},\"id\":\"chatcmpl-C0uWNFiitSmQwefVTnsllXDvcilXoIah\"}";
+        char in2[] = "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"Let me see...\\n\\nI've got it!\\n\\nMeet Kaelin \\\"Kae\\\" Valtor, a 32-year-old skilled astrobiologist and explorer from the planet of Xeridia. Kae is a brilliant scientist with a passion for uncovering the secrets of the universe. Born on a remote research station\",\"role\":\"assistant\"}}],\"created\":1720583143,\"model\":\"gpt-3.5-turbo\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":64,\"prompt_tokens\":58,\"total_tokens\":122},\"id\":\"chatcmpl-C0uWNFiitSmQwefVTnsllXDvcilXoIah\"}";
         tld_strbuf_clear(buf);
         tld_strbuf_append(buf, in2);
         KV_MSG("input", "message 2");
         DEBUG_MSG("%s", TLD_STR(buf));
-        tld_json_parse(TLD_STR(buf), &n);
+        RUN(tld_json_parse(TLD_STR(buf), &n));
         tld_strbuf_clear(buf);
         tld_json_dump(n, buf, 0);
         OK_MSG("message 2 parsed");
@@ -70,6 +71,9 @@ int test_parser2(void)
         tld_strbuf_free(buf);
         tld_json_obj_free(n);
         return OK;
+ERROR:
+        tld_strbuf_free(buf);
+        return FAIL;
 }
 
 int test_create(void)

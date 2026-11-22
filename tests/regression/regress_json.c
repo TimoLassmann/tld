@@ -1032,6 +1032,97 @@ static void test_add(void)
         tld_json_obj_free(o);
 }
 
+/* RFC 8259 strings and numbers: raw control characters, malformed UTF-8 and numbers a
+   double cannot hold are rejected; the writer always produces valid JSON. */
+static void test_strict(void)
+{
+        static const struct { const char *text; int ok; } in[] = {
+                {"{\"a\":\"x\ny\"}", 0},            /* raw newline */
+                {"{\"a\":\"x\ty\"}", 0},            /* raw tab */
+                {"{\"a\":\"x\x1fy\"}", 0},          /* raw 0x1f */
+                {"{\"a\":\"x\x7fy\"}", 1},          /* DEL is allowed */
+                {"{\"a\":\"\xe2\x82\xac\"}", 1},    /* U+20AC */
+                {"{\"a\":\"\xf0\x9f\x98\x80\"}", 1},/* U+1F600 */
+                {"{\"a\":\"\xff\"}", 0},             /* never valid */
+                {"{\"a\":\"\xc3\"}", 0},             /* truncated */
+                {"{\"a\":\"\xc0\x80\"}", 0},         /* overlong NUL */
+                {"{\"a\":\"\xe0\x80\xaf\"}", 0},    /* overlong '/' */
+                {"{\"a\":\"\xed\xa0\x80\"}", 0},    /* UTF-8 surrogate */
+                {"{\"a\":\"\xf4\x90\x80\x80\"}", 0},/* above U+10FFFF */
+                {"{\"\xff\":1}", 0},                 /* in a key */
+                {"{\"a\":1e999}", 0},
+                {"{\"a\":-1e999}", 0},
+                {"{\"a\":1e-999}", 1},              /* underflow: 0 */
+        };
+        tld_json_obj *o = NULL;
+        tld_json_obj *p = NULL;
+        tld_strbuf *b = NULL;
+        const char *str = NULL;
+        double d = 1.0;
+        fprintf(stderr, "regress-json: expect parse errors for the rejected inputs:\n");
+        for(size_t i = 0; i < sizeof in / sizeof in[0]; i++){
+                int rc = tld_json_parse(in[i].text, &o);
+                if((rc == OK) != in[i].ok){
+                        fprintf(stderr, "CHECK failed: input %zu %s\n", i, in[i].ok ? "rejected" : "accepted");
+                }
+                CHECK((rc == OK) == in[i].ok);
+                tld_json_obj_free(o);
+                o = NULL;
+        }
+        CHECK(parse_cstr("{\"a\":1e-999}", &o) == OK && tld_json_get_num(o, "a", &d) == OK && d == 0.0);
+        tld_json_obj_free(o);
+        o = NULL;
+
+        /* a lone surrogate escape becomes U+FFFD */
+        CHECK(parse_cstr("{\"a\":\"\\ud800x\"}", &o) == OK);
+        CHECK(o && tld_json_get_str(o, "a", &str) == OK && strcmp(str, "\xef\xbf\xbdx") == 0);
+        tld_json_obj_free(o);
+        o = NULL;
+
+        /* invalid UTF-8 put in by hand is written as \ufffd and reads back */
+        o = TLD_JSON_OBJECT(TLD_JSTR("latin1", "caf\xe9"), TLD_JSTR("ok", "\xe2\x82\xac"));
+        CHECK(o != NULL);
+        tld_strbuf_alloc(&b, 32);
+        CHECK(tld_json_dump(o, b, TLD_JSON_COMPACT) == OK);
+        CHECK(strcmp(TLD_STR(b), "{\"latin1\":\"caf\\ufffd\",\"ok\":\"\xe2\x82\xac\"}") == 0);
+        CHECK(parse_cstr(TLD_STR(b), &p) == OK);
+        CHECK(p && tld_json_get_str(p, "latin1", &str) == OK && strcmp(str, "caf\xef\xbf\xbd") == 0);
+        tld_strbuf_free(b);
+        tld_json_obj_free(o);
+        tld_json_obj_free(p);
+}
+
+/* A parsed top-level array is written back as the array, also from a copy; once the
+   wrapper holds anything else it is an ordinary object. A real object with the same
+   key stays an object. */
+static void test_top_level_roundtrip(void)
+{
+        tld_json_obj *o = NULL;
+        tld_json_obj *c = NULL;
+        tld_strbuf *b = NULL;
+        tld_strbuf_alloc(&b, 32);
+        CHECK(parse_cstr("[1, \"x\", null, {\"k\": []}]", &o) == OK);
+        CHECK(tld_json_dump(o, b, TLD_JSON_COMPACT) == OK);
+        CHECK(strcmp(TLD_STR(b), "[1,\"x\",null,{\"k\":[]}]") == 0);
+        tld_strbuf_clear(b);
+        CHECK(tld_json_dump(o, b, 0) == OK && TLD_STR(b)[0] == '[');
+        tld_strbuf_clear(b);
+        CHECK(tld_json_obj_copy(&c, o) == OK);
+        CHECK(tld_json_dump(c, b, TLD_JSON_COMPACT) == OK && strcmp(TLD_STR(b), "[1,\"x\",null,{\"k\":[]}]") == 0);
+        tld_strbuf_clear(b);
+        CHECK(tld_json_obj_add(&c, TLD_JINT("n", 2)) == OK);
+        CHECK(tld_json_dump(c, b, TLD_JSON_COMPACT) == OK);
+        CHECK(strcmp(TLD_STR(b), "{\"Top Level Arr\":[1,\"x\",null,{\"k\":[]}],\"n\":2}") == 0);
+        tld_json_obj_free(c);
+        tld_json_obj_free(o);
+        o = NULL;
+        tld_strbuf_clear(b);
+        CHECK(parse_cstr("{\"Top Level Arr\": [1]}", &o) == OK);
+        CHECK(tld_json_dump(o, b, TLD_JSON_COMPACT) == OK && strcmp(TLD_STR(b), "{\"Top Level Arr\":[1]}") == 0);
+        tld_json_obj_free(o);
+        tld_strbuf_free(b);
+}
+
 static const struct {
         const char *name;
         void (*fn)(void);
@@ -1063,6 +1154,8 @@ static const struct {
         {"parse-text", test_parse_text, "tld_json_parse on C text, tld_json_parse_n on a byte range"},
         {"compact", test_compact, "TLD_JSON_COMPACT writes no whitespace and reads back the same"},
         {"add", test_add, "tld_json_obj_add / tld_json_arr_add, one entry at a time"},
+        {"strict", test_strict, "control characters, malformed UTF-8 and out-of-range numbers are rejected"},
+        {"top-level-roundtrip", test_top_level_roundtrip, "a parsed top-level array dumps back as the array"},
 };
 
 int main(int argc, char *argv[])
@@ -1098,6 +1191,8 @@ int main(int argc, char *argv[])
                   "  parse-text         tld_json_parse on C text, tld_json_parse_n on a byte range\n"
                   "  compact            TLD_JSON_COMPACT writes no whitespace and reads back the same\n"
                   "  add                tld_json_obj_add / tld_json_arr_add, one entry at a time\n"
+                  "  strict             control characters, malformed UTF-8 and out-of-range numbers\n"
+                  "  top-level-roundtrip  a parsed top-level array dumps back as the array\n"
                   "\n"
                   "Example: regress-json escapes malformed");
         for(int i = 1; i < argc; i++){

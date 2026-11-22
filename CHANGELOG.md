@@ -86,6 +86,21 @@ tld.h to this. Old → new:
 - tests: `null-args` (193 calls, each in its own process) and `null-args-covered` (every
   public function with a pointer argument has a case).
 
+### JSON: strict RFC 8259 input, always-valid output
+- json: the parser rejects raw control characters (below 0x20) in strings, malformed
+  UTF-8 (stray bytes, truncated, overlong and surrogate sequences, code points above
+  U+10FFFF) in strings and keys, and numbers too large for a double (`1e999` was read as
+  infinity and written back as `null`). Underflow still gives 0, and a lone surrogate escape
+  (`\ud800`) still becomes U+FFFD.
+- json: the writer writes a byte that is not well-formed UTF-8 as `\ufffd`, so a string
+  built from, say, Latin-1 text still dumps as valid JSON that reads back.
+- json: a parsed top-level array dumps back as the array (was
+  `{"Top Level Arr":[...]}`). The new `top_level_arr` field of `tld_json_obj` marks the
+  wrapper; copies keep it, and once the wrapper holds anything else it is written as an
+  object.
+- tests: `regress-json strict`, `regress-json top-level-roundtrip`; `unit-json`'s second
+  sample reply had raw newlines in a string (invalid JSON) and is now escaped.
+
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,
   OK_MSG, DEBUG_MSG) requires a string-literal format, and the format is checked against the

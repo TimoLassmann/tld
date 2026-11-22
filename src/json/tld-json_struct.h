@@ -39,13 +39,14 @@ typedef struct tld_json_val{
 
 /* A JSON object: key[i] maps to v[i] for i < n, in document order (duplicate keys are
  * kept); n_alloc slots exist. Made by tld_json_parse, TLD_JSON_OBJECT or tld_json_obj_alloc;
- * freed with tld_json_obj_free. */
+ * freed with tld_json_obj_free. top_level_arr is 1 in the object tld_json_parse makes for
+ * a top-level array: while it holds just that array, tld_json_dump writes the array. */
 typedef struct tld_json_obj{
         tld_strbuf** key;
         tld_json_val** v;
         int n;
         int n_alloc;
-
+        int top_level_arr;
 } tld_json_obj;
 
 /* A JSON array of n values v[0..n-1] (read_head is unused). Made by TLD_JSON_ARRAY or

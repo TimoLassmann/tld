@@ -15,6 +15,7 @@ int tld_json_obj_alloc(tld_json_obj **node)
         n->v = NULL;
         n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
         n->n = 0;
+        n->top_level_arr = 0;
 
         MMALLOC(n->key, sizeof(tld_strbuf*) * want);
         MMALLOC(n->v, sizeof(tld_json_val*) * want);
@@ -65,6 +66,7 @@ int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s)
                 t->n++;
                 RUN(tld__json_obj_chk_space(t));
         }
+        t->top_level_arr = s->top_level_arr;
 
         *target = t;
         return OK;

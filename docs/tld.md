@@ -895,13 +895,14 @@ typedef struct tld_json_obj{
         tld_json_val** v;
         int n;
         int n_alloc;
-
+        int top_level_arr;
 } tld_json_obj;
 ```
 
 A JSON object: key[i] maps to v[i] for i < n, in document order (duplicate keys are
 kept); n_alloc slots exist. Made by tld_json_parse, TLD_JSON_OBJECT or tld_json_obj_alloc;
-freed with tld_json_obj_free.
+freed with tld_json_obj_free. top_level_arr is 1 in the object tld_json_parse makes for
+a top-level array: while it holds just that array, tld_json_dump writes the array.
 
 <a id="tld_json_arr"></a>
 
@@ -1048,10 +1049,13 @@ TLD_API int tld_json_parse(const char *text, tld_json_obj **out);
 TLD_API int tld_json_parse_n(const char *text, size_t len, tld_json_obj **out);
 ```
 
-Parse the NUL-terminated JSON text (standard JSON, nesting up to 512 levels) into a
-new object in *out; free it with tld_json_obj_free. A top-level array becomes the
-single entry of an object, under the key "Top Level Arr". Invalid JSON prints an
-error naming the byte offset and returns FAIL. tld_json_parse_n parses the len bytes
+Parse the NUL-terminated JSON text (RFC 8259, nesting up to 512 levels) into a new
+object in *out; free it with tld_json_obj_free. A top-level array becomes the single
+entry of an object, under the key "Top Level Arr" (tld_json_dump writes it back as the
+array). Strings must be well-formed UTF-8 without raw control characters; a lone
+surrogate escape (\ud800) becomes U+FFFD. Numbers too large for a double are an error
+(underflow gives 0); integers outside int32_t are stored as doubles. Invalid JSON
+prints an error naming the byte offset and returns FAIL. tld_json_parse_n parses the len bytes
 at text instead (a NUL byte among them is invalid JSON). For a tld_strbuf b:
 tld_json_parse(TLD_STR(b), &o).
 
@@ -1209,8 +1213,10 @@ TLD_API int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
 
 Append n as JSON text to b (b is not cleared): with indent >= 0, 4 spaces of
 indentation per level on top of indent (pass 0); with TLD_JSON_COMPACT, no whitespace.
-Strings are escaped, doubles written with the fewest of 15 to 17 significant digits
-that read back exactly, inf/nan as null. A NULL n appends nothing.
+Strings are escaped (a byte that is not well-formed UTF-8 is written as \ufffd, so the
+text is always valid JSON), doubles written with the fewest of 15 to 17 significant
+digits that read back exactly, inf/nan as null. A parsed top-level array is written
+as the array (see top_level_arr). A NULL n appends nothing.
 
 <a id="mod-template"></a>
 

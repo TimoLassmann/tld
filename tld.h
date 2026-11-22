@@ -672,13 +672,14 @@ typedef struct tld_json_val{
 
 /* A JSON object: key[i] maps to v[i] for i < n, in document order (duplicate keys are
  * kept); n_alloc slots exist. Made by tld_json_parse, TLD_JSON_OBJECT or tld_json_obj_alloc;
- * freed with tld_json_obj_free. */
+ * freed with tld_json_obj_free. top_level_arr is 1 in the object tld_json_parse makes for
+ * a top-level array: while it holds just that array, tld_json_dump writes the array. */
 typedef struct tld_json_obj{
         tld_strbuf** key;
         tld_json_val** v;
         int n;
         int n_alloc;
-
+        int top_level_arr;
 } tld_json_obj;
 
 /* A JSON array of n values v[0..n-1] (read_head is unused). Made by TLD_JSON_ARRAY or
@@ -758,10 +759,13 @@ TLD_API   int tld_json_val_copy(tld_json_val *t, tld_json_val *s);
 #include <stdio.h>
 
 
-/* Parse the NUL-terminated JSON text (standard JSON, nesting up to 512 levels) into a
- * new object in *out; free it with tld_json_obj_free. A top-level array becomes the
- * single entry of an object, under the key "Top Level Arr". Invalid JSON prints an
- * error naming the byte offset and returns FAIL. tld_json_parse_n parses the len bytes
+/* Parse the NUL-terminated JSON text (RFC 8259, nesting up to 512 levels) into a new
+ * object in *out; free it with tld_json_obj_free. A top-level array becomes the single
+ * entry of an object, under the key "Top Level Arr" (tld_json_dump writes it back as the
+ * array). Strings must be well-formed UTF-8 without raw control characters; a lone
+ * surrogate escape (\ud800) becomes U+FFFD. Numbers too large for a double are an error
+ * (underflow gives 0); integers outside int32_t are stored as doubles. Invalid JSON
+ * prints an error naming the byte offset and returns FAIL. tld_json_parse_n parses the len bytes
  * at text instead (a NUL byte among them is invalid JSON). For a tld_strbuf b:
  * tld_json_parse(TLD_STR(b), &o). */
 TLD_API int tld_json_parse(const char *text, tld_json_obj **out);
@@ -860,8 +864,10 @@ TLD_API int tld_json_arr_add(tld_json_arr **arr, tld_json_decoration entry);
 
 /* Append n as JSON text to b (b is not cleared): with indent >= 0, 4 spaces of
  * indentation per level on top of indent (pass 0); with TLD_JSON_COMPACT, no whitespace.
- * Strings are escaped, doubles written with the fewest of 15 to 17 significant digits
- * that read back exactly, inf/nan as null. A NULL n appends nothing. */
+ * Strings are escaped (a byte that is not well-formed UTF-8 is written as \ufffd, so the
+ * text is always valid JSON), doubles written with the fewest of 15 to 17 significant
+ * digits that read back exactly, inf/nan as null. A parsed top-level array is written
+ * as the array (see top_level_arr). A NULL n appends nothing. */
 TLD_API int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
 TLD_API int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
 
@@ -2673,6 +2679,7 @@ int tld_json_obj_alloc(tld_json_obj **node)
         n->v = NULL;
         n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
         n->n = 0;
+        n->top_level_arr = 0;
 
         MMALLOC(n->key, sizeof(tld_strbuf*) * want);
         MMALLOC(n->v, sizeof(tld_json_val*) * want);
@@ -2723,6 +2730,7 @@ int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s)
                 t->n++;
                 RUN(tld__json_obj_chk_space(t));
         }
+        t->top_level_arr = s->top_level_arr;
 
         *target = t;
         return OK;
@@ -3023,6 +3031,7 @@ static int tld__jp_push(tld__json_parser *p, uint8_t c);
 static int tld__jp_push_utf8(tld__json_parser *p, uint32_t cp);
 static int tld__jp_hex4(tld__json_parser *p, uint32_t *cp);
 static int tld__jp_string(tld__json_parser *p);
+static int tld__jp_utf8_len(const uint8_t *s, int avail);
 static int tld__jp_number(tld__json_parser *p, tld_json_val *v);
 static int tld__jp_literal(tld__json_parser *p, const char *lit);
 static int tld__jp_value(tld__json_parser *p, tld_json_val *v);
@@ -3127,6 +3136,45 @@ int tld__jp_hex4(tld__json_parser *p, uint32_t *cp)
         return OK;
 }
 
+/* The length (2 to 4) of the well-formed UTF-8 sequence at s, which starts with a byte
+   >= 0x80, or 0 when it is not one (RFC 3629: no overlong forms, no surrogates, nothing
+   above U+10FFFF, no truncated sequence). avail bytes are readable. */
+int tld__jp_utf8_len(const uint8_t *s, int avail)
+{
+        const uint8_t c = s[0];
+        int n = 0;
+        uint8_t lo = 0x80;
+        uint8_t hi = 0xBF;
+        if(c >= 0xC2 && c <= 0xDF){
+                n = 2;
+        }else if(c >= 0xE0 && c <= 0xEF){
+                n = 3;
+                if(c == 0xE0){
+                        lo = 0xA0;              /* overlong below U+0800 */
+                }else if(c == 0xED){
+                        hi = 0x9F;              /* surrogates U+D800..U+DFFF */
+                }
+        }else if(c >= 0xF0 && c <= 0xF4){
+                n = 4;
+                if(c == 0xF0){
+                        lo = 0x90;              /* overlong below U+10000 */
+                }else if(c == 0xF4){
+                        hi = 0x8F;              /* above U+10FFFF */
+                }
+        }else{
+                return 0;                       /* 0x80..0xC1, 0xF5..0xFF */
+        }
+        if(avail < n || s[1] < lo || s[1] > hi){
+                return 0;
+        }
+        for(int k = 2; k < n; k++){
+                if(s[k] < 0x80 || s[k] > 0xBF){
+                        return 0;
+                }
+        }
+        return n;
+}
+
 /* Parse a quoted string starting at p->s[p->pos] == '"'. The decoded UTF-8
    bytes end up in p->buf (p->b_len bytes, 0-terminated). */
 int tld__jp_string(tld__json_parser *p)
@@ -3201,12 +3249,25 @@ int tld__jp_string(tld__json_parser *p)
                         }
                 }else if(c == 0){
                         return tld__jp_fail(p, "NUL byte in string");
-                }else{
-                        /* Raw bytes, including (leniently) unescaped control
-                           characters, are copied through. */
+                }else if(c < 0x20){
+                        return tld__jp_fail(p, "control character in string (escape it, e.g. \\n or \\u0001)");
+                }else if(c < 0x80){
                         if(tld__jp_push(p, c) != OK){
                                 return FAIL;
                         }
+                }else{
+                        /* a UTF-8 sequence: copied through once it is well formed */
+                        int n = tld__jp_utf8_len(p->s + p->pos - 1, p->len - (p->pos - 1));
+                        if(n == 0){
+                                p->pos--;
+                                return tld__jp_fail(p, "invalid UTF-8 in string");
+                        }
+                        for(int k = 0; k < n; k++){
+                                if(tld__jp_push(p, p->s[p->pos - 1 + k]) != OK){
+                                        return FAIL;
+                                }
+                        }
+                        p->pos += n - 1;
                 }
         }
         p->buf[p->b_len] = 0;
@@ -3286,6 +3347,11 @@ int tld__jp_number(tld__json_parser *p, tld_json_val *v)
         }
         if(heap){
                 MFREE(heap);
+        }
+        if(v->type == TLD_JSON_DBL && isinf(v->value.d_num)){
+                /* a value a double cannot hold; underflow to 0 is accepted */
+                p->pos = start;
+                return tld__jp_fail(p, "number out of range");
         }
         return OK;
 ERROR:
@@ -3583,6 +3649,7 @@ int tld_json_parse_n(const char *text, size_t len, tld_json_obj **out)
                 n->v[0]->value.arr = a;
                 a = NULL;
                 n->n++;
+                n->top_level_arr = 1;
                 RUN(tld__json_obj_chk_space(n));
         }else{
                 tld__jp_fail(&p, "text does not start with { or [");
@@ -4390,7 +4457,8 @@ ERROR:
 }
 
 /* Write s as a quoted JSON string, escaping '"', '\\' and control
-   characters. Bytes >= 0x80 (UTF-8) are written unchanged. */
+   characters. Well-formed UTF-8 is written unchanged; a byte that is not part of a
+   well-formed sequence becomes \ufffd (U+FFFD), so the text is always valid JSON. */
 int tld__json_dump_str(tld_strbuf *b, const uint8_t *s, int len)
 {
         static const char hex[] = "0123456789abcdef";
@@ -4417,8 +4485,18 @@ int tld__json_dump_str(tld_strbuf *b, const uint8_t *s, int len)
                                 out[o++] = '0';
                                 out[o++] = hex[c >> 4];
                                 out[o++] = hex[c & 0xF];
-                        }else{
+                        }else if(c < 0x80){
                                 out[o++] = (char)c;
+                        }else{
+                                int n = tld__jp_utf8_len(s + i, len - i);
+                                if(n){
+                                        memcpy(out + o, s + i, (size_t) n);
+                                        o += n;
+                                        i += n - 1;
+                                }else{
+                                        memcpy(out + o, "\\ufffd", 6);
+                                        o += 6;
+                                }
                         }
                         break;
                 }
@@ -4521,6 +4599,10 @@ int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
         const int compact = indent < 0;
         const int inner = compact ? TLD_JSON_COMPACT : indent + 4;
         ASSERT(b != NULL, "No output buffer");
+        if(n && n->top_level_arr && n->n == 1 && n->v[0]->type == TLD_JSON_ARR && n->v[0]->value.arr){
+                /* a parsed top-level array goes back out as the array */
+                return tld_json_dump_arr(n->v[0]->value.arr, b, indent);
+        }
         if(n){
                 RUN(tld_strbuf_append(b, compact ? "{" : "{\n"));
                 for(int i = 0; i < n->n;i++){
