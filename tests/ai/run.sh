@@ -61,8 +61,11 @@ count() { grep -c "$1" "$T/$2.log"; }
 check() { # check NAME RESULT(0 = pass) DETAIL
     if [ "$2" = 0 ]; then echo "PASS  $1"; else echo "FAIL  $1: $3"; FAIL=1; fi
 }
-# limit SECONDS cmd... : kill the command if it runs longer (exit 142)
-limit() { s=$1; shift; perl -e 'alarm shift; exec @ARGV or exit 127' "$s" "$@"; }
+# limit SECONDS CMD...: run CMD, killed by SIGALRM after SECONDS (exit 142; alarm survives exec)
+limit() { s=$1; shift; "$PY" -c "import os,signal,sys
+signal.alarm(int(sys.argv[1]))
+try: os.execvp(sys.argv[2], sys.argv[2:])
+except OSError: sys.exit(127)" "$s" "$@"; }
 
 group_plumbing() {
     start_mock a 0.93

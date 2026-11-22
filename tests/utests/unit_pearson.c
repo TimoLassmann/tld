@@ -6,7 +6,7 @@ int test_pearson(void);
 
 int main(void)
 {
-        test_pearson();
+        RUN(test_pearson());
         return EXIT_SUCCESS;
 ERROR:
         return EXIT_FAILURE;

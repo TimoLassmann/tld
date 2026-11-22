@@ -77,13 +77,13 @@ int test_get_vars_template(void)
 
         tld_hash* h = NULL;
         tld_strbuf* template = NULL;
-        tld_strbuf_alloc(&template, 64);
+        RUN(tld_strbuf_alloc(&template, 64));
 
         /* tld_hash_init(&map, identifiers, replacements, 4); */
         /* num_test_templates = 2; */
         for (int i = 0; i < num_test_templates; i++) {
                 tld_strbuf_clear(template);
-                tld_append(template, test_templates[i]);
+                RUN(tld_append(template, test_templates[i]));
                 /* const char *template = test_templates[i]; */
                 LOG_MSG("--------------------------------------");
                 LOG_MSG("%s", TLD_STR(template));
@@ -176,21 +176,23 @@ int test_new_template(void)
 
         tld_hash* h = NULL;
         tld_strbuf* template = NULL;
-        tld_strbuf_alloc(&template, 64);
-        tld_hash_add(&h, "name", "Alica");
-        tld_hash_add(&h, "age", "101");
-        tld_hash_add(&h, "is_student", "yes");
-        tld_hash_add(&h, "major", "Computer Science");
+        RUN(tld_strbuf_alloc(&template, 64));
+        RUN(tld_hash_add(&h, "name", "Alica"));
+        RUN(tld_hash_add(&h, "age", "101"));
+        RUN(tld_hash_add(&h, "is_student", "yes"));
+        RUN(tld_hash_add(&h, "major", "Computer Science"));
 
         /* tld_hash_init(&map, identifiers, replacements, 4); */
         /* num_test_templates = 2; */
         for (int i = 0; i < num_test_templates; i++) {
                 tld_strbuf_clear(template);
-                tld_append(template, test_templates[i]);
+                RUN(tld_append(template, test_templates[i]));
                 /* const char *template = test_templates[i]; */
                 LOG_MSG("--------------------------------------");
                 LOG_MSG("%s", TLD_STR(template));
-                tld_template_apply(template, h);
+                if(tld_template_apply(template, h) != OK){
+                        LOG_MSG("template %d rejected (some test templates are malformed on purpose)", i);
+                }
                 LOG_MSG("%s", TLD_STR(template));
         }
         tld_strbuf_free(template);

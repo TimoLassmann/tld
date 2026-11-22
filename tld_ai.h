@@ -714,7 +714,13 @@ static _Thread_local int ai__depth;
 static pthread_once_t ai__once = PTHREAD_ONCE_INIT;
 static int ai__init_st;
 
-static void ai__setstr(char *dst, size_t n, const char *s) { snprintf(dst, n, "%s", s); }
+/* Bounded copy that may truncate (no snprintf, so no truncation warnings). */
+static void ai__setstr(char *dst, size_t n, const char *s) {
+    size_t k = strlen(s);
+    if (k >= n) k = n - 1;
+    memcpy(dst, s, k);
+    dst[k] = 0;
+}
 
 /* ---- deep copies and field-by-field merges of ai_opts -------------------- */
 
@@ -1192,7 +1198,7 @@ static int ai__connect(double deadline, char *why, size_t whyn) {
     hints.ai_socktype = SOCK_STREAM;
     int g = getaddrinfo(ai__c->name, ai__c->port, &hints, &res);
     if (g) {
-        snprintf(why, whyn, "cannot resolve %s: %s", ai__c->name, gai_strerror(g));
+        if (snprintf(why, whyn, "cannot resolve %s: %s", ai__c->name, gai_strerror(g)) < 0) why[0] = 0;
         return -1;
     }
     int fd = -1, left = 0;

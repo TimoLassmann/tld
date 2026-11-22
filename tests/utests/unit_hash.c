@@ -127,7 +127,7 @@ int test_add_and_get(void)
 }
 
 // Test 3: Overwrite Existing Key
-int test_overwrite() {
+int test_overwrite(void) {
         tld_hash *hash = NULL;
         tld_hash_alloc(&hash, 53);
 
@@ -146,7 +146,7 @@ int test_overwrite() {
 }
 
 // Test 4: Deletion of Keys
-int test_deletion() {
+int test_deletion(void) {
         tld_hash *hash = NULL;
         tld_hash_alloc(&hash, 53);
 
@@ -169,15 +169,15 @@ int test_deletion() {
 }
 
 // Test 5: Collision Handling
-int test_collision_handling() {
+int test_collision_handling(void) {
         tld_hash *hash = NULL;
         // Use a small table size to force collisions
         tld_hash_alloc(&hash, 5);
 
         // Add multiple keys that likely collide
         for (int i = 0; i < 10; i++) {
-                char key[20];
-                char val[20];
+                char key[32];
+                char val[32];
                 snprintf(key, sizeof(key), "key%d", i);
                 snprintf(val, sizeof(val), "value%d", i);
                 ASSERT_TEST(tld_hash_add(&hash, key, val) == OK, "Failed to add colliding key.");
@@ -186,10 +186,10 @@ int test_collision_handling() {
         // Verify all keys
         char *value = NULL;
         for (int i = 0; i < 10; i++) {
-                char key[20];
+                char key[32];
                 snprintf(key, sizeof(key), "key%d", i);
                 ASSERT_TEST(tld_hash_get(hash, key, &value) == OK, "Failed to retrieve colliding key.");
-                char expected_val[20];
+                char expected_val[32];
                 snprintf(expected_val, sizeof(expected_val), "value%d", i);
                 ASSERT_TEST(strcmp(value, expected_val) == 0, "Incorrect value for colliding key.");
         }
@@ -213,8 +213,8 @@ int test_dynamic_resizing(void)
         // Add entries to exceed the load factor
         int entries_to_add = (int)(initial_size * 0.75) + 10; // This should trigger a resize
         for (int i = 0; i < entries_to_add; i++) {
-                char key[20];
-                char val[20];
+                char key[32];
+                char val[32];
                 snprintf(key, sizeof(key), "resize_key%d", i);
                 snprintf(val, sizeof(val), "resize_val%d", i);
                 ASSERT_TEST(tld_hash_add(&hash, key, val) == OK, "Failed to add key for resizing.");
@@ -226,10 +226,10 @@ int test_dynamic_resizing(void)
         // Verify all entries
         char *value = NULL;
         for (int i = 0; i < entries_to_add; i++) {
-                char key[20];
+                char key[32];
                 snprintf(key, sizeof(key), "resize_key%d", i);
                 ASSERT_TEST(tld_hash_get(hash, key, &value) == OK, "Failed to retrieve key after resizing.");
-                char expected_val[20];
+                char expected_val[32];
                 snprintf(expected_val, sizeof(expected_val), "resize_val%d", i);
                 ASSERT_TEST(strcmp(value, expected_val) == 0, "Incorrect value after resizing.");
         }
@@ -276,7 +276,7 @@ int test_dynamic_resizing(void)
 /* } */
 
 // Test 8: Stress Test with Large Data
-int test_stress() {
+int test_stress(void) {
         tld_hash *hash = NULL;
         tld_hash_alloc(&hash, 53);
 

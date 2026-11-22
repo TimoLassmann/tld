@@ -350,9 +350,22 @@ static void test_ollama_decision(void)
         tld_json_obj_free(o);
 }
 
+/* Computed once into a table: compilers may fuse the multiply-adds differently at
+ * different call sites (gcc on arm64), so recomputing could give another last bit. */
+static double embed_tab[4][768];
+static int embed_tab_done = 0;
+
 static double embed_value(int row, int col)
 {
-        return sin(row * 1.7 + col * 0.37) * 0.0712345678901 + (col % 7) * 1e-9;
+        if(!embed_tab_done){
+                for(int r = 0; r < 4; r++){
+                        for(int c = 0; c < 768; c++){
+                                embed_tab[r][c] = sin(r * 1.7 + c * 0.37) * 0.0712345678901 + (c % 7) * 1e-9;
+                        }
+                }
+                embed_tab_done = 1;
+        }
+        return embed_tab[row][col];
 }
 
 static void test_ollama_embed(void)
