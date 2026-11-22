@@ -34,11 +34,13 @@
 
 
 
-#define ASSERT(TEST,...)  if(!(TEST)) {                         \
-                tld_message(MESSAGE_TYPE_ERROR, #TEST );        \
-                tld_message(MESSAGE_TYPE_ERROR, __VA_ARGS__ );  \
-                goto ERROR;                                     \
-        }
+#define ASSERT(TEST,...) do {                                   \
+                if(!(TEST)) {                                   \
+                        tld_message(MESSAGE_TYPE_ERROR, #TEST );        \
+                        tld_message(MESSAGE_TYPE_ERROR, __VA_ARGS__ );  \
+                        goto ERROR;                             \
+                }                                               \
+        } while (0)
 
 /* Messages  */
 #define MESSAGE_TYPE_MSG 0
@@ -59,11 +61,12 @@
 
 /* Checking for function return  */
 #define ADDFAILED(x)  "Function \"" tld_tostring(x) "\" failed."
-#define RUN(EXP)                                \
-        if((EXP) != OK){                        \
-                tld_message(MESSAGE_TYPE_ERROR,ADDFAILED(EXP)); \
-                goto ERROR;                                     \
-        }
+#define RUN(EXP) do {                                           \
+                if((EXP) != OK){                                \
+                        tld_message(MESSAGE_TYPE_ERROR,ADDFAILED(EXP)); \
+                        goto ERROR;                             \
+                }                                               \
+        } while (0)
 
 
 tld_external void tld_heading(uint8_t level, const char *format, ...);
