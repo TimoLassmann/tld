@@ -23,7 +23,6 @@
 
 
 /* #include "tpool/tpool_internal.h" */
-/* #include "tpool/tpool_sig.h" */
 
 #include "tpool/tpool.h"
 

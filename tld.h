@@ -62,11 +62,13 @@
 
 
 
-#define ASSERT(TEST,...)  if(!(TEST)) {                         \
-                tld_message(MESSAGE_TYPE_ERROR, #TEST );        \
-                tld_message(MESSAGE_TYPE_ERROR, __VA_ARGS__ );  \
-                goto ERROR;                                     \
-        }
+#define ASSERT(TEST,...) do {                                   \
+                if(!(TEST)) {                                   \
+                        tld_message(MESSAGE_TYPE_ERROR, #TEST );        \
+                        tld_message(MESSAGE_TYPE_ERROR, __VA_ARGS__ );  \
+                        goto ERROR;                             \
+                }                                               \
+        } while (0)
 
 /* Messages  */
 #define MESSAGE_TYPE_MSG 0
@@ -87,11 +89,12 @@
 
 /* Checking for function return  */
 #define ADDFAILED(x)  "Function \"" tld_tostring(x) "\" failed."
-#define RUN(EXP)                                \
-        if((EXP) != OK){                        \
-                tld_message(MESSAGE_TYPE_ERROR,ADDFAILED(EXP)); \
-                goto ERROR;                                     \
-        }
+#define RUN(EXP) do {                                           \
+                if((EXP) != OK){                                \
+                        tld_message(MESSAGE_TYPE_ERROR,ADDFAILED(EXP)); \
+                        goto ERROR;                             \
+                }                                               \
+        } while (0)
 
 
 tld_external void tld_heading(uint8_t level, const char *format, ...);
@@ -106,28 +109,27 @@ tld_external void tld_message(uint8_t type, const char *format, ...);
 #include <string.h>
 #include <stdlib.h>
 
-#define MFREE(p)                                        \
-        if (p) {                                        \
-                free(p);                                \
-                (p) = NULL;                             \
-        } else {                                        \
-                WARNING_MSG("free on a null pointer");  \
-        }
+/* MFREE: free(NULL) is legal, so a NULL pointer is not reported. The pointer is set
+ * to NULL afterwards either way. */
+#define MFREE(p)                                                        \
+        do {                                                            \
+                free(p);                                                \
+                (p) = NULL;                                             \
+        } while (0)
 
-#define MMALLOC(p, size)                                        \
-        if ((p) != NULL) {                                      \
-                ERROR_MSG("malloc on a nun-null pointer");      \
-                goto ERROR;                                     \
-        }                                                       \
-        if ((size) == 0) {                                      \
-                ERROR_MSG("malloc of size %d failed", size);    \
-                goto ERROR;                                     \
-        }                                                       \
-        if (((p) = malloc(size)) == NULL) {                     \
-                ERROR_MSG("malloc of size %d failed", size);    \
-                goto ERROR;                                     \
-        }                                                       \
-        memset(p, 0, size);
+#define MMALLOC(p, size)                                                \
+        do {                                                            \
+                if ((p) != NULL) {                                      \
+                        ERROR_MSG("malloc on a nun-null pointer");      \
+                }                                                       \
+                if ((size) == 0) {                                      \
+                        ERROR_MSG("malloc of size %zu failed", (size_t)(size)); \
+                }                                                       \
+                if (((p) = malloc(size)) == NULL) {                     \
+                        ERROR_MSG("malloc of size %zu failed", (size_t)(size)); \
+                }                                                       \
+                memset(p, 0, size);                                     \
+        } while (0)
 
 /* MMALLOC_ALIGNED: like MMALLOC, for a struct whose declaration asks for more alignment
  * than malloc guarantees (16 bytes on 64-bit), e.g. __attribute__((aligned(64))). Using
@@ -136,29 +138,27 @@ tld_external void tld_message(uint8_t type, const char *format, ...);
  * Pass the struct's own alignment: MMALLOC_ALIGNED(p, sizeof(struct s), _Alignof(struct s)).
  * C11 aligned_alloc requires the size to be a multiple of the alignment, so the size is
  * rounded up. The block is freed with plain free(), so MFREE works unchanged. */
-#define MMALLOC_ALIGNED(p, size, align)                                         \
-        if ((p) != NULL) {                                                      \
-                ERROR_MSG("malloc on a nun-null pointer");                      \
-                goto ERROR;                                                     \
-        }                                                                       \
-        if ((size) == 0) {                                                      \
-                ERROR_MSG("malloc of size %d failed", size);                    \
-                goto ERROR;                                                     \
-        }                                                                       \
-        if (((p) = aligned_alloc((align),                                       \
-                                 (((size) + (align) - 1) / (align)) * (align))) == NULL) { \
-                ERROR_MSG("aligned malloc of size %d (alignment %d) failed",    \
-                          (int)(size), (int)(align));                           \
-                goto ERROR;                                                     \
-        }                                                                       \
-        memset(p, 0, size);
+#define MMALLOC_ALIGNED(p, size, align)                                 \
+        do {                                                            \
+                if ((p) != NULL) {                                      \
+                        ERROR_MSG("malloc on a nun-null pointer");      \
+                }                                                       \
+                if ((size) == 0) {                                      \
+                        ERROR_MSG("malloc of size %zu failed", (size_t)(size)); \
+                }                                                       \
+                if (((p) = aligned_alloc((align),                       \
+                                         (((size) + (align) - 1) / (align)) * (align))) == NULL) { \
+                        ERROR_MSG("aligned malloc of size %zu (alignment %zu) failed", \
+                                  (size_t)(size), (size_t)(align));     \
+                }                                                       \
+                memset(p, 0, size);                                     \
+        } while (0)
 
 #define MREALLOC(p, size)                                               \
         do {                                                            \
                 void *tmpp;                                             \
                 if ((size) == 0) {                                      \
-                        ERROR_MSG("malloc of size %d failed", size);    \
-                        goto ERROR;                                     \
+                        ERROR_MSG("malloc of size %zu failed", (size_t)(size)); \
                 }                                                       \
                 if ((p) == NULL) {                                      \
                         tmpp = malloc(size);                            \
@@ -168,8 +168,7 @@ tld_external void tld_message(uint8_t type, const char *format, ...);
                 if (tmpp != NULL) {                                     \
                         (p) = tmpp;                                     \
                 } else {                                                \
-                        ERROR_MSG("realloc for size %d failed", size);  \
-                        goto ERROR;                                     \
+                        ERROR_MSG("realloc for size %zu failed", (size_t)(size)); \
                 }                                                       \
         } while (0)
 
@@ -197,23 +196,36 @@ tld_external void tld_message(uint8_t type, const char *format, ...);
                 if (*(a) == NULL) {                                     \
                         ERROR_MSG("Could not alloc 1D");                \
                 }                                                       \
-        } while (0);
+        } while (0)
 
+/* 2D: galloc_hlp returns the array of row pointers; the data block hangs off its
+ * header. Row offsets are computed in size_t. The local names are chosen so they
+ * cannot capture an identifier used in the caller's (b) or (c). */
 #define XGALLOC_ARGS_3(a, b, c)                                         \
         do {                                                            \
                 if (!tld_valid_2D((a))) {                               \
                         ERROR_MSG("Wrong pointer type for 2D alloc");   \
                 }                                                       \
-                __typeof__(*(a)) ptr_t = NULL;                          \
-                ptr_t = galloc_hlp(sizeof(__typeof__(**(a))), (b), (c)); \
-                void *__tld_internal_p = NULL;                          \
-                get_ptr(ptr_t, &__tld_internal_p);                                     \
-                ptr_t[0] = (__typeof__(**(a)))__tld_internal_p;         \
-                for (int i = 1; i < (b); i++) {                         \
-                        ptr_t[i] = ptr_t[0] + (c)*i;                    \
+                const size_t tld_galloc_n_ = (size_t)(b);               \
+                const size_t tld_galloc_m_ = (size_t)(c);               \
+                __typeof__(*(a)) tld_galloc_rows_ =                     \
+                        galloc_hlp(sizeof(__typeof__(**(a))), (b), (c)); \
+                void *tld_galloc_data_ = NULL;                          \
+                if (tld_galloc_rows_ == NULL) {                         \
+                        ERROR_MSG("Could not alloc 2D");                \
                 }                                                       \
-                *(a) = ptr_t;                                           \
-        } while (0);
+                if (get_ptr(tld_galloc_rows_, &tld_galloc_data_) != OK || \
+                    tld_galloc_data_ == NULL) {                         \
+                        tld_free(tld_galloc_rows_);                     \
+                        ERROR_MSG("Could not alloc 2D");                \
+                }                                                       \
+                tld_galloc_rows_[0] = (__typeof__(**(a)))tld_galloc_data_; \
+                for (size_t tld_galloc_i_ = 1; tld_galloc_i_ < tld_galloc_n_; tld_galloc_i_++) { \
+                        tld_galloc_rows_[tld_galloc_i_] =               \
+                                tld_galloc_rows_[0] + tld_galloc_m_ * tld_galloc_i_; \
+                }                                                       \
+                *(a) = tld_galloc_rows_;                                \
+        } while (0)
 
 #define gfree(a) tld_free(a)
 
@@ -352,7 +364,6 @@ tld_external float scaledprob2prob(float p);
 
 
 /* #include "tpool/tpool_internal.h" */
-/* #include "tpool/tpool_sig.h" */
 
 /* ---- src/tpool/tpool.h ---- */
 #ifndef TPOOL_H
@@ -878,6 +889,9 @@ tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *format,  va_list arg
 tld_internal void verror(FILE* f_ptr, const char *format,  va_list argp);
 
 tld_internal int get_time(char* time_ptr, int size);
+/* Not declared in any header. It used to be a global symbol named error(), which
+   collides with glibc's error(3) when linking statically; it is internal now. */
+tld_internal void error(const char *format, ...) __attribute__((unused));
 
 void tld_heading(uint8_t level, const char *format, ...)
 {
@@ -920,7 +934,7 @@ void tld_message(uint8_t type, const char *format, ...)
 {
         va_list argp = {0};
         va_start(argp, format);
-        vlog(type,stdout,format, argp);
+        vlog(type,stderr,format, argp);
         va_end(argp);
 }
 
@@ -1072,8 +1086,17 @@ void* galloc_hlp( size_t tsize, int dim1, int dim2)
         void* tmp = NULL;
 
         ASSERT(dim1 >= 1,"DIM1 is too small: %d",dim1);
+        ASSERT(dim2 >= 0,"DIM2 is negative: %d",dim2);
+        ASSERT(tsize > 0,"Element size is 0");
+        /* All sizes in size_t; refuse requests whose byte count does not fit. */
+        ASSERT((size_t)dim1 <= (SIZE_MAX - tld_mem_shift) / tsize,
+               "Allocation of %d x %zu bytes is too large", dim1, tsize);
+        if(dim2){
+                ASSERT((size_t)dim1 <= SIZE_MAX / (size_t)dim2 / tsize,
+                       "Allocation of %d x %d x %zu bytes is too large", dim1, dim2, tsize);
+        }
 
-        MMALLOC(tmp,dim1  * tsize + tld_mem_shift);
+        MMALLOC(tmp, (size_t)dim1 * tsize + tld_mem_shift);
 
         h = (mem_i*)(tmp);
         h->aligned = 0u;
@@ -1081,16 +1104,20 @@ void* galloc_hlp( size_t tsize, int dim1, int dim2)
         h->dim2  = dim2;
         h->ptr = NULL;
         if(dim2){
-                MMALLOC(h->ptr, dim1 * dim2 * tsize);
+                MMALLOC(h->ptr, (size_t)dim1 * (size_t)dim2 * tsize);
         }
         return (void *)((size_t)tmp + tld_mem_shift);
 ERROR:
+        MFREE(tmp);
         return NULL;
 }
 
 void tld_free(void* p)
 {
         mem_i* h = NULL;
+        if(p == NULL){
+                return;
+        }
         h = (mem_i*) ( (size_t)p - tld_mem_shift);
         if(h->ptr){
                 MFREE(h->ptr);
@@ -1205,6 +1232,9 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         double sum = 0.0;
         int a = 0;
         int g = 0;
+        ASSERT(rng_dist != NULL, "No rng_dist pointer");
+        ASSERT(w != NULL, "No weights");
+        ASSERT(n > 0, "Number of weights must be positive (got %d)", n);
         MMALLOC_ALIGNED(d, sizeof(struct rng_dist), _Alignof(struct rng_dist));
         d->p = NULL;
         d->a = NULL;
@@ -1223,16 +1253,15 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         sum = 0.0;
 
         for(int i = 0; i < n;i++){
-                if(w[i] < 0){
-                        ERROR_MSG("invalid p : w[i] = %f ", w[i]);
+                if(!(w[i] >= 0.0)){
+                        ERROR_MSG("invalid weight: w[%d] = %f", i, w[i]);
                 }
                 sum += w[i];
         }
-        ASSERT(sum > 0.0, "Sum is zero.");
+        ASSERT(sum > 0.0 && isfinite(sum), "Sum of weights is zero or not finite.");
 
         for(int i = 0; i < n;i++){
                 p[i] = w[i] * (double) n / sum;
-                fprintf(stdout,"%f\n", p[i]);
         }
         n_s = 0;
         n_l = 0;
@@ -1271,9 +1300,6 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         while(n_s){
                 d->p[s[--n_s]] = 1.0;
         }
-        for(int i = 0; i < n;i++){
-                fprintf(stdout,"%f %d\n",d->p[i],d->a[i]);
-        }
         gfree(p);
         gfree(s);
         gfree(l);
@@ -1281,9 +1307,16 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         *rng_dist = d;
         return OK;
 ERROR:
-        gfree(p);
-        gfree(s);
-        gfree(l);
+        if(p){
+                gfree(p);
+        }
+        if(s){
+                gfree(s);
+        }
+        if(l){
+                gfree(l);
+        }
+        tl_random_sdist_free(d);
         return FAIL;
 }
 
@@ -1291,7 +1324,10 @@ int tl_random_sdist_smpl(struct rng_dist* d)
 {
         const double r1 = tl_random_double(d->rng);
         const double r2 = tl_random_double(d->rng);
-        const int i = (int) (d->n * r1);
+        int i = (int) (d->n * r1);
+        if(i >= d->n){
+                i = d->n - 1;
+        }
         return r2 < d->p[i] ? i : d->a[i];
 }
 
@@ -1299,28 +1335,44 @@ int tl_random_sdist_smpl(struct rng_dist* d)
 void tl_random_sdist_free(struct rng_dist* d)
 {
         if(d){
-                gfree(d->p);
-                gfree(d->a);
+                if(d->p){
+                        gfree(d->p);
+                }
+                if(d->a){
+                        gfree(d->a);
+                }
                 free_rng(d->rng);
                 MFREE(d);
         }
 }
 
+/* Uniform on the open interval (0,1): the top 53 bits of a draw give a
+   multiple of 2^-53 in [0, 1 - 2^-53]; zero is rejected. */
 double tl_random_double(struct rng_state* rng)
 {
-        const double m = 18446744073709551616.0;
         uint64_t x = 0U;
-        double y = 0.0;
         do{
-                x = next(rng);
-                y = ((double) x / m);
-        }while (y == 0.0);
-        return y;
+                x = next(rng) >> 11U;
+        }while (x == 0U);
+        return (double) x * 0x1.0p-53;
 }
 
+/* Uniform integer in [0, a). Unbiased: draws below 2^64 mod a are
+   rejected so that every residue is equally likely. Returns 0 if a <= 1. */
 int tl_random_int(struct rng_state* rng,int a)
 {
-        return (int) (tl_random_double(rng) * a);
+        uint64_t n = 0U;
+        uint64_t threshold = 0U;
+        uint64_t x = 0U;
+        if(a <= 1){
+                return 0;
+        }
+        n = (uint64_t) a;
+        threshold = ((uint64_t) 0 - n) % n;
+        do{
+                x = next(rng);
+        }while(x < threshold);
+        return (int) (x % n);
 }
 
 /* from:  */
@@ -1513,12 +1565,12 @@ int tld_rng_set_seed(struct rng_state *s, uint64_t seed)
         uint64_t sanity = 0U;
         uint64_t z = 0U;
 
+        ASSERT(s != NULL, "No rng allocated in set seed");
         s->gen = 0;
         s->z1 = 0.0F;
         s->gauss = 0.0;
         s->has_gauss = 0;
 
-        ASSERT(s != NULL, "No rng allocated in set seed");
         while(!sanity){
                 sanity = 0;
                 z = (seed += 0x9e3779b97f4a7c15);
@@ -1566,12 +1618,13 @@ int init_rng_from_rng(struct rng_state** target, struct rng_state* rng)
 
         for(i = 0; i < 4;i++){
                 s->s[i] = rng->s[i];
-                s->gen = 0;
-                s->z1 = 0.0;
-                s->gauss = rng->gauss;
-                s->has_gauss = rng->has_gauss;
-
         }
+        /* Do not inherit cached deviates: the child must not repeat the
+           parent's next gaussian. */
+        s->gen = 0;
+        s->z1 = 0.0;
+        s->gauss = 0.0;
+        s->has_gauss = 0;
         jump(rng);
         *target = s;
         return OK;
@@ -1752,29 +1805,24 @@ struct kdyard {
         int vec_len;
 };
 
-int nn_search(kdtree *t,kd_node* n, double *x,double* min_d, uint32_t *id);
+static int nn_search(kdtree *t,kd_node* n, double *x,double* min_d, uint32_t *id);
 
-int kdyard_node_get(struct kdyard *y, kd_node **ret);
-int kdyard_snode_get(struct kdyard *y, kd_node **ret);
+static int kdyard_node_get(struct kdyard *y, kd_node **ret);
 
-int kdyard_alloc(struct kdyard ** yard, int size, int len);
-int kdyard_realloc(struct kdyard *n);
-void kdyard_free(struct kdyard *n);
+static int kdyard_alloc(struct kdyard ** yard, int size, int len);
+static int kdyard_realloc(struct kdyard *n);
+static void kdyard_free(struct kdyard *n);
 
+static int mat_sort(double **x,uint32_t* ids, int dim1,int cd);
+static int sort_nodes(const void *a, const void *b);
 
-int mat_sort(double **x,uint32_t* ids, int dim1,int cd);
-int sort_nodes(const void *a, const void *b);
+static int insert(kdtree* t,kd_node **slot, double *x,uint32_t id, int size);
+static int kdtree_node_create(kdtree* t, double *x, uint32_t id,int size, kd_node **ret);
+static int kdtree_node_alloc(kd_node **node, int size);
+static int kdtree_node_reset(kd_node *n);
+static void kdtree_node_free(kd_node *n);
 
-/* kd_node * insert(kdtree* t,kd_node *root, double *x, int size); */
-kd_node * insert(kdtree* t,kd_node *n, double *x,uint32_t id, int size);
-int  kdtree_node_create(kdtree* t, double *x, uint32_t id,int size, kd_node **ret);
-/* int  kdtree_node_create(kdtree* t, double *x, int size, kd_node **ret); */
-int  kdtree_node_alloc(kd_node **node, int size);
-int  kdtree_node_reset(kd_node *n);
-void kdtree_node_free(kd_node *n);
-
-int rebuild(kdtree* t,kd_node** root, double **x,uint32_t* ids, int n, int size);
-/* int rebuild(kdtree* t,kd_node** root, double **x, int n, int size); */
+static int rebuild(kdtree* t,kd_node** root, double **x,uint32_t* ids, int n, int size);
 
 int kdtree_bf_search(kdtree *t, double *x, uint32_t *id)
 {
@@ -1815,7 +1863,6 @@ int nn_search(kdtree *t,kd_node* n, double *x,double* min_d, uint32_t *id)
         }
 
         depth = t->depth;
-        /* fprintf(stdout,"Search: depth %d at node: %d (min: %f)\n", depth,n->id, *min_d); */
         d = 0.0;
         t->fptr_cmp(n->p,x,t->vec_len, &d);
 
@@ -1837,7 +1884,6 @@ int nn_search(kdtree *t,kd_node* n, double *x,double* min_d, uint32_t *id)
                 /* Note this has to be the REVERSE from above
                    Because I need to search the other branch!
                 */
-                /* fprintf(stdout,"Search: at node: %d (plane search)\n", n->id); */
                 if(x[cd] < n->p[cd]){
                         t->depth = depth + 1;
                         nn_search(t,n->right,x,min_d,id);
@@ -1862,7 +1908,7 @@ int kdtree_rebalance(kdtree *t)
 
         }
 
-        kdtree_reset(t);
+        RUN(kdtree_reset(t));
 
         RUN(kdtree_build(t, t->yard->tmp_mat, t->yard->ids,  n_nodes, t->vec_len));
 
@@ -1897,14 +1943,11 @@ int rebuild(kdtree* t,kd_node** root, double **x,uint32_t* ids, int n, int size)
         if( n <= 0){
                 return OK;
         }
-        /* ASSERT(n > 0,"No points!!!"); */
 
         int cd = d % size;
         RUN(mat_sort(x,ids,n, cd));
 
-        /* kdyard_node_get(struct kdyard *y, kd_node **ret) */
         RUN(kdtree_node_create(t,x[n/2], ids[n/2], size, &node));
-        /* LOG_MSG("%d ", d); */
         t->depth = d+1;
         RUN(rebuild(t,&nl,x,ids, n/2, size));
         t->depth = d+1;
@@ -1960,27 +2003,19 @@ ERROR:
         return FAIL;
 }
 
-
-int compare_x_cd(const void *a, const void *b, void *arg)
-{
-        int d = *(int*) arg;
-        double* one = *(double**) a;
-        double* two = *(double**) b;
-        return (one[d] < two[d]) ? -1 : one[d] > two[d];
-}
-
 int kdtree_insert(kdtree* t, double *x,uint32_t id, int size)
 {
+        ASSERT(t != NULL, "No tree");
+        ASSERT(x != NULL, "No point");
 
         t->depth = 0;
-        t->root = insert(t,t->root, x,id, size);
+        RUN(insert(t,&t->root, x,id, size));
 
         if(size > t->vec_len){
                 t->vec_len = size;
         }
 
         t->n_step = t->n_step + 1;
-        /* fprintf(stdout,"Step: %d\n", t->n_step); */
 
         if(t->n_step == t->rebalance_at){
                 int test =  t->yard->n_node;
@@ -1989,14 +2024,10 @@ int kdtree_insert(kdtree* t, double *x,uint32_t id, int size)
                         test = test / 2;
                         opt_d++;
                 }
-
-                fprintf(stdout,"opt: %d real %d\n", opt_d, t->max_depth);
-                if(abs(t->max_depth  - opt_d) > 10){
-                        fprintf(stdout,"re-balancing tree!! (size: %d depth : %d)\n", t->yard->n_node,t->max_depth);
-                        kdtree_rebalance(t);
-                        fprintf(stdout,"opt: %d real %d (afterwards)\n", opt_d, t->max_depth);
-                }
                 t->n_step = 0;
+                if(abs(t->max_depth  - opt_d) > 10){
+                        RUN(kdtree_rebalance(t));
+                }
         }
 
         return OK;
@@ -2004,37 +2035,31 @@ ERROR:
         return FAIL;
 }
 
-kd_node * insert(kdtree* t,kd_node *n, double *x,uint32_t id, int size)
+/* Descends from *slot to the empty child where x belongs and creates the
+   node there. */
+int insert(kdtree* t,kd_node **slot, double *x,uint32_t id, int size)
 {
-
-        if(n == NULL){
-                if(t->depth > t->max_depth){
-                        t->max_depth = t->depth;
+        ASSERT(size > 0,"Size less than one!");
+        while(*slot != NULL){
+                kd_node* n = *slot;
+                const int cd = t->depth % size;
+                t->depth = t->depth + 1;
+                if(x[cd] < n->p[cd]){
+                        slot = &n->left;
+                }else{
+                        slot = &n->right;
                 }
-                if(t->depth < t->min_depth){
-                        t->min_depth = t->depth;
-                }
-
-                /* kdyard_node_get(t->yard, &n); */
-
-                kdtree_node_create(t,x,id, size, &n);
-
-                return n;
         }
-        int depth = t->depth;
-        int cd = t->depth % size;
-        /* fprintf(stdout,"%d -> %f , %f\n", t->depth, x[cd], n->p[cd]); */
-
-        if(x[cd] < n->p[cd]){
-                t->depth = depth+1;
-                n->left = insert(t,n->left, x, id,size);
-
-        }else{
-                t->depth = depth+1;
-                n->right = insert(t,n->right, x,id, size);
+        if(t->depth > t->max_depth){
+                t->max_depth = t->depth;
         }
-
-        return n;
+        if(t->depth < t->min_depth){
+                t->min_depth = t->depth;
+        }
+        RUN(kdtree_node_create(t,x,id, size, slot));
+        return OK;
+ERROR:
+        return FAIL;
 }
 
 
@@ -2043,12 +2068,15 @@ int kdtree_node_create(kdtree* t, double *x, uint32_t id,int size, kd_node **ret
         kd_node* n = NULL;
 
         ASSERT(size > 0,"Size less than one!");
+        ASSERT(size <= t->yard->vec_len, "Point length %d exceeds the tree's vector length %d", size, t->yard->vec_len);
 
-        kdyard_node_get(t->yard, &n);
+        RUN(kdyard_node_get(t->yard, &n));
         n->left = NULL;
         n->right = NULL;
         n->id = id;
         if(n->p == NULL){
+                /* only during kdtree_rebalance: x is a buffer taken from a
+                   yard node, so ownership moves back to a node */
                 n->p = x;
         }else{
                 for(int i = 0; i < size;i++){
@@ -2060,7 +2088,7 @@ int kdtree_node_create(kdtree* t, double *x, uint32_t id,int size, kd_node **ret
 
         return OK;
 ERROR:
-        kdtree_node_free(n);
+        /* nodes belong to the yard; nothing to free here */
         return FAIL;
 }
 
@@ -2107,7 +2135,6 @@ int kdtree_node_alloc(kd_node **node, int size)
         n->p = NULL;
         n->left = NULL;
         n->right = NULL;
-        /* n->split = -1; */
         n->n = size;
         n->id = 0;
         galloc(&n->p,n->n);
@@ -2126,12 +2153,6 @@ ERROR:
 void kdtree_node_free(kd_node *n)
 {
         if(n){
-                /* if(n->left){ */
-                /*         kdtree_node_free(n->left); */
-                /* } */
-                /* if(n->right){ */
-                /*         kdtree_node_free(n->right); */
-                /* } */
                 if(n->p){
                         gfree(n->p);
                 }
@@ -2143,25 +2164,21 @@ void kdtree_node_free(kd_node *n)
 
 int mat_sort(double **x,uint32_t* ids, int dim1,int cd)
 {
-        struct sort_node** node_list = NULL;
+        struct sort_node* node_list = NULL;
 
-        MMALLOC(node_list, sizeof(struct sort_node*) * dim1);
+        MMALLOC(node_list, sizeof(struct sort_node) * (size_t) dim1);
 
         for(int i = 0; i < dim1;i++){
-                node_list[i] = NULL;
-                MMALLOC(node_list[i], sizeof(struct sort_node));
-                node_list[i]->val = x[i][cd];
-                node_list[i]->vec = x[i];
-                node_list[i]->id = ids[i];
-
+                node_list[i].val = x[i][cd];
+                node_list[i].vec = x[i];
+                node_list[i].id = ids[i];
         }
 
-        qsort(node_list, dim1, sizeof(struct sort_node*), sort_nodes);
+        qsort(node_list, (size_t) dim1, sizeof(struct sort_node), sort_nodes);
 
         for(int i = 0; i < dim1;i++){
-                x[i] = node_list[i]->vec;
-                ids[i] = node_list[i]->id;
-                MFREE(node_list[i]);
+                x[i] = node_list[i].vec;
+                ids[i] = node_list[i].id;
         }
 
         MFREE(node_list);
@@ -2173,18 +2190,15 @@ ERROR:
 
 int sort_nodes(const void *a, const void *b)
 {
-        struct sort_node * const *one = a;
-        struct sort_node * const *two = b;
-        if((*one)->val >  (*two)->val){
-                return 1;
-        }else{
-                return -1;
-        }
+        const struct sort_node *one = a;
+        const struct sort_node *two = b;
+        return (one->val > two->val) - (one->val < two->val);
 }
 
 int kdtree_alloc(kdtree **tree, int size)
 {
         kdtree* t = NULL;
+        ASSERT(size > 0, "Vector length must be positive (got %d)", size);
         MMALLOC(t, sizeof(kdtree));
         t->yard = NULL;
         t->root = NULL;
@@ -2202,6 +2216,7 @@ int kdtree_alloc(kdtree **tree, int size)
         *tree = t;
         return OK;
 ERROR:
+        kdtree_free(t);
         return FAIL;
 }
 
@@ -2215,28 +2230,17 @@ void kdtree_free(kdtree *t)
         }
 }
 
+/* Hands out the next unused node, growing the yard first if it is full. */
 int kdyard_node_get(struct kdyard *y, kd_node **ret)
 {
-        kd_node*n = NULL;
-        n = y->nodes[y->n_node];
-        y->n_node++;
         if(y->n_node == y->n_alloc){
-                kdyard_realloc(y);
+                RUN(kdyard_realloc(y));
         }
-        *ret = n;
+        *ret = y->nodes[y->n_node];
+        y->n_node++;
         return OK;
-}
-
-int kdyard_snode_get(struct kdyard *y, kd_node **ret)
-{
-        kd_node*n = NULL;
-        n = y->nodes[y->n_snode];
-        y->n_snode++;
-        if(y->n_snode == y->n_alloc){
-                kdyard_realloc(y);
-        }
-        *ret = n;
-        return OK;
+ERROR:
+        return FAIL;
 }
 
 int kdyard_alloc(struct kdyard ** yard, int size, int len)
@@ -2245,52 +2249,60 @@ int kdyard_alloc(struct kdyard ** yard, int size, int len)
         MMALLOC(n, sizeof(struct kdyard));
         n->n_node = 0;
         n->n_snode = 0;
-        n->n_alloc = size;
+        n->n_alloc = 0;
         n->vec_len = len;
         n->n_mat = 0;
         n->nodes = NULL;
         n->s_nodes = NULL;
         n->tmp_mat = NULL;
         n->ids = NULL;
-        MMALLOC(n->nodes, sizeof( kd_node*) * n->n_alloc);
-        MMALLOC(n->s_nodes, sizeof(struct sort_node*) * n->n_alloc);
-        MMALLOC(n->tmp_mat, sizeof(double*) * n->n_alloc);
-        MMALLOC(n->ids, sizeof(uint32_t) * n->n_alloc);
+        MMALLOC(n->nodes, sizeof( kd_node*) * (size_t) size);
+        MMALLOC(n->s_nodes, sizeof(struct sort_node*) * (size_t) size);
+        MMALLOC(n->tmp_mat, sizeof(double*) * (size_t) size);
+        MMALLOC(n->ids, sizeof(uint32_t) * (size_t) size);
 
-        for(int i = 0;i < n->n_alloc;i++){
-                n->nodes[i] = NULL;
-                n->s_nodes[i] = NULL;
-
+        /* n_alloc counts slots whose node and sort node were allocated, so
+           kdyard_free only touches those */
+        for(int i = 0;i < size;i++){
                 MMALLOC(n->s_nodes[i], sizeof(struct sort_node));
                 RUN(kdtree_node_alloc(&n->nodes[i],n->vec_len));
+                n->n_alloc = i + 1;
         }
         *yard = n;
         return OK;
 ERROR:
+        if(n && n->s_nodes && n->n_alloc < size && n->s_nodes[n->n_alloc]){
+                MFREE(n->s_nodes[n->n_alloc]);
+        }
         kdyard_free(n);
         return FAIL;
 }
 
+/* Grows the yard by half. On failure the yard stays valid (n_alloc only
+   counts fully allocated slots) and FAIL is returned. */
 int kdyard_realloc(struct kdyard *n)
 {
-        int old_size = n->n_alloc;
+        const int old_size = n->n_alloc;
+        const int new_size = n->n_alloc + n->n_alloc / 2 + 1;
 
-        n->n_alloc = n->n_alloc + n->n_alloc / 2;
-
-        MREALLOC(n->nodes, sizeof( kd_node*) * n->n_alloc);
-        MREALLOC(n->s_nodes, sizeof(struct sort_node*) * n->n_alloc);
-        MREALLOC(n->tmp_mat, sizeof(double*) * n->n_alloc);
-        MREALLOC(n->ids, sizeof(uint32_t) * n->n_alloc);
-        for(int i = old_size;i < n->n_alloc;i++){
+        MREALLOC(n->nodes, sizeof( kd_node*) * (size_t) new_size);
+        MREALLOC(n->s_nodes, sizeof(struct sort_node*) * (size_t) new_size);
+        MREALLOC(n->tmp_mat, sizeof(double*) * (size_t) new_size);
+        MREALLOC(n->ids, sizeof(uint32_t) * (size_t) new_size);
+        for(int i = old_size;i < new_size;i++){
                 n->nodes[i] = NULL;
                 n->s_nodes[i] = NULL;
-
+        }
+        for(int i = old_size;i < new_size;i++){
                 MMALLOC(n->s_nodes[i], sizeof(struct sort_node));
                 RUN(kdtree_node_alloc(&n->nodes[i],n->vec_len));
+                n->n_alloc = i + 1;
         }
         return OK;
 ERROR:
-        kdyard_free(n);
+        if(n->n_alloc < new_size && n->s_nodes[n->n_alloc]){
+                MFREE(n->s_nodes[n->n_alloc]);
+        }
         return FAIL;
 }
 
@@ -2301,10 +2313,18 @@ void kdyard_free(struct kdyard *n)
                         MFREE(n->s_nodes[i]);
                         kdtree_node_free(n->nodes[i]);
                 }
-                MFREE(n->tmp_mat);
-                MFREE(n->ids);
-                MFREE(n->s_nodes);
-                MFREE(n->nodes);
+                if(n->tmp_mat){
+                        MFREE(n->tmp_mat);
+                }
+                if(n->ids){
+                        MFREE(n->ids);
+                }
+                if(n->s_nodes){
+                        MFREE(n->s_nodes);
+                }
+                if(n->nodes){
+                        MFREE(n->nodes);
+                }
                 MFREE(n);
         }
 }
@@ -2320,7 +2340,6 @@ int kddist_euclidian(double *a, double *b, int vec_len, double *dist)
                 x = a[i] - b[i];
                 d += x*x;
         }
-        /* d = sqrt(d); */
         *dist = d;
         return OK;
 ERROR:
@@ -2333,8 +2352,6 @@ int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist)
 
         x = a[cd]-b[cd];
         x = x * x;
-        /* x = sqrt(x); */
-        /* fprintf(stdout,"PLANE chk: %f %f\n", x, min_dist); */
         if(x < min_dist){
                 return OK;
         }else{
@@ -2399,10 +2416,16 @@ static unsigned int fnv1a_hash(char *str, int table_size)
 int tld_hash_add(tld_hash **hash, char *key, char *val)
 {
         tld_hash* h = NULL;
+        tld_hash_entry* new_entry = NULL;
+        int allocated = 0;
+        ASSERT(hash != NULL, "No Map pointer");
+        ASSERT(key != NULL, "No key");
+        ASSERT(val != NULL, "No value");
         if(*hash){
                 h = *hash;
         }else{
                 RUN(tld_hash_alloc(&h, 1024));
+                allocated = 1;
         }
 
 
@@ -2415,9 +2438,6 @@ int tld_hash_add(tld_hash **hash, char *key, char *val)
                 RUN(tld_hash_resize(h)); // Double the table size
         }
 
-
-        ASSERT(h != NULL, "No Map");
-
         unsigned int index = fnv1a_hash(key, h->table_size);
 
         // Check if key already exists
@@ -2425,19 +2445,18 @@ int tld_hash_add(tld_hash **hash, char *key, char *val)
         while (current) {
                 if (strcmp(TLD_STR(current->key), key) == 0) {
                         // Key exists, replace the value
-                        tld_strbuf_clear(current->value);
-                        tld_append(current->value, val);
+                        RUN(tld_strbuf_clear(current->value));
+                        RUN(tld_append(current->value, val));
                         return OK;
                 }
                 current = current->next;
         }
 
         // Key does not exist, create a new entry
-        tld_hash_entry* new_entry = NULL;
-        tld_hash_entry_alloc(&new_entry);
+        RUN(tld_hash_entry_alloc(&new_entry));
 
-        tld_append(new_entry->key, key);
-        tld_append(new_entry->value, val);
+        RUN(tld_append(new_entry->key, key));
+        RUN(tld_append(new_entry->value, val));
         new_entry->next = h->table[index];
         h->table[index] = new_entry;
         h->n++;
@@ -2445,6 +2464,11 @@ int tld_hash_add(tld_hash **hash, char *key, char *val)
         *hash = h;
         return OK;
 ERROR:
+        tld_hash_entry_free(new_entry);
+        /* a table allocated by this call is not handed back on failure */
+        if(allocated){
+                tld_hash_free(h);
+        }
         return FAIL;
 }
 
@@ -2471,22 +2495,25 @@ ERROR:
 }
 
 int tld_hash_rename(tld_hash *h, char *key, char* new_key) {
+        tld_strbuf* tmp = NULL;
         ASSERT(h != NULL, "No Map!!");
         ASSERT(key != NULL, "No key");
+        ASSERT(new_key != NULL, "No new key");
 
         unsigned int index = fnv1a_hash(key, h->table_size);
         tld_hash_entry* entry = h->table[index];
 
         while (entry) {
                 if (strcmp(TLD_STR(entry->key), key) == 0) {
-                        tld_strbuf* tmp = NULL;
-                        tld_strbuf_alloc(&tmp, 64);
-                        // Remove the old key from the hash table
-                        tld_strbuf_copy(tmp, entry->value);
-
-                        tld_hash_del(h, key);
-                        // Add the new key with the existing replacement
-                        tld_hash_add(&h, new_key, TLD_STR(tmp));
+                        if(strcmp(key, new_key) == 0){
+                                return OK;
+                        }
+                        RUN(tld_strbuf_alloc(&tmp, 64));
+                        RUN(tld_strbuf_copy(tmp, entry->value));
+                        /* Add the new key first so a failure leaves the old
+                           entry in place, then remove the old key. */
+                        RUN(tld_hash_add(&h, new_key, TLD_STR(tmp)));
+                        RUN(tld_hash_del(h, key));
                         tld_strbuf_free(tmp);
                         return OK;
                 }
@@ -2495,6 +2522,7 @@ int tld_hash_rename(tld_hash *h, char *key, char* new_key) {
 
         return FAIL; // Key not found
 ERROR:
+        tld_strbuf_free(tmp);
         return FAIL;
 }
 
@@ -2602,7 +2630,11 @@ int tld_hash_alloc(tld_hash **hash, int size)
                 }
         }
 
-        h->table_size = new_size; // Choose an appropriate size
+        ASSERT(new_size > 0, "Requested hash size %d is too large", size);
+
+        /* table_size stays 0 until the table exists, so tld_hash_free on the
+           error path never walks a missing table */
+        h->table_size = 0;
         h->table = NULL;
         // Initialize the map with a default size
 
@@ -2611,7 +2643,8 @@ int tld_hash_alloc(tld_hash **hash, int size)
         h->cur_index = 0;
         h->cur_entry = NULL;
 
-        MMALLOC(h->table, sizeof(tld_hash_entry*) * h->table_size);
+        MMALLOC(h->table, sizeof(tld_hash_entry*) * new_size);
+        h->table_size = new_size; // Choose an appropriate size
         for (int i = 0; i < h->table_size; i++) {
                 h->table[i] = NULL;
         }
@@ -2725,6 +2758,7 @@ int tld_hash_entry_alloc(tld_hash_entry **entry)
         *entry = e;
         return OK;
 ERROR:
+        tld_hash_entry_free(e);
         return FAIL;
 }
 
@@ -2741,6 +2775,7 @@ void tld_hash_entry_free(tld_hash_entry *n)
 
 
 /* ---- src/logsum/tld-logsum.c ---- */
+#include <pthread.h>
 
 #include <math.h>
 #include <float.h>
@@ -2749,30 +2784,37 @@ void tld_hash_entry_free(tld_hash_entry *n)
 #define LOGSUM_SIZE 16000
 
 static float logsum_lookup[LOGSUM_SIZE];
+static pthread_once_t logsum_once = PTHREAD_ONCE_INIT;
 
+static void logsum_fill_table(void)
+{
+        for(int i = 0; i < LOGSUM_SIZE;i++){
+                logsum_lookup[i] = logf(1.0F + expf((float) -i / SCALE));
+        }
+}
+
+/* Thread-safe; calling it is optional, logsum() initialises the table on first use. */
 void init_logsum(void)
 {
-        static int called = 0;
-        int i = 0;
-        if(!called){
-                called = 1;
-                for(i = 0; i < LOGSUM_SIZE;i++){
-                        logsum_lookup[i] = logf(1.0F + expf((float) -i / SCALE));
-                }
-        }
+        pthread_once(&logsum_once, logsum_fill_table);
 }
 
 float logsum(const float a,const float b)
 {
-        register const float max = MACRO_MAX(a, b);
-        register const float min = MACRO_MIN(a, b);
+        if(isnan(a) || isnan(b)){
+                return NAN;
+        }
+        const float max = MACRO_MAX(a, b);
+        const float min = MACRO_MIN(a, b);
 
         if(  TLSAFE_EQ(min, -INFINITY)){
                 return max;
         }
-        if( (max-min) >= 15.7F){
+        /* !(d < 15.7) also catches +inf - +inf = NaN */
+        if( !((max-min) < 15.7F)){
                 return max;
         }
+        init_logsum();
         return  max+ logsum_lookup[(int)((max-min)*SCALE)];
 }
 
@@ -2810,7 +2852,7 @@ int nearly_equal_float(float a, float b)
         }else if (a == 0.0F || b == 0 || (absa + absb < min)){
                 ret =  d < (FLT_EPSILON * min);
         }else{
-                ret =  d / MACRO_MIN((absa+absb), min) < FLT_EPSILON;
+                ret =  d / MACRO_MIN((absa+absb), FLT_MAX) < FLT_EPSILON;
         }
         return ret;
 }
@@ -2829,7 +2871,7 @@ int nearly_equal_double(double a, double b)
         }else if (a == 0.0 || b == 0 || (absa + absb < min)){
                 ret = d < (DBL_EPSILON * min);
         }else{
-                ret = d / MACRO_MIN((absa+absb), min) < DBL_EPSILON;
+                ret = d / MACRO_MIN((absa+absb), DBL_MAX) < DBL_EPSILON;
         }
         return ret;
 }
@@ -3124,36 +3166,50 @@ void work_item_free(struct work_item *w)
 }
 
 #include <unistd.h>
-#include <signal.h>
 
 #define TPOOL_IMPORT
 
+/* The library does not install signal handlers. A program that wants to
+   stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself;
+   workers check the flag between jobs. The mutex and condition are left for
+   programs that want to sleep until the flag is set. */
 atomic_int tld_global_stop_run;
-pthread_mutex_t tld_global_cond_mutex;
-pthread_cond_t tld_global_cond;
+pthread_mutex_t tld_global_cond_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t tld_global_cond = PTHREAD_COND_INITIALIZER;
 
 static void *pool_worker(void *data);
 static int pool_get_tid(tld_thread_pool *p);
+static void pool_set_stop_locked(tld_thread_pool *p);
+static void pool_shutdown(tld_thread_pool *p, int n_started);
 
 static int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run);
 
-static int setup_signals_and_thread_comms(void);
-static void catch_signal(int sig);
-
+/* Must be called with p->lock held. Marks the pool as stopped and wakes
+   every thread: idle workers (work_cond) so they can exit and waiters
+   (working_cond) so they can re-check their condition. */
+static void pool_set_stop_locked(tld_thread_pool *p)
+{
+        p->stop = 1;
+        pthread_cond_broadcast(&p->work_cond);
+        pthread_cond_broadcast(&p->working_cond);
+}
 
 int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end)
 {
-        /* LOG_MSG("Adding work"); */
+        int status = OK;
+        ASSERT(p != NULL, "No thread pool");
         pthread_mutex_lock(&p->lock);
-        if(tld_global_stop_run == 1){
-                p->stop = 1;
+        if(tld_global_stop_run == 1 && !p->stop){
+                pool_set_stop_locked(p);
         }
         if(!p->stop){
-                /* LOG_MSG("Adding work"); */
-                RUN(work_queue_push(p->work, func_ptr, data, start, end));
-                pthread_cond_broadcast(&p->work_cond);
+                status = work_queue_push(p->work, func_ptr, data, start, end);
+                if(status == OK){
+                        pthread_cond_broadcast(&p->work_cond);
+                }
         }
         pthread_mutex_unlock(&p->lock);
+        RUN(status);
         return OK;
 ERROR:
         return FAIL;
@@ -3167,20 +3223,19 @@ void *pool_worker(void *data)
         const int thread_id = pool_get_tid(p);
         int64_t start;
         int64_t end;
-        while(1){
 
-                pthread_mutex_lock(&p->lock);
-                /* LOG_MSG("Worker %5d entering holding pattern threads: %d work : %d ",thread_id, p->n_threads, work_queue_haswork(p->work)); */
+        pthread_mutex_lock(&p->lock);
+        while(1){
                 while(!work_queue_haswork(p->work) && !p->stop){
                         pthread_cond_wait(&p->work_cond, &p->lock);
                 }
-                /* LOG_MSG("Unlocked %5d -> stop %d", thread_id, p->stop); */
-                if(tld_global_stop_run == 1){
-                        p->stop = 1;
+                if(tld_global_stop_run == 1 && !p->stop){
+                        pool_set_stop_locked(p);
                 }
-
+                /* stop means abandon queued work (time limit or global
+                   stop flag); tld_thread_pool_free drains the queue
+                   before it sets stop. */
                 if(p->stop){
-                        /* LOG_MSG("Thread %d stopping", thread_id); */
                         break;
                 }
 
@@ -3196,163 +3251,146 @@ void *pool_worker(void *data)
                 p->n_jobs_processed++;
                 p->n_working--;
                 if(p->maxtime && !p->stop){
-                        test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &p->stop);
-                        if(p->stop == 1){
-                                LOG_MSG("Stopping because of time!");
-                                pthread_cond_broadcast(&p->working_cond);
+                        int timeout = 0;
+                        test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &timeout);
+                        if(timeout){
+                                pool_set_stop_locked(p);
                         }
                 }
-                if (!p->stop && p->n_working == 0 && !work_queue_haswork(p->work)){
-                        pthread_cond_signal(&p->working_cond);
+                if(p->n_working == 0 && !work_queue_haswork(p->work)){
+                        pthread_cond_broadcast(&p->working_cond);
                 }
-                pthread_mutex_unlock(&p->lock);
         }
         p->n_active_threads--;
-
-        pthread_cond_signal(&p->working_cond);
+        pthread_cond_broadcast(&p->working_cond);
         pthread_mutex_unlock(&p->lock);
-
-        pthread_exit(0);
         return NULL;
 }
 
 int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads)
 {
         tld_thread_pool* p = NULL;
+        int n_started = 0;
+        int sync_init = 0;
+        ASSERT(pool != NULL, "No pool pointer");
         MMALLOC(p, sizeof(tld_thread_pool));
-
 
         if(n_threads < 2){
                 n_threads = 2;
         }
         p->work = NULL;
         p->n_threads = n_threads;
-        p->n_active_threads = n_threads;
+        p->n_active_threads = 0;
         p->n_jobs_processed = 0;
         p->maxtime = max_time;
         p->n_working = 0;
-        /* p->n_working = 0; */
+        p->stop = 0;
 
         p->thread_id_map = NULL;
-        /* c->done = WORLD_RUN_CONTINUE; */
+        p->threads = NULL;
         galloc(&p->thread_id_map,p->n_threads);
         p->thread_id_idx = 0;
         MMALLOC(p->threads, sizeof(pthread_t) * p->n_threads);
-
+        RUN(work_queue_alloc(&p->work, 1024));
 
         pthread_mutex_init(&p->lock, NULL);
-
         pthread_cond_init(&p->work_cond, NULL);
         pthread_cond_init(&p->working_cond, NULL);
-
         pthread_attr_init(&p->attr);
         pthread_attr_setdetachstate(&p->attr, PTHREAD_CREATE_JOINABLE);
-
+        sync_init = 1;
 
         time(&p->internal_time);
         time(&p->stop_watch);
 
-        p->stop = 0;
-        /* p->n_work = 0; */
-        RUN(work_queue_alloc(&p->work, 1024));
-
-        /* if(p->maxtime){ */
-        /* tld_thread_pool_add(p, sleepy_job,p); */
-        /* } */
-
-        for(long t = 0; t < p->n_threads; t++){
-                int rc = pthread_create(&p->threads[t], &p->attr, pool_worker,  (void *)p);
-
+        for(int t = 0; t < p->n_threads; t++){
+                int rc = 0;
+                pthread_mutex_lock(&p->lock);
+                p->n_active_threads++;
+                pthread_mutex_unlock(&p->lock);
+                rc = pthread_create(&p->threads[t], &p->attr, pool_worker,  (void *)p);
                 if(rc){
-                        ERROR_MSG("ERROR; return code from pthread_create() is %d\n", rc);
+                        pthread_mutex_lock(&p->lock);
+                        p->n_active_threads--;
+                        pthread_mutex_unlock(&p->lock);
+                        ERROR_MSG("pthread_create() failed with return code %d", rc);
                 }
-                /* LOG_MSG("created thread %d  %ld", t , (uint64_t)p->threads[t]) ; */
+                n_started++;
         }
-        /* LOG_MSG("Setting up comms"); */
-        setup_signals_and_thread_comms();
-
 
         *pool = p;
-
-
-
         return OK;
 ERROR:
+        if(p){
+                if(sync_init){
+                        pool_shutdown(p, n_started);
+                }else{
+                        if(p->threads){
+                                MFREE(p->threads);
+                        }
+                        if(p->thread_id_map){
+                                gfree(p->thread_id_map);
+                        }
+                        work_queue_free(p->work);
+                        MFREE(p);
+                }
+        }
         return FAIL;
 }
 
 void tld_thread_pool_wait(tld_thread_pool *p)
 {
-        /* static struct timespec time_to_wait = {0, 0}; */
         if(p){
                 pthread_mutex_lock(&p->lock);
-                while (1) {
-                        /* LOG_MSG("Waiting:"); */
-
-                        /* LOG_MSG("Condition one: !stop && p->n_working: %d %d : %d",!p->stop, work_queue_haswork(p->work), (!p->stop && p->n_active_threads != 0)); */
-                        /* LOG_MSG("Condition two:  stop && p->n_threads: %d %d : %d",p->stop, p->n_threads, (p->stop && p->n_threads != 0)); */
-
-                        if((!p->stop &&  p->n_working != 0) || (p->stop && p->n_active_threads != 0)) {
-                                /* LOG_MSG("Waiting #################################!!!"); */
-                                /* time_to_wait.tv_sec = time(NULL) + 1L; */
-                                /* pthread_cond_timedwait(&p->working_cond, &p->lock, &time_to_wait); */
-                                pthread_cond_wait(&p->working_cond, &p->lock);
-                        }else{
+                while(1){
+                        if(p->stop){
+                                /* Queued work is abandoned; wait for every
+                                   worker to exit. */
+                                if(p->n_active_threads == 0){
+                                        break;
+                                }
+                        }else if(p->n_working == 0 && !work_queue_haswork(p->work)){
                                 break;
                         }
-                        /* if(global_stop_run == 1){ */
-                                /* p->stop = 1; */
-                        /* } */
-
+                        pthread_cond_wait(&p->working_cond, &p->lock);
                 }
                 pthread_mutex_unlock(&p->lock);
         }
+}
+
+/* Stops the workers and joins the first n_started threads, then frees the
+   pool. Does not drain the queue. */
+static void pool_shutdown(tld_thread_pool *p, int n_started)
+{
+        pthread_mutex_lock(&p->lock);
+        pool_set_stop_locked(p);
+        pthread_mutex_unlock(&p->lock);
+
+        for(int t = 0; t < n_started; t++) {
+                int rc = pthread_join(p->threads[t], NULL);
+                if(rc){
+                        WARNING_MSG("pthread_join() failed with return code %d", rc);
+                }
+        }
+
+        MFREE(p->threads);
+        gfree(p->thread_id_map);
+        work_queue_free(p->work);
+        pthread_attr_destroy(&p->attr);
+        pthread_mutex_destroy(&p->lock);
+        pthread_cond_destroy(&p->work_cond);
+        pthread_cond_destroy(&p->working_cond);
+        MFREE(p);
 }
 
 void tld_thread_pool_free(tld_thread_pool *p)
 {
-
         if(p){
-                pthread_mutex_lock(&p->lock);
-                LOG_MSG("Did %d jobs", p->n_jobs_processed);
-                /* p->n_work = 0; */
-                p->stop = 1;
-
-                pthread_cond_broadcast(&p->work_cond);
-                pthread_mutex_unlock(&p->lock);
-
-                /* WAIT;..  */
+                /* Run everything already queued before stopping. */
                 tld_thread_pool_wait(p);
-                /* LOG_MSG("Active: %d", p->n_active_threads); */
-                /* p->n_threads = 8; */
-                for(long t = 0; t < p->n_threads; t++) {
-                        void *status;
-                        /* LOG_MSG("Cancelling thread %d  %ld", t , (uint64_t)p->threads[t]) ; */
-                        int rc = pthread_join(p->threads[t], &status);
-                        if(rc){
-                                WARNING_MSG("ERROR::::: return code from pthread_join() is %d status: %d\n", rc, status );
-                        }
-                        if(status == PTHREAD_CANCELED){
-                                fprintf(stdout,"Main: completed join with thread %ld having a status of %ld (cancelled)\n",t,(long)status);
-                        }
-                }
-
-
-
-                MFREE(p->threads);
-                gfree(p->thread_id_map);
-                work_queue_free(p->work);
-                pthread_mutex_destroy(&p->lock);
-
-
-                pthread_cond_destroy(&p->work_cond);
-                pthread_cond_destroy(&p->working_cond);
-
-                MFREE(p);
+                pool_shutdown(p, p->n_threads);
         }
 }
-
-
 
 int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run)
 {
@@ -3363,15 +3401,11 @@ int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run
         diff_t = difftime(cur_time , *stop_watch) / 60.0;
 
         if(diff_t > 1.0){
-                diff_t = difftime(cur_time , internal_time) / 60.0;
-                /* LOG_MSG("%f minutes have elapsed", diff_t); */
                 time(stop_watch);
         }
 
         diff_t = difftime(cur_time , internal_time) / 60.0;
-        /* LOG_MSG("Diff time : %f", diff_t); */
         if(diff_t > maxtime){
-                /* LOG_MSG("Allocated time has elapsed!"); */
                 *run = 1;
         }
         return OK;
@@ -3397,42 +3431,6 @@ int pool_get_tid(tld_thread_pool *p)
         pthread_mutex_unlock(&p->lock);
 
         return ID;
-}
-
-
-int setup_signals_and_thread_comms(void)
-{
-        int status = 0;
-        tld_global_stop_run = 0;
-        status = pthread_mutex_init(&tld_global_cond_mutex, NULL);
-        if(status){
-                ERROR_MSG("pthread_mutex_init failed with %d", status);
-        }
-        status = pthread_cond_init(&tld_global_cond, NULL);
-        if(status){
-                ERROR_MSG("pthread_cond_init failed with %d", status);
-        }
-        signal(SIGINT, catch_signal);
-        signal(SIGABRT, catch_signal);
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-void catch_signal(int sig)
-{
-        static int n_inter = 0;
-        LOG_MSG("Interrupt!!");
-        if(n_inter == 5){
-                LOG_MSG("Caught five interrupts - exiting");
-                exit(EXIT_SUCCESS);
-        }
-        tld_global_stop_run = 1;
-        pthread_mutex_lock(&tld_global_cond_mutex);
-        LOG_MSG("Ohhh am being interupted.... %d ", sig);
-        pthread_cond_broadcast(&tld_global_cond);
-        pthread_mutex_unlock(&tld_global_cond_mutex);
-        n_inter++;
 }
 
 /* #include "tpool/tpool_internal.c" */
@@ -4800,10 +4798,12 @@ void set_exec_time(int end)
 tld_internal inline int tld_strbuf_free_space(tld_strbuf *b);
 
 tld_internal int tld_strbuf_resize(tld_strbuf *b, int new_size);
+tld_internal int tld_strbuf_ensure_size(tld_strbuf *b, int size);
 
 int tld_strbuf_alloc(tld_strbuf **buffer, int size)
 {
         tld_strbuf* b = NULL;
+        ASSERT(size >= 0, "Negative buffer size: %d", size);
         MMALLOC(b,sizeof(tld_strbuf));
         if(size == 0){
                 size = 1024;
@@ -4812,10 +4812,12 @@ int tld_strbuf_alloc(tld_strbuf **buffer, int size)
         b->len = 0;
         b->str = NULL;
         galloc(&b->str, b->alloc_len);
+        b->str[0] = 0;
 
         *buffer = b;
         return OK;
 ERROR:
+        tld_strbuf_free(b);
         return FAIL;
 }
 
@@ -4840,6 +4842,7 @@ int tld_strbuf_resize(tld_strbuf *b, int new_size)
 
                 gfree(b->str);
                 b->str = tmp;
+                b->alloc_len = new_size;
         }
         return OK;
 ERROR:
@@ -4974,10 +4977,10 @@ int tld_strmk(tld_str **string,const char *src)
 {
         int size = strlen(src);
         tld_str* a = NULL;
-        size = size +1;
-        RUN(tld_str_alloc(&a,size));
-        memcpy(a->str,src, size);
-        a->str[size] = 0;
+        /* buffer holds the characters plus the terminating NUL; len excludes the NUL */
+        RUN(tld_str_alloc(&a,size + 1));
+        memcpy(a->str,src, size + 1);
+        a->len = size;
 
         *string = a;
         return OK;
@@ -5553,11 +5556,7 @@ void skip_whitespace(Parser *parser)
         {                                                           \
                 const type  *ia = (const type *)a;                  \
                 const type  *ib = (const type *)b;                  \
-                if(*ia < *ib ){                                     \
-                        return 1;                                   \
-                }else{                                              \
-                        return -1;                                  \
-                }                                                   \
+                return (*ia < *ib) - (*ia > *ib);                   \
         }                                                           \
                                                                     \
         static int cmp_asc_##type (const void *a, const void *b);   \
@@ -5572,11 +5571,7 @@ void skip_whitespace(Parser *parser)
         {                                                           \
                 const type  *ia = (const type *)a;                  \
                 const type  *ib = (const type *)b;                  \
-                if(*ia > *ib ){                                     \
-                        return 1;                                   \
-                }else{                                              \
-                        return -1;                                  \
-                }                                                   \
+                return (*ia > *ib) - (*ia < *ib);                   \
         }
 
 
@@ -5599,12 +5594,10 @@ DESC_FUNC(double)
 #define SHUFFLE_FUNC(type)                                              \
         int tld_shuffle_##type(type* arr,int n, struct rng_state* rng)  \
         {                                                               \
-                int r;                                                  \
                 int i,j;                                                \
                 type tmp;                                               \
                 for (i = 0; i < n - 1; i++) {                           \
-                        r = tl_random_int(rng,n);                       \
-                        j = i +  r % (n-i);                             \
+                        j = i + tl_random_int(rng, n - i);              \
                         tmp = arr[j];                                   \
                         arr[j] = arr[i];                                \
                         arr[i] = tmp;                                   \
@@ -5632,8 +5625,15 @@ int tld_shannon(double *vec, int n, double *entropy)
 {
         double t = 0.0;
         double s = 0.0;
+        ASSERT(vec != NULL, "No vector");
+        ASSERT(n > 0, "Need at least one value");
         for(int i = 0; i < n;i++){
+                ASSERT(vec[i] >= 0.0, "Value %d is negative or NaN", i);
                 t += vec[i];
+        }
+        if(t == 0.0){
+                *entropy = 0.0;
+                return OK;
         }
         for(int i = 0; i < n;i++){
                 if(vec[i]){
@@ -5645,11 +5645,14 @@ int tld_shannon(double *vec, int n, double *entropy)
         s = s * -1.0;
         *entropy = s;
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_mean(double *vec, int n, double *mean)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(n > 0, "Need at least one value");
         double m = 0.0;
         for(int i = 0; i < n;i++){
                 m += vec[i];
@@ -5682,6 +5685,7 @@ ERROR:
 int tld_sample_variance(double *vec, int n, double *variance)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(n > 1, "Sample variance needs at least two values");
         double m = 0.0;
         double v = 0.0;
         RUN(tld_mean(vec, n, &m));
@@ -5725,6 +5729,7 @@ int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov)
         double mean_a;
         double mean_b;
         double c;
+        ASSERT(n > 1, "Sample covariance needs at least two values");
         RUN(tld_mean(vec_a, n, &mean_a));
         RUN(tld_mean(vec_b, n, &mean_b));
 
@@ -5788,7 +5793,7 @@ ERROR:
 int tld_normal_pdf(double x, double mu, double sigma, double* p)
 {
         double z;
-        ASSERT(sigma != 0.0, "stdev is 0.")
+        ASSERT(sigma > 0.0, "stdev must be positive.");
         z = (x - mu) / sigma;
 
         *p = exp(-z*z*0.5) / (sigma * sqrt(2. * 3.14159265358979323846264338328));
@@ -5877,7 +5882,7 @@ int tld_sigmoid_safe(double x, double *out)
   https://metacpan.org/release/JANERT/Statistics-KernelEstimation-0.05/source/lib/Statistics/KernelEstimation.pm
 */
 static int copy_steps(double *data, int data_len, double ***ret);
-static int create_steps(double *data, int data_len, int n_steps, double*** ret);
+static int create_steps(double *data, int data_len, int n_steps, double band, double*** ret);
 static int default_bandwidth(double *x,double* cnt, int len, double* band);
 
 
@@ -5887,44 +5892,35 @@ int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
         double band = 0.1;
 
         double** ladder = NULL;
-        uint8_t n_data = 0;
 
-        /* * ASSERT(data == NULL & cnt == NULL,"No data to work with!"); *\/ */
+        ASSERT(data != NULL, "No data");
         ASSERT(data_len > 0,"No data len?");
-
-
-        create_steps(data,data_len, n_steps, &ladder);
+        ASSERT(n_steps > 0,"Number of steps must be positive");
 
         RUN(default_bandwidth(data,NULL,data_len,&band));
 
-        /* LOG_MSG("BAND: %f", band); */
+        RUN(create_steps(data,data_len, n_steps, band, &ladder));
 
         total_cnt = data_len;
 
-        /* LOG_MSG("bandwidth: %f",band); */
         for(int i = 0; i < n_steps;i++){
                 double d = 0.0;
 
                 for(int j = 0; j < data_len; j++){
                         double add_d = 0.0;
-                        tld_normal_pdf(ladder[i][0], data[j], band,&add_d);
+                        RUN(tld_normal_pdf(ladder[i][0], data[j], band,&add_d));
                         d+= add_d;
                 }
                 d  = d / total_cnt;
                 ladder[i][1] = d;
         }
-        /* LOG_MSG("%f %f", test,d); */
 
-        if(n_data){
-                gfree(data);
-        }
         *out = ladder;
-        /* gfree(ladder); */
 
         return OK;
 ERROR:
-        if(n_data){
-                gfree(data);
+        if(ladder){
+                gfree(ladder);
         }
         return FAIL;
 }
@@ -5935,49 +5931,41 @@ int tld_kde_count_pdf(double *data,double* cnt, int data_len, double*** out)
         double band = 0.1;
 
         double** ladder = NULL;
-        uint8_t n_data = 0;
 
-        /* * ASSERT(data == NULL & cnt == NULL,"No data to work with!"); *\/ */
+        ASSERT(data != NULL, "No data");
+        ASSERT(cnt != NULL, "No counts");
         ASSERT(data_len > 0,"No data len?");
-
-
-        RUN(copy_steps(data,data_len, &ladder ));
-
-
-        RUN(default_bandwidth(data,cnt,data_len,&band));
-
-        /* LOG_MSG("BAND: %f", band); */
 
         total_cnt = 0.0;
         for(int i = 0; i < data_len; i++){
+                ASSERT(cnt[i] >= 0.0, "Count %d is negative or NaN", i);
                 total_cnt += cnt[i];
         }
+        ASSERT(total_cnt > 0.0, "Total count is zero");
 
-        /* LOG_MSG("bandwidth: %f",band); */
+        RUN(copy_steps(data,data_len, &ladder ));
+
+        RUN(default_bandwidth(data,cnt,data_len,&band));
+
         for(int i = 0; i < data_len;i++){
                 double d = 0.0;
 
                 for(int j = 0; j < data_len; j++){
                         double add_d = 0.0;
-                        tld_normal_pdf(ladder[i][0], data[j], band,&add_d);
+                        RUN(tld_normal_pdf(ladder[i][0], data[j], band,&add_d));
                         add_d = add_d * cnt[j];
                         d+= add_d;
                 }
                 d  = d / total_cnt;
                 ladder[i][1] = d;
         }
-        /* LOG_MSG("%f %f", test,d); */
 
-        if(n_data){
-                gfree(data);
-        }
         *out = ladder;
-        /* gfree(ladder); */
 
         return OK;
 ERROR:
-        if(n_data){
-                gfree(data);
+        if(ladder){
+                gfree(ladder);
         }
         return FAIL;
 }
@@ -5989,7 +5977,6 @@ int copy_steps(double *data, int data_len, double ***ret)
 
         for(int i = 0; i < data_len;i++){
                 x[i][0] = data[i];
-                /* LOG_MSG("%d %f",i, x[i][0]); */
                 x[i][1] = 0.0;
         }
         *ret = x;
@@ -6001,7 +5988,9 @@ ERROR:
         return FAIL;
 }
 
-int create_steps(double *data, int data_len, int n_steps, double*** ret)
+/* Evaluation points: n_steps bin centres spanning [min, max]. When all
+   data are equal the range is empty, so span mean +/- 4 bandwidths. */
+int create_steps(double *data, int data_len, int n_steps, double band, double*** ret)
 {
         double** x = NULL;
         double min = DBL_MAX;
@@ -6015,66 +6004,90 @@ int create_steps(double *data, int data_len, int n_steps, double*** ret)
                         min = data[i];
                 }
         }
+        if(!(max > min)){
+                min = min - 4.0 * band;
+                max = max + 4.0 * band;
+        }
         step = (max- min)  / (double)(n_steps);
-        /* LOG_MSG("Min : %f",min); */
-        /* LOG_MSG("Max : %f",max); */
         galloc(&x, n_steps,2);
-        
-        for(int i = 0; i < (int) n_steps;i++){
+
+        for(int i = 0; i < n_steps;i++){
                 x[i][0] = min + (double) i * step + step / 2.0;
-                /* LOG_MSG("%d %f",i, x[i][0]); */
                 x[i][1] = 0.0;
         }
         *ret = x;
         return OK;
 ERROR:
-        gfree(x);
+        if(x){
+                gfree(x);
+        }
         return FAIL;
 
 }
 
+/* Silverman-style bandwidth sigma * (3n/4)^(-1/5). The variance is
+   computed in two passes (mean first, then squared deviations) to avoid
+   the cancellation of E[x^2] - E[x]^2 for data with a large offset. For
+   constant data the bandwidth falls back to 1e-3 * |mean|, or 1.0 when
+   the mean is zero. */
 int default_bandwidth(double *x,double* cnt, int len, double* band)
 {
         double sum_x = 0.0;
-        double sum_xx = 0.0;
-        double a;
-        double a2;
+        double sum_dd = 0.0;
+        double mean;
+        double var;
         double sigma;
         double sum = 0.0;
+        double b;
+
         for(int i = 0; i < len; i++){
-                if(cnt){
-                        sum_x += cnt[i] * x[i];
-                        sum_xx += cnt[i] * x[i] * x[i];
-                        sum += cnt[i];
-                }else{
-                        sum_x += x[i];
-                        sum_xx += x[i] * x[i];
-                        sum = sum + 1.0;
-                }
-
+                double w = cnt ? cnt[i] : 1.0;
+                sum_x += w * x[i];
+                sum += w;
         }
+        ASSERT(sum > 0.0, "Total weight is zero");
+        mean = sum_x / sum;
+        ASSERT(isfinite(mean), "Data contain NaN or infinite values");
 
-        a = sum_x / sum;
-        a2 = sum_xx / sum;
+        for(int i = 0; i < len; i++){
+                double w = cnt ? cnt[i] : 1.0;
+                double d = x[i] - mean;
+                sum_dd += w * d * d;
+        }
+        var = sum_dd / sum;
+        if(!(var > 0.0)){
+                var = 0.0;
+        }
+        sigma = sqrt(var);
 
-        sigma = sqrt(a2 - pow(a, 2.0));
-
-        *band = sigma * pow(3.0 * sum / 4.0 , -1.0 / 5.0 );
+        b = sigma * pow(3.0 * sum / 4.0 , -1.0 / 5.0 );
+        if(!(b > 0.0)){
+                b = fabs(mean) * 1e-3;
+                if(!(b > DBL_MIN)){
+                        b = 1.0;
+                }
+        }
+        ASSERT(isfinite(b), "Bandwidth is not finite");
+        *band = b;
         return OK;
+ERROR:
+        return FAIL;
 }
 /* ---- src/stats/norm_quantile.c ---- */
 
-#include <stdio.h>
+#include <math.h>
 
 typedef struct {
         double v;
         int idx;
-        int rank;
 } n_itm;
 
 static int cmp_n_itm (const void *a, const void *b);
-static int cmp_n_itm_idx(const void *a, const void *b);
 
+/* Quantile normalisation of the m columns of an n x m matrix (in place).
+   The reference distribution is the mean over columns of the sorted
+   values. Each group of tied values in a column covers a run of sorted
+   positions and gets the mean of the reference values over that run. */
 int norm_quantile(double **data, int n, int m)
 {
         double** data_rank = NULL;
@@ -6082,21 +6095,32 @@ int norm_quantile(double **data, int n, int m)
 
         double sum = 0.0;
 
+        ASSERT(data != NULL, "No data");
+        ASSERT(n > 0, "Need at least one row");
+        ASSERT(m > 0, "Need at least one column");
+
+        for(int i = 0; i < n; i++){
+                for(int j = 0; j < m; j++){
+                        ASSERT(!isnan(data[i][j]), "NaN at row %d column %d", i, j);
+                }
+        }
+
         galloc(&data_rank,n,m);
         MMALLOC(l, sizeof(n_itm*) * n );
         for(int i = 0; i < n;i++){
                 l[i] = NULL;
+        }
+        for(int i = 0; i < n;i++){
                 MMALLOC(l[i], sizeof(n_itm));
                 l[i]->v = 0.0;
                 l[i]->idx = 0;
         }
 
-        /* main bit; */
+        /* Sorted values of each column */
         for(int column = 0; column < m; column++){
                 for(int i = 0; i < n; i++){
                         l[i]->idx = i;
                         l[i]->v = data[i][column];
-                        /* LOG_MSG("%d %d", i, column); */
                 }
                 qsort(l,n,  sizeof(n_itm*), cmp_n_itm);
 
@@ -6104,70 +6128,41 @@ int norm_quantile(double **data, int n, int m)
                         data_rank[i][column] = l[i]->v;
                 }
         }
-        /* LOG_MSG("DATA org"); */
-        /* for(int i = 0; i < n;i++){ */
-        /*         for(int j = 0; j < m;j++){ */
-        /*                 fprintf(stdout,"%f ",data[i][j]); */
-        /*         } */
-        /*         fprintf(stdout,"\n"); */
-        /* } */
-        /* fprintf(stdout,"\n"); */
 
+        /* Reference quantiles: mean across columns at each sorted position */
         for(int i = 0; i < n;i++){
                 sum = 0.0;
                 for(int j = 0; j < m;j++){
-                        /* fprintf(stdout,"%f ",data_rank[i][j]); */
                         sum += data_rank[i][j];
                 }
                 sum /= (double) m;
                 data_rank[i][0] = sum;
-                /* fprintf(stdout,": %f\n",sum); */
         }
-        /* fprintf(stdout,"\n\n"); */
+
         for(int column = 0; column < m; column++){
                 for(int i = 0; i < n; i++){
                         l[i]->idx = i;
                         l[i]->v = data[i][column];
-                        l[i]->rank = -1;
-                        /* LOG_MSG("%d %d", i, column); */
                 }
                 qsort(l,n,  sizeof(n_itm*), cmp_n_itm);
-                l[0]->rank = 0;
-                for(int i = 1; i < n; i++){
-                        if(l[i]->v != l[i-1]->v){
-                                l[i]->rank = l[i-1]->rank + 1;
-                        }else{
-                                l[i]->rank = l[i-1]->rank;
+
+                int start = 0;
+                while(start < n){
+                        int end = start + 1;
+                        while(end < n && l[end]->v == l[start]->v){
+                                end++;
                         }
+                        sum = 0.0;
+                        for(int k = start; k < end; k++){
+                                sum += data_rank[k][0];
+                        }
+                        sum /= (double) (end - start);
+                        for(int k = start; k < end; k++){
+                                data[l[k]->idx][column] = sum;
+                        }
+                        start = end;
                 }
-
-                qsort(l,n,  sizeof(n_itm*), cmp_n_itm_idx);
-
-                for(int i = 0;i < n;i++){
-                        /* fprintf(stdout,"%d %d (%f -> %f) \n", l[i]->idx, l[i]->rank,l[i]->v,data_rank[l[i]->idx][0]); */
-                        data[i][column] = data_rank[l[i]->rank][0];
-                        /* data_rank[i][column] = l[i]->v; */
-                        /* LOG_MSG("%d %d %f", column,i, l[i]->v); */
-                }
-                /* fprintf(stdout," IDX\n"); */
         }
-        /* LOG_MSG("DATA norm"); */
-        /* for(int i = 0; i < n;i++){ */
-        /*         for(int j = 0; j < m;j++){ */
-        /*                 fprintf(stdout,"%f ",data[i][j]); */
-        /*         } */
-        /*         fprintf(stdout,"\n"); */
-        /* } */
-        /* fprintf(stdout,"\n"); */
-        for(int j = 0; j < m;j++){
-                sum = 0.0;
-                for(int i = 0; i < n;i++){
-                        sum += data[i][j];
-                        /* fprintf(stdout,"%f ",data[i][j]); */
-                }
-                /* fprintf(stdout,"%d %f\n",j, sum / (double) n); */
-        }
-
 
         gfree(data_rank);
         for(int i = 0; i < n;i++){
@@ -6197,27 +6192,22 @@ int cmp_n_itm (const void *a, const void *b)
         n_itm * const *two = b;
         if((*one)->v > (*two)->v){
                 return 1;
-        }else{
+        }else if((*one)->v < (*two)->v){
                 return -1;
         }
-}
-
-int cmp_n_itm_idx (const void *a, const void *b)
-{
-        n_itm * const *one = a;
-        n_itm * const *two = b;
-        if((*one)->idx > (*two)->idx ){
+        /* Equal values: order by original index so the sort is deterministic */
+        if((*one)->idx > (*two)->idx){
                 return 1;
-        }else{
+        }else if((*one)->idx < (*two)->idx){
                 return -1;
         }
+        return 0;
 }
 /* ---- src/stats/auc.c ---- */
 
 
 
 #include <float.h>
-#include <stdio.h>
 #include <math.h>
 
 /* Unified Struct Definition */
@@ -6225,6 +6215,8 @@ struct auc_pt {
         double Y;
         double Y_hat;
 };
+
+static int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out);
 
 /* Comparator function for qsort to sort in ascending order */
 int auc_pt_sort(const void *a, const void *b) {
@@ -6243,145 +6235,89 @@ int auc_pt_sort(const void *a, const void *b) {
 /* Function to compute AUC and determine the best threshold */
 int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret)
 {
-        struct auc_pt** l = NULL;
         double thres = 0.0;
-        double auc;
-
-        if (n <= 0) {
-                ERROR_MSG("TLD auc needs more than 0 datapoints");
-        }
-
-        /* Allocate memory for auc_pt pointers */
-        MMALLOC(l, sizeof(struct auc_pt*) * n);
-
-        /* Populate the auc_pt list */
-        for(int i = 0; i < n; i++) {
-                l[i] = NULL;
-                if(Y[i] < 0.0 || Y[i] > 1.0) {
-                        fprintf(stderr, "label %d out of range: %f\n", i, Y[i]);
-                        goto ERROR;
-                }
-                MMALLOC(l[i], sizeof(struct auc_pt));
-                l[i]->Y = Y[i];
-                l[i]->Y_hat = Y_hat[i];
-        }
-
-        /* Sort the list in descending order of Y_hat */
-        qsort(l, n, sizeof(struct auc_pt*), auc_pt_sort);
-
-        /* Calculate AUC using the trapezoidal rule */
-        double tpr = 0.0, last_tpr = 0.0, last_fpr = 0.0;
-        int tp = 0, fp = 0;// last_tp = 0, last_fp = 0;
-        int total_positive = 0, total_negative = 0;
-
-        for (int i = 0; i < n; i++) {
-                if (l[i]->Y == 1.0){
-                        total_positive++;
-                }else{
-                        total_negative++;
-                }
-        }
-
-        auc = 0.0;
-        double best_distance = INFINITY;
-        /* double best_tpr = 0.0, best_fpr = 0.0; */
-
-        for (int i = n - 1; i >= 0; i--) {
-                if(l[i]->Y == 1.0){
-                        tp++;
-                }else{
-                        fp++;
-                }
-
-                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat){
-                        tpr = (double)tp / total_positive;
-                        double fpr = (double)fp / total_negative;
-
-                        if (i != n - 1) {
-                                auc += (fpr - last_fpr) * (tpr + last_tpr) / 2.0;
-                        }
-
-                        double distance = sqrt(pow(0.0 - fpr, 2.0) + pow(1.0 - tpr, 2.0));
-                        if (distance < best_distance) {
-                                best_distance = distance;
-                                thres = l[i]->Y_hat;
-                                /* best_tpr = tpr; */
-                                /* best_fpr = fpr; */
-                        }
-
-                        last_tpr = tpr;
-                        last_fpr = fpr;
-                        /* last_tp = tp; */
-                        /* last_fp = fp; */
-                }
-        }
-
-        /* Assign the results */
+        double auc = 0.0;
+        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
         *t = thres;
         *ret = auc;
-
-        /* printf("Best Threshold: %f\n", thres); */
-        /* printf("At Best Threshold: TPR=%f, FPR=%f, Distance=%f\n", best_tpr, best_fpr, best_distance); */
-
-        /* Free allocated memory */
-        for(int i = 0; i < n; i++) {
-                if(l[i]){
-                        MFREE(l[i]);
-                }
-        }
-        MFREE(l);
-
         return OK;
 ERROR:
-        if(l){
-                for(int i = 0; i < n; i++) {
-                        if(l[i]){
-                                MFREE(l[i]);
-                        }
-                }
-                MFREE(l);
-        }
         return FAIL;
 }
 
 int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
 {
-        struct auc_pt** l = NULL;
-        double auc;
+        double thres = 0.0;
+        double auc = 0.0;
+        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        *ret = auc;
+        return OK;
+ERROR:
+        return FAIL;
+}
 
-        if (n <= 0) {
-                ERROR_MSG("TLD auc needs more than 0 datapoints");
-        }
+/* The best threshold is the score closest to the (0,1) corner of the
+   ROC curve; samples with Y_hat >= threshold are called positive. */
+int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold)
+{
+        double thres = 0.0;
+        double auc = 0.0;
+        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        *best_threshold = thres;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+/* Sorts the scores, sweeps the ROC curve from the highest score down,
+   accumulates the area with the trapezoidal rule (tied scores form one
+   step) and records the score nearest to the (0,1) corner. */
+int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out)
+{
+        struct auc_pt** l = NULL;
+        double thres = 0.0;
+        double auc = 0.0;
+        double tpr = 0.0;
+        double fpr = 0.0;
+        double last_tpr = 0.0;
+        double last_fpr = 0.0;
+        double best_distance = INFINITY;
+        int tp = 0;
+        int fp = 0;
+        int total_positive = 0;
+        int total_negative = 0;
+
+        ASSERT(n > 0, "TLD auc needs more than 0 datapoints");
+        ASSERT(Y != NULL, "No labels");
+        ASSERT(Y_hat != NULL, "No predictions");
 
         MMALLOC(l, sizeof(struct auc_pt*) * n);
-
-        /* Populate the auc_pt list */
         for(int i = 0; i < n; i++) {
                 l[i] = NULL;
-                if(Y[i] < 0.0 || Y[i] > 1.0) {
-                        fprintf(stderr, "label %d out of range: %f\n", i, Y[i]);
-                        goto ERROR;
+        }
+
+        for(int i = 0; i < n; i++) {
+                if(!(Y[i] >= 0.0 && Y[i] <= 1.0)) {
+                        ERROR_MSG("label %d out of range: %f", i, Y[i]);
+                }
+                if(isnan(Y_hat[i])) {
+                        ERROR_MSG("prediction %d is NaN", i);
                 }
                 MMALLOC(l[i], sizeof(struct auc_pt));
                 l[i]->Y = Y[i];
                 l[i]->Y_hat = Y_hat[i];
-        }
-
-        qsort(l, n, sizeof(struct auc_pt*), auc_pt_sort);
-
-        double tpr = 0.0, last_tpr = 0.0, last_fpr = 0.0;
-        int tp = 0, fp = 0;
-        int total_positive = 0, total_negative = 0;
-
-        for (int i = 0; i < n; i++) {
-                if (l[i]->Y == 1.0) {
+                if (Y[i] == 1.0) {
                         total_positive++;
                 } else {
                         total_negative++;
                 }
         }
 
-        auc = 0.0;
+        if(total_positive == 0 || total_negative == 0) {
+                ERROR_MSG("AUC needs both classes (%d positive, %d negative)", total_positive, total_negative);
+        }
+
+        qsort(l, n, sizeof(struct auc_pt*), auc_pt_sort);
 
         for (int i = n - 1; i >= 0; i--) {
                 if(l[i]->Y == 1.0){
@@ -6391,11 +6327,15 @@ int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
                 }
 
                 if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat){
-                        tpr = (double)tp / total_positive;
-                        double fpr = (double)fp / total_negative;
+                        tpr = (double)tp / (double)total_positive;
+                        fpr = (double)fp / (double)total_negative;
 
-                        if (i != n - 1) {
-                                auc += (fpr - last_fpr) * (tpr + last_tpr) / 2.0;
+                        auc += (fpr - last_fpr) * (tpr + last_tpr) / 2.0;
+
+                        double distance = sqrt(fpr * fpr + (1.0 - tpr) * (1.0 - tpr));
+                        if (distance < best_distance) {
+                                best_distance = distance;
+                                thres = l[i]->Y_hat;
                         }
 
                         last_tpr = tpr;
@@ -6403,126 +6343,13 @@ int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
                 }
         }
 
-        *ret = auc;
+        *auc_out = auc;
+        *thres_out = thres;
 
         for(int i = 0; i < n; i++) {
-                if(l[i]) {
-                        MFREE(l[i]);
-                }
+                MFREE(l[i]);
         }
         MFREE(l);
-
-        return OK;
-ERROR:
-        if(l){
-                for(int i = 0; i < n; i++) {
-                        if(l[i]){
-                                MFREE(l[i]);
-                        }
-                }
-                MFREE(l);
-        }
-        return FAIL;
-}
-
-int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold)
-{
-        struct auc_pt** l = NULL;
-        double thres = 0.0;
-
-        if (n <= 0) {
-                ERROR_MSG("TLD threshold function needs more than 0 datapoints");
-        }
-
-        MMALLOC(l, sizeof(struct auc_pt*) * n);
-
-        /* Populate the auc_pt list */
-        for(int i = 0; i < n; i++) {
-                l[i] = NULL;
-                if(Y[i] < 0.0 || Y[i] > 1.0) {
-                        fprintf(stderr, "label %d out of range: %f\n", i, Y[i]);
-                        goto ERROR;
-                }
-                MMALLOC(l[i], sizeof(struct auc_pt));
-                l[i]->Y = Y[i];
-                l[i]->Y_hat = Y_hat[i];
-        }
-
-        qsort(l, n, sizeof(struct auc_pt*), auc_pt_sort);
-
-        double tpr = 0.0;
-        int tp = 0, fp = 0;
-        int total_positive = 0, total_negative = 0;
-
-        for (int i = 0; i < n; i++) {
-                if (l[i]->Y == 1.0) {
-                        total_positive++;
-                } else {
-                        total_negative++;
-                }
-        }
-
-        double best_distance = DBL_MAX;
-
-
-        for (int i = n - 1; i >= 0; i--) {
-                if(l[i]->Y == 1.0){
-                        tp++;
-                } else {
-                        fp++;
-                }
-
-                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat) {
-                        tpr = (double)tp / total_positive;
-                        double fpr = (double)fp / total_negative;
-
-                        double distance = sqrt(pow(0.0 - fpr, 2.0) + pow(1.0 - tpr, 2.0));
-                        if (distance < best_distance && fabs(l[i]->Y_hat - thres) > DBL_EPSILON){
-                                best_distance = distance;
-                                thres = l[i]->Y_hat;
-                        }
-                }
-        }
-
-        double adjusted_threshold = thres;
-        for (int i = n - 1; i >= 0; i--) {
-                if(l[i]->Y == 1.0) {
-                        tp++;
-                } else {
-                        fp++;
-                }
-
-                if(i == 0 || l[i]->Y_hat != l[i-1]->Y_hat) {
-                        tpr = (double)tp / total_positive;
-                        double fpr = (double)fp / total_negative;
-
-                        double distance = sqrt(pow(0.0 - fpr, 2.0) + pow(1.0 - tpr, 2.0));
-                        if (distance < best_distance) {
-                                best_distance = distance;
-                                thres = l[i]->Y_hat;  // Update the best threshold
-                        }
-
-                        // Check for proximity to last unique Y_hat
-                        if (fabs(adjusted_threshold - l[i]->Y_hat) < DBL_EPSILON) {
-                                // Adjust the threshold if it's too close to an existing Y_hat
-                                adjusted_threshold += (adjusted_threshold > l[i]->Y_hat) ? DBL_EPSILON : -DBL_EPSILON;
-                        }
-
-                        // Ensure adjusted threshold is clamped within [0, 1]
-                        adjusted_threshold = MACRO_MAX(0.0, MACRO_MIN(1.0, adjusted_threshold));
-                }
-        }
-
-        // Assign the best threshold found
-        *best_threshold = adjusted_threshold;
-
-        for(int i = 0; i < n; i++) {
-                if(l[i]) {
-                        MFREE(l[i]);
-                }
-        }
-        MFREE(l);
-
         return OK;
 ERROR:
         if(l){
@@ -6551,7 +6378,7 @@ static inline int _tl_bitfield_popcount_branchless(uint64_t x);
 int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int32_t* dist)
 {
         /* making sure the bitfields have the same length */
-        if(b1->len != b2->len){
+        if(b1->len != b2->len || b2->alloc_len < b1->alloc_len){
                 ERROR_MSG("bitfields have different lengths");
         }
         int32_t len = b1->alloc_len;
@@ -6561,6 +6388,9 @@ int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int3
                         count += _tl_bitfield_popcount_branchless(b1->m[i] ^ b2->m[i]);
                 }
         }else{
+                if(mask->len != b1->len || mask->alloc_len < len){
+                        ERROR_MSG("mask and bitfields have different lengths");
+                }
                 for(int i = 0; i <  len; i++){
                         count += _tl_bitfield_popcount_branchless((b1->m[i] ^ b2->m[i]) & mask->m[i]);
                 }
@@ -6723,27 +6553,38 @@ ERROR:
 
 int tld_dir_create(char* dir)
 {
-        if(tld_dir_exists(dir) == OK){
-                WARNING_MSG("Directory %s already exists",dir);
-        }else{
+        struct stat st;
+        ASSERT(dir != NULL, "No directory name!");
+        if(mkdir(dir, 0700) == 0){
                 LOG_MSG("Creating output directory");
-                mkdir(dir, 0700);
+                return OK;
         }
-        return OK;
+        if(errno == EEXIST){
+                if(stat(dir, &st) == 0 && S_ISDIR(st.st_mode)){
+                        WARNING_MSG("Directory %s already exists",dir);
+                        return OK;
+                }
+                ERROR_MSG("Could not create directory %s: a file of that name exists", dir);
+        }
+        ERROR_MSG("Could not create directory %s: %s", dir, strerror(errno));
+ERROR:
+        return FAIL;
 }
 
 int tld_get_full_path(tld_strbuf **full, char *filename)
 {
         char* full_path = NULL;
         tld_strbuf *f = NULL;
+        int allocated = 0;
+        ASSERT(full != NULL, "tld_get_full_path: No output buffer pointer");
+        ASSERT(filename != NULL, "tld_get_full_path: No filename");
         if(*full){
                 f = *full;
-                f->len = 0;
+                RUN(tld_strbuf_clear(f));
         }else{
                 RUN(tld_strbuf_alloc(&f,512));
+                allocated = 1;
         }
-
-        ASSERT(filename != NULL, "tld_get_full_path: No filename");
         if(tld_file_exists(filename) != OK){
                 ERROR_MSG("tld_get_full_path: file %s does not exist!", filename);
         }
@@ -6756,10 +6597,14 @@ int tld_get_full_path(tld_strbuf **full, char *filename)
 
         RUN(tld_append(f, full_path));
         free(full_path);
+        full_path = NULL;
 
+        *full = f;
         return OK;
 ERROR:
-        if(f){
+        free(full_path);
+        /* free only what this call allocated; a caller-supplied buffer stays theirs */
+        if(allocated){
                 tld_strbuf_free(f);
         }
         return FAIL;
@@ -6811,7 +6656,7 @@ int tld_get_dirname(char* path, char** out)
         len = (int) strlen(path);
         MMALLOC(tmp, sizeof(char) * (len+1));
         c = 0;
-        e = 0;
+        e = -1;
         for(i = 0;i < len;i++){
 
                 tmp[c] = path[i];
@@ -6820,10 +6665,14 @@ int tld_get_dirname(char* path, char** out)
                 }
                 c++;
         }
-        tmp[e] = 0;
-        if(e == 0){
+        if(e < 0){
                 ERROR_MSG("No dirname found in: %s", path);
         }
+        if(e == 0){
+                /* the only slash is the leading one: the directory is the root */
+                e = 1;
+        }
+        tmp[e] = 0;
         *out = tmp;
         return OK;
 ERROR:
@@ -6837,21 +6686,27 @@ int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[
 {
 
         tld_strbuf* cmd = NULL;
+        int allocated = 0;
 
+        ASSERT(cmdline != NULL, "No output buffer pointer");
         if(*cmdline == NULL){
                 RUN(tld_strbuf_alloc(&cmd, 128));
+                allocated = 1;
         }else{
                 cmd = *cmdline;
         }
         for(int i = 0; i < argc;i++){
-                tld_append(cmd, argv[i]);
-                tld_append(cmd, " ");
+                RUN(tld_append(cmd, argv[i]));
+                RUN(tld_append(cmd, " "));
         }
         /* LOG_MSG("%s",TLD_STR(cmd)); */
 
         *cmdline = cmd;
         return OK;
 ERROR:
+        if(allocated){
+                tld_strbuf_free(cmd);
+        }
         return FAIL;
 }
 
