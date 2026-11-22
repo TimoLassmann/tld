@@ -2,12 +2,20 @@
  * tld.h and tld_ai.h, so the manuals follow the headers.
  *
  *   tlddoc [--check] [--out DIR] ROOT
+ *   tlddoc --examples DIR ROOT
  *
  * ROOT is the repository root (it holds tld.h and tld_ai.h); DIR defaults to ROOT/docs.
  * Without --check the two files are (re)written. With --check nothing is written: the
  * exit status is 1, with the problems listed on stderr, when a manual on disk differs
  * from what would be generated or when a public symbol has no doc comment; 0 otherwise.
  * The output holds no dates or paths, so it is byte-for-byte reproducible.
+ *
+ * --examples writes no manual. Each block the manual shows as C (a code example in a
+ * doc comment) becomes its own program, DIR/tld-NN.c or DIR/tld_ai-NN.c: #define lines,
+ * top-level macro invocations and whole function definitions at file scope, the other
+ * lines in a function that has the ERROR label RUN and ASSERT jump to, and a main.
+ * Blocks with an #include (the USAGE lines) are skipped. tests/docs/examples.sh
+ * compiles them (the doc-examples test).
  *
  * Build: cc -std=c11 tools/tlddoc.c -o tlddoc -lm -lpthread (or the CMake target).
  *
@@ -1568,20 +1576,132 @@ static int is_pre_line(const char *s)
         return 0;
 }
 
+/* Length of the code on line s: without a trailing // comment (outside string and
+ * character literals) and without trailing white space. */
+static size_t code_len(const char *s)
+{
+        size_t n = 0;
+        char quote = 0;
+        for(; s[n]; n++){
+                if(quote){
+                        if(s[n] == '\\' && s[n + 1]){
+                                n++;
+                        }else if(s[n] == quote){
+                                quote = 0;
+                        }
+                }else if(s[n] == '"' || s[n] == '\''){
+                        quote = s[n];
+                }else if(s[n] == '/' && s[n + 1] == '/'){
+                        break;
+                }
+        }
+        while(n && isspace((unsigned char)s[n - 1])){
+                n--;
+        }
+        return n;
+}
+
 static int looks_like_code(strlist *blk)
 {
         for(int i = 0; i < blk->n; i++){
                 const char *s = skip_ws(blk->s[i]);
-                size_t n = strlen(s);
-                while(n && isspace((unsigned char)s[n - 1])){
-                        n--;
-                }
+                size_t n = code_len(s);
                 if(starts(s, "#define") || starts(s, "#include") ||
                    (n && (s[n - 1] == ';' || s[n - 1] == '{' || s[n - 1] == '}'))){
                         return 1;
                 }
         }
         return 0;
+}
+
+static int write_file(const char *path, tld_strbuf *text);
+
+/* --examples: every block shown as C is also written to its own file in ex_dir. */
+static const char *ex_dir = NULL;       /* NULL: not collecting */
+static const char *ex_file = NULL;      /* header being rendered, "tld.h" */
+static const char *ex_where = NULL;     /* the symbol or section the block documents */
+static int ex_n = 0;                    /* examples written for ex_file */
+
+/* A line that belongs at file scope: a preprocessor line, or a top-level macro
+ * invocation such as AI_CHOICE(team, "...", TEAM) (ends in ')', no ';'). */
+static int file_scope_line(const char *s)
+{
+        size_t n = code_len(s);
+        if(s[0] == '#'){
+                return 1;
+        }
+        return n && s[n - 1] == ')' && isupper((unsigned char)s[0]) && strchr(s, '(') != NULL;
+}
+
+/* A function definition: its first line is "type name(args)" with no ';', and a line
+ * holding just "{" (or the first line ending in '{') follows. */
+static int is_definition(strlist *blk, int min_ind)
+{
+        const char *s = blk->s[0] + min_ind;
+        size_t n = code_len(s);
+        if(!isalpha((unsigned char)s[0]) || n == 0 || strchr(s, '(') == NULL || strchr(s, '=')){
+                return 0;
+        }
+        if(s[n - 1] == '{'){
+                return 1;
+        }
+        return s[n - 1] == ')' && blk->n > 1 && strcmp(skip_ws(blk->s[1]), "{") == 0;
+}
+
+/* Write blk as DIR/<stem>-NN.c: file-scope lines first, the rest in a function body that
+ * has the ERROR label RUN and ASSERT jump to, and a main so the file links. Blocks with
+ * an #include (the USAGE lines) are skipped: the file already includes the header. */
+static int write_example(strlist *blk, int min_ind)
+{
+        tld_strbuf *b = NULL;
+        char path[1024];
+        char stem[64];
+        int def = 0;
+
+        for(int i = 0; i < blk->n; i++){
+                if(starts(skip_ws(blk->s[i]), "#include")){
+                        return OK;
+                }
+        }
+        snprintf(stem, sizeof stem, "%s", ex_file);
+        if(strrchr(stem, '.')){
+                *strrchr(stem, '.') = 0;
+        }
+        ex_n++;
+        snprintf(path, sizeof path, "%s/%s-%02d.c", ex_dir, stem, ex_n);
+        def = is_definition(blk, min_ind);
+        RUN(tld_strbuf_alloc(&b, 1024));
+        RUN(appendf(b, "/* Example from the doc comment of %s in %s (tlddoc --examples). */\n"
+                    "#include \"%s\"\n\n", ex_where ? ex_where : "?", ex_file, ex_file));
+        /* file scope: a whole definition, or the #define lines (with their continuation
+         * lines) and top-level invocations */
+        for(int i = 0, cont = 0; i < blk->n; i++){
+                const char *s = blk->s[i] + min_ind;
+                size_t n = strlen(s);
+                int here = def || cont || file_scope_line(s);
+                cont = here && s[0] == '#' ? n && s[n - 1] == '\\' : cont && n && s[n - 1] == '\\';
+                if(here){
+                        RUN(appendf(b, "%s\n", s));
+                }
+        }
+        RUN(tld_strbuf_append(b, "\nstatic int example(void)\n{\n"));
+        for(int i = 0, cont = 0; i < blk->n && !def; i++){
+                const char *s = blk->s[i] + min_ind;
+                size_t n = strlen(s);
+                int here = cont || file_scope_line(s);
+                cont = here && s[0] == '#' ? n && s[n - 1] == '\\' : cont && n && s[n - 1] == '\\';
+                if(!here){
+                        RUN(appendf(b, "        %s\n", s));
+                }
+        }
+        RUN(tld_strbuf_append(b, "        return OK;\nERROR:\n        return FAIL;\n}\n\n"
+                              "int main(void)\n{\n        return example() == OK ? 0 : 1;\n}\n"));
+        RUN(write_file(path, b));
+        tld_strbuf_free(b);
+        return OK;
+ERROR:
+        tld_strbuf_free(b);
+        return FAIL;
 }
 
 static int flush_block(tld_strbuf *o, strlist *blk)
@@ -1599,6 +1719,9 @@ static int flush_block(tld_strbuf *o, strlist *blk)
                 }
         }
         if(pre){
+                if(ex_dir && looks_like_code(blk)){
+                        RUN(write_example(blk, min_ind));
+                }
                 RUN(appendf(o, "```%s\n", looks_like_code(blk) ? "c" : "text"));
                 for(int i = 0; i < blk->n; i++){
                         RUN(tld_strbuf_append(o, blk->s[i] + min_ind));
@@ -1852,6 +1975,7 @@ static int render(header *h, const char *impl_macro, tld_strbuf *o)
                     "Regenerate with: cmake --build build --target docs -->\n\n", h->file));
         RUN(appendf(o, "# %s\n\n", title));
         RUN(appendf(o, "%s\n", overview));
+        ex_where = "the top comment";
         RUN(render_text(o, preamble, text_indent(preamble)));
         RUN(appendf(o, "Every public symbol of %s is documented below, module by module, with "
                     "its declaration; the [index](#index) at the end lists them "
@@ -1879,6 +2003,7 @@ static int render(header *h, const char *impl_macro, tld_strbuf *o)
         /* top sections */
         for(int i = 0; i < n_sec; i++){
                 RUN(appendf(o, "<a id=\"%s\"></a>\n\n## %s\n\n", sec[i].anchor, sec[i].title));
+                ex_where = sec[i].title;
                 RUN(render_text(o, sec[i].body, text_indent(sec[i].body)));
         }
 
@@ -1908,6 +2033,7 @@ static int render(header *h, const char *impl_macro, tld_strbuf *o)
                         RUN(tld_strbuf_append(o, "\n\n```c\n"));
                         RUN(append_code(o, TLD_STR(e->code)));
                         RUN(tld_strbuf_append(o, "\n```\n\n"));
+                        ex_where = e->names.n ? e->names.s[0] : m->title;
                         if(e->doc){
                                 RUN(render_text(o, e->doc, 0));
                         }else{
@@ -2030,10 +2156,12 @@ static int count_lines(tld_strbuf *b)
 
 static void usage(void)
 {
-        fprintf(stderr, "usage: tlddoc [--check] [--out DIR] ROOT\n"
+        fprintf(stderr, "usage: tlddoc [--check] [--out DIR] [--examples DIR] ROOT\n"
                 "  Writes DIR/tld.md and DIR/tld_ai.md (DIR defaults to ROOT/docs) from the\n"
                 "  comments in ROOT/tld.h and ROOT/tld_ai.h. --check writes nothing and exits\n"
-                "  1 if a file is out of date or a public symbol has no doc comment.\n");
+                "  1 if a file is out of date or a public symbol has no doc comment.\n"
+                "  --examples DIR writes no manual: each code example of the doc comments goes\n"
+                "  to DIR/tld-NN.c or DIR/tld_ai-NN.c, a program that compiles on its own.\n");
 }
 
 int main(int argc, char *argv[])
@@ -2054,6 +2182,8 @@ int main(int argc, char *argv[])
                         check = 1;
                 }else if(strcmp(argv[i], "--out") == 0 && i + 1 < argc){
                         outdir = argv[++i];
+                }else if(strcmp(argv[i], "--examples") == 0 && i + 1 < argc){
+                        ex_dir = argv[++i];
                 }else if(strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0){
                         usage();
                         return EXIT_SUCCESS;
@@ -2076,15 +2206,27 @@ int main(int argc, char *argv[])
         }else{
                 RUN(tld_strbuf_append(path, (char *)outdir));
         }
-        if(!check && mkdir(TLD_STR(path), 0755) != 0 && errno != EEXIST){
+        if(ex_dir && mkdir(ex_dir, 0755) != 0 && errno != EEXIST){
+                ERROR_MSG("Cannot create %s: %s", ex_dir, strerror(errno));
+        }
+        if(!check && !ex_dir && mkdir(TLD_STR(path), 0755) != 0 && errno != EEXIST){
                 ERROR_MSG("Cannot create %s: %s", TLD_STR(path), strerror(errno));
         }
         for(int f = 0; f < 2; f++){
                 int same = 0;
                 int len = path->len;
                 RUN(parse_header(root, files[f], &h));
-                RUN(lint(h, &problems));
                 RUN(tld_strbuf_clear(o));
+                ex_file = files[f];
+                ex_n = 0;
+                if(ex_dir){
+                        RUN(render(h, impl[f], o));
+                        fprintf(stdout, "tlddoc: %d examples from %s in %s\n", ex_n, files[f], ex_dir);
+                        header_free(h);
+                        h = NULL;
+                        continue;
+                }
+                RUN(lint(h, &problems));
                 RUN(render(h, impl[f], o));
                 RUN(tld_strbuf_append(path, "/"));
                 RUN(tld_strbuf_append(path, (char *)outs[f]));
