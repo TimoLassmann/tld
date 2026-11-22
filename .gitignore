@@ -13,6 +13,13 @@
 !.gitattributes
 !.gitignore
 !val_build.sh
+!CHANGELOG.md
+!tld.h
+!ai.h
+!tools/
+!tools/**
+!examples/
+!examples/**
 !src/
 !tests/
 !cmake/
