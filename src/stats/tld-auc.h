@@ -11,7 +11,8 @@
  * the score nearest the (0, 1) corner of the curve: call Y_hat >= *t positive. Either
  * output may be NULL when it is not wanted:
  *
- *   RUN(tld_auc(y, score, n, NULL, &auc));
+ *   double y[4] = {1, 1, 0, 0}, score[4] = {0.9, 0.4, 0.5, 0.1}, auc;
+ *   RUN(tld_auc(y, score, 4, NULL, &auc));      // auc is 0.75
  */
 TLD_API int tld_auc(double *Y, double *Y_hat, int n, double *t, double *auc);
 #endif

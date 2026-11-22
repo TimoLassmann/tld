@@ -39,9 +39,14 @@ TLD_API  int tld_hash_iter_init(tld_hash *h);
 /* Next entry: *key and *value point into the map (borrowed and read-only). Returns FAIL, without a
  * message, when there are no more entries. Do not add or delete while iterating.
  *
+ *   tld_hash *h = NULL;
  *   const char *k, *v;
+ *   RUN(tld_hash_add(&h, "a", "1"));
  *   RUN(tld_hash_iter_init(h));
- *   while(tld_hash_iter_next(h, &k, &v) == OK){ ... }
+ *   while(tld_hash_iter_next(h, &k, &v) == OK){
+ *           printf("%s=%s\n", k, v);
+ *   }
+ *   tld_hash_free(h);
  */
 TLD_API  int tld_hash_iter_next(tld_hash* h, const char **key, const char **value);
 

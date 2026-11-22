@@ -289,12 +289,15 @@ results. Colour and symbols are used only when stderr is a terminal and NO_COLOR
 not set. TLD_VERBOSE sets how much is shown: 0 errors only, 1 normal (default),
 2 also DEBUG_MSG lines.
 
-```text
-SECTION_MSG("Aligning %d sequences", n);   ── Aligning 40 sequences ──────────
-KV_MSG("model", "%s", name);                  model     inkling-2-mini:latest
-OK_MSG("done in %.1f s", t);                ✓ done in 1.9 s
-DEBUG_MSG("seed %u", seed);                 · seed 42          (TLD_VERBOSE=2)
-tld_progress(i + 1, n, "aligning");        aligning [#######.....]  58% 23/40
+```c
+int n = 40;
+SECTION_MSG("Aligning %d sequences", n);   // ── Aligning 40 sequences ────────
+KV_MSG("model", "%s", "inkling-2-mini");   //    model     inkling-2-mini
+OK_MSG("done in %.1f s", 1.9);             //  ✓ done in 1.9 s
+DEBUG_MSG("seed %u", 42u);                 //  · seed 42      (TLD_VERBOSE=2)
+for(int i = 0; i < n; i++){
+        tld_progress(i + 1, n, "aligning");   // aligning [####....]  58% 23/40
+}
 ```
 
 <a id="tld_progress"></a>
@@ -835,9 +838,14 @@ Next entry: *key and *value point into the map (borrowed and read-only). Returns
 message, when there are no more entries. Do not add or delete while iterating.
 
 ```c
+tld_hash *h = NULL;
 const char *k, *v;
+RUN(tld_hash_add(&h, "a", "1"));
 RUN(tld_hash_iter_init(h));
-while(tld_hash_iter_next(h, &k, &v) == OK){ ... }
+while(tld_hash_iter_next(h, &k, &v) == OK){
+        printf("%s=%s\n", k, v);
+}
+tld_hash_free(h);
 ```
 
 <a id="mod-json-types"></a>
@@ -1183,8 +1191,9 @@ Add one entry to *obj / one value to *arr, creating it when *obj / *arr is NULL:
 
 ```c
 tld_json_obj *req = NULL;
-RUN(tld_json_obj_add(&req, TLD_JSTR("model", name)));
+RUN(tld_json_obj_add(&req, TLD_JSTR("model", "inkling-2-mini")));
 RUN(tld_json_obj_add(&req, TLD_JBOOL("stream", 0)));
+tld_json_obj_free(req);
 ```
 
 Entries are those of TLD_JSON_OBJECT: a TLD_JOBJ/TLD_JARR value passes to the container,
@@ -1244,9 +1253,13 @@ and returns FAIL with txt unchanged.
 
 ```c
 tld_hash *m = NULL;
+tld_strbuf *txt = NULL;
 RUN(tld_hash_add(&m, "who", "world"));
+RUN(tld_strbuf_alloc(&txt, 64));
 RUN(tld_strbuf_append(txt, "Hello {{who}}{{IF excl}}!{{ENDIF}}"));
 RUN(tld_template_apply(txt, m));        // txt is now "Hello world"
+tld_strbuf_free(txt);
+tld_hash_free(m);
 ```
 
 <a id="tld_template_vars"></a>
@@ -1663,7 +1676,8 @@ the score nearest the (0, 1) corner of the curve: call Y_hat >= *t positive. Eit
 output may be NULL when it is not wanted:
 
 ```c
-RUN(tld_auc(y, score, n, NULL, &auc));
+double y[4] = {1, 1, 0, 0}, score[4] = {0.9, 0.4, 0.5, 0.1}, auc;
+RUN(tld_auc(y, score, 4, NULL, &auc));      // auc is 0.75
 ```
 
 <a id="mod-logsum"></a>

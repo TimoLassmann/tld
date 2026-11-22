@@ -97,8 +97,9 @@ TLD_API tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration
 /* Add one entry to *obj / one value to *arr, creating it when *obj / *arr is NULL:
  *
  *   tld_json_obj *req = NULL;
- *   RUN(tld_json_obj_add(&req, TLD_JSTR("model", name)));
+ *   RUN(tld_json_obj_add(&req, TLD_JSTR("model", "inkling-2-mini")));
  *   RUN(tld_json_obj_add(&req, TLD_JBOOL("stream", 0)));
+ *   tld_json_obj_free(req);
  *
  * Entries are those of TLD_JSON_OBJECT: a TLD_JOBJ/TLD_JARR value passes to the container,
  * also on failure (it is then freed), and a TLD_JAUTO/TLD_JSTR entry whose string is NULL

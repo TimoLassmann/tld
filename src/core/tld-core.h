@@ -117,11 +117,14 @@ TLD_API int tld_term_has_color(void);
  * not set. TLD_VERBOSE sets how much is shown: 0 errors only, 1 normal (default),
  * 2 also DEBUG_MSG lines.
  *
- *   SECTION_MSG("Aligning %d sequences", n);   ── Aligning 40 sequences ──────────
- *   KV_MSG("model", "%s", name);                  model     inkling-2-mini:latest
- *   OK_MSG("done in %.1f s", t);                ✓ done in 1.9 s
- *   DEBUG_MSG("seed %u", seed);                 · seed 42          (TLD_VERBOSE=2)
- *   tld_progress(i + 1, n, "aligning");        aligning [#######.....]  58% 23/40
+ *   int n = 40;
+ *   SECTION_MSG("Aligning %d sequences", n);   // ── Aligning 40 sequences ────────
+ *   KV_MSG("model", "%s", "inkling-2-mini");   //    model     inkling-2-mini
+ *   OK_MSG("done in %.1f s", 1.9);             //  ✓ done in 1.9 s
+ *   DEBUG_MSG("seed %u", 42u);                 //  · seed 42      (TLD_VERBOSE=2)
+ *   for(int i = 0; i < n; i++){
+ *           tld_progress(i + 1, n, "aligning");   // aligning [####....]  58% 23/40
+ *   }
  */
 #define SECTION_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld__section(__VA_ARGS__))
 #define KV_MSG(KEY, ...) (TLD__LITERAL(__VA_ARGS__), tld__kv(KEY, __VA_ARGS__))

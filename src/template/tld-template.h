@@ -17,9 +17,13 @@ typedef struct tld_hash tld_hash;
  * and returns FAIL with txt unchanged.
  *
  *   tld_hash *m = NULL;
+ *   tld_strbuf *txt = NULL;
  *   RUN(tld_hash_add(&m, "who", "world"));
+ *   RUN(tld_strbuf_alloc(&txt, 64));
  *   RUN(tld_strbuf_append(txt, "Hello {{who}}{{IF excl}}!{{ENDIF}}"));
  *   RUN(tld_template_apply(txt, m));        // txt is now "Hello world"
+ *   tld_strbuf_free(txt);
+ *   tld_hash_free(m);
  */
 TLD_API int tld_template_apply(tld_strbuf *txt, tld_hash *map);
 
