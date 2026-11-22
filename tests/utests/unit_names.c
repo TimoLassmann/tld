@@ -26,15 +26,6 @@
 #ifndef gfree
 #error "tld public macro gfree is missing"
 #endif
-#ifndef H1_MSG
-#error "tld public macro H1_MSG is missing"
-#endif
-#ifndef H2_MSG
-#error "tld public macro H2_MSG is missing"
-#endif
-#ifndef H3_MSG
-#error "tld public macro H3_MSG is missing"
-#endif
 #ifndef JA
 #error "tld public macro JA is missing"
 #endif
@@ -263,7 +254,6 @@ static tld_any_fn const fns[] = {
         (tld_any_fn)tld_hash_iterator_next,
         (tld_any_fn)tld_hash_print,
         (tld_any_fn)tld_hash_rename,
-        (tld_any_fn)tld_heading,
         (tld_any_fn)tld_json_arr_alloc,
         (tld_any_fn)tld_json_arr_chk_space,
         (tld_any_fn)tld_json_arr_copy,
@@ -334,6 +324,6 @@ int main(void)
         int n = 0;
         (void)vars;
         for (size_t i = 0; i < sizeof fns / sizeof fns[0]; i++) n += fns[i] != NULL;
-        fprintf(stdout, "unit-names: %d functions and 51 macros present\n", n);
-        return n == 162 ? EXIT_SUCCESS : EXIT_FAILURE;
+        fprintf(stdout, "unit-names: %d functions and 48 macros present\n", n);
+        return n == 161 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

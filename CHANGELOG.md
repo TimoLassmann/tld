@@ -7,6 +7,7 @@ unchanged, except that the seq/ and hdf5/ modules were removed. Behaviour change
 here fix bugs.
 
 ### Removed
+- core: `H1_MSG`, `H2_MSG`, `H3_MSG` and `tld_heading` (unused; they wrote colour codes to stdout even when it was not a terminal).
 - seq/ (FASTA/FASTQ/SAM IO, alphabets, reverse complement) and hdf5/. tld now depends only on
   libc, libm and pthreads.
 
