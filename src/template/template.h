@@ -11,9 +11,9 @@ typedef struct tld_hash tld_hash;
 /* Render the template in txt in place. {{name}} becomes map's value for name (nothing
  * when absent); {{IF name}}A{{ELSE}}B{{ENDIF}} keeps A when name has a non-empty value
  * and B otherwise (ELSE is optional; IFs nest). The text between the braces is the key
- * as written (no trimming, at most 63 characters). map must not be NULL. A malformed
- * template (unclosed IF or tag, ELSE or ENDIF without IF) prints an error and returns
- * FAIL with txt unchanged.
+ * as written (no trimming, 1 to 63 characters). map must not be NULL. A malformed
+ * template (unclosed IF or tag, ELSE or ENDIF without IF, an empty {{}}, an IF with no
+ * name) prints the reason with its byte offset and returns FAIL with txt unchanged.
  *
  *   tld_hash *m = NULL;
  *   RUN(tld_hash_add(&m, "who", "world"));

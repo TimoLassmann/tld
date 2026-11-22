@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static int n_fail = 0;
 static int n_check = 0;
@@ -161,6 +162,61 @@ static void test_errors(void)
         free(deep);
 }
 
+/* Apply template t (no keys) with stderr sent to a temp file; return 1 when the
+   call fails and what it printed contains want. */
+static int fails_saying(const char *t, const char *want)
+{
+        char name[] = "/tmp/tld_regress_template_XXXXXX";
+        char text[4096] = {0};
+        tld_strbuf* b = NULL;
+        tld_hash* h = NULL;
+        int fd = mkstemp(name);
+        int save = dup(STDERR_FILENO);
+        int r;
+        if(fd < 0 || save < 0){
+                return 0;
+        }
+        tld_strbuf_alloc(&b, 64);
+        tld_append(b, t);
+        tld_hash_alloc(&h, 16);
+        fflush(stderr);
+        dup2(fd, STDERR_FILENO);
+        r = tld_template_apply(b, h);
+        fflush(stderr);
+        dup2(save, STDERR_FILENO);
+        close(save);
+        lseek(fd, 0, SEEK_SET);
+        if(read(fd, text, sizeof text - 1) < 0){
+                text[0] = 0;
+        }
+        close(fd);
+        unlink(name);
+        tld_hash_free(h);
+        tld_strbuf_free(b);
+        if(r != FAIL || strstr(text, want) == NULL){
+                fprintf(stderr, "  template [%s]: r=%d, wanted '%s' in:\n%s", t, r, want, text);
+                return 0;
+        }
+        return 1;
+}
+
+/* Tags that used to be accepted ({{}} as a variable with no name, {{IF}} as a
+   variable called IF, {{IF }} as an IF on "") fail, and every syntax error prints
+   its reason (tag errors used to fail with only "Function ... failed"). */
+static void test_reasons(void)
+{
+        CHECK(fails_saying("a{{}}b", "Empty tag {{}} at byte 1"));
+        CHECK(fails_saying("{{IF}}x{{ENDIF}}", "IF without a name at byte 0"));
+        CHECK(fails_saying("{{IF }}x{{ENDIF}}", "IF without a name at byte 0"));
+        CHECK(fails_saying("Hello {{name", "Tag at byte 6 is not closed with }}"));
+        CHECK(fails_saying("{{aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}}",
+                           "Tag at byte 0 is longer than 63 characters"));
+        CHECK(fails_saying("x{{ENDIF}}", "ENDIF without matching IF at byte 1"));
+        CHECK(fails_saying("{{ELSE}}", "ELSE without matching IF at byte 0"));
+        CHECK(fails_saying("{{IF a}}{{ELSE}}{{ELSE}}{{ENDIF}}", "ELSE without matching IF at byte 16"));
+        CHECK(fails_saying("{{IF a}}{{IF b}}x{{ENDIF}}", "IF without ENDIF (1 still open at the end)"));
+}
+
 /* The checks, in the order a plain run does them; arguments select by name. */
 static const struct {
         const char *name;
@@ -170,6 +226,7 @@ static const struct {
         {"else", test_else, "{{IF}} ... {{ELSE}} ... {{ENDIF}} branches"},
         {"basic", test_basic, "{{key}} substitution, missing keys, plain text"},
         {"errors", test_errors, "malformed templates fail cleanly"},
+        {"reasons", test_reasons, "empty and nameless tags fail; each syntax error says why"},
 };
 
 int main(int argc, char *argv[])
@@ -183,6 +240,7 @@ int main(int argc, char *argv[])
                   "  else    {{IF}} ... {{ELSE}} ... {{ENDIF}} branches\n"
                   "  basic   {{key}} substitution, missing keys, plain text\n"
                   "  errors  malformed templates fail cleanly\n"
+                  "  reasons empty and nameless tags fail; each syntax error says why\n"
                   "\n"
                   "Example: regress-template else errors");
         for(int i = 1; i < argc; i++){

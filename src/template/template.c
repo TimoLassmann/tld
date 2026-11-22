@@ -6,14 +6,9 @@
 #include "../hash/hash.h"
 
 #include <stdio.h>
-#include <ctype.h>
-
-#define TEMPLATE_OK 0
-#define TEMPLATE_MISMATCH_DELIM 1
-#define TEMPLATE_NOREP 2
+#include <string.h>
 
 #define MAX_VAR_NAME 64
-#define MAX_CHILDREN 10
 #define MAX_ERROR_MSG 256
 #define MAX_IF_DEPTH 512
 
@@ -28,17 +23,14 @@ typedef enum {
 
 typedef struct template_node {
         template_node_type type;
-        tld_strbuf *content;
-        /* char *content; */
+        tld_strbuf *content;            /* text, or the name of a variable or IF */
         struct template_node** children;
-        /* struct Node *children[MAX_CHILDREN]; */
         int n;
         int n_alloc;
-        /* int child_count; */
-        /* struct Node *parent; */
         struct template_node* parent;
 } template_node;
 
+/* input is the template text; a syntax error leaves its reason in error. */
 typedef struct {
         const char *input;
         int position;
@@ -46,56 +38,41 @@ typedef struct {
 } Parser;
 
 tld_internal  int parse_template(Parser *parser, template_node **node);
-tld_internal  int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* out);
+tld_internal  int process_tree(template_node *node, tld_hash *hash, tld_strbuf* out);
 
 tld_internal  int get_vars(template_node *node, tld_hash* h);
 tld_internal  int parse_text(Parser *parser, template_node **node);
 tld_internal  int parse_tag(Parser *parser, template_node **node);
 
-tld_internal  int is_end_of_input(Parser *parser);
-tld_internal char peek(Parser *parser);
-tld_internal char parser_next(Parser *parser);
-
 tld_internal  int template_node_add_child(template_node *parent, template_node *child);
-tld_internal  int template_node_create(template_node **node, template_node_type type, char *content);
+tld_internal  int template_node_create(template_node **node, template_node_type type, const char *content);
 tld_internal  int template_node_resize(template_node *node);
 tld_internal void template_node_free(template_node *node);
 
-#undef TEMPLATE_OK
-#undef TEMPLATE_MISMATCH_DELIM
-#undef TEMPLATE_NOREP
-
-/* Parse the text in txt into a new tree in *root (nodes copy their text, so the
-   temporary NUL-terminated copy is freed here). */
+/* Parse the text in txt into a new tree in *root (nodes copy their text). A syntax
+   error is printed with its reason. */
 static int template_parse_strbuf(tld_strbuf *txt, template_node **root)
 {
-        char* tmp = NULL;
         template_node* r = NULL;
-        galloc(&tmp,txt->len+1);
-        memcpy((void*)tmp, txt->str, txt->len);
-        tmp[txt->len] = '\0';
-        Parser parser = {tmp, 0, ""};
-        RUN(parse_template(&parser, &r));
-        if (parser.error[0] != '\0') {
-                ERROR_MSG("Error parsing template: %s",parser.error);
+        Parser parser = {TLD_STR(txt), 0, ""};
+        if(parse_template(&parser, &r) != OK){
+                if(parser.error[0] != '\0'){
+                        ERROR_MSG("Error parsing template: %s", parser.error);
+                }
+                ERROR_MSG("Could not parse the template");
         }
-        gfree(tmp);
         *root = r;
         return OK;
 ERROR:
-        if(r){
-                template_node_free(r);
-        }
-        gfree(tmp);
         return FAIL;
 }
 
-int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* out)
+int process_tree(template_node *node, tld_hash *hash, tld_strbuf* out)
 {
         switch(node->type){
         case NODE_ROOT:
                 for(int i = 0; i < node->n; i++){
-                        RUN(process_tree(node->children[i], hash, output,out));
+                        RUN(process_tree(node->children[i], hash, out));
                 }
                 break;
 
@@ -106,11 +83,10 @@ int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* o
         case NODE_VARIABLE:
         {
                 const char* replacement = NULL;
-                tld_hash_get(hash, TLD_STR(node->content), &replacement);
-                if(replacement){
+                /* an absent name gives no output */
+                if(tld_hash_get(hash, TLD_STR(node->content), &replacement) == OK){
                         RUN(tld_append(out, replacement));
                 }
-                // If no replacement found, output nothing
         }
         break;
 
@@ -122,9 +98,8 @@ int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* o
                 int condition_met = (condition_value != NULL && strcmp(condition_value, "") != 0);
 
                 if(condition_met){
-                        // Process the 'if' branch
                         for(int i = 0; i < node->n; i++){
-                                RUN(process_tree(node->children[i], hash, output,out));
+                                RUN(process_tree(node->children[i], hash, out));
                         }
                 }else if(node->parent != NULL){
                         /* The parser places an IF's own ELSE directly after
@@ -137,7 +112,7 @@ int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* o
                                         if(i + 1 < parent->n && parent->children[i + 1]->type == NODE_ELSE){
                                                 template_node* else_node = parent->children[i + 1];
                                                 for(int j = 0; j < else_node->n; j++){
-                                                        RUN(process_tree(else_node->children[j], hash, output,out));
+                                                        RUN(process_tree(else_node->children[j], hash, out));
                                                 }
                                         }
                                         break;
@@ -149,7 +124,7 @@ int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* o
 
         case NODE_ELSE:
         case NODE_ENDIF:
-                // These are handled in the IF case, do nothing here
+                /* handled by the IF they belong to */
                 break;
         }
         return OK;
@@ -160,23 +135,23 @@ ERROR:
 void template_node_free(template_node *node)
 {
         if(node){
-                if(node->content){
-                        tld_strbuf_free(node->content);
+                tld_strbuf_free(node->content);
+                for(int i = 0; i < node->n; i++){
+                        template_node_free(node->children[i]);
                 }
-                if(node->children){
-                        for(int i = 0; i < node->n_alloc;i++){
-                                template_node_free(node->children[i]);
-                        }
-                        MFREE(node->children);
-                }
+                MFREE(node->children);
                 MFREE(node);
         }
 }
 
+/* Build the tree: text and variables are children of the innermost open IF (or
+   ELSE, or the root). A syntax error sets parser->error and returns FAIL, as does
+   running out of memory (error left empty). */
 int parse_template(Parser *parser, template_node **node)
 {
         template_node *root = NULL;
         template_node *current = NULL;
+        template_node *child = NULL;
         template_node** stack = NULL;
         int stack_top = 0;
         int stack_size = 10;
@@ -185,171 +160,155 @@ int parse_template(Parser *parser, template_node **node)
         RUN(template_node_create(&root, NODE_ROOT, NULL));
         current = root;
 
-        while(!is_end_of_input(parser)){
-                if(strncmp(parser->input + parser->position, "{{", 2) == 0){
-                        template_node *tag_node = NULL;
-                        RUN(parse_tag(parser, &tag_node));
-                        if(tag_node){
-                                switch(tag_node->type){
-                                case NODE_IF:
-                                        RUN(template_node_add_child(current, tag_node));
-                                        if(stack_top >= MAX_IF_DEPTH){
-                                                snprintf(parser->error, MAX_ERROR_MSG, "IF nesting deeper than %d", MAX_IF_DEPTH);
-                                                break;
-                                        }
-                                        if(stack_top >= stack_size){
-                                                stack_size = stack_size + stack_size / 2;
-                                                MREALLOC(stack, sizeof(template_node*) * stack_size);
-                                        }
-                                        stack[stack_top] = current;
-                                        stack_top++;
-                                        current = tag_node;
-                                        break;
-                                case NODE_ELSE:
-                                        if(stack_top > 0 && current->type == NODE_IF){
-                                                current = stack[stack_top - 1];
-                                                RUN(template_node_add_child(current, tag_node));
-                                                current = tag_node;
-                                        }else{
-                                                snprintf(parser->error, MAX_ERROR_MSG, "ELSE without matching IF");
-                                                template_node_free(tag_node);
-                                        }
-                                        break;
-                                case NODE_ENDIF:
-                                        if(stack_top > 0){
-                                                current = stack[--stack_top];
-                                                template_node_free(tag_node);
-                                        }else{
-                                                snprintf(parser->error, MAX_ERROR_MSG, "ENDIF without matching IF");
-                                                template_node_free(tag_node);
-                                        }
-                                        break;
-                                default:
-                                        RUN(template_node_add_child(current, tag_node));
-                                }
-                        }else if(parser->error[0] == '\0'){
-                                snprintf(parser->error, MAX_ERROR_MSG, "Failed to parse tag");
-                        }
-                }else{
-                        template_node *text_node = NULL;
-                        RUN(parse_text(parser, &text_node));
-                        if(text_node){
-                                RUN(template_node_add_child(current, text_node));
-                        }else if(parser->error[0] == '\0'){
-                                snprintf(parser->error, MAX_ERROR_MSG, "Failed to parse text");
-                        }
+        while(parser->input[parser->position] != '\0'){
+                int at = parser->position;
+                if(strncmp(parser->input + parser->position, "{{", 2) != 0){
+                        RUN(parse_text(parser, &child));
+                        RUN(template_node_add_child(current, child));
+                        child = NULL;
+                        continue;
                 }
-
-                if(parser->error[0] != '\0'){
+                if(parse_tag(parser, &child) != OK){
+                        goto ERROR;
+                }
+                switch(child->type){
+                case NODE_IF:
+                        if(stack_top >= MAX_IF_DEPTH){
+                                snprintf(parser->error, MAX_ERROR_MSG,
+                                         "IF nesting deeper than %d at byte %d", MAX_IF_DEPTH, at);
+                                goto ERROR;
+                        }
+                        if(stack_top >= stack_size){
+                                stack_size = stack_size + stack_size / 2;
+                                MREALLOC(stack, sizeof(template_node*) * stack_size);
+                        }
+                        RUN(template_node_add_child(current, child));
+                        stack[stack_top++] = current;
+                        current = child;
+                        break;
+                case NODE_ELSE:
+                        if(stack_top == 0 || current->type != NODE_IF){
+                                snprintf(parser->error, MAX_ERROR_MSG, "ELSE without matching IF at byte %d", at);
+                                goto ERROR;
+                        }
+                        RUN(template_node_add_child(stack[stack_top - 1], child));
+                        current = child;
+                        break;
+                case NODE_ENDIF:
+                        if(stack_top == 0){
+                                snprintf(parser->error, MAX_ERROR_MSG, "ENDIF without matching IF at byte %d", at);
+                                goto ERROR;
+                        }
+                        template_node_free(child);
+                        current = stack[--stack_top];
+                        break;
+                default:
+                        RUN(template_node_add_child(current, child));
                         break;
                 }
+                child = NULL;
         }
-
-        if(stack_top > 0 && parser->error[0] == '\0'){
-                snprintf(parser->error, MAX_ERROR_MSG, "Unclosed IF statement");
+        if(stack_top > 0){
+                snprintf(parser->error, MAX_ERROR_MSG, "IF without ENDIF (%d still open at the end)", stack_top);
+                goto ERROR;
         }
         MFREE(stack);
         *node = root;
         return OK;
 ERROR:
-        if(stack){
-                MFREE(stack);
-        }
-        if(root){
-                template_node_free(root);
-        }
+        template_node_free(child);
+        MFREE(stack);
+        template_node_free(root);
         return FAIL;
 }
 
+/* Make child the last child of parent. The parent owns it afterwards; if that
+   fails, the caller still does. */
 int template_node_add_child(template_node *parent, template_node *child)
 {
-        if(parent->n < parent->n_alloc){
-                parent->children[parent->n] = child;
-                parent->n++;
-                if(parent->n == parent->n_alloc){
-                        RUN(template_node_resize(parent));
-                }
-                child->parent = parent;
-        }else{
-                template_node_free(child);
+        if(parent->n == parent->n_alloc){
+                RUN(template_node_resize(parent));
         }
+        parent->children[parent->n++] = child;
+        child->parent = parent;
         return OK;
 ERROR:
         return FAIL;
 }
 
+/* Text up to the next {{ (or the end) as a new text node in *node. */
 int parse_text(Parser *parser, template_node **node)
 {
         char *text = NULL;
         const char *start = parser->input + parser->position;
-        while (!is_end_of_input(parser) && (peek(parser) != '{' || parser->input[parser->position + 1] != '{')) {
-                parser_next(parser);
+        int length = 0;
+        while(start[length] != '\0' && (start[length] != '{' || start[length + 1] != '{')){
+                length++;
         }
-        int length = parser->input + parser->position - start;
-        if (length > 0) {
-                MMALLOC(text, length + 1);
-                strncpy(text, start, length);
-                text[length] = '\0';
-                if(template_node_create(node, NODE_TEXT, text) != OK){
-                        MFREE(text);
-                        ERROR_MSG("Could not create text node");
-                }
-                MFREE(text);
-        }
+        MMALLOC(text, length + 1);
+        memcpy(text, start, length);
+        text[length] = '\0';
+        RUN(template_node_create(node, NODE_TEXT, text));
+        MFREE(text);
+        parser->position += length;
         return OK;
 ERROR:
+        MFREE(text);
         return FAIL;
 }
 
+/* The {{...}} tag at the parser's position as a new node in *node. A malformed tag
+   leaves its reason in parser->error. */
 int parse_tag(Parser *parser, template_node **node)
 {
-        char tag_content[MAX_VAR_NAME];
+        char tag[MAX_VAR_NAME];
+        int at = parser->position;
         int i = 0;
-        if (parser_next(parser) != '{' || parser_next(parser) != '{') {
-                snprintf(parser->error, MAX_ERROR_MSG, "Invalid tag opening");
-                return FAIL;
-        }
-        while (!is_end_of_input(parser) && (peek(parser) != '}' || parser->input[parser->position + 1] != '}')) {
-                if (i < MAX_VAR_NAME - 1) {
-                        tag_content[i++] = parser_next(parser);
-                } else {
-                        snprintf(parser->error, MAX_ERROR_MSG, "Tag content too long");
+        const char *p = parser->input + parser->position + 2;   /* after the {{ */
+
+        while(!(p[0] == '}' && p[1] == '}')){
+                if(p[0] == '\0'){
+                        snprintf(parser->error, MAX_ERROR_MSG, "Tag at byte %d is not closed with }}", at);
                         return FAIL;
                 }
+                if(i == MAX_VAR_NAME - 1){
+                        snprintf(parser->error, MAX_ERROR_MSG,
+                                 "Tag at byte %d is longer than %d characters", at, MAX_VAR_NAME - 1);
+                        return FAIL;
+                }
+                tag[i++] = *p++;
         }
-        tag_content[i] = '\0';
-        if(parser_next(parser) != '}' || parser_next(parser) != '}'){
-                snprintf(parser->error, MAX_ERROR_MSG, "Invalid tag closing");
+        tag[i] = '\0';
+        parser->position = (int) (p + 2 - parser->input);
+
+        if(i == 0){
+                snprintf(parser->error, MAX_ERROR_MSG, "Empty tag {{}} at byte %d", at);
                 return FAIL;
         }
-
-        if(strcmp(tag_content, "ELSE") == 0){
+        if(strcmp(tag, "ELSE") == 0){
                 return template_node_create(node, NODE_ELSE, NULL);
-        }else if(strcmp(tag_content, "ENDIF") == 0){
-                return template_node_create(node, NODE_ENDIF, NULL);
-        }else if(strncmp(tag_content, "IF ", 3) == 0){
-                return template_node_create(node, NODE_IF, tag_content + 3);
-        }else{
-                return template_node_create(node, NODE_VARIABLE, tag_content);
         }
+        if(strcmp(tag, "ENDIF") == 0){
+                return template_node_create(node, NODE_ENDIF, NULL);
+        }
+        if(strcmp(tag, "IF") == 0 || strcmp(tag, "IF ") == 0){
+                snprintf(parser->error, MAX_ERROR_MSG, "IF without a name at byte %d", at);
+                return FAIL;
+        }
+        if(strncmp(tag, "IF ", 3) == 0){
+                return template_node_create(node, NODE_IF, tag + 3);
+        }
+        return template_node_create(node, NODE_VARIABLE, tag);
 }
 
-int template_node_create(template_node **node, template_node_type type, char *content)
+int template_node_create(template_node **node, template_node_type type, const char *content)
 {
         template_node* n = NULL;
-        MMALLOC(n, sizeof(template_node));
+        MMALLOC(n, sizeof(template_node));      /* zeroed: no children, no content */
         n->type = type;
-        n->content = NULL;
-        n->n = 0;
-        n->n_alloc = 10;
-        n->children = NULL;
-        MMALLOC(n->children, sizeof(template_node*) * n->n_alloc);
-        for(int i = 0; i < n->n_alloc;i++){
-                n->children[i] = NULL;
-        }
         if(content){
-                tld_strbuf_alloc(&n->content, 16);
-                tld_append(n->content, content);
+                RUN(tld_strbuf_alloc(&n->content, 16));
+                RUN(tld_append(n->content, content));
         }
         *node = n;
         return OK;
@@ -358,36 +317,16 @@ ERROR:
         return FAIL;
 }
 
+/* Room for more children: 4 at first, then half as many again. n_alloc changes only
+   once the memory is there. */
 int template_node_resize(template_node *node)
 {
-        int old_size = node->n_alloc;
-        node->n_alloc = node->n_alloc + node->n_alloc /2;
-        MREALLOC(node->children, sizeof(template_node*) * node->n_alloc);
-        for(int i = old_size; i < node->n_alloc;i++){
-                node->children[i] = NULL;
-        }
+        int new_size = node->n_alloc ? node->n_alloc + node->n_alloc / 2 : 4;
+        MREALLOC(node->children, sizeof(template_node*) * new_size);
+        node->n_alloc = new_size;
         return OK;
 ERROR:
         return FAIL;
-}
-
-int is_end_of_input(Parser *parser)
-{
-        return parser->input[parser->position] == '\0';
-}
-
-char peek(Parser *parser)
-{
-        return parser->input[parser->position];
-}
-
-char parser_next(Parser *parser)
-{
-        if(is_end_of_input(parser)){
-                snprintf(parser->error, MAX_ERROR_MSG, "Unexpected end of input");
-                return '\0';
-        }
-        return parser->input[parser->position++];
 }
 
 int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
@@ -397,49 +336,23 @@ int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
 
         RUN(template_parse_strbuf(txt, &root));
         RUN(tld_strbuf_alloc(&out, 256));
-        RUN(process_tree(root, hash, stdout,out));
+        RUN(process_tree(root, hash, out));
         RUN(tld_strbuf_copy(txt, out));
 
         template_node_free(root);
-
         tld_strbuf_free(out);
         return OK;
 ERROR:
-        if(out){
-                tld_strbuf_free(out);
-        }
-        if(root){
-                template_node_free(root);
-        }
+        tld_strbuf_free(out);
+        template_node_free(root);
         return FAIL;
 }
 
 int get_vars(template_node *node, tld_hash* h)
 {
-        switch(node->type){
-        case NODE_ROOT:
-                /* printf("ROOT\n"); */
-                break;
-        case NODE_TEXT:
-                /* printf("TEXT: %s\n", TLD_STR(node->content)); */
-                break;
-        case NODE_VARIABLE:
-                tld_hash_add(&h, TLD_STR(node->content),TLD_STR(node->content));
-                /* printf("VARIABLE: %s\n", TLD_STR(node->content)); */
-                break;
-        case NODE_IF:
-                /* printf("IF: %s\n", TLD_STR(node->content)); */
-                tld_hash_add(&h, TLD_STR(node->content),TLD_STR(node->content));
-
-                break;
-        case NODE_ELSE:
-                /* printf("ELSE\n"); */
-                break;
-        case NODE_ENDIF:
-                /* printf("ENDIF\n"); */
-                break;
+        if(node->type == NODE_VARIABLE || node->type == NODE_IF){
+                RUN(tld_hash_add(&h, TLD_STR(node->content), TLD_STR(node->content)));
         }
-
         for(int i = 0; i < node->n; i++){
                 RUN(get_vars(node->children[i], h));
         }
@@ -461,11 +374,7 @@ int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash)
         *hash = h;
         return OK;
 ERROR:
-        if(h){
-                tld_hash_free(h);
-        }
-        if(root){
-                template_node_free(root);
-        }
+        tld_hash_free(h);
+        template_node_free(root);
         return FAIL;
 }

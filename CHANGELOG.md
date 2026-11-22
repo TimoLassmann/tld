@@ -102,6 +102,7 @@ changes listed here fix bugs.
 - json: `tld_json_search` finds all matches; it used to overflow with ≥5 matches and skip later siblings. `tld_json_val_copy` and `tld_json_set_val` release the target's old contents, so changing a value's type is safe.
 - json: JSON_OBJ/JSON_ARR (`json_*_add_multiple`) make room before writing an entry and stop at the first failure. A container created by the call is then freed, and NULL is returned. The containers' realloc counts only slots that were really allocated, and always grows (it was stuck at size 1).
 - template: a false IF no longer renders an enclosing IF's ELSE. IF nesting deeper than 512 fails, and parse errors no longer leak.
+- template: `{{}}`, `{{IF}}` and `{{IF }}` are errors (they used to become a variable with no name, a variable called `IF`, and an IF on the empty name). Every syntax error prints its reason and byte offset; errors inside a tag used to print only "Function ... failed". Running out of memory while parsing or rendering fails cleanly; before, a failed allocation for a node's text was ignored and the template rendered with pieces missing.
 
 ### Added
 - docs: `docs/tld.md` and `docs/tld_ai.md`, generated from the header comments by `tools/tlddoc.c` (`cmake --build build --target docs`). The `docs-current` test fails when the manual is stale or a public symbol has no comment. Every public symbol now has a doc comment (comments only; the compiled code is unchanged).
