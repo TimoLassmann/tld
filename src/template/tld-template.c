@@ -331,6 +331,8 @@ int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
 {
         tld__template_node* root = NULL;
         tld_strbuf* out = NULL;
+        ASSERT(txt != NULL, "No template text");
+        ASSERT(hash != NULL, "No map");
 
         RUN(tld__template_parse_strbuf(txt, &root));
         RUN(tld_strbuf_alloc(&out, 256));
@@ -363,6 +365,8 @@ int tld_template_vars(tld_strbuf *txt, tld_hash **hash)
 {
         tld_hash* h = NULL;
         tld__template_node* root = NULL;
+        ASSERT(txt != NULL, "No template text");
+        ASSERT(hash != NULL, "No output pointer");
 
         RUN(tld__template_parse_strbuf(txt, &root));
         RUN(tld_hash_alloc(&h,1024));

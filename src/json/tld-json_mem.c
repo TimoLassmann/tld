@@ -9,6 +9,7 @@ int tld_json_obj_alloc(tld_json_obj **node)
 {
         tld_json_obj *n = NULL;
         const int want = 4;
+        ASSERT(node != NULL, "No output pointer");
         MMALLOC(n, sizeof(tld_json_obj));
         n->key = NULL;
         n->v = NULL;
@@ -55,6 +56,8 @@ void tld_json_obj_free(tld_json_obj *n)
 int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s)
 {
         tld_json_obj* t = NULL;
+        ASSERT(s != NULL, "No source object");
+        ASSERT(target != NULL, "No output pointer");
         RUN(tld_json_obj_alloc(&t));
         for(int i = 0; i < s->n;i++){
                 RUN(tld_strbuf_append(t->key[i], TLD_STR(s->key[i])));
@@ -115,6 +118,7 @@ int tld_json_arr_alloc(tld_json_arr **arr)
 {
         tld_json_arr* n = NULL;
         const int want = 16;
+        ASSERT(arr != NULL, "No output pointer");
         MMALLOC(n, sizeof(tld_json_arr));
         n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
         n->n = 0;
@@ -152,6 +156,8 @@ void tld_json_arr_free(tld_json_arr *n)
 int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s)
 {
         tld_json_arr* n = NULL;
+        ASSERT(s != NULL, "No source array");
+        ASSERT(t != NULL, "No output pointer");
         RUN(tld_json_arr_alloc(&n));
         for(int i = 0; i < s->n;i++){
                 RUN(tld_json_val_copy(n->v[n->n] , s->v[i]));
@@ -195,6 +201,7 @@ ERROR:
 int tld_json_val_alloc(tld_json_val **node)
 {
         tld_json_val* n = NULL;
+        ASSERT(node != NULL, "No output pointer");
         MMALLOC(n, sizeof(tld_json_val));
         n->type = TLD_JSON_NULL;
         *node = n;

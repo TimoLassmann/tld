@@ -228,6 +228,7 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
 {
         int status = OK;
         ASSERT(p != NULL, "No thread pool");
+        ASSERT(func_ptr != NULL, "No job function");
         pthread_mutex_lock(&p->lock);
         if(tld_global_stop_run == 1 && !p->stop){
                 tld__pool_set_stop_locked(p);

@@ -72,6 +72,20 @@ tld.h to this. Old → new:
   program's output.
 - tests: `regress-misc predicates`, filename/dirname and cmdline reuse checks.
 
+### NULL arguments: an error, never a crash
+- Every public function checks its pointer arguments: a NULL that the function's comment
+  does not allow prints an ERROR line and returns the failure value (FAIL, NULL, 0 for a
+  1/0 answer, NaN for `tld_rng_double`/`tld_rng_gaussian`/`tld_rng_gamma`, -1 for
+  `tld_rng_int`/`tld_rng_dist_sample`). 72 of these calls used to crash, among them every bitfield
+  function, the stats outputs, `tld_strbuf_append`/`prepend`/`copy` and the rng draws.
+  The free functions still ignore NULL silently.
+- Fixed: `tld_template_apply(txt, NULL)` returned OK, `tld_json_search(NULL, ...)` returned
+  OK, `tld_thread_pool_add(pool, NULL, ...)` queued a NULL job that a worker then called,
+  and `tld_galloc_dim1`/`dim2` and the `tld_json_get_*` getters failed silently on a NULL
+  pointer (a missing path is still a silent FAIL).
+- tests: `null-args` (193 calls, each in its own process) and `null-args-covered` (every
+  public function with a pointer argument has a case).
+
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,
   OK_MSG, DEBUG_MSG) requires a string-literal format, and the format is checked against the

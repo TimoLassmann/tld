@@ -14,6 +14,7 @@ static inline int tld__bitfield_popcount(uint64_t x);
 int tld_bitfield_alloc(tld_bitfield **bit_f, int32_t size)
 {
         tld_bitfield* b = NULL;
+        ASSERT(bit_f != NULL, "No output pointer");
         MMALLOC(b, sizeof(tld_bitfield));
         b->alloc_len = 1 + size / BITS_W;
         galloc(&b->m, b->alloc_len);
@@ -39,39 +40,54 @@ void tld_bitfield_free(tld_bitfield *b)
 
 int tld_bitfield_reset(tld_bitfield *b)
 {
+        ASSERT(b != NULL, "No bitfield");
         memset(b->m, 0, b->alloc_len * sizeof(uint64_t));
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_bitfield_set(tld_bitfield *b, int32_t index)
 {
+        ASSERT(b != NULL, "No bitfield");
         if(index < 0 || index >= b->len){
                 return FAIL;
         }
         b->m[index >> BIT_SHIFT] |= (1ULL << (index & BIT_MASK));
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_bitfield_get(tld_bitfield *b, int32_t index, uint8_t* bit)
 {
+        ASSERT(b != NULL, "No bitfield");
+        ASSERT(bit != NULL, "No output pointer");
         if(index < 0 || index >= b->len){
                 return FAIL;
         }
         *bit = (b->m[index >> BIT_SHIFT] & (1ULL << (index & BIT_MASK))) != 0;
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_bitfield_clear(tld_bitfield *b, int32_t index)
 {
+        ASSERT(b != NULL, "No bitfield");
         if(index < 0 || index >= b->len){
                 return FAIL;
         }
         b->m[index >> BIT_SHIFT] &= ~(1ULL << (index & BIT_MASK));
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_bitfield_copy(tld_bitfield *dst, tld_bitfield *src)
 {
+        ASSERT(dst != NULL, "No bitfield");
+        ASSERT(src != NULL, "No bitfield");
         if(dst->len != src->len){
                 ERROR_MSG("bitfields have different lengths");
         }
@@ -85,6 +101,9 @@ ERROR:
 
 int tld_bitfield_or(tld_bitfield *b1, tld_bitfield *b2,tld_bitfield* ret)
 {
+        ASSERT(b1 != NULL, "No bitfield");
+        ASSERT(b2 != NULL, "No bitfield");
+        ASSERT(ret != NULL, "No bitfield");
         if(b1->len != b2->len){
                 ERROR_MSG("bitfields have different lengths");
         }
@@ -117,6 +136,9 @@ int tld__bitfield_popcount(uint64_t x)
 int tld_bitfield_hamming(tld_bitfield *b1, tld_bitfield *b2,tld_bitfield* mask, int32_t* dist)
 {
         /* making sure the bitfields have the same length */
+        ASSERT(b1 != NULL, "No bitfield");
+        ASSERT(b2 != NULL, "No bitfield");
+        ASSERT(dist != NULL, "No output pointer");
         if(b1->len != b2->len || b2->alloc_len < b1->alloc_len){
                 ERROR_MSG("bitfields have different lengths");
         }

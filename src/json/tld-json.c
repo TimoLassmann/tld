@@ -581,8 +581,8 @@ int tld_json_parse_n(const char *text, size_t len, tld_json_obj **out)
         p.b_alloc = 0;
         p.err = NULL;
 
-        ASSERT(out != NULL, "No output pointer");
         ASSERT(text != NULL, "No input");
+        ASSERT(out != NULL, "No output pointer");
         ASSERT(len <= (size_t) INT32_MAX, "JSON text of %zu bytes is too long", len);
 
         p.s = (const uint8_t *) text;
@@ -685,6 +685,9 @@ ERROR:
 int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret)
 {
         tld_json_obj* r = NULL;
+        ASSERT(n != NULL, "No object");
+        ASSERT(key != NULL, "No key");
+        ASSERT(ret != NULL, "No output pointer");
         RUN(tld_json_obj_alloc(&r));
         RUN(tld__json_search(n, key, r));
         *ret = r;
@@ -798,6 +801,8 @@ int tld__json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **
 
 int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -809,10 +814,14 @@ int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out)
                 *out = TLD_STR(v->value.str);
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_num(tld_json_obj *obj, const char *path, double *out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -829,10 +838,14 @@ int tld_json_get_num(tld_json_obj *obj, const char *path, double *out)
                 return FAIL;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -855,10 +868,14 @@ int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out)
                 return FAIL;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -875,10 +892,14 @@ int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out)
                 return FAIL;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK){
                 return FAIL;
@@ -897,10 +918,14 @@ int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out)
                 *out = v->value.obj;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -912,6 +937,8 @@ int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out)
                 *out = v->value.arr;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 /* Make sure obj (allocated here when NULL) has a free slot at index n BEFORE anything is
@@ -1520,6 +1547,7 @@ int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
 {
         const int compact = indent < 0;
         const int inner = compact ? TLD_JSON_COMPACT : indent + 4;
+        ASSERT(b != NULL, "No output buffer");
         if(n){
                 RUN(tld_strbuf_append(b, compact ? "{" : "{\n"));
                 for(int i = 0; i < n->n;i++){
@@ -1546,6 +1574,7 @@ int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
 {
         const int compact = indent < 0;
         const int inner = compact ? TLD_JSON_COMPACT : indent + 4;
+        ASSERT(b != NULL, "No output buffer");
         if(n){
                 RUN(tld_strbuf_append(b, compact ? "[" : "[\n"));
                 for (int i = 0; i < n->n; i++) {

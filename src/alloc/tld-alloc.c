@@ -14,23 +14,25 @@ typedef struct {
 
 int tld_galloc_dim1(void* ptr,uint32_t* d)
 {
-        if(ptr){
-                tld__mem_info* h = NULL;
-                h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
-                *d = h->dim1;
-                return OK;
-        }
+        tld__mem_info* h = NULL;
+        ASSERT(ptr != NULL, "No galloc pointer");
+        ASSERT(d != NULL, "No output pointer");
+        h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
+        *d = h->dim1;
+        return OK;
+ERROR:
         return FAIL;
 }
 
 int tld_galloc_dim2(void* ptr,uint32_t* d)
 {
-        if(ptr){
-                tld__mem_info* h = NULL;
-                h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
-                *d = h->dim2;
-                return OK;
-        }
+        tld__mem_info* h = NULL;
+        ASSERT(ptr != NULL, "No galloc pointer");
+        ASSERT(d != NULL, "No output pointer");
+        h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
+        *d = h->dim2;
+        return OK;
+ERROR:
         return FAIL;
 }
 

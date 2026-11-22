@@ -8,6 +8,7 @@ project(tld-tests LANGUAGES C)
 #   integration/  int-*, single-header*   whole-library and packaging tests
 #   ai/           ai-*               tld_ai.h against a mock Ollama (ai.cmake)
 #   oom/          oom-tld, oom-ai    every allocation fails in turn (oom-ai runs in ai.cmake)
+#   null/         null-args          every public function with NULL pointer arguments
 # Every program includes tests/test.h (-h/-v) and with no arguments runs its checks.
 
 find_program(MEMORYCHECK_COMMAND valgrind NO_CACHE)
@@ -99,6 +100,12 @@ set_target_properties(oom-tld PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
 target_link_libraries(oom-tld PRIVATE m Threads::Threads)
 add_test(NAME oom-tld COMMAND oom-tld WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set_tests_properties(oom-tld PROPERTIES TIMEOUT 600)
+
+# Every public function with NULL in each pointer argument: the failure value and an
+# ERROR line (null/null_args.c); covered.sh fails when a function has no case.
+tld_test(null-args null/null_args.c)
+add_test(NAME null-args-covered
+  COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/null/covered.sh ${CMAKE_SOURCE_DIR})
 
 # Every name tld.h gives a program follows the naming rules (tld_/TLD_, internals
 # tld__/TLD__), and a program may reuse common names after the implementation.

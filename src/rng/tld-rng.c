@@ -93,6 +93,7 @@ static double tld__rng_gauss(struct tld_rng* rng);
 int tld_rng_alloc(struct tld_rng** rng,uint64_t seed)
 {
         struct tld_rng* s = NULL;
+        ASSERT(rng != NULL, "No output pointer");
 
         MMALLOC_ALIGNED(s, sizeof(struct tld_rng), _Alignof(struct tld_rng));
         s->gen = 0;
@@ -181,6 +182,8 @@ int tld_rng_split(struct tld_rng** target, struct tld_rng* rng)
 {
         struct tld_rng* s = NULL;
         int i = 0;
+        ASSERT(rng != NULL, "No generator");
+        ASSERT(target != NULL, "No output pointer");
         MMALLOC_ALIGNED(s, sizeof(struct tld_rng), _Alignof(struct tld_rng));
 
         for(i = 0; i < 4;i++){
@@ -293,10 +296,13 @@ static uint64_t tld__rng_entropy_seed(void)
 double tld_rng_double(struct tld_rng* rng)
 {
         uint64_t x = 0U;
+        ASSERT(rng != NULL, "No generator");
         do{
                 x = tld__rng_next(rng) >> 11U;
         }while (x == 0U);
         return (double) x * 0x1.0p-53;
+ERROR:
+        return NAN;
 }
 
 /* from:  */
@@ -307,6 +313,7 @@ double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma)
         double u2 = 0.0;
         double z0 = 0.0;
         const double n2 = -2.0;
+        ASSERT(rng != NULL, "No generator");
         rng->gen = !rng->gen;
 
         if (!rng->gen){
@@ -322,6 +329,8 @@ double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma)
         rng->z1 = sqrt(n2 * log(u1)) * sin(TLD__2PI * u2);
 
         return z0 * sigma + mu;
+ERROR:
+        return NAN;
 }
 
 double tld__rng_standard_gamma(struct tld_rng* rng, double shape)
@@ -418,7 +427,10 @@ double tld__rng_gauss(struct tld_rng* rng)
 
 double tld_rng_gamma(struct tld_rng* rng, double shape, double scale)
 {
+        ASSERT(rng != NULL, "No generator");
         return scale * tld__rng_standard_gamma(rng, shape);
+ERROR:
+        return NAN;
 }
 
 /* Uniform integer in [0, a). Unbiased: draws below 2^64 mod a are
@@ -428,6 +440,7 @@ int tld_rng_int(struct tld_rng* rng,int a)
         uint64_t n = 0U;
         uint64_t threshold = 0U;
         uint64_t x = 0U;
+        ASSERT(rng != NULL, "No generator");
         if(a <= 1){
                 return 0;
         }
@@ -437,6 +450,8 @@ int tld_rng_int(struct tld_rng* rng,int a)
                 x = tld__rng_next(rng);
         }while(x < threshold);
         return (int) (x % n);
+ERROR:
+        return -1;
 }
 
 int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed)
@@ -539,13 +554,19 @@ ERROR:
 
 int tld_rng_dist_sample(struct tld_rng_dist* d)
 {
-        const double r1 = tld_rng_double(d->rng);
-        const double r2 = tld_rng_double(d->rng);
-        int i = (int) (d->n * r1);
+        double r1 = 0.0;
+        double r2 = 0.0;
+        int i = 0;
+        ASSERT(d != NULL, "No table");
+        r1 = tld_rng_double(d->rng);
+        r2 = tld_rng_double(d->rng);
+        i = (int) (d->n * r1);
         if(i >= d->n){
                 i = d->n - 1;
         }
         return r2 < d->p[i] ? i : d->a[i];
+ERROR:
+        return -1;
 }
 
 void tld_rng_dist_free(struct tld_rng_dist* d)

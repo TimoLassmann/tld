@@ -38,6 +38,7 @@ int tld_hash_alloc(tld_hash **hash, int size)
 {
         tld_hash* h = NULL;
         int new_size = 0;
+        ASSERT(hash != NULL, "No output pointer");
         MMALLOC(h, sizeof(tld_hash));
 
         new_size = tld__hash_next_size(size);
@@ -241,6 +242,7 @@ int tld_hash_get(tld_hash *h, const char *key, const char **val)
 {
         ASSERT(h != NULL, "No hash");
         ASSERT(key != NULL, "No key");
+        ASSERT(val != NULL, "No output pointer");
 
         unsigned int index = tld__hash_fnv1a(key, h->table_size);
         tld_hash_entry* entry = h->table[index];

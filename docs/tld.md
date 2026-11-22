@@ -66,6 +66,10 @@ silently. Yes/no questions (tld_path_exists, tld_path_is_dir, tld_nearly_equal_*
 tld_term_has_color) return 1 or 0, and a few functions return a plain value; each
 one says so. Nothing exits or aborts.
 
+A NULL pointer argument is an error unless the function's comment allows it: an
+ERROR line and the failure value (FAIL, NULL, 0 for a 1/0 answer, NaN for a double
+result, -1 for an index). The free functions ignore NULL, like free().
+
 RUN(call), ASSERT(test, fmt, ...), ERROR_MSG(fmt, ...) and the allocation macros
 MMALLOC, MREALLOC, MMALLOC_ALIGNED and galloc jump to a label named ERROR in the
 calling function on failure. The usual shape of a function:
@@ -503,7 +507,7 @@ TLD_API int tld_strbuf_append_n(tld_strbuf *b, const char *s, size_t n);
 ```
 
 Append the n bytes at s to b (they may include NUL bytes; the buffer is still
-NUL-terminated after them). s may point into b.
+NUL-terminated after them). s may point into b, and may be NULL when n is 0.
 
 <a id="tld_strbuf_append_char"></a>
 
@@ -1328,7 +1332,9 @@ Free a generator; NULL is ignored.
 TLD_API double tld_rng_double(struct tld_rng* rng);
 ```
 
-Uniform double on the open interval (0, 1): never exactly 0 or 1.
+Uniform double on the open interval (0, 1): never exactly 0 or 1. The double results
+below are NaN, and tld_rng_int / tld_rng_dist_sample give -1, for a NULL generator or
+table (with an error).
 
 <a id="tld_rng_gaussian"></a>
 

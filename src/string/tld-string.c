@@ -13,6 +13,7 @@ static ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p);
 int tld_strbuf_alloc(tld_strbuf **buffer, int size)
 {
         tld_strbuf* b = NULL;
+        ASSERT(buffer != NULL, "No output pointer");
         ASSERT(size >= 0, "Negative buffer size: %d", size);
         MMALLOC(b,sizeof(tld_strbuf));
         if(size == 0){
@@ -110,6 +111,8 @@ ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p)
 
 int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s)
 {
+        ASSERT(t != NULL, "No buffer");
+        ASSERT(s != NULL, "No buffer");
         if(t == s){
                 return OK;
         }
@@ -126,12 +129,18 @@ ERROR:
 
 int tld_strbuf_append(tld_strbuf *b, const char *content)
 {
+        ASSERT(content != NULL, "No text");
         return tld_strbuf_append_n(b, content, strlen(content));
+ERROR:
+        return FAIL;
 }
 
 int tld_strbuf_append_n(tld_strbuf *b, const char *s, size_t n)
 {
-        ptrdiff_t off = tld__strbuf_offset(b, s);
+        ptrdiff_t off = 0;
+        ASSERT(b != NULL, "No buffer");
+        ASSERT(s != NULL || n == 0, "No text");
+        off = tld__strbuf_offset(b, s);
 
         RUN(tld__strbuf_ensure_size(b, n));
         if(off >= 0){
@@ -150,6 +159,7 @@ ERROR:
 
 int tld_strbuf_append_char(tld_strbuf *b, char c)
 {
+        ASSERT(b != NULL, "No buffer");
         RUN(tld__strbuf_ensure_size(b, 1));
         b->str[b->len] = c;
         b->len++;
@@ -162,8 +172,12 @@ ERROR:
 
 int tld_strbuf_prepend(tld_strbuf *b, const char *content)
 {
-        size_t size = strlen(content);
-        ptrdiff_t off = tld__strbuf_offset(b, content);
+        size_t size = 0;
+        ptrdiff_t off = 0;
+        ASSERT(b != NULL, "No buffer");
+        ASSERT(content != NULL, "No text");
+        size = strlen(content);
+        off = tld__strbuf_offset(b, content);
 
         RUN(tld__strbuf_ensure_size(b, size));
         memmove(b->str + size, b->str, b->len);

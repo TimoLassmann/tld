@@ -7,6 +7,7 @@
 | `integration/` | `int-kde`, `int-noise`, `single-header`, `single-header-strict`, `single-header-current` | several modules together; the single-header `./tld.h` built in two translation units, in strict C11, and checked to be current with `src/` |
 | `ai/`          | `ai-*`                              | `tld_ai.h` against `ai/mock_ollama.py`, driven by `ai/run.sh`; never contacts a real Ollama |
 | `oom/`         | `oom-tld`, `ai-oom`                 | every allocation of each scenario fails in turn; a leak, a crash or a failure reported as success fails the test (`oom-tld -h`; `ai-oom` runs `oom-ai` through `ai/run.sh oom`) |
+| `null/`        | `null-args`, `null-args-covered`    | every public function with NULL in each pointer argument, each call in a child process: the failure value and an ERROR line, or a normal return where NULL is allowed (`null-args -h`); `covered.sh` fails when a function has no case |
 | `names/`       | `names`                             | every symbol, macro and documented name of `tld.h` is `tld_`/`TLD_` (internals `tld__`/`TLD__`) or an idiom name such as `RUN`; `clash.c`, a program reusing common names after the implementation, compiles (`names/check.sh CC SRC_DIR`) |
 | `misuse/`      | `misuse-rejected`                   | the compiler rejects the mistakes the headers are designed to catch (`err_*.c`, `warn_*.c`); `ok_usage.c` compiles cleanly |
 

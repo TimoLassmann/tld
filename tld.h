@@ -23,6 +23,10 @@
  *   tld_term_has_color) return 1 or 0, and a few functions return a plain value; each
  *   one says so. Nothing exits or aborts.
  *
+ *   A NULL pointer argument is an error unless the function's comment allows it: an
+ *   ERROR line and the failure value (FAIL, NULL, 0 for a 1/0 answer, NaN for a double
+ *   result, -1 for an index). The free functions ignore NULL, like free().
+ *
  *   RUN(call), ASSERT(test, fmt, ...), ERROR_MSG(fmt, ...) and the allocation macros
  *   MMALLOC, MREALLOC, MMALLOC_ALIGNED and galloc jump to a label named ERROR in the
  *   calling function on failure. The usual shape of a function:
@@ -465,7 +469,7 @@ TLD_API int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
 TLD_API int tld_strbuf_append(tld_strbuf *b, const char *content);
 
 /* Append the n bytes at s to b (they may include NUL bytes; the buffer is still
- * NUL-terminated after them). s may point into b. */
+ * NUL-terminated after them). s may point into b, and may be NULL when n is 0. */
 TLD_API int tld_strbuf_append_n(tld_strbuf *b, const char *s, size_t n);
 
 /* Append the single character c to b. */
@@ -922,7 +926,9 @@ TLD_API int tld_rng_set_seed(struct tld_rng *s, uint64_t seed);
 /* Free a generator; NULL is ignored. */
 TLD_API void tld_rng_free(struct tld_rng* rng);
 
-/* Uniform double on the open interval (0, 1): never exactly 0 or 1. */
+/* Uniform double on the open interval (0, 1): never exactly 0 or 1. The double results
+ * below are NaN, and tld_rng_int / tld_rng_dist_sample give -1, for a NULL generator or
+ * table (with an error). */
 TLD_API double tld_rng_double(struct tld_rng* rng);
 
 /* Normal deviate with mean mu and standard deviation sigma (Box-Muller; values are made
@@ -1586,23 +1592,25 @@ typedef struct {
 
 int tld_galloc_dim1(void* ptr,uint32_t* d)
 {
-        if(ptr){
-                tld__mem_info* h = NULL;
-                h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
-                *d = h->dim1;
-                return OK;
-        }
+        tld__mem_info* h = NULL;
+        ASSERT(ptr != NULL, "No galloc pointer");
+        ASSERT(d != NULL, "No output pointer");
+        h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
+        *d = h->dim1;
+        return OK;
+ERROR:
         return FAIL;
 }
 
 int tld_galloc_dim2(void* ptr,uint32_t* d)
 {
-        if(ptr){
-                tld__mem_info* h = NULL;
-                h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
-                *d = h->dim2;
-                return OK;
-        }
+        tld__mem_info* h = NULL;
+        ASSERT(ptr != NULL, "No galloc pointer");
+        ASSERT(d != NULL, "No output pointer");
+        h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
+        *d = h->dim2;
+        return OK;
+ERROR:
         return FAIL;
 }
 
@@ -1684,6 +1692,7 @@ static ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p);
 int tld_strbuf_alloc(tld_strbuf **buffer, int size)
 {
         tld_strbuf* b = NULL;
+        ASSERT(buffer != NULL, "No output pointer");
         ASSERT(size >= 0, "Negative buffer size: %d", size);
         MMALLOC(b,sizeof(tld_strbuf));
         if(size == 0){
@@ -1781,6 +1790,8 @@ ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p)
 
 int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s)
 {
+        ASSERT(t != NULL, "No buffer");
+        ASSERT(s != NULL, "No buffer");
         if(t == s){
                 return OK;
         }
@@ -1797,12 +1808,18 @@ ERROR:
 
 int tld_strbuf_append(tld_strbuf *b, const char *content)
 {
+        ASSERT(content != NULL, "No text");
         return tld_strbuf_append_n(b, content, strlen(content));
+ERROR:
+        return FAIL;
 }
 
 int tld_strbuf_append_n(tld_strbuf *b, const char *s, size_t n)
 {
-        ptrdiff_t off = tld__strbuf_offset(b, s);
+        ptrdiff_t off = 0;
+        ASSERT(b != NULL, "No buffer");
+        ASSERT(s != NULL || n == 0, "No text");
+        off = tld__strbuf_offset(b, s);
 
         RUN(tld__strbuf_ensure_size(b, n));
         if(off >= 0){
@@ -1821,6 +1838,7 @@ ERROR:
 
 int tld_strbuf_append_char(tld_strbuf *b, char c)
 {
+        ASSERT(b != NULL, "No buffer");
         RUN(tld__strbuf_ensure_size(b, 1));
         b->str[b->len] = c;
         b->len++;
@@ -1833,8 +1851,12 @@ ERROR:
 
 int tld_strbuf_prepend(tld_strbuf *b, const char *content)
 {
-        size_t size = strlen(content);
-        ptrdiff_t off = tld__strbuf_offset(b, content);
+        size_t size = 0;
+        ptrdiff_t off = 0;
+        ASSERT(b != NULL, "No buffer");
+        ASSERT(content != NULL, "No text");
+        size = strlen(content);
+        off = tld__strbuf_offset(b, content);
 
         RUN(tld__strbuf_ensure_size(b, size));
         memmove(b->str + size, b->str, b->len);
@@ -2098,6 +2120,7 @@ static inline int tld__bitfield_popcount(uint64_t x);
 int tld_bitfield_alloc(tld_bitfield **bit_f, int32_t size)
 {
         tld_bitfield* b = NULL;
+        ASSERT(bit_f != NULL, "No output pointer");
         MMALLOC(b, sizeof(tld_bitfield));
         b->alloc_len = 1 + size / BITS_W;
         galloc(&b->m, b->alloc_len);
@@ -2123,39 +2146,54 @@ void tld_bitfield_free(tld_bitfield *b)
 
 int tld_bitfield_reset(tld_bitfield *b)
 {
+        ASSERT(b != NULL, "No bitfield");
         memset(b->m, 0, b->alloc_len * sizeof(uint64_t));
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_bitfield_set(tld_bitfield *b, int32_t index)
 {
+        ASSERT(b != NULL, "No bitfield");
         if(index < 0 || index >= b->len){
                 return FAIL;
         }
         b->m[index >> BIT_SHIFT] |= (1ULL << (index & BIT_MASK));
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_bitfield_get(tld_bitfield *b, int32_t index, uint8_t* bit)
 {
+        ASSERT(b != NULL, "No bitfield");
+        ASSERT(bit != NULL, "No output pointer");
         if(index < 0 || index >= b->len){
                 return FAIL;
         }
         *bit = (b->m[index >> BIT_SHIFT] & (1ULL << (index & BIT_MASK))) != 0;
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_bitfield_clear(tld_bitfield *b, int32_t index)
 {
+        ASSERT(b != NULL, "No bitfield");
         if(index < 0 || index >= b->len){
                 return FAIL;
         }
         b->m[index >> BIT_SHIFT] &= ~(1ULL << (index & BIT_MASK));
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_bitfield_copy(tld_bitfield *dst, tld_bitfield *src)
 {
+        ASSERT(dst != NULL, "No bitfield");
+        ASSERT(src != NULL, "No bitfield");
         if(dst->len != src->len){
                 ERROR_MSG("bitfields have different lengths");
         }
@@ -2169,6 +2207,9 @@ ERROR:
 
 int tld_bitfield_or(tld_bitfield *b1, tld_bitfield *b2,tld_bitfield* ret)
 {
+        ASSERT(b1 != NULL, "No bitfield");
+        ASSERT(b2 != NULL, "No bitfield");
+        ASSERT(ret != NULL, "No bitfield");
         if(b1->len != b2->len){
                 ERROR_MSG("bitfields have different lengths");
         }
@@ -2201,6 +2242,9 @@ int tld__bitfield_popcount(uint64_t x)
 int tld_bitfield_hamming(tld_bitfield *b1, tld_bitfield *b2,tld_bitfield* mask, int32_t* dist)
 {
         /* making sure the bitfields have the same length */
+        ASSERT(b1 != NULL, "No bitfield");
+        ASSERT(b2 != NULL, "No bitfield");
+        ASSERT(dist != NULL, "No output pointer");
         if(b1->len != b2->len || b2->alloc_len < b1->alloc_len){
                 ERROR_MSG("bitfields have different lengths");
         }
@@ -2284,6 +2328,7 @@ int tld_hash_alloc(tld_hash **hash, int size)
 {
         tld_hash* h = NULL;
         int new_size = 0;
+        ASSERT(hash != NULL, "No output pointer");
         MMALLOC(h, sizeof(tld_hash));
 
         new_size = tld__hash_next_size(size);
@@ -2487,6 +2532,7 @@ int tld_hash_get(tld_hash *h, const char *key, const char **val)
 {
         ASSERT(h != NULL, "No hash");
         ASSERT(key != NULL, "No key");
+        ASSERT(val != NULL, "No output pointer");
 
         unsigned int index = tld__hash_fnv1a(key, h->table_size);
         tld_hash_entry* entry = h->table[index];
@@ -2621,6 +2667,7 @@ int tld_json_obj_alloc(tld_json_obj **node)
 {
         tld_json_obj *n = NULL;
         const int want = 4;
+        ASSERT(node != NULL, "No output pointer");
         MMALLOC(n, sizeof(tld_json_obj));
         n->key = NULL;
         n->v = NULL;
@@ -2667,6 +2714,8 @@ void tld_json_obj_free(tld_json_obj *n)
 int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s)
 {
         tld_json_obj* t = NULL;
+        ASSERT(s != NULL, "No source object");
+        ASSERT(target != NULL, "No output pointer");
         RUN(tld_json_obj_alloc(&t));
         for(int i = 0; i < s->n;i++){
                 RUN(tld_strbuf_append(t->key[i], TLD_STR(s->key[i])));
@@ -2727,6 +2776,7 @@ int tld_json_arr_alloc(tld_json_arr **arr)
 {
         tld_json_arr* n = NULL;
         const int want = 16;
+        ASSERT(arr != NULL, "No output pointer");
         MMALLOC(n, sizeof(tld_json_arr));
         n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
         n->n = 0;
@@ -2764,6 +2814,8 @@ void tld_json_arr_free(tld_json_arr *n)
 int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s)
 {
         tld_json_arr* n = NULL;
+        ASSERT(s != NULL, "No source array");
+        ASSERT(t != NULL, "No output pointer");
         RUN(tld_json_arr_alloc(&n));
         for(int i = 0; i < s->n;i++){
                 RUN(tld_json_val_copy(n->v[n->n] , s->v[i]));
@@ -2807,6 +2859,7 @@ ERROR:
 int tld_json_val_alloc(tld_json_val **node)
 {
         tld_json_val* n = NULL;
+        ASSERT(node != NULL, "No output pointer");
         MMALLOC(n, sizeof(tld_json_val));
         n->type = TLD_JSON_NULL;
         *node = n;
@@ -3501,8 +3554,8 @@ int tld_json_parse_n(const char *text, size_t len, tld_json_obj **out)
         p.b_alloc = 0;
         p.err = NULL;
 
-        ASSERT(out != NULL, "No output pointer");
         ASSERT(text != NULL, "No input");
+        ASSERT(out != NULL, "No output pointer");
         ASSERT(len <= (size_t) INT32_MAX, "JSON text of %zu bytes is too long", len);
 
         p.s = (const uint8_t *) text;
@@ -3605,6 +3658,9 @@ ERROR:
 int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret)
 {
         tld_json_obj* r = NULL;
+        ASSERT(n != NULL, "No object");
+        ASSERT(key != NULL, "No key");
+        ASSERT(ret != NULL, "No output pointer");
         RUN(tld_json_obj_alloc(&r));
         RUN(tld__json_search(n, key, r));
         *ret = r;
@@ -3718,6 +3774,8 @@ int tld__json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **
 
 int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -3729,10 +3787,14 @@ int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out)
                 *out = TLD_STR(v->value.str);
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_num(tld_json_obj *obj, const char *path, double *out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -3749,10 +3811,14 @@ int tld_json_get_num(tld_json_obj *obj, const char *path, double *out)
                 return FAIL;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -3775,10 +3841,14 @@ int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out)
                 return FAIL;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -3795,10 +3865,14 @@ int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out)
                 return FAIL;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK){
                 return FAIL;
@@ -3817,10 +3891,14 @@ int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out)
                 *out = v->value.obj;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out)
 {
+        ASSERT(obj != NULL, "No object");
+        ASSERT(path != NULL, "No path");
         tld_json_val* v = NULL;
         if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
@@ -3832,6 +3910,8 @@ int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out)
                 *out = v->value.arr;
         }
         return OK;
+ERROR:
+        return FAIL;
 }
 
 /* Make sure obj (allocated here when NULL) has a free slot at index n BEFORE anything is
@@ -4440,6 +4520,7 @@ int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
 {
         const int compact = indent < 0;
         const int inner = compact ? TLD_JSON_COMPACT : indent + 4;
+        ASSERT(b != NULL, "No output buffer");
         if(n){
                 RUN(tld_strbuf_append(b, compact ? "{" : "{\n"));
                 for(int i = 0; i < n->n;i++){
@@ -4466,6 +4547,7 @@ int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
 {
         const int compact = indent < 0;
         const int inner = compact ? TLD_JSON_COMPACT : indent + 4;
+        ASSERT(b != NULL, "No output buffer");
         if(n){
                 RUN(tld_strbuf_append(b, compact ? "[" : "[\n"));
                 for (int i = 0; i < n->n; i++) {
@@ -4925,6 +5007,8 @@ int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
 {
         tld__template_node* root = NULL;
         tld_strbuf* out = NULL;
+        ASSERT(txt != NULL, "No template text");
+        ASSERT(hash != NULL, "No map");
 
         RUN(tld__template_parse_strbuf(txt, &root));
         RUN(tld_strbuf_alloc(&out, 256));
@@ -4957,6 +5041,8 @@ int tld_template_vars(tld_strbuf *txt, tld_hash **hash)
 {
         tld_hash* h = NULL;
         tld__template_node* root = NULL;
+        ASSERT(txt != NULL, "No template text");
+        ASSERT(hash != NULL, "No output pointer");
 
         RUN(tld__template_parse_strbuf(txt, &root));
         RUN(tld_hash_alloc(&h,1024));
@@ -5068,6 +5154,7 @@ static double tld__rng_gauss(struct tld_rng* rng);
 int tld_rng_alloc(struct tld_rng** rng,uint64_t seed)
 {
         struct tld_rng* s = NULL;
+        ASSERT(rng != NULL, "No output pointer");
 
         MMALLOC_ALIGNED(s, sizeof(struct tld_rng), _Alignof(struct tld_rng));
         s->gen = 0;
@@ -5156,6 +5243,8 @@ int tld_rng_split(struct tld_rng** target, struct tld_rng* rng)
 {
         struct tld_rng* s = NULL;
         int i = 0;
+        ASSERT(rng != NULL, "No generator");
+        ASSERT(target != NULL, "No output pointer");
         MMALLOC_ALIGNED(s, sizeof(struct tld_rng), _Alignof(struct tld_rng));
 
         for(i = 0; i < 4;i++){
@@ -5268,10 +5357,13 @@ static uint64_t tld__rng_entropy_seed(void)
 double tld_rng_double(struct tld_rng* rng)
 {
         uint64_t x = 0U;
+        ASSERT(rng != NULL, "No generator");
         do{
                 x = tld__rng_next(rng) >> 11U;
         }while (x == 0U);
         return (double) x * 0x1.0p-53;
+ERROR:
+        return NAN;
 }
 
 /* from:  */
@@ -5282,6 +5374,7 @@ double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma)
         double u2 = 0.0;
         double z0 = 0.0;
         const double n2 = -2.0;
+        ASSERT(rng != NULL, "No generator");
         rng->gen = !rng->gen;
 
         if (!rng->gen){
@@ -5297,6 +5390,8 @@ double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma)
         rng->z1 = sqrt(n2 * log(u1)) * sin(TLD__2PI * u2);
 
         return z0 * sigma + mu;
+ERROR:
+        return NAN;
 }
 
 double tld__rng_standard_gamma(struct tld_rng* rng, double shape)
@@ -5393,7 +5488,10 @@ double tld__rng_gauss(struct tld_rng* rng)
 
 double tld_rng_gamma(struct tld_rng* rng, double shape, double scale)
 {
+        ASSERT(rng != NULL, "No generator");
         return scale * tld__rng_standard_gamma(rng, shape);
+ERROR:
+        return NAN;
 }
 
 /* Uniform integer in [0, a). Unbiased: draws below 2^64 mod a are
@@ -5403,6 +5501,7 @@ int tld_rng_int(struct tld_rng* rng,int a)
         uint64_t n = 0U;
         uint64_t threshold = 0U;
         uint64_t x = 0U;
+        ASSERT(rng != NULL, "No generator");
         if(a <= 1){
                 return 0;
         }
@@ -5412,6 +5511,8 @@ int tld_rng_int(struct tld_rng* rng,int a)
                 x = tld__rng_next(rng);
         }while(x < threshold);
         return (int) (x % n);
+ERROR:
+        return -1;
 }
 
 int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed)
@@ -5514,13 +5615,19 @@ ERROR:
 
 int tld_rng_dist_sample(struct tld_rng_dist* d)
 {
-        const double r1 = tld_rng_double(d->rng);
-        const double r2 = tld_rng_double(d->rng);
-        int i = (int) (d->n * r1);
+        double r1 = 0.0;
+        double r2 = 0.0;
+        int i = 0;
+        ASSERT(d != NULL, "No table");
+        r1 = tld_rng_double(d->rng);
+        r2 = tld_rng_double(d->rng);
+        i = (int) (d->n * r1);
         if(i >= d->n){
                 i = d->n - 1;
         }
         return r2 < d->p[i] ? i : d->a[i];
+ERROR:
+        return -1;
 }
 
 void tld_rng_dist_free(struct tld_rng_dist* d)
@@ -5621,6 +5728,7 @@ int tld_shannon(double *vec, int n, double *entropy)
         double t = 0.0;
         double s = 0.0;
         ASSERT(vec != NULL, "No vector");
+        ASSERT(entropy != NULL, "No output pointer");
         ASSERT(n > 0, "Need at least one value");
         for(int i = 0; i < n;i++){
                 ASSERT(vec[i] >= 0.0, "Value %d is negative or NaN", i);
@@ -5647,6 +5755,7 @@ ERROR:
 int tld_mean(double *vec, int n, double *mean)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(mean != NULL, "No output pointer");
         ASSERT(n > 0, "Need at least one value");
         double m = 0.0;
         for(int i = 0; i < n;i++){
@@ -5662,6 +5771,7 @@ ERROR:
 int tld_pop_variance(double *vec, int n, double *variance)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(variance != NULL, "No output pointer");
         double m = 0.0;
         double v = 0.0;
         RUN(tld_mean(vec, n, &m));
@@ -5679,6 +5789,7 @@ ERROR:
 int tld_sample_variance(double *vec, int n, double *variance)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(variance != NULL, "No output pointer");
         ASSERT(n > 1, "Sample variance needs at least two values");
         double m = 0.0;
         double v = 0.0;
@@ -5699,6 +5810,8 @@ int tld_standardise(double *vec, int n, double *mean, double *stdev)
         double m;
         double variance;
         double s;
+        ASSERT(mean != NULL, "No output pointer");
+        ASSERT(stdev != NULL, "No output pointer");
 
         RUN(tld_mean(vec, n, &m));
         RUN(tld_sample_variance(vec, n, &variance));
@@ -5723,6 +5836,7 @@ int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov)
         double mean_a;
         double mean_b;
         double c;
+        ASSERT(cov != NULL, "No output pointer");
         ASSERT(n > 1, "Sample covariance needs at least two values");
         RUN(tld_mean(vec_a, n, &mean_a));
         RUN(tld_mean(vec_b, n, &mean_b));
@@ -5744,6 +5858,7 @@ int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov)
         double mean_a;
         double mean_b;
         double c;
+        ASSERT(cov != NULL, "No output pointer");
         RUN(tld_mean(vec_a, n, &mean_a));
         RUN(tld_mean(vec_b, n, &mean_b));
 
@@ -5766,6 +5881,7 @@ int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr)
 
         double cov;
         double c;
+        ASSERT(corr != NULL, "No output pointer");
         RUN(tld_pop_variance(vec_a, n, &var_a));
         RUN(tld_pop_variance(vec_b, n, &var_b));
 
@@ -5787,6 +5903,7 @@ ERROR:
 int tld_sigmoid(double x, double *out)
 {
         double y;
+        ASSERT(out != NULL, "No output pointer");
 
         ASSERT(isinf(x) == 0, "x is infinite");
         ASSERT(isnan(x) == 0, "x is Nan");
@@ -5808,6 +5925,7 @@ int tld_sigmoid_safe(double x, double *out)
         const double MAX_X = 709.782712893384; /* Approximately log(DBL_MAX) */
         const double MIN_X = -709.782712893384; /* Approximately log(DBL_MIN) */
         double y;
+        ASSERT(out != NULL, "No output pointer");
         if(isnan(x)){
                 y = NAN;
                 *out = y;
@@ -5849,11 +5967,14 @@ int tld_sigmoid_safe(double x, double *out)
         }
         *out = y;
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_normal_pdf(double x, double mu, double sigma, double* p)
 {
         double z;
+        ASSERT(p != NULL, "No output pointer");
         ASSERT(sigma > 0.0, "stdev must be positive.");
         z = (x - mu) / sigma;
 
@@ -5884,6 +6005,7 @@ int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
         double** ladder = NULL;
 
         ASSERT(data != NULL, "No data");
+        ASSERT(out != NULL, "No output pointer");
         ASSERT(data_len > 0,"No data len?");
         ASSERT(n_steps > 0,"Number of steps must be positive");
 
@@ -5924,6 +6046,7 @@ int tld_kde_count_pdf(double *data,double* cnt, int data_len, double*** out)
 
         ASSERT(data != NULL, "No data");
         ASSERT(cnt != NULL, "No counts");
+        ASSERT(out != NULL, "No output pointer");
         ASSERT(data_len > 0,"No data len?");
 
         total_cnt = 0.0;
@@ -6319,6 +6442,8 @@ int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret)
 {
         double thres = 0.0;
         double auc = 0.0;
+        ASSERT(t != NULL, "No output pointer");
+        ASSERT(ret != NULL, "No output pointer");
         RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *t = thres;
         *ret = auc;
@@ -6331,6 +6456,7 @@ int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
 {
         double thres = 0.0;
         double auc = 0.0;
+        ASSERT(ret != NULL, "No output pointer");
         RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *ret = auc;
         return OK;
@@ -6344,6 +6470,7 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
 {
         double thres = 0.0;
         double auc = 0.0;
+        ASSERT(best_threshold != NULL, "No output pointer");
         RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *best_threshold = thres;
         return OK;
@@ -6535,6 +6662,7 @@ void tld__kdyard_free(struct tld__kdyard *n)
 int tld_kdtree_alloc(tld_kdtree **tree, int size)
 {
         tld_kdtree* t = NULL;
+        ASSERT(tree != NULL, "No output pointer");
         ASSERT(size > 0, "Vector length must be positive (got %d)", size);
         MMALLOC(t, sizeof(tld_kdtree));
         t->fptr_cmp = tld_kdtree_dist_euclidean;
@@ -6797,6 +6925,7 @@ int tld_kdtree_dist_euclidean(double *a, double *b, int vec_len, double *dist)
         double x;
         ASSERT(a != NULL,"No a");
         ASSERT(b != NULL,"No b");
+        ASSERT(dist != NULL, "No output pointer");
         for(int i = 0; i < vec_len;i++){
                 x = a[i] - b[i];
                 d += x*x;
@@ -6810,14 +6939,15 @@ ERROR:
 int tld_kdtree_plane_euclidean(double *a, double *b, int cd, double min_dist)
 {
         double x;
-
+        ASSERT(a != NULL, "No a");
+        ASSERT(b != NULL, "No b");
         x = a[cd]-b[cd];
         x = x * x;
         if(x < min_dist){
                 return OK;
-        }else{
-                return FAIL;
         }
+ERROR:
+        return FAIL;
 }
 /* ---- src/tpool/tld-tpool.c ---- */
 
@@ -7242,6 +7372,7 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
 {
         int status = OK;
         ASSERT(p != NULL, "No thread pool");
+        ASSERT(func_ptr != NULL, "No job function");
         pthread_mutex_lock(&p->lock);
         if(tld_global_stop_run == 1 && !p->stop){
                 tld__pool_set_stop_locked(p);

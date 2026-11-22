@@ -104,6 +104,7 @@ void tld__kdyard_free(struct tld__kdyard *n)
 int tld_kdtree_alloc(tld_kdtree **tree, int size)
 {
         tld_kdtree* t = NULL;
+        ASSERT(tree != NULL, "No output pointer");
         ASSERT(size > 0, "Vector length must be positive (got %d)", size);
         MMALLOC(t, sizeof(tld_kdtree));
         t->fptr_cmp = tld_kdtree_dist_euclidean;
@@ -366,6 +367,7 @@ int tld_kdtree_dist_euclidean(double *a, double *b, int vec_len, double *dist)
         double x;
         ASSERT(a != NULL,"No a");
         ASSERT(b != NULL,"No b");
+        ASSERT(dist != NULL, "No output pointer");
         for(int i = 0; i < vec_len;i++){
                 x = a[i] - b[i];
                 d += x*x;
@@ -379,12 +381,13 @@ ERROR:
 int tld_kdtree_plane_euclidean(double *a, double *b, int cd, double min_dist)
 {
         double x;
-
+        ASSERT(a != NULL, "No a");
+        ASSERT(b != NULL, "No b");
         x = a[cd]-b[cd];
         x = x * x;
         if(x < min_dist){
                 return OK;
-        }else{
-                return FAIL;
         }
+ERROR:
+        return FAIL;
 }

@@ -31,7 +31,9 @@ TLD_API int tld_rng_set_seed(struct tld_rng *s, uint64_t seed);
 /* Free a generator; NULL is ignored. */
 TLD_API void tld_rng_free(struct tld_rng* rng);
 
-/* Uniform double on the open interval (0, 1): never exactly 0 or 1. */
+/* Uniform double on the open interval (0, 1): never exactly 0 or 1. The double results
+ * below are NaN, and tld_rng_int / tld_rng_dist_sample give -1, for a NULL generator or
+ * table (with an error). */
 TLD_API double tld_rng_double(struct tld_rng* rng);
 
 /* Normal deviate with mean mu and standard deviation sigma (Box-Muller; values are made

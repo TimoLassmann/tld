@@ -21,6 +21,7 @@ int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
         double** ladder = NULL;
 
         ASSERT(data != NULL, "No data");
+        ASSERT(out != NULL, "No output pointer");
         ASSERT(data_len > 0,"No data len?");
         ASSERT(n_steps > 0,"Number of steps must be positive");
 
@@ -61,6 +62,7 @@ int tld_kde_count_pdf(double *data,double* cnt, int data_len, double*** out)
 
         ASSERT(data != NULL, "No data");
         ASSERT(cnt != NULL, "No counts");
+        ASSERT(out != NULL, "No output pointer");
         ASSERT(data_len > 0,"No data len?");
 
         total_cnt = 0.0;

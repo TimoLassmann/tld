@@ -126,6 +126,8 @@ int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret)
 {
         double thres = 0.0;
         double auc = 0.0;
+        ASSERT(t != NULL, "No output pointer");
+        ASSERT(ret != NULL, "No output pointer");
         RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *t = thres;
         *ret = auc;
@@ -138,6 +140,7 @@ int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
 {
         double thres = 0.0;
         double auc = 0.0;
+        ASSERT(ret != NULL, "No output pointer");
         RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *ret = auc;
         return OK;
@@ -151,6 +154,7 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
 {
         double thres = 0.0;
         double auc = 0.0;
+        ASSERT(best_threshold != NULL, "No output pointer");
         RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *best_threshold = thres;
         return OK;

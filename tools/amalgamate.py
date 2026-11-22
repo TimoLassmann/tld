@@ -42,6 +42,10 @@ TOP = """\
  *   tld_term_has_color) return 1 or 0, and a few functions return a plain value; each
  *   one says so. Nothing exits or aborts.
  *
+ *   A NULL pointer argument is an error unless the function's comment allows it: an
+ *   ERROR line and the failure value (FAIL, NULL, 0 for a 1/0 answer, NaN for a double
+ *   result, -1 for an index). The free functions ignore NULL, like free().
+ *
  *   RUN(call), ASSERT(test, fmt, ...), ERROR_MSG(fmt, ...) and the allocation macros
  *   MMALLOC, MREALLOC, MMALLOC_ALIGNED and galloc jump to a label named ERROR in the
  *   calling function on failure. The usual shape of a function:

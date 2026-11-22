@@ -7,6 +7,7 @@ int tld_shannon(double *vec, int n, double *entropy)
         double t = 0.0;
         double s = 0.0;
         ASSERT(vec != NULL, "No vector");
+        ASSERT(entropy != NULL, "No output pointer");
         ASSERT(n > 0, "Need at least one value");
         for(int i = 0; i < n;i++){
                 ASSERT(vec[i] >= 0.0, "Value %d is negative or NaN", i);
@@ -33,6 +34,7 @@ ERROR:
 int tld_mean(double *vec, int n, double *mean)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(mean != NULL, "No output pointer");
         ASSERT(n > 0, "Need at least one value");
         double m = 0.0;
         for(int i = 0; i < n;i++){
@@ -48,6 +50,7 @@ ERROR:
 int tld_pop_variance(double *vec, int n, double *variance)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(variance != NULL, "No output pointer");
         double m = 0.0;
         double v = 0.0;
         RUN(tld_mean(vec, n, &m));
@@ -65,6 +68,7 @@ ERROR:
 int tld_sample_variance(double *vec, int n, double *variance)
 {
         ASSERT(vec != NULL, "No vector");
+        ASSERT(variance != NULL, "No output pointer");
         ASSERT(n > 1, "Sample variance needs at least two values");
         double m = 0.0;
         double v = 0.0;
@@ -85,6 +89,8 @@ int tld_standardise(double *vec, int n, double *mean, double *stdev)
         double m;
         double variance;
         double s;
+        ASSERT(mean != NULL, "No output pointer");
+        ASSERT(stdev != NULL, "No output pointer");
 
         RUN(tld_mean(vec, n, &m));
         RUN(tld_sample_variance(vec, n, &variance));
@@ -109,6 +115,7 @@ int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov)
         double mean_a;
         double mean_b;
         double c;
+        ASSERT(cov != NULL, "No output pointer");
         ASSERT(n > 1, "Sample covariance needs at least two values");
         RUN(tld_mean(vec_a, n, &mean_a));
         RUN(tld_mean(vec_b, n, &mean_b));
@@ -130,6 +137,7 @@ int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov)
         double mean_a;
         double mean_b;
         double c;
+        ASSERT(cov != NULL, "No output pointer");
         RUN(tld_mean(vec_a, n, &mean_a));
         RUN(tld_mean(vec_b, n, &mean_b));
 
@@ -152,6 +160,7 @@ int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr)
 
         double cov;
         double c;
+        ASSERT(corr != NULL, "No output pointer");
         RUN(tld_pop_variance(vec_a, n, &var_a));
         RUN(tld_pop_variance(vec_b, n, &var_b));
 
@@ -173,6 +182,7 @@ ERROR:
 int tld_sigmoid(double x, double *out)
 {
         double y;
+        ASSERT(out != NULL, "No output pointer");
 
         ASSERT(isinf(x) == 0, "x is infinite");
         ASSERT(isnan(x) == 0, "x is Nan");
@@ -194,6 +204,7 @@ int tld_sigmoid_safe(double x, double *out)
         const double MAX_X = 709.782712893384; /* Approximately log(DBL_MAX) */
         const double MIN_X = -709.782712893384; /* Approximately log(DBL_MIN) */
         double y;
+        ASSERT(out != NULL, "No output pointer");
         if(isnan(x)){
                 y = NAN;
                 *out = y;
@@ -235,11 +246,14 @@ int tld_sigmoid_safe(double x, double *out)
         }
         *out = y;
         return OK;
+ERROR:
+        return FAIL;
 }
 
 int tld_normal_pdf(double x, double mu, double sigma, double* p)
 {
         double z;
+        ASSERT(p != NULL, "No output pointer");
         ASSERT(sigma > 0.0, "stdev must be positive.");
         z = (x - mu) / sigma;
 
