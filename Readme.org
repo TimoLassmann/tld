@@ -75,11 +75,11 @@ int main(void) {
 }
 #+end_src
 
-Build with =cc -std=c11 -I. prog.c -lpthread -lm=. Larger examples: =examples/triage.c= (choice, scale, yes/no, struct filling, human review) and =examples/par.c= (parallel calls, embeddings, nearest neighbours). Failures return NULL, -1 or =.ok = 0=; =ai_status()= gives the code (=AI_ENOSERVER=, =AI_EBUSY=, ...) and =ai_error()= the message. With no server running every call fails at once with =AI_ENOSERVER=.
+Build with =cc -std=c11 -I. prog.c -lpthread -lm=. Larger examples: =examples/triage.c= (choice, scale, yes/no, struct filling, human review) and =examples/par.c= (parallel calls, embeddings, nearest neighbours). Failures return NULL, -1 or =.ok = 0=; =ai_status()= gives the code (=AI_ENOSERVER=, =AI_ENOMODEL=, ...) and =ai_error()= the message. With no server running every call fails at once with =AI_ENOSERVER=.
 
 ** Settings
 
-Every setting is decided on its own, highest first: per-call options (=AI_OPTS(...)=), environment variable, =ai_defaults()=, built-in. The environment is read once, at the first call. =ai_effective()= and =ai_setting_source("llm")= show what is in force and where it came from.
+Every setting is decided on its own, highest first: per-call options (=AI_OPTS(...)=), environment variable, =ai_defaults()=, built-in. The environment is read once, at the first call; a value that does not parse (=AI_FRESH= takes 1/0, true/false, yes/no, on/off; =AI_NUM_CTX= and =AI_TIMEOUT= take positive integers) is ignored with a warning. Each =ai_defaults()= call replaces the previous one; =ai_defaults(NULL)= resets to the built-ins.
 
 | Variable    | Built-in default          | Meaning                                       |
 |-------------+---------------------------+-----------------------------------------------|
@@ -92,17 +92,16 @@ Every setting is decided on its own, highest first: per-call options (=AI_OPTS(.
 | AI_FRESH    | 0                         | 1 = ignore the cache                          |
 | AI_DB       | ai.cache                  | cache file (JSON lines), =off= = no cache     |
 | AI_REVIEWS  | ai-reviews                | directory of review files (=ai_review=)       |
-| AI_GUARD    | on                        | =off= disables the one-model guard            |
 
-Every answered call is appended to the cache, so a rerun replays finished calls in order and costs nothing. A review is a file =AI_REVIEWS/<key>.json=; set its ="status"= to ="done"=, fill in ="answer"=, and rerun. Vectors from different embedding models are not comparable; store the embedder's name next to any vectors you save (ai.h warns once if a program switches embedder).
+Every answered call is appended to the cache, so a rerun replays finished calls in order and costs nothing. A review is a file =AI_REVIEWS/<key>.json=; set its ="status"= to ="done"=, fill in ="answer"=, and rerun. Vectors from different embedding models are not comparable; store the embedder's name next to any vectors you save.
 
-** The one-model guard
+** Memory
 
-The machine holds one model in memory at a time. Before a live call to a local model, ai.h asks the server what is loaded (=/api/ps=). Models that this program loaded are unloaded first, so one program can mix an LLM, a decision model and an embedder. A model loaded by anyone else is never unloaded: the call fails with =AI_EBUSY= and names the model. That includes a model left loaded by an earlier run of the same program, until the server's =keep_alive= (5 minutes by default) runs out, and it means two programs that mix models cannot share the server; =ollama stop <model>= frees it. Threads in one program never use two local models at once. =AI_GUARD=off= turns the guard off on machines with plenty of memory.
+On a machine that can hold only one model, start Ollama with =OLLAMA_MAX_LOADED_MODELS=1=; the server then swaps models safely between requests.
 
 ** Cloud models
 
-Cloud models (those whose =/api/tags= entry has =remote_host=) are reached through the local server and are exempt from the guard. They are opt-in only: the defaults are local, so a prompt leaves the machine only when a cloud model is named in =AI_LLM=, =AI_DECIDER=, =AI_EMBEDDER=, =ai_defaults()= or =.model=. A server that is not signed in answers with an HTTP error, reported as =AI_EHTTP=.
+Cloud models (those whose =/api/tags= entry has =remote_host=) are reached through the local server. They are opt-in only: the defaults are local, so a prompt leaves the machine only when a cloud model is named in =AI_LLM=, =AI_DECIDER=, =AI_EMBEDDER=, =ai_defaults()= or =.model=. A server that is not signed in answers with an HTTP error, reported as =AI_EHTTP=.
 
 ** Tests and the live run
 

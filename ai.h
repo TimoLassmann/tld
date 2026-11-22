@@ -39,27 +39,26 @@
  *   AI_FRESH     1 = ignore the cache                 default 0
  *   AI_DB        cache file (JSON lines)              default ai.cache, "off" = no cache
  *   AI_REVIEWS   directory for ai_review files        default ai-reviews
- *   AI_GUARD     "off" disables the one-model guard   default on
+ *   AI_FRESH accepts 1/0, true/false, yes/no, on/off (any case); AI_NUM_CTX and
+ *   AI_TIMEOUT must be positive integers. A value that does not parse is ignored with a
+ *   warning.
  *
  * DEFAULTS SET IN CODE
  *   ai_defaults(AI_CONFIG(.host = "http://192.168.1.20:11434", .llm = "inkling-2-mini",
  *                         .decider = "autotrust-jev", .embedder = "embeddinggemma-2",
  *                         .opts = AI_OPTS(.temperature = AI_F(0.2))));
- *   Each setting is decided on its own, highest first: per-call options (AI_OPTS),
- *   environment variable, ai_defaults(), built-in. So a finished binary can still be
- *   pointed elsewhere with AI_HOST etc. Calls are cumulative (only fields that are set
- *   change); ai_defaults(NULL) resets to the built-ins (keeping a cache file or review
- *   directory already in use). Strings and .opts are copied. Invalid input (a host
- *   that is not http://, an empty model name, a number <= 0) changes nothing and
- *   returns -1. Once the cache or review store is in use, changing db or reviews is
- *   refused with AI_EBUSY. .opts is merged field by field under each call's options,
- *   for text calls only (its .model is ignored); embeddings take .embed_dimensions as
- *   their default dimensions. Calls in flight keep the settings they started with.
- *   ai_effective() shows the values in force, ai_setting_source("llm") where one came
- *   from ("env", "defaults" or "builtin"). Guard state is kept per host. Vectors from
- *   different embedders are not comparable: ai.h warns once per process when the
- *   embedder or dimensions change, and programs that store vectors should store the
- *   embedder's name next to them.
+ *   Each field that is set (a non-NULL string, an ai_i with .set, a non-NULL .opts)
+ *   replaces the built-in default; an environment variable, if set, still wins, and
+ *   per-call options win over both. Each call replaces the previous one's settings;
+ *   ai_defaults(NULL) resets to the built-ins. Strings and .opts are copied. Invalid
+ *   input (a host that is not http://, an empty model name, a number <= 0) changes
+ *   nothing and returns -1. db is read when the cache is first opened, so a later
+ *   change has no effect on that run; reviews is read by each ai_review call. .opts is
+ *   merged field by field under each call's options, for text calls only (its .model
+ *   is ignored); embeddings take .embed_dimensions as their default dimensions. Calls
+ *   in flight keep the settings they started with. Vectors from different embedders
+ *   are not comparable: programs that store vectors should store the embedder's name
+ *   next to them.
  *
  * ERRORS
  *   Failure values: NULL, -1, .x == NULL or .ok == 0, as documented per call. Nothing
@@ -68,30 +67,16 @@
  *   GET /api/version first; with no server every such call fails fast with
  *   AI_ENOSERVER, and the probe is retried at most every 5 s.
  *
- * ONE-MODEL GUARD
- *   The laptop this was written for holds one model in memory at a time. Before a live
- *   call to a local model M, ai.h reads GET /api/ps. If only M (or nothing) is loaded,
- *   the call goes ahead. If the other loaded models were all loaded by this process,
- *   ai.h unloads them first (POST /api/generate {"model":X,"keep_alive":0}); that is
- *   how a program mixes an LLM with a decision model. If a model loaded by anyone else
- *   is in memory, the call fails with AI_EBUSY and a message naming it: ai.h never
- *   unloads a model it did not load. Inside the process a gate lets calls to the same
- *   model run concurrently, and a call to another model waits until those finish.
- *   Cached replays never touch the guard. AI_GUARD=off turns it off. Between the
- *   /api/ps check and the request another program can still load a model; setting
- *   OLLAMA_MAX_LOADED_MODELS=1 on the server is the backstop. Note that "this
- *   process" is literal: a model left loaded by an earlier run (Ollama keeps a model
- *   for keep_alive, 5 minutes by default) or by another ai.h program counts as
- *   someone else's, so a rerun that starts with a different model gets AI_EBUSY until
- *   it expires, and two programs mixing models cannot share the server.
+ * MEMORY
+ *   On a machine that can hold only one model, start Ollama with
+ *   OLLAMA_MAX_LOADED_MODELS=1; the server then swaps models safely between requests.
  *
  * CLOUD MODELS
  *   Opt-in only. A cloud model is one whose /api/tags entry has "remote_host"; it is
- *   reached through the local server like any other (ai.h does no HTTPS) and is exempt
- *   from the guard, since it uses no local memory. The defaults are local models, so
- *   prompts leave the machine only when a cloud model is named in AI_LLM, AI_DECIDER,
- *   AI_EMBEDDER or .model. A server that is not signed in answers with an HTTP error,
- *   which comes back as AI_EHTTP with the server's message.
+ *   reached through the local server like any other (ai.h does no HTTPS). The defaults
+ *   are local models, so prompts leave the machine only when a cloud model is named in
+ *   AI_LLM, AI_DECIDER, AI_EMBEDDER or .model. A server that is not signed in answers
+ *   with an HTTP error, which comes back as AI_EHTTP with the server's message.
  *
  * CACHE AND REPLAY
  *   Every answered request is appended to AI_DB as one JSON line
@@ -155,7 +140,6 @@ enum {
     AI_EHTTP,     /* https host, timeout, truncated reply, HTTP error status    */
     AI_EPARSE,    /* the reply is not valid JSON or lacks the expected fields   */
     AI_ESCHEMA,   /* valid JSON that does not fit the struct, labels or range   */
-    AI_EBUSY,     /* another program's model is loaded (one-model guard)        */
     AI_ENOMODEL,  /* the model is not installed on the server                   */
     AI_EIO,       /* cache, review or image file could not be read or written   */
     AI_ENOMEM,    /* out of memory                                              */
@@ -202,21 +186,15 @@ typedef struct {
     ai_i num_ctx;          /* AI_NUM_CTX   context length for LLM and embedding calls    */
     ai_i timeout;          /* AI_TIMEOUT   seconds per request                           */
     ai_i fresh;            /* AI_FRESH     1 = ignore the cache                          */
-    ai_i guard;            /* AI_GUARD     1 = one-model guard on (default), 0 = off     */
     ai_i embed_dimensions; /* default output dimensions for embeddings, if the model allows */
     const ai_opts *opts;   /* default per-call options (system, temperature, seed, top_p,
                               stop, think, keep_alive, retries, ...) applied to every call */
 } ai_config;
 #define AI_CONFIG(...) (&(const ai_config){__VA_ARGS__})
 
-/* Merge c into the defaults (only fields c sets); NULL resets to the built-ins.
+/* The fields c sets replace the built-in defaults; NULL resets to the built-ins.
  * 0 on success, -1 with ai_status()/ai_error(); an invalid call changes nothing. */
 int ai_defaults(const ai_config *c);
-/* The process-level values in force. Strings are borrowed: valid until the next
- * ai_defaults() or ai_reset(). */
-int ai_effective(ai_config *out);
-/* "env", "defaults" or "builtin" for a setting named like an ai_config field, or NULL. */
-const char *ai_setting_source(const char *name);
 
 /* ---- plain calls ------------------------------------------------------- */
 
@@ -535,17 +513,11 @@ static char *ai__kdup(const char *s) {
     return ai__keep(d);
 }
 
-static void ai__retired_sweep(int all);
-static pthread_mutex_t ai__cfg_mu;
-
 void ai_reset(void) {
     pthread_mutex_lock(&ai__mem_mu);
     for (size_t i = 0; i < ai__arena_n; i++) free(ai__arena[i]);
     ai__arena_n = 0;
     pthread_mutex_unlock(&ai__mem_mu);
-    pthread_mutex_lock(&ai__cfg_mu); /* settings replaced by ai_defaults, if unused */
-    ai__retired_sweep(0);
-    pthread_mutex_unlock(&ai__cfg_mu);
 }
 
 char *ai_fmt(const char *fmt, ...) {
@@ -572,13 +544,15 @@ static void ai__drop(tld_json_decoration d) {
 }
 
 /* Add d to *o (created if NULL). A NULL value is skipped, as in tld. Ownership of an
- * object or array value passes to *o, also on failure (it is freed then). */
+ * object or array value passes to *o, also on failure, when it is freed: by tld when
+ * *o was NULL (the result is NULL), here when *o exists (returned unchanged, without
+ * the child). */
 static int ai__put(tld_json_obj **o, tld_json_decoration d) {
     if (!d.value) return 0;
     int before = *o ? (*o)->n : 0;
     tld_json_obj *r = json_obj_add_multiple(*o, &d, 1);
     if (!r || r->n != before + 1) {
-        if (!r) ai__drop(d);
+        if (r) ai__drop(d);
         return ai__nomem();
     }
     *o = r;
@@ -590,7 +564,7 @@ static int ai__push(tld_json_arr **a, tld_json_decoration d) {
     int before = *a ? (*a)->n : 0;
     tld_json_arr *r = json_arr_add_multiple(*a, &d, 1);
     if (!r || r->n != before + 1) {
-        if (!r) ai__drop(d);
+        if (r) ai__drop(d);
         return ai__nomem();
     }
     *a = r;
@@ -682,12 +656,13 @@ static long ai__long(tld_json_obj *o, const char *path) {
     return tld_json_get_int(o, path, &v) == OK && v >= 0 && v <= 0x7fffffffL ? (long)v : 0;
 }
 
-/* ---- configuration: one resolver over four layers ----------------------- */
+/* ---- configuration ------------------------------------------------------ */
 /* Every setting is resolved in ai__resolve(), highest first: per-call options (merged
  * in ai__merge, at the call), the environment (read once, at first use), the values
- * set with ai_defaults(), the built-in defaults. The result is an immutable ai__conf;
- * each public call holds a reference to the one in force when it started, so
- * ai_defaults() never changes a call in flight. */
+ * set with ai_defaults(), the built-in defaults. The result is an immutable ai__conf.
+ * Each public call holds a reference to the one in force when it started, so
+ * ai_defaults() never changes a call in flight; a replaced ai__conf is freed when its
+ * last reference goes. One mutex, ai__cfg_mu, guards all of it. */
 
 #ifndef AI_LOG /* level: 0 info, 1 warning, 2 error */
 #define AI_LOG(level, msg)                                                             \
@@ -696,13 +671,12 @@ static long ai__long(tld_json_obj *o, const char *path) {
 #endif
 
 enum { AI__S_HOST, AI__S_LLM, AI__S_DECIDER, AI__S_EMBEDDER, AI__S_DB, AI__S_REVIEWS,
-       AI__S_NUM_CTX, AI__S_TIMEOUT, AI__S_FRESH, AI__S_GUARD, AI__S_DIMS, AI__S_OPTS,
-       AI__S_N };
+       AI__S_NUM_CTX, AI__S_TIMEOUT, AI__S_FRESH, AI__S_DIMS };
 #define AI__NSTR 6 /* string settings come first */
-#define AI__NNUM 5 /* then the numbers */
-static const char *const ai__s_name[AI__S_N] = {
+#define AI__NNUM 4 /* then the numbers */
+static const char *const ai__s_name[AI__NSTR + AI__NNUM] = {
     "host", "llm", "decider", "embedder", "db", "reviews", "num_ctx", "timeout",
-    "fresh", "guard", "embed_dimensions", "opts"};
+    "fresh", "embed_dimensions"};
 static const char *const ai__s_builtin[AI__NSTR] = {
     "http://localhost:11434", "inkling-2-mini:latest", "autotrust-jev:latest",
     "embeddinggemma-2:latest", "ai.cache", "ai-reviews"};
@@ -710,20 +684,18 @@ static const char *const ai__s_builtin[AI__NSTR] = {
 /* One layer of settings. Strings are owned; NULL / .set == 0 = not set here. */
 typedef struct {
     char *str[AI__NSTR];
-    ai_f num[AI__NNUM]; /* num_ctx, timeout, fresh, guard, embed_dimensions */
+    ai_f num[AI__NNUM]; /* num_ctx, timeout, fresh, embed_dimensions */
     ai_opts *opts;      /* deep copy (defaults layer only) */
 } ai__layer;
 
 typedef struct ai__conf {
-    int refs;
-    struct ai__conf *retired_next;
+    int refs;            /* calls using it */
     char *str[AI__NSTR]; /* resolved values, owned */
     long num_ctx;        /* 0 = not sent */
     double timeout;
-    int fresh, guard;
+    int fresh;
     long dims;           /* default embedding dimensions, 0 = not sent */
     ai_opts *opts;       /* the defaults' per-call options (deep copy), or NULL */
-    const char *src[AI__S_N];
     /* AI_HOST taken apart */
     char name[256], port[16], authority[300], base[256];
     int https, bad_host, cache_on;
@@ -731,10 +703,9 @@ typedef struct ai__conf {
 #define AI__HOST(c) ((c)->str[AI__S_HOST])
 
 static pthread_mutex_t ai__cfg_mu = PTHREAD_MUTEX_INITIALIZER;
-static ai__layer ai__env_layer, ai__def_layer;
-static ai__conf *ai__conf_cur, *ai__conf_retired;
-static char *ai__db_open, *ai__reviews_open; /* store paths, once in use */
-static _Thread_local ai__conf *ai__c;        /* the settings of this thread's call */
+static ai__layer ai__env_layer;
+static ai__conf *ai__conf_cur;        /* NULL after the exit cleanup */
+static _Thread_local ai__conf *ai__c; /* the settings of this thread's call */
 static _Thread_local int ai__depth;
 
 static pthread_once_t ai__once = PTHREAD_ONCE_INIT;
@@ -820,38 +791,48 @@ static void ai__layer_free(ai__layer *l) {
     memset(l, 0, sizeof *l);
 }
 
-/* The environment, read once. Values that do not parse are ignored. */
+static void ai__env_ignored(const char *name, const char *v, const char *want) {
+    char msg[600];
+    snprintf(msg, sizeof msg, "ignoring %s=%.400s: expected %s", name, v, want);
+    AI_LOG(1, msg);
+}
+
+static int ai__icase(const char *a, const char *b) { /* equal, ignoring ASCII case */
+    for (; *a && tolower((unsigned char)*a) == tolower((unsigned char)*b); a++, b++) {}
+    return tolower((unsigned char)*a) == tolower((unsigned char)*b);
+}
+
+/* The environment, read once. Values that do not parse are ignored with a warning. */
 static int ai__env_read(ai__layer *l) {
-    static const char *const names[AI__NSTR + 4] = {
+    static const char *const names[AI__NSTR + 3] = {
         "AI_HOST", "AI_LLM", "AI_DECIDER", "AI_EMBEDDER", "AI_DB", "AI_REVIEWS",
-        "AI_NUM_CTX", "AI_TIMEOUT", "AI_FRESH", "AI_GUARD"};
+        "AI_NUM_CTX", "AI_TIMEOUT", "AI_FRESH"};
+    static const char *const yes[] = {"1", "true", "yes", "on"}, *const no[] = {"0", "false",
+                                                                              "no", "off"};
     memset(l, 0, sizeof *l);
-    for (int i = 0; i < AI__NSTR + 4; i++) {
+    for (int i = 0; i < AI__NSTR + 3; i++) {
         const char *v = getenv(names[i]);
         if (!v || !*v) continue;
         if (i < AI__NSTR) {
             if (!(l->str[i] = ai__strdup(v))) return -1;
             continue;
         }
-        char *end = NULL;
-        double d = strtod(v, &end);
-        int ok = end != v;
         ai_f *n = &l->num[i - AI__NSTR];
-        switch (i) {
-        case AI__S_NUM_CTX:
-        case AI__S_TIMEOUT:
-            if (ok && d > 0) *n = AI_F(d);
-            break;
-        case AI__S_FRESH:
-            *n = AI_F(ok && d != 0 ? 1 : 0);
-            break;
-        case AI__S_GUARD:
-            *n = AI_F(!strcmp(v, "off") || !strcmp(v, "0") || !strcmp(v, "no") ||
-                              !strcmp(v, "false")
-                          ? 0
-                          : 1);
-            break;
+        if (i == AI__S_FRESH) {
+            for (int k = 0; k < 4; k++) {
+                if (ai__icase(v, yes[k])) *n = AI_F(1);
+                if (ai__icase(v, no[k])) *n = AI_F(0);
+            }
+            if (!n->set) ai__env_ignored(names[i], v, "1/0, true/false, yes/no or on/off");
+            continue;
         }
+        char *end = NULL;
+        errno = 0;
+        long d = strtol(v, &end, 10);
+        if (end != v && !*end && !errno && d > 0)
+            *n = AI_F((double)d);
+        else
+            ai__env_ignored(names[i], v, "a positive integer");
     }
     return 0;
 }
@@ -908,15 +889,16 @@ static void ai__conf_free(ai__conf *c) {
     free(c);
 }
 
-/* THE resolver: every process-level setting comes from here. */
+/* THE resolver: every process-level setting comes from here. def may be NULL. */
 static ai__conf *ai__resolve(const ai__layer *env, const ai__layer *def) {
-    static const double builtin_num[AI__NNUM] = {0, 300, 0, 1, 0};
+    static const ai__layer none;
+    static const double builtin_num[AI__NNUM] = {0, 300, 0, 0};
+    if (!def) def = &none;
     ai__conf *c = calloc(1, sizeof *c);
     if (!c) return NULL;
     for (int i = 0; i < AI__NSTR; i++) {
         const char *v = env->str[i] ? env->str[i] : def->str[i] ? def->str[i]
                                                                  : ai__s_builtin[i];
-        c->src[i] = env->str[i] ? "env" : def->str[i] ? "defaults" : "builtin";
         if (!(c->str[i] = ai__strdup(v))) {
             ai__conf_free(c);
             return NULL;
@@ -926,20 +908,15 @@ static ai__conf *ai__resolve(const ai__layer *env, const ai__layer *def) {
     for (int i = 0; i < AI__NNUM; i++) {
         const ai_f *e = &env->num[i], *d = &def->num[i];
         num[i] = e->set ? e->v : d->set ? d->v : builtin_num[i];
-        c->src[AI__NSTR + i] = e->set ? "env" : d->set ? "defaults" : "builtin";
     }
     /* AI_NUM_CTX > config.num_ctx > config.opts->num_ctx */
     if (!env->num[0].set && !def->num[0].set && def->opts && def->opts->num_ctx.set &&
-        def->opts->num_ctx.v > 0) {
+        def->opts->num_ctx.v > 0)
         num[0] = (double)def->opts->num_ctx.v;
-        c->src[AI__S_NUM_CTX] = "defaults";
-    }
     c->num_ctx = (long)num[0];
     c->timeout = num[1];
     c->fresh = num[2] != 0;
-    c->guard = num[3] != 0;
-    c->dims = (long)num[4];
-    c->src[AI__S_OPTS] = def->opts ? "defaults" : "builtin";
+    c->dims = (long)num[3];
     if (def->opts && !(c->opts = ai__opts_dup(def->opts))) {
         ai__conf_free(c);
         return NULL;
@@ -951,8 +928,7 @@ static ai__conf *ai__resolve(const ai__layer *env, const ai__layer *def) {
 
 static void ai__init_once(void) {
     pthread_once(&ai__exit_once, ai__exit_register);
-    if (ai__env_read(&ai__env_layer) || !(ai__conf_cur = ai__resolve(&ai__env_layer,
-                                                                    &ai__def_layer)))
+    if (ai__env_read(&ai__env_layer) || !(ai__conf_cur = ai__resolve(&ai__env_layer, NULL)))
         ai__init_st = AI_ENOMEM;
 }
 
@@ -962,38 +938,30 @@ static int ai__init(void) {
     return 0;
 }
 
+static int ai__gone(void) {
+    return ai__fail(AI_EARG, "ai.h was already shut down (called after exit cleanup)");
+}
+
 /* Every public call that uses settings runs between ai__enter and ai__leave. */
 static int ai__enter(void) {
     if (ai__init()) return -1;
-    if (ai__depth++ == 0) {
+    if (ai__depth == 0) {
         pthread_mutex_lock(&ai__cfg_mu);
         ai__c = ai__conf_cur;
-        ai__c->refs++;
+        if (ai__c) ai__c->refs++;
         pthread_mutex_unlock(&ai__cfg_mu);
+        if (!ai__c) return ai__gone();
     }
+    ai__depth++;
     return 0;
 }
 
 static void ai__leave(void) {
     if (--ai__depth == 0) {
         pthread_mutex_lock(&ai__cfg_mu);
-        ai__c->refs--;
+        if (--ai__c->refs == 0 && ai__c != ai__conf_cur) ai__conf_free(ai__c);
         pthread_mutex_unlock(&ai__cfg_mu);
         ai__c = NULL;
-    }
-}
-
-/* Free replaced settings that no call holds any more. Caller holds ai__cfg_mu. */
-static void ai__retired_sweep(int all) {
-    ai__conf **pp = &ai__conf_retired;
-    while (*pp) {
-        ai__conf *c = *pp;
-        if (all || c->refs == 0) {
-            *pp = c->retired_next;
-            ai__conf_free(c);
-        } else {
-            pp = &c->retired_next;
-        }
     }
 }
 
@@ -1005,11 +973,10 @@ static int ai__valid_config(const ai_config *c) {
     for (int i = 0; i < AI__NSTR; i++)
         if (s[i] && (!*s[i] || (i == AI__S_HOST && !s[i][7])))
             return ai__fail(AI_EARG, "ai_defaults: %s is empty", ai__s_name[i]);
-    const ai_i *n[AI__NNUM] = {&c->num_ctx, &c->timeout, &c->fresh, &c->guard,
-                               &c->embed_dimensions};
+    const ai_i *n[AI__NNUM] = {&c->num_ctx, &c->timeout, &c->fresh, &c->embed_dimensions};
     for (int i = 0; i < AI__NNUM; i++) {
         if (!n[i]->set) continue;
-        int flag = i == 2 || i == 3;
+        int flag = i == 2;
         if (flag ? (n[i]->v != 0 && n[i]->v != 1) : n[i]->v <= 0)
             return ai__fail(AI_EARG, "ai_defaults: %s = %ld is invalid (%s)",
                             ai__s_name[AI__NSTR + i], n[i]->v, flag ? "0 or 1" : "must be > 0");
@@ -1017,101 +984,42 @@ static int ai__valid_config(const ai_config *c) {
     return 0;
 }
 
-/* The new defaults layer: old one plus the fields c sets (c == NULL: empty). */
-static int ai__layer_update(const ai__layer *old, const ai_config *c, ai__layer *nl) {
-    memset(nl, 0, sizeof *nl);
-    if (!c) return 0;
+/* The defaults layer for c: its strings and .opts copied, its numbers taken. */
+static int ai__layer_from(const ai_config *c, ai__layer *l) {
+    memset(l, 0, sizeof *l);
     const char *s[AI__NSTR] = {c->host, c->llm, c->decider, c->embedder, c->db, c->reviews};
-    const ai_i *n[AI__NNUM] = {&c->num_ctx, &c->timeout, &c->fresh, &c->guard,
-                               &c->embed_dimensions};
-    for (int i = 0; i < AI__NSTR; i++) {
-        const char *v = s[i] ? s[i] : old->str[i];
-        if (v && !(nl->str[i] = ai__strdup(v))) goto nomem;
-    }
+    const ai_i *n[AI__NNUM] = {&c->num_ctx, &c->timeout, &c->fresh, &c->embed_dimensions};
+    for (int i = 0; i < AI__NSTR; i++)
+        if (s[i] && !(l->str[i] = ai__strdup(s[i]))) goto nomem;
     for (int i = 0; i < AI__NNUM; i++)
-        nl->num[i] = n[i]->set ? AI_F((double)n[i]->v) : old->num[i];
-    if (c->opts || old->opts) {
-        ai_opts m;
-        ai__merge(c->opts, old->opts, &m);
-        if (c->opts && c->opts->num_ctx.set) m.num_ctx = c->opts->num_ctx;
-        else if (old->opts) m.num_ctx = old->opts->num_ctx;
-        if (!(nl->opts = ai__opts_dup(&m))) goto nomem;
-    }
+        if (n[i]->set) l->num[i] = AI_F((double)n[i]->v);
+    if (c->opts && !(l->opts = ai__opts_dup(c->opts))) goto nomem;
     return 0;
 nomem:
-    ai__layer_free(nl);
+    ai__layer_free(l);
     return ai__nomem();
 }
 
 int ai_defaults(const ai_config *c) {
     ai__begin();
     if (ai__init() || (c && ai__valid_config(c))) return -1;
+    ai__layer l = {0};
+    if (c && ai__layer_from(c, &l)) return -1;
     pthread_mutex_lock(&ai__cfg_mu);
-    ai__layer nl;
     ai__conf *nc = NULL;
-    int rc = ai__layer_update(&ai__def_layer, c, &nl);
-    /* a reset keeps the store paths already in use */
-    if (!rc && !c && ai__db_open && !(nl.str[AI__S_DB] = ai__strdup(ai__db_open)))
+    int rc = 0;
+    if (!ai__conf_cur)
+        rc = ai__gone();
+    else if (!(nc = ai__resolve(&ai__env_layer, &l)))
         rc = ai__nomem();
-    if (!rc && !c && ai__reviews_open &&
-        !(nl.str[AI__S_REVIEWS] = ai__strdup(ai__reviews_open)))
-        rc = ai__nomem();
-    if (!rc && !(nc = ai__resolve(&ai__env_layer, &nl))) rc = ai__nomem();
-    if (!rc && ai__db_open && ((c && c->db && strcmp(c->db, ai__db_open)) ||
-                               strcmp(nc->str[AI__S_DB], ai__db_open)))
-        rc = ai__fail(AI_EBUSY, "ai_defaults: the cache %s is already in use; db cannot "
-                      "change to %s", ai__db_open, c && c->db ? c->db : nc->str[AI__S_DB]);
-    if (!rc && ai__reviews_open &&
-        ((c && c->reviews && strcmp(c->reviews, ai__reviews_open)) ||
-         strcmp(nc->str[AI__S_REVIEWS], ai__reviews_open)))
-        rc = ai__fail(AI_EBUSY, "ai_defaults: the review directory %s is already in use; "
-                      "reviews cannot change to %s", ai__reviews_open,
-                      c && c->reviews ? c->reviews : nc->str[AI__S_REVIEWS]);
-    if (rc) {
-        ai__layer_free(&nl);
-        ai__conf_free(nc);
-    } else {
-        ai__layer_free(&ai__def_layer);
-        ai__def_layer = nl;
-        ai__conf_cur->retired_next = ai__conf_retired;
-        ai__conf_retired = ai__conf_cur;
+    else {
+        ai__conf *old = ai__conf_cur;
         ai__conf_cur = nc;
+        if (old->refs == 0) ai__conf_free(old);
     }
     pthread_mutex_unlock(&ai__cfg_mu);
-    return rc ? -1 : 0;
-}
-
-int ai_effective(ai_config *out) {
-    ai__begin();
-    if (!out) return ai__fail(AI_EARG, "ai_effective: NULL argument");
-    if (ai__init()) return -1;
-    pthread_mutex_lock(&ai__cfg_mu);
-    ai__conf *c = ai__conf_cur;
-    memset(out, 0, sizeof *out);
-    out->host = c->str[AI__S_HOST];
-    out->llm = c->str[AI__S_LLM];
-    out->decider = c->str[AI__S_DECIDER];
-    out->embedder = c->str[AI__S_EMBEDDER];
-    out->db = c->str[AI__S_DB];
-    out->reviews = c->str[AI__S_REVIEWS];
-    if (c->num_ctx > 0) out->num_ctx = AI_I(c->num_ctx);
-    out->timeout = AI_I((long)ceil(c->timeout));
-    out->fresh = AI_I(c->fresh);
-    out->guard = AI_I(c->guard);
-    if (c->dims > 0) out->embed_dimensions = AI_I(c->dims);
-    out->opts = c->opts;
-    pthread_mutex_unlock(&ai__cfg_mu);
-    return 0;
-}
-
-const char *ai_setting_source(const char *name) {
-    if (!name || ai__init()) return NULL;
-    const char *s = NULL;
-    pthread_mutex_lock(&ai__cfg_mu);
-    for (int i = 0; i < AI__S_N; i++)
-        if (!strcmp(name, ai__s_name[i])) s = ai__conf_cur->src[i];
-    pthread_mutex_unlock(&ai__cfg_mu);
-    return s;
+    ai__layer_free(&l);
+    return rc;
 }
 
 /* ---- cache state (guarded by ai__cache_mu) ------------------------------ */
@@ -1197,10 +1105,6 @@ static int ai__cache_open(void) {
             tld_hash_free(ai__cache); /* a partial load is dropped; retried next call */
             ai__cache = NULL;
         } else {
-            char *p2 = ai__strdup(path);
-            pthread_mutex_lock(&ai__cfg_mu);
-            if (p2) ai__db_open = p2;
-            pthread_mutex_unlock(&ai__cfg_mu);
             ai__cache_file = path;
         }
     }
@@ -1288,9 +1192,18 @@ static int ai__connect(double deadline, char *why, size_t whyn) {
         snprintf(why, whyn, "cannot resolve %s: %s", ai__c->name, gai_strerror(g));
         return -1;
     }
-    int fd = -1;
+    int fd = -1, left = 0;
+    for (a = res; a; a = a->ai_next) left++;
     snprintf(why, whyn, "cannot connect");
-    for (a = res; a; a = a->ai_next) {
+    /* each address gets an equal share of the time that is left, so one that does not
+     * answer cannot use up the budget of the ones after it */
+    for (a = res; a; a = a->ai_next, left--) {
+        double now = ai__now();
+        if (now >= deadline) {
+            snprintf(why, whyn, "%s", strerror(ETIMEDOUT));
+            break;
+        }
+        double mine = now + (deadline - now) / left;
         fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
         if (fd < 0) continue;
         fcntl(fd, F_SETFD, FD_CLOEXEC);
@@ -1306,7 +1219,7 @@ static int ai__connect(double deadline, char *why, size_t whyn) {
 #endif
         int rc = connect(fd, a->ai_addr, a->ai_addrlen);
         if (rc < 0 && errno == EINPROGRESS) {
-            int w = ai__wait(fd, POLLOUT, deadline);
+            int w = ai__wait(fd, POLLOUT, mine);
             int err = 0;
             socklen_t el = sizeof err;
             if (w == 1 && getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &el) == 0 && !err)
@@ -1543,7 +1456,7 @@ done:
     return rc;
 }
 
-/* GET with a short deadline, for /api/version, /api/tags and /api/ps. */
+/* GET with a short deadline, for /api/tags. */
 static int ai__get(const char *path, tld_json_obj **out) {
     tld_strbuf *b = NULL;
     *out = NULL;
@@ -1585,10 +1498,10 @@ static int ai__server_up(void) {
     return 0;
 }
 
-/* ---- models: digests, cloud flag ---------------------------------------- */
+/* ---- models: digests ---------------------------------------------------- */
 
 static pthread_mutex_t ai__dig_mu = PTHREAD_MUTEX_INITIALIZER;
-static tld_hash *ai__dig; /* "name:tag" -> "l<digest>" (local) or "c<digest>" (cloud) */
+static tld_hash *ai__dig; /* host 0x1f "name:tag" -> digest */
 
 /* "x" and "x:latest" are one model. */
 static void ai__norm(const char *m, char *out, size_t n) {
@@ -1596,31 +1509,30 @@ static void ai__norm(const char *m, char *out, size_t n) {
     snprintf(out, n, strchr(slash ? slash : m, ':') ? "%s" : "%s:latest", m);
 }
 
-/* Guard and digest state is kept per host: key = host, 0x1f, model. */
+/* Digests are kept per host: key = host, 0x1f, model. */
 static void ai__hkey(const char *norm, char *out, size_t n) {
     snprintf(out, n, "%s\x1f%s", AI__HOST(ai__c), norm);
 }
 
-static int ai__dig_lookup(const char *norm, char *digest, size_t dn, int *cloud) {
+static int ai__dig_lookup(const char *norm, char *digest, size_t dn) {
     char *v = NULL, hk[900];
     int found = 0;
     ai__hkey(norm, hk, sizeof hk);
     pthread_mutex_lock(&ai__dig_mu);
     if (ai__dig && tld_hash_get(ai__dig, hk, &v) == OK && v) {
         found = 1;
-        *cloud = v[0] == 'c';
-        snprintf(digest, dn, "%s", v + 1);
+        snprintf(digest, dn, "%s", v);
     }
     pthread_mutex_unlock(&ai__dig_mu);
     return found;
 }
 
-/* Digest and cloud flag of model from /api/tags. A failed /api/tags is not cached,
- * and neither is a model that is not listed, so a later pull is seen. */
-static int ai__model_info(const char *model, char *digest, size_t dn, int *cloud) {
+/* Digest of model from /api/tags. A failed /api/tags is not cached, and neither is a
+ * model that is not listed, so a later pull is seen. */
+static int ai__model_info(const char *model, char *digest, size_t dn) {
     char norm[300];
     ai__norm(model, norm, sizeof norm);
-    if (ai__dig_lookup(norm, digest, dn, cloud)) return 0;
+    if (ai__dig_lookup(norm, digest, dn)) return 0;
     tld_json_obj *r = NULL;
     tld_json_arr *ms = NULL;
     if (ai__get("/api/tags", &r)) return -1;
@@ -1636,153 +1548,19 @@ static int ai__model_info(const char *model, char *digest, size_t dn, int *cloud
         const char *name = ai__str(m, "name"), *dg = ai__str(m, "digest");
         if (!name) name = ai__str(m, "model");
         if (!name) continue;
-        char nm[300], key[900], val[200];
+        char nm[300], key[900];
         ai__norm(name, nm, sizeof nm);
         ai__hkey(nm, key, sizeof key);
-        snprintf(val, sizeof val, "%c%s", ai__str(m, "remote_host") ? 'c' : 'l',
-                 dg ? dg : "");
-        if (tld_hash_add(&ai__dig, key, val) != OK) rc = ai__nomem();
+        if (tld_hash_add(&ai__dig, key, (char *)(dg ? dg : "")) != OK) rc = ai__nomem();
     }
     pthread_mutex_unlock(&ai__dig_mu);
     tld_json_obj_free(r);
     if (rc) return rc;
-    if (ai__dig_lookup(norm, digest, dn, cloud)) return 0;
+    if (ai__dig_lookup(norm, digest, dn)) return 0;
     return ai__fail(AI_ENOMODEL,
                     "model %s is not installed on the Ollama server at %s "
                     "(ollama pull %s)",
                     model, AI__HOST(ai__c), model);
-}
-
-/* ---- one-model guard ---------------------------------------------------- */
-
-/* In-process gate: calls to the active model run concurrently; a call to another
- * local model waits until they finish. */
-static struct {
-    pthread_mutex_t mu;
-    pthread_cond_t cv;
-    char model[900]; /* host 0x1f model */
-    int inflight;
-} ai__gate = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_COND_INITIALIZER, "", 0};
-
-static pthread_mutex_t ai__guard_mu = PTHREAD_MUTEX_INITIALIZER; /* /api/ps + unload */
-static tld_hash *ai__ours; /* local models this process loaded */
-
-static void ai__gate_leave(void) {
-    pthread_mutex_lock(&ai__gate.mu);
-    if (--ai__gate.inflight == 0) pthread_cond_broadcast(&ai__gate.cv);
-    pthread_mutex_unlock(&ai__gate.mu);
-}
-
-static int ai__is_ours(const char *norm) {
-    char *v = NULL, hk[900];
-    ai__hkey(norm, hk, sizeof hk);
-    return ai__ours && tld_hash_get(ai__ours, hk, &v) == OK;
-}
-
-static int ai__unload(const char *model) {
-    tld_json_obj *req = NULL;
-    tld_strbuf *body = NULL, *b = NULL;
-    if (ai__put(&req, JSTR("model", model)) || ai__put(&req, JINT("keep_alive", 0)) ||
-        ai__dump(req, &body, 0)) {
-        if (req) tld_json_obj_free(req);
-        return -1;
-    }
-    tld_json_obj_free(req);
-    int rc = ai__http("POST", "/api/generate", TLD_STR(body),
-                      AI__MIN(ai__c->timeout, 60.0), &b);
-    tld_strbuf_free(body);
-    tld_strbuf_free(b);
-    if (rc) {
-        char msg[512];
-        ai__setstr(msg, sizeof msg, ai__t_err);
-        return ai__fail(ai__t_st, "cannot unload %s, loaded earlier by this program: %s",
-                        model, msg);
-    }
-    return 0;
-}
-
-/* Called before a live call to model. On success the gate is held when *held is set
- * (release it with ai__guard_leave). *was_loaded tells whether model was already in
- * memory before this call, so only a load this process caused makes it "ours". */
-static int ai__guard_enter(const char *model, int cloud, int *held, int *was_loaded) {
-    *held = 0;
-    *was_loaded = 0;
-    if (cloud || !ai__c->guard) return 0;
-    char norm[300];
-    ai__norm(model, norm, sizeof norm);
-
-    char gk[900];
-    ai__hkey(norm, gk, sizeof gk);
-    pthread_mutex_lock(&ai__gate.mu);
-    while (ai__gate.inflight > 0 && strcmp(ai__gate.model, gk))
-        pthread_cond_wait(&ai__gate.cv, &ai__gate.mu);
-    ai__setstr(ai__gate.model, sizeof ai__gate.model, gk);
-    ai__gate.inflight++;
-    pthread_mutex_unlock(&ai__gate.mu);
-    *held = 1;
-
-    pthread_mutex_lock(&ai__guard_mu);
-    tld_json_obj *ps = NULL;
-    tld_json_arr *ms = NULL;
-    int rc = ai__get("/api/ps", &ps);
-    if (!rc && tld_json_get_arr(ps, "models", &ms) != OK)
-        rc = ai__fail(AI_EPARSE, "GET /api/ps: no models list");
-    char unload[8][300];
-    int nun = 0;
-    for (int i = 0; !rc && i < ms->n; i++) {
-        if (ms->v[i]->type != TLD_JSON_OBJ) continue;
-        tld_json_obj *m = ms->v[i]->value.obj;
-        const char *name = ai__str(m, "name");
-        if (!name) name = ai__str(m, "model");
-        if (!name) continue;
-        char ln[300], dg[200];
-        int lcloud = 0;
-        ai__norm(name, ln, sizeof ln);
-        if (!strcmp(ln, norm)) {
-            *was_loaded = 1;
-            continue;
-        }
-        if (ai__str(m, "remote_host") || (ai__dig_lookup(ln, dg, sizeof dg, &lcloud) &&
-                                          lcloud))
-            continue; /* cloud models use no local memory */
-        if (!ai__is_ours(ln))
-            rc = ai__fail(AI_EBUSY,
-                          "model %s is loaded by another program; ai.h will not unload it "
-                          "and will not load %s next to it (wait, run `ollama stop %s` "
-                          "yourself, or set AI_GUARD=off)",
-                          name, model, name);
-        else if (nun < 8)
-            ai__setstr(unload[nun++], sizeof unload[0], ln);
-    }
-    for (int i = 0; !rc && i < nun; i++) {
-        rc = ai__unload(unload[i]);
-        if (!rc) {
-            char hk[900];
-            ai__hkey(unload[i], hk, sizeof hk);
-            tld_hash_del(ai__ours, hk);
-        }
-    }
-    pthread_mutex_unlock(&ai__guard_mu);
-    if (ps) tld_json_obj_free(ps);
-    if (rc) {
-        ai__gate_leave();
-        *held = 0;
-    }
-    return rc;
-}
-
-static void ai__guard_leave(const char *model, int held, int mark_ours) {
-    if (!held) return;
-    if (mark_ours) {
-        char norm[300], hk[900];
-        ai__norm(model, norm, sizeof norm);
-        ai__hkey(norm, hk, sizeof hk);
-        pthread_mutex_lock(&ai__guard_mu);
-        if (tld_hash_add(&ai__ours, hk, "1") != OK)
-            fprintf(stderr, "ai: out of memory recording loaded model %s\n", norm);
-        pthread_mutex_unlock(&ai__guard_mu);
-    }
-    ai__gate_leave();
 }
 
 /* ---- logged, cached call ------------------------------------------------ */
@@ -1897,18 +1675,14 @@ static void ai__cache_store(const char *key, const char *ep, const char *model,
 
 /* Send req to endpoint for model, or replay it from the cache. Returns the parsed
  * reply (caller frees) or NULL with the status set. req stays the caller's. */
-static _Thread_local char ai__t_dg[200]; /* digest of the model of the last call */
 
 static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *req,
                               int fresh) {
     memset(&ai__t_last, 0, sizeof ai__t_last);
-    ai__t_dg[0] = 0;
     if (ai__host_ok() || ai__server_up()) return NULL;
     if (ai__c->cache_on && ai__cache_open()) return NULL;
     char dg[200];
-    int cloud = 0;
-    if (ai__model_info(model, dg, sizeof dg, &cloud)) return NULL;
-    ai__setstr(ai__t_dg, sizeof ai__t_dg, dg);
+    if (ai__model_info(model, dg, sizeof dg)) return NULL;
     tld_strbuf *body = NULL;
     if (ai__dump(req, &body, 0)) return NULL;
 
@@ -1938,18 +1712,13 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
         tld_strbuf_free(body);
         if (rc) {
             if (ai__t_st == AI_OK) ai__fail(AI_EPARSE, "%s: cached reply is damaged", ep);
+            ai__seen_release(base, occ);
             return NULL;
         }
         ai__t_last.from_cache = 1;
         return resp;
     }
 
-    int held = 0, was_loaded = 0;
-    if (ai__guard_enter(model, cloud, &held, &was_loaded)) {
-        ai__seen_release(base, occ);
-        tld_strbuf_free(body);
-        return NULL;
-    }
     double t0 = ai__now();
     tld_strbuf *rb = NULL;
     int rc = ai__http("POST", ep, TLD_STR(body), ai__c->timeout, &rb);
@@ -1958,9 +1727,6 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
         rc = ai__fail(AI_EPARSE, "POST %s: reply is not a JSON object", ep);
     tld_strbuf_free(rb);
     tld_strbuf_free(body);
-    /* a request that reached the server may have loaded the model */
-    ai__guard_leave(model, held, !was_loaded && (!rc || ai__t_st == AI_EHTTP ||
-                                                 ai__t_st == AI_EPARSE));
     if (rc) {
         ai__seen_release(base, occ);
         return NULL;
@@ -2061,8 +1827,12 @@ static int ai__add_options(tld_json_obj **req, const ai_opts *o) {
         }
         if (!rc && !op && tld_json_obj_alloc(&op) != OK) rc = ai__nomem();
         for (int i = 0; !rc && x && i < x->n; i++) {
-            if (tld_append(op->key[op->n], TLD_STR(x->key[i])) != OK ||
-                tld_json_val_copy(op->v[op->n], x->v[i]) != OK)
+            int j = 0; /* a key already present (built-in or earlier) is replaced */
+            while (j < op->n && strcmp(TLD_STR(op->key[j]), TLD_STR(x->key[i]))) j++;
+            if (j < op->n) {
+                if (tld_json_val_copy(op->v[j], x->v[i]) != OK) rc = ai__nomem();
+            } else if (tld_append(op->key[op->n], TLD_STR(x->key[i])) != OK ||
+                       tld_json_val_copy(op->v[op->n], x->v[i]) != OK)
                 rc = ai__nomem();
             else {
                 op->n++;
@@ -2396,6 +2166,7 @@ static int ai__choose_impl(const char *name, const char *question, const ai_labe
                            int n, const char *state, const ai_opts *o, double *confidence,
                            double *p) {
     tld_json_obj *crit = NULL, *a = NULL;
+    if (!L || n <= 0) return ai__fail(AI_EARG, "%s: no labels", name ? name : "choice");
     for (int i = 0; i < n; i++)
         if (ai__put(&crit, JSTR(L[i].name, L[i].desc))) {
             if (crit) tld_json_obj_free(crit);
@@ -2497,31 +2268,6 @@ double ai_yesno(const char *question, const char *state) {
 
 /* ---- public: embeddings ------------------------------------------------- */
 
-/* Vectors from different embedders are not comparable, and ai_vec cannot carry the
- * model, so the first embedder (host, model, digest, dimensions) is recorded and a
- * later call that differs gets one warning per process. */
-static pthread_mutex_t ai__emb_mu = PTHREAD_MUTEX_INITIALIZER;
-static char ai__emb_first[1200];
-static int ai__emb_warned;
-
-static void ai__embed_note(const char *model, int dim, long req_dims) {
-    char norm[300], id[1200], msg[2600];
-    ai__norm(model, norm, sizeof norm);
-    snprintf(id, sizeof id, "%s %s@%s, %d dimensions (requested %ld)", AI__HOST(ai__c), norm,
-             ai__t_dg, dim, req_dims);
-    int warn = 0;
-    pthread_mutex_lock(&ai__emb_mu);
-    if (!ai__emb_first[0])
-        ai__setstr(ai__emb_first, sizeof ai__emb_first, id);
-    else if (strcmp(ai__emb_first, id) && !ai__emb_warned) {
-        ai__emb_warned = warn = 1;
-        snprintf(msg, sizeof msg, "embeddings from a different embedder in one process: "
-                 "first %s, now %s; their vectors are not comparable", ai__emb_first, id);
-    }
-    pthread_mutex_unlock(&ai__emb_mu);
-    if (warn) AI_LOG(1, msg);
-}
-
 static ai_vecs ai__embed_impl(const ai_opts *call, const char *const *texts, int n) {
     ai_vecs out = {0, 0, NULL};
     /* text options never come from the defaults here; dimensions default to
@@ -2586,10 +2332,8 @@ static ai_vecs ai__embed_impl(const ai_opts *call, const char *const *texts, int
                 }
             }
         }
-        if (ok && (x = ai__keep(x))) {
+        if (ok && (x = ai__keep(x)))
             out = (ai_vecs){n, dim, x};
-            ai__embed_note(model, dim, o->dimensions.set ? o->dimensions.v : 0);
-        }
         else if (!ok)
             free(x);
     }
@@ -2715,12 +2459,8 @@ static const char *ai__review_impl(const char *what, const char *payload) {
         ai__fail(AI_EARG, "ai_review: NULL argument");
         return NULL;
     }
-    char dir[1024], path[1200];
-    pthread_mutex_lock(&ai__cfg_mu); /* the review directory is fixed from now on */
-    if (!ai__reviews_open) ai__reviews_open = ai__strdup(ai__c->str[AI__S_REVIEWS]);
-    ai__setstr(dir, sizeof dir, ai__reviews_open ? ai__reviews_open
-                                                 : ai__c->str[AI__S_REVIEWS]);
-    pthread_mutex_unlock(&ai__cfg_mu);
+    char path[1200];
+    const char *dir = ai__c->str[AI__S_REVIEWS];
     snprintf(path, sizeof path, "%s/%016llx.json", dir,
              (unsigned long long)ai__fnv(ai__fnv(AI__FNV0, what), payload));
     const char *ans = NULL;
@@ -2798,25 +2538,14 @@ static void ai__shutdown(void) {
     tld_hash_free(ai__dig);
     ai__dig = NULL;
     pthread_mutex_unlock(&ai__dig_mu);
-    pthread_mutex_lock(&ai__guard_mu);
-    tld_hash_free(ai__ours);
-    ai__ours = NULL;
-    pthread_mutex_unlock(&ai__guard_mu);
     pthread_mutex_lock(&ai__cache_mu);
     free(ai__cache_file);
     ai__cache_file = NULL;
     pthread_mutex_unlock(&ai__cache_mu);
-    pthread_mutex_lock(&ai__cfg_mu);
-    ai__retired_sweep(1);
-    if (ai__conf_cur && ai__conf_cur->refs == 0) {
-        ai__conf_free(ai__conf_cur);
-        ai__conf_cur = NULL;
-    }
+    pthread_mutex_lock(&ai__cfg_mu); /* later calls fail cleanly (ai__enter) */
+    if (ai__conf_cur && ai__conf_cur->refs == 0) ai__conf_free(ai__conf_cur);
+    ai__conf_cur = NULL; /* one still in use is freed by its last ai__leave */
     ai__layer_free(&ai__env_layer);
-    ai__layer_free(&ai__def_layer);
-    free(ai__db_open);
-    free(ai__reviews_open);
-    ai__db_open = ai__reviews_open = NULL;
     pthread_mutex_unlock(&ai__cfg_mu);
 }
 

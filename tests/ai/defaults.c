@@ -1,11 +1,13 @@
-/* tests/ai/defaults.c - ai_defaults(), ai_effective(), ai_setting_source() (PRD 6.10).
+/* tests/ai/defaults.c - ai_defaults() (PRD 6.10).
  *
- *   defaults set HOST DB REVIEWS SRC   set every default, call each endpoint, check the
- *                                      in-program rules; SRC is the expected source of
- *                                      the string settings ("defaults", or "env" when
- *                                      run.sh sets the AI_* variables)
+ *   defaults set HOST DB REVIEWS SRC   set every default, call each endpoint, check
+ *                                      validation; SRC is "defaults", or "env" when
+ *                                      run.sh sets the AI_* variables (they must win)
+ *   defaults reset HOST                a later call replaces the defaults, NULL resets
+ *                                      (AI_HOST must point at the mock)
  *   defaults timeout HOST              a 1 s default timeout against a slow mock
  *   defaults stress HOST               8 threads calling while defaults change (TSan)
+ *   defaults afterexit                 a call after ai.h's exit cleanup fails cleanly
  *
  * run.sh checks the logged requests (models per endpoint, options, dimensions). */
 #define _POSIX_C_SOURCE 200809L
@@ -14,8 +16,10 @@
 #include "ai.h"
 #include "status_name.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #define T2(X) X(alpha, "First") X(beta, "Second")
 AI_CHOICE(pick, "Which one?", T2)
@@ -29,28 +33,13 @@ static void expect(int cond, const char *what) {
     if (!cond) bad = 1;
 }
 
-static void show(void) {
-    static const char *names[] = {"host", "llm", "decider", "embedder", "db", "reviews",
-                                  "num_ctx", "timeout", "fresh", "guard",
-                                  "embed_dimensions", "opts"};
-    ai_config c;
-    if (ai_effective(&c)) return;
-    printf("effective: host=%s llm=%s decider=%s embedder=%s db=%s reviews=%s timeout=%ld "
-           "dims=%ld guard=%ld\n",
-           c.host, c.llm, c.decider, c.embedder, c.db, c.reviews, c.timeout.v,
-           c.embed_dimensions.set ? c.embed_dimensions.v : 0, c.guard.v);
-    printf("sources:");
-    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++)
-        printf(" %s=%s", names[i], ai_setting_source(names[i]));
-    printf("\n");
-}
-
-/* Never let a test call reach a real server: the host in force must be a local mock. */
-static int safe_host(void) {
-    ai_config c;
-    if (ai_effective(&c) || strncmp(c.host, "http://127.0.0.1:", 17) ||
-        !strcmp(c.host + 17, "11434")) {
-        fprintf(stderr, "defaults: refusing to run against %s\n", c.host);
+/* Never let a test call reach a real server: the host in force (AI_HOST wins over the
+ * defaults) must be a local mock. */
+static int safe_host(const char *host) {
+    const char *h = getenv("AI_HOST");
+    if (!h || !*h) h = host;
+    if (!h || strncmp(h, "http://127.0.0.1:", 17) || !strcmp(h + 17, "11434")) {
+        fprintf(stderr, "defaults: refusing to run against %s\n", h ? h : "(none)");
         return 0;
     }
     return 1;
@@ -59,40 +48,22 @@ static int safe_host(void) {
 static int mode_set(const char *host, const char *db, const char *reviews, const char *src) {
     const char *stops[] = {"DEFAULT-STOP", NULL};
     int env = !strcmp(src, "env");
+    if (!safe_host(host)) return 1;
     /* the caller's storage may be temporary: ai.h copies. With the environment set,
      * the defaults name paths that must never be used. */
     char tmpdb[1024], revdef[1024];
     snprintf(tmpdb, sizeof tmpdb, "%s%s", db, env ? ".unused" : "");
     snprintf(revdef, sizeof revdef, "%s%s", reviews, env ? ".unused" : "");
-
-    /* cumulative: two calls, the second adds to the first */
     expect(ai_defaults(AI_CONFIG(.host = host, .llm = "alt-llm", .decider = "alt-decider",
-                                 .timeout = AI_I(7))) == 0, "ai_defaults (first part)");
-    if (bad || !safe_host()) return 1;
-    expect(ai_defaults(AI_CONFIG(.embedder = "alt-embedder", .db = tmpdb, .reviews = revdef,
-                                 .embed_dimensions = AI_I(64),
+                                 .embedder = "alt-embedder", .db = tmpdb, .reviews = revdef,
+                                 .timeout = AI_I(7), .embed_dimensions = AI_I(64),
                                  .opts = AI_OPTS(.model = "ignored-model",
                                                  .system = "DEFAULT-SYS",
                                                  .temperature = AI_F(0.25), .seed = AI_I(9),
                                                  .keep_alive = "5m", .stop = stops))) == 0,
-           "ai_defaults (second part, cumulative)");
+           "ai_defaults");
     memset(tmpdb, 'x', sizeof tmpdb - 1);
     memset(revdef, 'x', sizeof revdef - 1);
-    show();
-    ai_config c;
-    ai_effective(&c);
-    expect(!strcmp(ai_setting_source("llm"), src) && !strcmp(ai_setting_source("host"), src) &&
-               !strcmp(ai_setting_source("db"), src), "string settings come from the expected layer");
-    expect(!strcmp(ai_setting_source("timeout"), src), "timeout source");
-    expect(!strcmp(ai_setting_source("embed_dimensions"), "defaults") && c.embed_dimensions.v == 64,
-           "embed_dimensions from defaults");
-    expect(!strcmp(ai_setting_source("opts"), "defaults") && c.opts &&
-               !strcmp(c.opts->system, "DEFAULT-SYS") && !c.opts->model,
-           "opts deep-copied, model dropped");
-    expect(!strcmp(ai_setting_source("guard"), "builtin"), "guard is built-in");
-    expect(ai_setting_source("nonsense") == NULL, "unknown setting name gives NULL");
-    expect(c.timeout.v == (env ? 5 : 7), "timeout value");
-    expect(!strcmp(c.llm, env ? "inkling-2-mini:latest" : "alt-llm"), "llm value");
 
     /* one call per endpoint with the defaults, then with a per-call model */
     expect(ai_text("default text") != NULL, "ai_text uses the default llm");
@@ -109,44 +80,37 @@ static int mode_set(const char *host, const char *db, const char *reviews, const
            "second embed with the other embedder");
     expect(ai_review("Pick?", "payload") == NULL && ai_status() == AI_OK, "review opened");
 
-    /* store paths are fixed once in use */
-    expect(ai_defaults(AI_CONFIG(.db = "elsewhere.cache", .llm = "zzz")) == -1 &&
-               ai_status() == AI_EBUSY, "db change after first use refused (AI_EBUSY)");
-    expect(ai_defaults(AI_CONFIG(.reviews = "elsewhere-reviews")) == -1 &&
-               ai_status() == AI_EBUSY, "reviews change after first use refused (AI_EBUSY)");
-    ai_effective(&c);
-    expect(!strcmp(c.db, db) && strcmp(c.llm, "zzz"), "refused call changed nothing");
-
-    /* validation, all or nothing */
+    /* validation, all or nothing: run.sh checks that the next text call still uses
+     * the llm set above */
     expect(ai_defaults(AI_CONFIG(.host = "https://example.org", .llm = "zzz")) == -1 &&
                ai_status() == AI_EHTTP, "https host rejected (AI_EHTTP)");
     expect(ai_defaults(AI_CONFIG(.timeout = AI_I(0), .llm = "zzz")) == -1 &&
                ai_status() == AI_EARG, "timeout 0 rejected");
     expect(ai_defaults(AI_CONFIG(.llm = "", .decider = "zzz")) == -1 && ai_status() == AI_EARG,
            "empty model name rejected");
-    expect(ai_defaults(AI_CONFIG(.guard = AI_I(2))) == -1, "guard 2 rejected");
-    ai_effective(&c);
-    expect(strcmp(c.llm, "zzz") && strcmp(c.decider, "zzz") && c.timeout.v == (env ? 5 : 7),
-           "invalid calls changed nothing");
+    expect(ai_defaults(AI_CONFIG(.fresh = AI_I(2))) == -1, "fresh 2 rejected");
+    expect(ai_text("after invalid") != NULL, "invalid calls changed nothing");
+    return bad;
+}
 
-    /* reset */
+static int mode_reset(const char *host) {
+    if (!safe_host(NULL)) return 1; /* AI_HOST must be the mock: the reset drops .host */
+    expect(ai_defaults(AI_CONFIG(.host = host, .llm = "alt-llm", .embed_dimensions = AI_I(64),
+                                 .opts = AI_OPTS(.system = "RESET-SYS"))) == 0,
+           "ai_defaults llm, embed_dimensions, opts");
+    expect(ai_text("r1") != NULL && ai_embed("r1").x != NULL, "calls with the defaults");
+    expect(ai_defaults(AI_CONFIG(.decider = "alt-decider")) == 0, "ai_defaults decider only");
+    expect(ai_text("r2") != NULL, "call after the second ai_defaults");
     expect(ai_defaults(NULL) == 0, "ai_defaults(NULL)");
-    show();
-    ai_effective(&c);
-    expect(!strcmp(ai_setting_source("llm"), env ? "env" : "builtin") &&
-               !strcmp(c.llm, env ? "inkling-2-mini:latest" : "inkling-2-mini:latest"),
-           "reset: llm back to the built-in (or env)");
-    expect(!strcmp(ai_setting_source("opts"), "builtin") && !c.opts &&
-               !c.embed_dimensions.set, "reset: opts and embed_dimensions cleared");
-    expect(!strcmp(c.db, db), "reset keeps the cache that is in use");
+    expect(ai_text("r3") != NULL && ai_embed("r3").x != NULL, "calls after the reset");
     return bad;
 }
 
 static int mode_timeout(const char *host) {
     struct timespec t0, t1;
+    if (!safe_host(host)) return 1;
     expect(ai_defaults(AI_CONFIG(.host = host, .timeout = AI_I(1), .db = "off")) == 0,
            "ai_defaults timeout 1");
-    if (bad || !safe_host()) return 1;
     clock_gettime(CLOCK_MONOTONIC, &t0);
     char *s = ai_text("slow");
     clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -169,8 +133,6 @@ static void stress_job(int i, void *ctx) {
                                   .opts = AI_OPTS(.system = sys, .temperature = AI_F(i)))))
             g_fail = 1;
     }
-    ai_config c;
-    if (ai_effective(&c) || !c.llm) g_fail = 1;
     if (!ai_text("job %d", i)) {
         fprintf(stderr, "stress: text %d: %s\n", i, ai_error());
         g_fail = 1;
@@ -183,18 +145,38 @@ static void stress_job(int i, void *ctx) {
 
 static int mode_stress(const char *host) {
     g_host = host;
+    if (!safe_host(host)) return 1;
     expect(ai_defaults(AI_CONFIG(.host = host)) == 0, "ai_defaults host");
-    if (bad || !safe_host()) return 1;
     ai_parallel(64, 8, stress_job, NULL);
     expect(!g_fail, "64 jobs on 8 threads while the defaults change");
     ai_reset();
     return bad;
 }
 
+/* Registered before ai.h's own exit handler, so it runs after it. */
+static void after_exit(void) {
+    int ok = ai_text("after exit") == NULL && ai_status() == AI_EARG &&
+             ai_defaults(AI_CONFIG(.llm = "x")) == -1 && ai_status() == AI_EARG &&
+             ai_embed("after exit").x == NULL && !ai_choose(pick, "state").ok;
+    printf("%s  calls after the exit cleanup fail with AI_EARG: %s\n", ok ? "ok  " : "BAD ",
+           ai_error());
+    fflush(stdout);
+    _exit(ok ? 0 : 1);
+}
+
+static int mode_afterexit(void) {
+    atexit(after_exit);
+    expect(ai_defaults(AI_CONFIG(.db = "off")) == 0, "ai_defaults before exit");
+    return 1; /* after_exit decides the exit code */
+}
+
 int main(int argc, char **argv) {
     if (argc >= 6 && !strcmp(argv[1], "set")) return mode_set(argv[2], argv[3], argv[4], argv[5]);
+    if (argc >= 3 && !strcmp(argv[1], "reset")) return mode_reset(argv[2]);
     if (argc >= 3 && !strcmp(argv[1], "timeout")) return mode_timeout(argv[2]);
     if (argc >= 3 && !strcmp(argv[1], "stress")) return mode_stress(argv[2]);
-    fprintf(stderr, "usage: defaults set HOST DB REVIEWS SRC | timeout HOST | stress HOST\n");
+    if (argc >= 2 && !strcmp(argv[1], "afterexit")) return mode_afterexit();
+    fprintf(stderr, "usage: defaults set HOST DB REVIEWS SRC | reset HOST | timeout HOST | "
+                    "stress HOST | afterexit\n");
     return 2;
 }

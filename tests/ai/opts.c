@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
     char *s = ai_text_with(AI_OPTS(.model = "inkling-2-mini", .system = "Be brief.",
                                    .temperature = AI_F(0), .seed = AI_I(7), .stop = stops,
                                    .think = "high", .keep_alive = "10m", .images = imgs,
-                                   .extra_options = "{\"repeat_penalty\":1.1}"),
+                                   .extra_options = "{\"repeat_penalty\":1.1,\"seed\":7}"),
                            "Describe %s", "the image");
     if (!s) {
         fprintf(stderr, "opts: status %d: %s\n", ai_status(), ai_error());

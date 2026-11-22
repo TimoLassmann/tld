@@ -2,12 +2,12 @@
 # tests/ai/run.sh GROUP BIN_DIR
 # ai.h tests against tests/ai/mock_ollama.py, which returns canned answers in the
 # documented Ollama shapes. They check requests, caching, replay, review, threads,
-# options, the HTTP client and the one-model guard; they say nothing about how real
-# models answer. Run from the repository root (ctest does). Never contacts a real
+# options, the HTTP client and ai_defaults; they say nothing about how real models
+# answer. Run from the repository root (ctest does). Never contacts a real
 # Ollama: every program gets AI_HOST pointing at a mock on a random free port, or at a
 # closed port.
 #
-# GROUP: plumbing noserver http json guard cache defaults sanitize tsan all
+# GROUP: plumbing noserver http json cache defaults sanitize tsan all
 set -u
 GROUP=${1:-all}
 B=${2:-build/tests}
@@ -33,7 +33,7 @@ fi
 # Safety net: nothing below may reach a real server by accident.
 CLOSED=$("$PY" -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1])')
 export AI_HOST=http://127.0.0.1:$CLOSED AI_DB=$T/default.cache AI_REVIEWS=$T/reviews
-unset AI_LLM AI_DECIDER AI_EMBEDDER AI_NUM_CTX AI_TIMEOUT AI_FRESH AI_GUARD
+unset AI_LLM AI_DECIDER AI_EMBEDDER AI_NUM_CTX AI_TIMEOUT AI_FRESH
 
 free_port() { "$PY" -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1])'; }
 
@@ -56,13 +56,6 @@ for _ in range(100):
 sys.exit(1)
 EOF
 }
-# idle: the server's keep_alive ran out, nothing is loaded any more. Used between runs
-# of separate programs where the test is not about another process's model (a real
-# server would refuse a mixed program's rerun while the previous run's model stays
-# loaded: that is the guard's rule, see Readme).
-idle() {
-    "$PY" -c 'import sys,urllib.request;urllib.request.urlopen(urllib.request.Request(sys.argv[1]+"/mock/ps",data=b"{\"loaded\": []}"),timeout=5)' "$HOST"
-}
 reqs() { grep -c '^mock: ' "$T/$1.log"; }
 count() { grep -c "$1" "$T/$2.log"; }
 check() { # check NAME RESULT(0 = pass) DETAIL
@@ -83,16 +76,13 @@ group_plumbing() {
     [ "$n2" = "$n1" ] && cmp -s "$T/out1.txt" "$T/out2.txt"
     check "triage rerun replays from cache" $? "new requests=$((n2 - n1))"
 
-    idle
-    AI_DB=$T/a.cache AI_FRESH=1 limit 60 "$B/ai-triage" tests/ai/ticket.txt >/dev/null
+    AI_DB=$T/a.cache AI_FRESH=On limit 60 "$B/ai-triage" tests/ai/ticket.txt >/dev/null
     n3=$(reqs a)
-    [ "$n3" -gt "$n2" ]; check "AI_FRESH=1 bypasses the cache" $? "no new requests"
+    [ "$n3" -gt "$n2" ]; check "AI_FRESH=On bypasses the cache" $? "no new requests"
 
-    idle
     AI_DB=$T/b.cache limit 60 "$B/ai-triage" tests/ai/t2.txt >"$T/out3.txt"
     grep -q 'Mock reply' "$T/out3.txt"; check "billing branch returns text" $? "$(cat "$T/out3.txt")"
 
-    idle
     AI_DB=$T/o.cache limit 60 "$B/ai-opts" tests/ai/img.png >"$T/opts.txt"; rc=$?
     "$PY" - "$T/o.cache" <<'EOF'
 import json, sys
@@ -101,13 +91,13 @@ o = r.get("options", {})
 ok = (r["model"] == "inkling-2-mini" and r["messages"][0] == {"role": "system", "content": "Be brief."}
       and r["messages"][1].get("images") == ["iVBORyBmYWtl"] and r["stream"] is False
       and o.get("temperature") == 0 and o.get("seed") == 7 and o.get("stop") == ["END"]
-      and o.get("repeat_penalty") == 1.1 and r.get("think") == "high" and r.get("keep_alive") == "10m")
+      and o.get("repeat_penalty") == 1.1 and r.get("think") == "high" and r.get("keep_alive") == "10m"
+      and open(sys.argv[1]).readline().count('"seed"') == 1)
 sys.exit(0 if ok else 1)
 EOF
     [ $? = 0 ] && [ $rc = 0 ] && grep -q 'tokens 40/12 cache 0' "$T/opts.txt"
     check "all options reach the request body" $? "rc=$rc $(cat "$T/opts.txt")"
 
-    idle
     AI_DB=$T/c.cache AI_NUM_CTX=16384 limit 60 "$B/ai-par" 4 >/dev/null
     "$PY" - "$T/c.cache" <<'EOF'
 import json, sys
@@ -162,6 +152,11 @@ $(cat "$T/ns.txt")"
     AI_HOST=http://127.0.0.1:$CLOSED limit 20 "$B/ai-text" hi 2>"$T/ns2.txt"; rc=$?
     [ $rc = 1 ] && grep -q 'AI_ENOSERVER: no Ollama server' "$T/ns2.txt"
     check "no server: the message names the problem" $? "$(cat "$T/ns2.txt")"
+    AI_HOST=http://127.0.0.1:$CLOSED AI_TIMEOUT=5s AI_NUM_CTX=12x AI_FRESH=maybe \
+        limit 20 "$B/ai-text" hi 2>"$T/env.txt"; rc=$?
+    [ $rc = 1 ] && grep -q 'ignoring AI_TIMEOUT=5s' "$T/env.txt" &&
+        grep -q 'ignoring AI_NUM_CTX=12x' "$T/env.txt" && grep -q 'ignoring AI_FRESH=maybe' "$T/env.txt"
+    check "environment values that do not parse are ignored with a warning" $? "$(cat "$T/env.txt")"
 }
 
 group_http() {
@@ -169,7 +164,6 @@ group_http() {
     AI_HOST=$HOST AI_DB=$T/ch.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/ch1.txt"; rc=$?
     [ $rc = 0 ] && [ "$(reqs ch)" = 5 ] && grep -q '^fix: mock title' "$T/ch1.txt"
     check "chunked replies: triage" $? "rc=$rc $(cat "$T/ch1.txt")"
-    idle
     AI_HOST=$HOST AI_DB=$T/ch2.cache limit 60 "$B/ai-par" 8 >"$T/ch2.txt"; rc=$?
     [ $rc = 0 ] && grep -q '16/16 ok' "$T/ch2.txt" && grep -q 'dim 8, nearest: \[Variant' "$T/ch2.txt"
     check "chunked replies: par and embeddings" $? "rc=$rc $(cat "$T/ch2.txt")"
@@ -215,42 +209,6 @@ EOF
     check "special characters reach the server intact" $? "logged requests differ"
 }
 
-group_guard() {
-    start_mock fo 0.93 --loaded other-model:latest
-    AI_HOST=$HOST limit 30 "$B/ai-apis" AI_EBUSY 10 >"$T/busy.txt"; rc=$?
-    [ $rc = 0 ] && grep -q 'other-model:latest is loaded by another program' "$T/busy.txt" &&
-        [ "$(count '^unload:' fo)" = 0 ] && [ "$(reqs fo)" = 0 ]
-    check "guard: another program's model gives AI_EBUSY and is never unloaded" $? "rc=$rc unloads=$(count '^unload:' fo) calls=$(reqs fo)
-$(cat "$T/busy.txt")"
-
-    AI_HOST=$HOST AI_LLM=gpt-oss:120b-cloud limit 30 "$B/ai-text" hi >"$T/cloud.txt" 2>&1; rc=$?
-    [ $rc = 0 ] && [ "$(reqs fo)" = 1 ] && [ "$(count '^unload:' fo)" = 0 ]
-    check "guard: cloud models are exempt" $? "rc=$rc $(cat "$T/cloud.txt")"
-
-    AI_HOST=$HOST AI_GUARD=off limit 30 "$B/ai-text" hi >"$T/off.txt" 2>&1; rc=$?
-    [ $rc = 0 ] && [ "$(count '^unload:' fo)" = 0 ]
-    check "guard: AI_GUARD=off lets the call through" $? "rc=$rc $(cat "$T/off.txt")"
-
-    start_mock own 0.93
-    AI_HOST=$HOST AI_DB=$T/own.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/own.txt" 2>&1; rc=$?
-    "$PY" - "$T/own.log" <<'EOF'
-import sys
-lines = [l for l in open(sys.argv[1]) if not l.startswith("get:")]
-kinds = [l.split()[0] + " " + l.split()[1] for l in lines]
-u = kinds.index("unload: autotrust-jev:latest")
-assert all(k == "mock: /v1/systemone" for k in kinds[:u]), kinds
-assert all(k == "mock: /api/chat" for k in kinds[u + 1:]), kinds
-assert not any(l.startswith("VIOLATION") for l in lines), lines
-EOF
-    [ $? = 0 ] && [ $rc = 0 ]
-    check "guard: own decider unloaded before the LLM, triage succeeds" $? "rc=$rc $(cat "$T/own.txt")"
-
-    start_mock gp 0.93
-    AI_HOST=$HOST AI_DB=$T/gp.cache limit 60 "$B/ai-par" 8 >"$T/gp.txt" 2>&1; rc=$?
-    [ $rc = 0 ] && [ "$(count VIOLATION gp)" = 0 ] && [ "$(count '^unload:' gp)" -ge 2 ]
-    check "guard: 8 threads mixing three models never hold two at once" $? "rc=$rc violations=$(count VIOLATION gp) unloads=$(count '^unload:' gp)"
-}
-
 group_cache() {
     start_mock tf 0.93 --fail-first /api/chat:1
     AI_HOST=$HOST AI_DB=$T/tf.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/tf1.txt" 2>&1; rc=$?
@@ -262,12 +220,10 @@ group_cache() {
     [ "$n2" = "$n1" ] && cmp -s "$T/tf1.txt" "$T/tf2.txt"
     check "transient failure: rerun replays without new requests" $? "new requests=$((n2 - n1))"
 
-    # Two programs that each mix three models cannot share one server under the guard
-    # (each sees the other's model), so this cache test runs them with AI_GUARD=off.
     start_mock cc 0.93
-    AI_HOST=$HOST AI_DB=$T/cc.cache AI_GUARD=off limit 60 "$B/ai-par" 8 >"$T/cc1.txt" 2>&1 &
+    AI_HOST=$HOST AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >"$T/cc1.txt" 2>&1 &
     a=$!
-    AI_HOST=$HOST AI_DB=$T/cc.cache AI_GUARD=off limit 60 "$B/ai-par" 8 >"$T/cc2.txt" 2>&1 &
+    AI_HOST=$HOST AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >"$T/cc2.txt" 2>&1 &
     b=$!
     wait $a; ra=$?
     wait $b; rb=$?
@@ -284,7 +240,6 @@ EOF
     [ $? = 0 ] && [ $ra = 0 ] && [ $rb = 0 ]
     check "two processes append to one cache: 68 valid lines" $? "rc=$ra/$rb"
     before=$(reqs cc)
-    idle
     AI_HOST=$HOST AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >/dev/null 2>&1; rc=$?
     [ $rc = 0 ] && [ "$(reqs cc)" = "$before" ]
     check "the shared cache replays" $? "rc=$rc new requests=$(( $(reqs cc) - before ))"
@@ -293,7 +248,6 @@ EOF
     AI_HOST=$HOST AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >/dev/null 2>"$T/dmg.txt"; rc=$?
     [ $rc = 0 ] && [ "$(reqs cc)" = "$before" ] && grep -q 'skipped 1 damaged line' "$T/dmg.txt"
     check "a damaged last line is skipped with a warning" $? "rc=$rc $(tail -3 "$T/dmg.txt")"
-    idle
     AI_HOST=$HOST AI_DB=$T/cc.cache AI_FRESH=1 limit 60 "$B/ai-text" after >/dev/null 2>&1
     "$PY" -c "
 import json,sys
@@ -306,7 +260,7 @@ group_defaults() {
     start_mock d1 0.93
     (unset AI_HOST AI_DB AI_REVIEWS
      limit 60 "$B/ai-defaults" set "$HOST" "$T/d1.cache" "$T/d1rev" defaults) >"$T/d1.txt" 2>"$T/d1.err"; rc=$?
-    [ $rc = 0 ]; check "ai_defaults: in-program rules (sources, cumulative, validation, refusals, reset)" $? "rc=$rc
+    [ $rc = 0 ]; check "ai_defaults: calls and validation" $? "rc=$rc
 $(grep -v '^ok' "$T/d1.txt") $(cat "$T/d1.err")"
     "$PY" - "$T/d1.log" defaults <<'EOF'
 import json, sys
@@ -315,7 +269,7 @@ def models(ep): return [r["model"] for p, r in reqs if p == ep]
 env = sys.argv[2] == "env"
 llm, dec, emb = ("inkling-2-mini:latest", "autotrust-jev:latest", "embeddinggemma-2:latest") if env \
     else ("alt-llm", "alt-decider", "alt-embedder")
-assert models("/api/chat") == [llm, "other-model"], models("/api/chat")
+assert models("/api/chat") == [llm, "other-model", llm], models("/api/chat")
 assert models("/v1/systemone") == [dec, dec, "autotrust-jev"], models("/v1/systemone")
 assert models("/api/embed") == [emb, "embeddinggemma-2", "embeddinggemma-2"], models("/api/embed")
 for p, r in reqs:
@@ -332,41 +286,52 @@ EOF
     check "ai_defaults: models per endpoint, opts only in chat, embed_dimensions in embed" $? "logged requests differ"
     [ -s "$T/d1.cache" ] && ls "$T"/d1rev/*.json >/dev/null 2>&1 && [ ! -e "$T/default.cache" ]
     check "ai_defaults: cache path and review directory" $? "files missing"
-    [ "$(grep -c 'warning: embeddings from a different embedder' "$T/d1.err")" = 1 ]
-    check "the embedder-switch warning is printed once" $? "$(cat "$T/d1.err")"
 
     start_mock d2 0.93
     AI_HOST=$HOST AI_LLM=inkling-2-mini:latest AI_DECIDER=autotrust-jev:latest \
         AI_EMBEDDER=embeddinggemma-2:latest AI_DB=$T/d2.cache AI_REVIEWS=$T/d2rev AI_TIMEOUT=5 \
         limit 60 "$B/ai-defaults" set "http://127.0.0.1:$CLOSED" "$T/d2.cache" "$T/d2rev" env >"$T/d2.txt" 2>"$T/d2.err"; rc=$?
-    [ $rc = 0 ]; check "environment overrides ai_defaults (in-program rules)" $? "rc=$rc
+    [ $rc = 0 ]; check "environment overrides ai_defaults (calls and validation)" $? "rc=$rc
 $(grep -v '^ok' "$T/d2.txt") $(cat "$T/d2.err")"
     "$PY" - "$T/d2.log" env <<'EOF'
 import json, sys
 reqs = [(l.split(" ", 2)[1], json.loads(l.split(" ", 2)[2])) for l in open(sys.argv[1]) if l.startswith("mock: ")]
 def models(ep): return [r["model"] for p, r in reqs if p == ep]
-assert models("/api/chat") == ["inkling-2-mini:latest", "other-model"], models("/api/chat")
+assert models("/api/chat") == ["inkling-2-mini:latest", "other-model", "inkling-2-mini:latest"], models("/api/chat")
 assert models("/v1/systemone") == ["autotrust-jev:latest"] * 2 + ["autotrust-jev"], models("/v1/systemone")
 assert models("/api/embed") == ["embeddinggemma-2:latest", "embeddinggemma-2", "embeddinggemma-2"]
 EOF
     [ $? = 0 ] && [ -s "$T/d2.cache" ] && ls "$T"/d2rev/*.json >/dev/null 2>&1 && [ ! -e "$T/d2.cache.unused" ] && [ ! -e "$T/d2rev.unused" ]
     check "environment overrides ai_defaults (host, models, cache, reviews)" $? "logged requests or files differ"
 
+    start_mock d4 0.93
+    AI_HOST=$HOST AI_DB=$T/d4.cache limit 60 "$B/ai-defaults" reset "$HOST" >"$T/d4.txt" 2>&1; rc=$?
+    [ $rc = 0 ] && "$PY" - "$T/d4.log" <<'EOF'
+import json, sys
+reqs = [(l.split(" ", 2)[1], json.loads(l.split(" ", 2)[2])) for l in open(sys.argv[1]) if l.startswith("mock: ")]
+chat = [(r["model"], r["messages"][0]["content"] if r["messages"][0]["role"] == "system" else None)
+        for p, r in reqs if p == "/api/chat"]
+emb = [(r["model"], r.get("dimensions")) for p, r in reqs if p == "/api/embed"]
+assert chat == [("alt-llm", "RESET-SYS"), ("inkling-2-mini:latest", None),
+                ("inkling-2-mini:latest", None)], chat
+assert emb == [("embeddinggemma-2:latest", 64), ("embeddinggemma-2:latest", None)], emb
+EOF
+    check "ai_defaults: a later call replaces the defaults, NULL resets" $? "rc=$rc $(grep -v '^ok' "$T/d4.txt")"
+
     start_mock d3 0.93
     (unset AI_HOST; limit 60 "$B/ai-defaults" stress "$HOST") >"$T/d3.txt" 2>&1; rc=$?
-    [ $rc = 0 ] && [ "$(count VIOLATION d3)" = 0 ]
-    check "defaults changing while 8 threads call" $? "rc=$rc $(cat "$T/d3.txt")"
+    [ $rc = 0 ]; check "defaults changing while 8 threads call" $? "rc=$rc $(cat "$T/d3.txt")"
+
+    limit 20 "$B/ai-defaults" afterexit >"$T/d5.txt" 2>&1; rc=$?
+    [ $rc = 0 ]; check "calls after the exit cleanup fail cleanly" $? "rc=$rc $(cat "$T/d5.txt")"
 }
 
 group_sanitize() { # the examples as built (an ASAN build type adds the sanitizers)
     start_mock sa 0.93
     export AI_HOST=$HOST
     for run in first replay; do
-        idle
         AI_DB=$T/sa.cache limit 120 "$B/ai-triage" tests/ai/ticket.txt >/dev/null 2>"$T/as1.txt"; r1=$?
-        idle
         AI_DB=$T/sp.cache limit 120 "$B/ai-par" 8 >/dev/null 2>"$T/as2.txt"; r2=$?
-        idle
         AI_DB=$T/sd.cache limit 120 "$B/ai-defaults" stress "$HOST" >/dev/null 2>"$T/as3.txt"; r3=$?
         n=$(cat "$T/as1.txt" "$T/as2.txt" "$T/as3.txt" | grep -c -E 'runtime error|AddressSanitizer|LeakSanitizer')
         [ $r1 = 0 ] && [ $r2 = 0 ] && [ $r3 = 0 ] && [ "$n" = 0 ]
@@ -378,7 +343,6 @@ group_sanitize() { # the examples as built (an ASAN build type adds the sanitize
 group_tsan() {
     start_mock ts 0.93
     AI_HOST=$HOST AI_DB=$T/ts.cache AI_FRESH=1 limit 300 "$B/ai-par-tsan" 8 >/dev/null 2>"$T/tsan.txt"; r1=$?
-    idle
     AI_HOST=$HOST AI_DB=$T/ts2.cache limit 300 "$B/ai-defaults-tsan" stress "$HOST" >/dev/null 2>"$T/tsan2.txt"; r2=$?
     n=$(cat "$T/tsan.txt" "$T/tsan2.txt" | grep -c 'WARNING: ThreadSanitizer')
     [ "$n" -eq 0 ] && [ $r1 = 0 ] && [ $r2 = 0 ]
@@ -387,8 +351,8 @@ group_tsan() {
 }
 
 case $GROUP in
-all) for g in plumbing noserver http json guard cache defaults; do group_$g; done ;;
-plumbing | noserver | http | json | guard | cache | defaults | sanitize | tsan) group_$GROUP ;;
+all) for g in plumbing noserver http json cache defaults; do group_$g; done ;;
+plumbing | noserver | http | json | cache | defaults | sanitize | tsan) group_$GROUP ;;
 *) echo "unknown group $GROUP"; exit 2 ;;
 esac
 

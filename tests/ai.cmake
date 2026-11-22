@@ -19,7 +19,7 @@ ai_program(ai-special ai/special.c)
 ai_program(ai-defaults ai/defaults.c)
 
 set(AI_RUN sh ${CMAKE_CURRENT_SOURCE_DIR}/ai/run.sh)
-foreach(group plumbing noserver http json guard cache defaults)
+foreach(group plumbing noserver http json cache defaults)
   add_test(NAME ai-${group}
     COMMAND ${AI_RUN} ${group} $<TARGET_FILE_DIR:ai-triage>
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

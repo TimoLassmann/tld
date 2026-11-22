@@ -1,20 +1,13 @@
 """Stand-in for Ollama, used only to test ai.h's plumbing (HTTP, requests, parsing,
-caching, replay, the one-model guard). It returns canned answers in the documented
-shapes; it is not a model, and it never talks to a real Ollama.
+caching, replay, ai_defaults). It returns canned answers in the documented shapes; it
+is not a model, and it never talks to a real Ollama.
 
-    mock_ollama.py PORT [CONFIDENCE] [--chunked] [--slow S] [--loaded NAME]...
-                   [--fail-first PATH:N]
+    mock_ollama.py PORT [CONFIDENCE] [--chunked] [--slow S] [--fail-first PATH:N]
 
 Every request is written to stderr, one line each:
     mock: PATH JSON        a model call (/api/chat, /v1/systemone, /api/embed)
-    get: PATH              a GET (/api/version, /api/tags, /api/ps)
-    unload: NAME           POST /api/generate with keep_alive 0
+    get: PATH              a GET (/api/version, /api/tags)
     fail: PATH             a model call answered with the injected HTTP 500
-    VIOLATION: ...         a local model call arrived while another local model was loaded
-
-/api/ps reports models realistically: a local model is "loaded" from its first call
-until it is unloaded. --loaded NAME preloads a model as if another program had loaded
-it; POST /mock/ps {"loaded": [...]} replaces the set while running.
 """
 import argparse, hashlib, json, math, sys, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -24,7 +17,6 @@ ap.add_argument("port", type=int)
 ap.add_argument("conf", type=float, nargs="?", default=0.93)
 ap.add_argument("--chunked", action="store_true", help="send bodies chunked")
 ap.add_argument("--slow", type=float, default=0, help="seconds before each model reply")
-ap.add_argument("--loaded", action="append", default=[], help="preloaded foreign model")
 ap.add_argument("--fail-first", default="", help="PATH:N, first N calls to PATH get 500")
 args = ap.parse_args()
 
@@ -47,9 +39,7 @@ TAGS = [
     {"name": "gpt-oss:120b-cloud", "model": "gpt-oss:120b-cloud", "digest": "sha256:eee",
      "size": 384, "remote_model": "gpt-oss:120b", "remote_host": CLOUD_HOST},
 ]
-CLOUD = {t["name"] for t in TAGS if "remote_host" in t}
 lock = threading.Lock()
-loaded = list(args.loaded)          # local models in memory, in load order
 fail_path, _, fail_n = args.fail_first.partition(":")
 fails = {"left": int(fail_n or 0)}
 fills = {"n": 0}
@@ -104,30 +94,12 @@ class H(BaseHTTPRequestHandler):
             self.reply({"version": "0.40.17-mock"})
         elif self.path == "/api/tags":
             self.reply({"models": TAGS})
-        elif self.path == "/api/ps":
-            with lock:
-                ms = [{"name": m, "model": m, "size": 1000, "size_vram": 1000,
-                       "digest": "sha256:x", "expires_at": "2099-01-01T00:00:00Z"}
-                      for m in loaded]
-            self.reply({"models": ms})
         else:
             self.reply({"error": "not found"}, 404)
 
     def do_POST(self):
         n = int(self.headers.get("Content-Length", 0))
         req = json.loads(self.rfile.read(n) or b"{}")
-        if self.path == "/mock/ps":
-            with lock:
-                loaded[:] = req.get("loaded", [])
-            return self.reply({"ok": True})
-        if self.path == "/api/generate" and req.get("keep_alive") in (0, "0") \
-                and not req.get("prompt"):
-            m = norm(req["model"])
-            with lock:
-                if m in loaded:
-                    loaded.remove(m)
-            log(f"unload: {m}")
-            return self.reply({"model": m, "done": True, "done_reason": "unload"})
         model = norm(req.get("model", ""))
         if model not in {t["name"] for t in TAGS}:
             return self.reply({"error": f"model '{req.get('model')}' not found"}, 404)
@@ -136,12 +108,6 @@ class H(BaseHTTPRequestHandler):
                 fails["left"] -= 1
                 log(f"fail: {self.path}")
                 return self.reply({"error": "mock transient failure"}, 500)
-            if model not in CLOUD:
-                others = [m for m in loaded if m != model]
-                if others:
-                    log(f"VIOLATION: {model} requested while {others} loaded")
-                if model not in loaded:
-                    loaded.append(model)
         log(f"mock: {self.path} {json.dumps(req)}")
         if args.slow:
             time.sleep(args.slow)
