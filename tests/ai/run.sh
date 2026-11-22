@@ -226,11 +226,12 @@ EOF
 
 group_cache() {
     start_mock tf 0.93 --fail-first /api/chat:1
-    TLD_AI_HOST=$HOST TLD_AI_DB=$T/tf.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/tf1.txt" 2>&1; rc=$?
+    # stdout only: the step lines on stderr say "answered in" first and "from the cache" after
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/tf.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/tf1.txt" 2>"$T/tf1.err"; rc=$?
     n1=$(reqs tf)
     [ $rc = 0 ] && [ "$(count '^fail:' tf)" = 1 ] && [ "$n1" = 5 ]
-    check "transient failure: the retry succeeds" $? "rc=$rc calls=$n1 $(cat "$T/tf1.txt")"
-    TLD_AI_HOST=$HOST TLD_AI_DB=$T/tf.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/tf2.txt" 2>&1
+    check "transient failure: the retry succeeds" $? "rc=$rc calls=$n1 $(cat "$T/tf1.txt" "$T/tf1.err")"
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/tf.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/tf2.txt" 2>/dev/null
     n2=$(reqs tf)
     [ "$n2" = "$n1" ] && cmp -s "$T/tf1.txt" "$T/tf2.txt"
     check "transient failure: rerun replays without new requests" $? "new requests=$((n2 - n1))"

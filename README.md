@@ -129,7 +129,10 @@ int main(void) {
 
 Build with `cc -std=c11 -I. prog.c -lpthread -lm`. Larger examples:
 `examples/triage.c` (choice, scale, yes/no, struct filling, human review) and
-`examples/par.c` (parallel calls, embeddings, nearest neighbours). Failures return
+`examples/par.c` (parallel calls, embeddings, nearest neighbours). The build makes
+them as `build/tests/ai-hello`, `ai-triage` and `ai-par`; each takes `-h`, shows every
+step (answer, confidence, model, time, tokens) on stderr, and with `-vv` each request
+too. Failures return
 NULL, -1 or `.ok = 0`; `ai_status()` gives the code (`AI_ENOSERVER`, `AI_ENOMODEL`, ...)
 and `ai_error()` the message. With no server running, every call fails at once with
 `AI_ENOSERVER`. Returned strings and vectors belong to the library and stay valid until
@@ -208,7 +211,7 @@ nothing):
 ```sh
 ollama ps                                   # must list no model
 build/tests/ai-hello                        # one call to the default LLM
-TLD_AI_DB=build/live.cache build/tests/ai-triage tests/ai/ticket.txt
+TLD_AI_DB=build/live.cache build/tests/ai-triage -vv tests/ai/ticket.txt
 TLD_AI_DB=build/live.cache build/tests/ai-par 4
 ollama ps                                   # models unload after keep_alive (5 min)
 ```

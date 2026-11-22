@@ -42,8 +42,12 @@ arguments changed, and lists every place that needs a person (see "Tests and too
 - tld_ai.h: `TLD_AI_FRESH` takes 1/0, true/false, yes/no, on/off in any case;
   `TLD_AI_NUM_CTX` and `TLD_AI_TIMEOUT` must be whole positive integers; other values are
   ignored with a warning. `extra_options` keys replace built-in option keys of the same
-  name. At `TLD_VERBOSE=2` every request and its outcome is logged. `examples/hello.c`
-  shows prompt, host, model, time and tokens on stderr and only the answer on stdout.
+  name. At `TLD_VERBOSE=2` every request and its outcome is logged.
+- examples: `hello`, `triage` and `par` take `-h` and `-v`/`-vv` (getopt_long) and show
+  each step on stderr: the answer with its confidence or score, model, host, time and
+  tokens (or "from the cache"); only the results go to stdout. `triage` prints team and
+  urgency by name and says which review file to answer when it asks a person; `hello`
+  takes an optional prompt; `par` rejects a bad thread count and lists each job.
 - core: rich terminal output on stderr: `SECTION_MSG`, `KV_MSG`, `OK_MSG`, `DEBUG_MSG`
   and `tld_progress()`, plus `tld_verbosity()` and `tld_term_has_color()`. Colour appears
   only when stderr is a terminal and `NO_COLOR` is unset; `TLD_VERBOSE` is 0 (errors
