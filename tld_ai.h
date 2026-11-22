@@ -233,41 +233,6 @@ char       *ai_text_with(const ai_opts *o, const char *fmt, ...);
 double      ai_yesno(const char *question, const char *state);
 double      ai_yesno_with(const ai_opts *o, const char *question, const char *state);
 
-/* Ask a person (see Human review above). The first call writes TLD_AI_REVIEWS/<key>.json, the
- * key a hash of what and payload, and returns NULL with ai_status() == AI_OK; so does
- * every call while the review is open. Once a person has set "status" to "done" and
- * "answer" to a string, the call returns that answer (library memory). NULL with
- * another status on errors. */
-const char *ai_review(const char *what, const char *payload);
-
-/* sprintf into library memory: the formatted string, valid until ai_reset() (never free
- * it); NULL on failure. */
-char       *ai_fmt(const char *fmt, ...);
-
-/* The message about this thread's last call: why it failed, or empty after a success
- * (ai_review leaves a note while a review is open). Valid until the thread's next call. */
-const char *ai_error(void);
-
-/* The status code (AI_OK, AI_ENOSERVER, ...) of this thread's last call. */
-int         ai_status(void);
-
-/* Free every string and vector the library has returned, in all threads. Call it only
- * when no thread still uses them; the library keeps working afterwards. */
-void        ai_reset(void);
-
-/* Details of a request to the server, from ai_last(). Strings are library memory. */
-typedef struct {
-    const char *thinking;         /* model's thinking text, if requested */
-    long   prompt_tokens, output_tokens;
-    double seconds;               /* wall time of the HTTP call, 0 if cached */
-    int    from_cache;
-    const char *model;            /* model that answered */
-    const char *host;             /* server that was asked */
-} ai_info;
-
-/* Details of the last request this thread sent (or tried to send) to the server. */
-const ai_info *ai_last(void);
-
 /* ---- embeddings -------------------------------------------------------- */
 
 /* An embedding of dim floats at x (x == NULL on failure), and n embeddings with row i at
@@ -296,13 +261,6 @@ double ai_cosine(ai_vec a, ai_vec b);                            /* -2 if dims d
  * similarities into score, two arrays of at least k elements. Returns how many were
  * written (fewer than k when m has fewer rows; 0 on bad input). */
 int    ai_nearest(ai_vec q, ai_vecs m, int k, int *idx, double *score);
-
-/* ---- parallel work ----------------------------------------------------- */
-
-/* Run fn(i, ctx) for i = 0..n-1 on `threads` threads and wait for all. The calling
- * thread works too; the calls run concurrently, in no fixed order, and may themselves
- * call tld_ai.h. */
-void ai_parallel(int n, int threads, void (*fn)(int i, void *ctx), void *ctx);
 
 /* ---- typed structs filled by an LLM ------------------------------------ */
 
@@ -425,6 +383,54 @@ typedef struct { const char *name; const char *desc; } ai_label;
  * options (model, images, fresh). */
 #define ai_rate(T, state)               T##__rate((state), NULL)
 #define ai_rate_with(o, T, state)       T##__rate((state), (o))
+
+/* ---- asking a person --------------------------------------------------- */
+
+/* Ask a person (see Human review above). The first call writes TLD_AI_REVIEWS/<key>.json, the
+ * key a hash of what and payload, and returns NULL with ai_status() == AI_OK; so does
+ * every call while the review is open. Once a person has set "status" to "done" and
+ * "answer" to a string, the call returns that answer (library memory). NULL with
+ * another status on errors. */
+const char *ai_review(const char *what, const char *payload);
+
+/* ---- errors and the last call ------------------------------------------ */
+
+/* The message about this thread's last call: why it failed, or empty after a success
+ * (ai_review leaves a note while a review is open). Valid until the thread's next call. */
+const char *ai_error(void);
+
+/* The status code (AI_OK, AI_ENOSERVER, ...) of this thread's last call. */
+int         ai_status(void);
+
+/* Details of a request to the server, from ai_last(). Strings are library memory. */
+typedef struct {
+    const char *thinking;         /* model's thinking text, if requested */
+    long   prompt_tokens, output_tokens;
+    double seconds;               /* wall time of the HTTP call, 0 if cached */
+    int    from_cache;
+    const char *model;            /* model that answered */
+    const char *host;             /* server that was asked */
+} ai_info;
+
+/* Details of the last request this thread sent (or tried to send) to the server. */
+const ai_info *ai_last(void);
+
+/* ---- library memory ---------------------------------------------------- */
+
+/* sprintf into library memory: the formatted string, valid until ai_reset() (never free
+ * it); NULL on failure. */
+char       *ai_fmt(const char *fmt, ...);
+
+/* Free every string and vector the library has returned, in all threads. Call it only
+ * when no thread still uses them; the library keeps working afterwards. */
+void        ai_reset(void);
+
+/* ---- parallel work ----------------------------------------------------- */
+
+/* Run fn(i, ctx) for i = 0..n-1 on `threads` threads and wait for all. The calling
+ * thread works too; the calls run concurrently, in no fixed order, and may themselves
+ * call tld_ai.h. */
+void ai_parallel(int n, int threads, void (*fn)(int i, void *ctx), void *ctx);
 
 /* internals used by the macros */
 int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...);

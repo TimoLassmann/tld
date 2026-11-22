@@ -15,13 +15,14 @@ typedef struct {
         int32_t alloc_len;
 } tl_bitfield;
 
+/* A new bitfield of size bits, all 0, in *bit_f. Free with tl_bitfield_free. */
+tld_external  int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size);
 
-/* The number of positions at which b1 and b2 differ into *dist, counting only positions
- * set in mask (NULL: all). The bitfields (and mask) must have the same length. */
-tld_external  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield *mask, int32_t *dist);
+/* Free a bitfield; NULL is ignored. */
+tld_external void tl_bitfield_free(tl_bitfield *b);
 
-/* ret = b1 | b2, bit by bit; all three must have the same length. */
-tld_external  int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret);
+/* Clear every bit. */
+tld_external  int tl_bitfield_reset(tl_bitfield *b);
 
 /* Set bit index to 1, read it into *bit (0 or 1), or clear it to 0. FAIL, without a
  * message, when index is outside [0, len). */
@@ -32,12 +33,11 @@ tld_external  int tl_bitfield_clear(tl_bitfield *b, int32_t index);
 /* Copy the bits of src into dst; both must have the same length. */
 tld_external  int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src);
 
-/* Clear every bit. */
-tld_external  int tl_bitfield_reset(tl_bitfield *b);
+/* ret = b1 | b2, bit by bit; all three must have the same length. */
+tld_external  int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret);
 
-/* A new bitfield of size bits, all 0, in *bit_f. Free with tl_bitfield_free. */
-tld_external  int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size);
+/* The number of positions at which b1 and b2 differ into *dist, counting only positions
+ * set in mask (NULL: all). The bitfields (and mask) must have the same length. */
+tld_external  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield *mask, int32_t *dist);
 
-/* Free a bitfield; NULL is ignored. */
-tld_external void tl_bitfield_free(tl_bitfield *b);
 #endif

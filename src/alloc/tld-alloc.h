@@ -8,14 +8,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-/* MFREE(p): free(p) and set p to NULL. For memory from MMALLOC, MREALLOC or malloc (use
- * gfree for galloc memory). p must be an lvalue; a NULL p is fine. */
-#define MFREE(p)                                                        \
-        do {                                                            \
-                free(p);                                                \
-                (p) = NULL;                                             \
-        } while (0)
-
 /* MMALLOC(p, size): p = malloc(size), zero-filled. p must be NULL beforehand and size
  * non-zero; either mistake, or running out of memory, prints an error and does goto
  * ERROR. Free with MFREE. */
@@ -76,6 +68,35 @@
                         ERROR_MSG("realloc for size %zu failed", (size_t)(size)); \
                 }                                                       \
         } while (0)
+
+/* MFREE(p): free(p) and set p to NULL. For memory from MMALLOC, MREALLOC or malloc (use
+ * gfree for galloc memory). p must be an lvalue; a NULL p is fine. */
+#define MFREE(p)                                                        \
+        do {                                                            \
+                free(p);                                                \
+                (p) = NULL;                                             \
+        } while (0)
+
+/* galloc(&a, n): a = zeroed array of n elements of a's element type.
+ * galloc(&m, n, k): m = zeroed n x k matrix, used as m[i][j]; the rows share one
+ * contiguous block. Element types: char, int8_t..int64_t, uint8_t..uint64_t, float,
+ * double. The pointer should be NULL (an existing block is not freed or resized). On
+ * failure an error is printed and goto ERROR. Free with gfree; get_dim1/get_dim2 give
+ * the dimensions back. */
+#define galloc(...) GALLOC_ARGS(__VA_ARGS__)
+
+/* gfree(p): free memory from galloc (1D or 2D). A NULL p is fine; p is not set to
+ * NULL. Never pass galloc memory to free() or MFREE. */
+#define gfree(a) tld_free(a)
+
+/* Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
+ * into *d. FAIL if ptr is NULL. Only valid for memory from galloc. */
+tld_external int get_dim1(void *ptr, uint32_t *d);
+tld_external int get_dim2(void *ptr, uint32_t *d);
+
+/* The function behind gfree: frees a galloc block and its 2D data block. NULL is
+ * ignored. */
+tld_external void tld_free(void *p);
 
 /* tld_valid_1D(x) is 1 if x is a T ** and tld_valid_2D(x) is 1 if x is a T ***, where T
  * is a type galloc supports (char, int8_t..int64_t, uint8_t..uint64_t, float, double);
@@ -140,22 +161,10 @@
                 *(a) = tld_galloc_rows_;                                \
         } while (0)
 
-/* gfree(p): free memory from galloc (1D or 2D). A NULL p is fine; p is not set to
- * NULL. Never pass galloc memory to free() or MFREE. */
-#define gfree(a) tld_free(a)
-
 /* Dispatch from galloc to XGALLOC_ARGS_<number of arguments>. Use galloc. */
 #define XXGALLOC_ARGS(N, ...) XGALLOC_ARGS_##N(__VA_ARGS__)
 #define XGALLOC_ARGS(N, ...) XXGALLOC_ARGS(N, __VA_ARGS__)
 #define GALLOC_ARGS(...) XGALLOC_ARGS(NARG3(__VA_ARGS__), __VA_ARGS__)
-
-/* galloc(&a, n): a = zeroed array of n elements of a's element type.
- * galloc(&m, n, k): m = zeroed n x k matrix, used as m[i][j]; the rows share one
- * contiguous block. Element types: char, int8_t..int64_t, uint8_t..uint64_t, float,
- * double. The pointer should be NULL (an existing block is not freed or resized). On
- * failure an error is printed and goto ERROR. Free with gfree; get_dim1/get_dim2 give
- * the dimensions back. */
-#define galloc(...) GALLOC_ARGS(__VA_ARGS__)
 
 /* Internal: called by galloc with a single argument; prints an error, returns FAIL. */
 tld_external int tld__galloc_too_few(void);
@@ -165,15 +174,6 @@ tld_external int tld__galloc_too_few(void);
  * data block of tsize-byte elements. NULL on failure (dim1 < 1, dim2 < 0, overflow, no
  * memory). */
 tld_external void *tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2);
-
-/* The function behind gfree: frees a galloc block and its 2D data block. NULL is
- * ignored. */
-tld_external void tld_free(void *p);
-
-/* Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
- * into *d. FAIL if ptr is NULL. Only valid for memory from galloc. */
-tld_external int get_dim1(void *ptr, uint32_t *d);
-tld_external int get_dim2(void *ptr, uint32_t *d);
 
 /* Internal: the data block of a 2D galloc block into *d (NULL for a 1D array); FAIL
  * if ptr is NULL. Used by galloc. */

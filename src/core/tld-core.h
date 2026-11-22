@@ -33,7 +33,6 @@
 #define tld_stringify(x) #x
 #define tld_tostring(x) tld_stringify(x)
 
-
 /* Return codes of every tld function that can fail: OK (0) on success, FAIL (1) on
  * failure. Compare with == OK; do not use the result as a boolean. */
 #define OK              0
@@ -43,24 +42,18 @@
 #define MACRO_MIN(a,b)          (((a)<(b))?(a):(b))
 #define MACRO_MAX(a,b)          (((a)>(b))?(a):(b))
 
-
-
-/* ASSERT(TEST, fmt, ...): if TEST is false, print "Assertion failed: TEST" and the
- * printf-style message as ERROR lines (with file and line) and goto ERROR. The message
- * is required. Active in all builds; the enclosing function needs an ERROR: label. */
-#define ASSERT(TEST,...) do {                                   \
-                if(!(TEST)) {                                   \
-                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, "Assertion failed: %s", #TEST); \
-                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
-                        goto ERROR;                             \
-                }                                               \
-        } while (0)
-
 /* Message types for tld_message and tld_message_at. */
 #define MESSAGE_TYPE_MSG 0
 #define MESSAGE_TYPE_WARNING 1
 #define MESSAGE_TYPE_ERROR 2
 
+/* Print a timestamped message of type MESSAGE_TYPE_* (printf-style, newline added) to
+ * stderr. LOG and WARNING lines are dropped when TLD_VERBOSE=0; errors never are. */
+tld_external void tld_message(uint8_t type, const char *format, ...);
+
+/* Like tld_message; an ERROR line also names file and line. Used by the macros. */
+tld_external void tld_message_at(uint8_t type, const char *file, int line, const char *format, ...)
+        __attribute__((format(printf, 4, 5)));
 
 /* LOG_MSG(fmt, ...) / WARNING_MSG(fmt, ...): print a timestamped LOG or WARNING line
  * (printf-style, newline added) to stderr and continue. Silent when TLD_VERBOSE=0. */
@@ -74,7 +67,6 @@
                 goto ERROR;                                     \
         }while (0)
 
-
 /* The string literal "Function \"x\" failed." with x macro-expanded; used by RUN. */
 #define ADDFAILED(x)  "Function \"" tld_tostring(x) "\" failed."
 
@@ -87,14 +79,24 @@
                 }                                               \
         } while (0)
 
+/* ASSERT(TEST, fmt, ...): if TEST is false, print "Assertion failed: TEST" and the
+ * printf-style message as ERROR lines (with file and line) and goto ERROR. The message
+ * is required. Active in all builds; the enclosing function needs an ERROR: label. */
+#define ASSERT(TEST,...) do {                                   \
+                if(!(TEST)) {                                   \
+                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, "Assertion failed: %s", #TEST); \
+                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
+                        goto ERROR;                             \
+                }                                               \
+        } while (0)
 
-/* Print a timestamped message of type MESSAGE_TYPE_* (printf-style, newline added) to
- * stderr. LOG and WARNING lines are dropped when TLD_VERBOSE=0; errors never are. */
-tld_external void tld_message(uint8_t type, const char *format, ...);
+/* The TLD_VERBOSE level: 0, 1 (the default, also for unset or unparsable values) or 2.
+ * A single digit is accepted; the variable is read on every call. */
+tld_external int tld_verbosity(void);
 
-/* Like tld_message; an ERROR line also names file and line. Used by the macros. */
-tld_external void tld_message_at(uint8_t type, const char *file, int line, const char *format, ...)
-        __attribute__((format(printf, 4, 5)));
+/* 1 if stderr gets colour: it is a terminal, NO_COLOR is unset or empty and TERM is
+ * not "dumb"; 0 otherwise. */
+tld_external int tld_term_color(void);
 
 /* Rich terminal output. Everything goes to stderr, so stdout keeps only a program's
  * results. Colour and symbols are used only when stderr is a terminal and NO_COLOR is
@@ -111,14 +113,6 @@ tld_external void tld_message_at(uint8_t type, const char *file, int line, const
 #define KV_MSG(KEY, ...) tld_kv(KEY, __VA_ARGS__)
 #define OK_MSG(...) tld_ok(__VA_ARGS__)
 #define DEBUG_MSG(...) tld_debug(__VA_ARGS__)
-
-/* The TLD_VERBOSE level: 0, 1 (the default, also for unset or unparsable values) or 2.
- * A single digit is accepted; the variable is read on every call. */
-tld_external int tld_verbosity(void);
-
-/* 1 if stderr gets colour: it is a terminal, NO_COLOR is unset or empty and TERM is
- * not "dumb"; 0 otherwise. */
-tld_external int tld_term_color(void);
 
 /* The functions behind SECTION_MSG, KV_MSG, OK_MSG and DEBUG_MSG (printf-style, a
  * newline is added). Use the macros. */

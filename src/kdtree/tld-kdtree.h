@@ -36,13 +36,15 @@ typedef struct kdtree {
         int vec_len;
 } kdtree;
 
-/* Brute force: the id of the stored point nearest to x, comparing every point; 0 when
- * the tree is empty. For checking kdtree_nn_search. */
-tld_external  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
+/* Allocate in *tree an empty tree for points of size (> 0) dimensions, using squared
+ * Euclidean distance. Storage grows as points are added. Free with kdtree_free. */
+tld_external  int kdtree_alloc(kdtree **tree, int size);
 
-/* The id of the stored point nearest to x (a vector of the tree's length) into *id.
- * *id is left unchanged when the tree is empty. */
-tld_external  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
+/* Free the tree and all its points; NULL is ignored. */
+tld_external void kdtree_free(kdtree *t);
+
+/* Remove every point and keep the memory for reuse. */
+tld_external  int kdtree_reset(kdtree *t);
 
 /* Build a balanced tree from n points x[i] of size doubles (size <= the length given
  * to kdtree_alloc) with ids[i]. The points are copied; the x pointer array and ids are
@@ -56,22 +58,13 @@ tld_external  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
 /* Rebuild the tree balanced from the points it holds. */
 tld_external  int kdtree_rebalance(kdtree *t);
 
-/* Allocate in *tree an empty tree for points of size (> 0) dimensions, using squared
- * Euclidean distance. Storage grows as points are added. Free with kdtree_free. */
-tld_external  int kdtree_alloc(kdtree **tree, int size);
+/* The id of the stored point nearest to x (a vector of the tree's length) into *id.
+ * *id is left unchanged when the tree is empty. */
+tld_external  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
 
-/* Remove every point and keep the memory for reuse. */
-tld_external  int kdtree_reset(kdtree *t);
-
-/* Free the tree and all its points; NULL is ignored. */
-tld_external void kdtree_free(kdtree *t);
-
-/* Debugging: print the subtree under n (pass t->root, depth 0) to stderr, as split
- * values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). A NULL
- * n prints nothing. */
-tld_external void kdtree_debug_chk(kd_node *n, int depth);
-tld_external void kdtree_debug_print(kd_node *n, int depth);
-
+/* Brute force: the id of the stored point nearest to x, comparing every point; 0 when
+ * the tree is empty. For checking kdtree_nn_search. */
+tld_external  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
 
 /* Squared Euclidean distance between a and b (vec_len doubles) into *dist. The default
  * fptr_cmp. */
@@ -81,4 +74,11 @@ tld_external  int kddist_euclidian(double *a, double *b, int vec_len, double *di
  * (the far side of the splitting plane may hold a nearer point), FAIL otherwise. The
  * default fptr_plane. */
 tld_external  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
+
+/* Debugging: print the subtree under n (pass t->root, depth 0) to stderr, as split
+ * values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). A NULL
+ * n prints nothing. */
+tld_external void kdtree_debug_chk(kd_node *n, int depth);
+tld_external void kdtree_debug_print(kd_node *n, int depth);
+
 #endif

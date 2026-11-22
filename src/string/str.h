@@ -29,6 +29,24 @@ typedef struct tld_string_buffer {
 #define TLD_STR(X) ((char*)(X)->str)
 #define TLD_STRLEN(X) (X)->len
 
+/* A new empty buffer in *buffer with size bytes reserved (0 means 1024; size < 0 is an
+ * error). It grows as needed. Free with tld_strbuf_free. */
+tld_external int tld_strbuf_alloc(tld_strbuf **buffer, int size);
+
+/* Free a buffer; NULL is ignored. */
+tld_external void tld_strbuf_free(tld_strbuf *b);
+
+/* A new tld_str in *string with a zeroed buffer of size bytes and len = size. Free
+ * with tld_str_free. */
+tld_external int tld_str_alloc(tld_str **string, int size);
+
+/* Free a tld_str made by tld_strmk or tld_str_alloc; NULL is ignored. */
+tld_external void tld_str_free(tld_str *a);
+
+/* A new tld_str in *string holding a NUL-terminated copy of src (len = strlen(src)).
+ * Free with tld_str_free. */
+tld_external int tld_strmk(tld_str **string,const char *src);
+
 /* Empty the buffer (len 0); the memory is kept. */
 tld_external int tld_strbuf_clear(tld_strbuf *b);
 
@@ -55,26 +73,7 @@ tld_external tld_str tld_strbuf_to_str(tld_strbuf s);
 /* A borrowed tld_str view of the C string s (len = strlen(s)). */
 tld_external tld_str tld_char_to_str(char* s);
 
-/* A new tld_str in *string holding a NUL-terminated copy of src (len = strlen(src)).
- * Free with tld_str_free. */
-tld_external int tld_strmk(tld_str **string,const char *src);
-
-/* A new empty buffer in *buffer with size bytes reserved (0 means 1024; size < 0 is an
- * error). It grows as needed. Free with tld_strbuf_free. */
-tld_external int tld_strbuf_alloc(tld_strbuf **buffer, int size);
-
-/* Free a buffer; NULL is ignored. */
-tld_external void tld_strbuf_free(tld_strbuf *b);
-
-/* A new tld_str in *string with a zeroed buffer of size bytes and len = size. Free
- * with tld_str_free. */
-tld_external int tld_str_alloc(tld_str **string, int size);
-
-/* Free a tld_str made by tld_strmk or tld_str_alloc; NULL is ignored. */
-tld_external void tld_str_free(tld_str *a);
-
 #undef STR_IMPORT
 #undef EXTERN
-
 
 #endif

@@ -81,8 +81,6 @@ int nearly_equal_float(float a, float b)
         return ret;
 }
 
-
-
 int nearly_equal_double(double a, double b)
 {
         const double min = DBL_MIN;

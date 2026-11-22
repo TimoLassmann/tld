@@ -35,27 +35,6 @@ static void pool_set_stop_locked(tld_thread_pool *p)
         pthread_cond_broadcast(&p->working_cond);
 }
 
-int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end)
-{
-        int status = OK;
-        ASSERT(p != NULL, "No thread pool");
-        pthread_mutex_lock(&p->lock);
-        if(tld_global_stop_run == 1 && !p->stop){
-                pool_set_stop_locked(p);
-        }
-        if(!p->stop){
-                status = work_queue_push(p->work, func_ptr, data, start, end);
-                if(status == OK){
-                        pthread_cond_broadcast(&p->work_cond);
-                }
-        }
-        pthread_mutex_unlock(&p->lock);
-        RUN(status);
-        return OK;
-ERROR:
-        return FAIL;
-}
-
 void *pool_worker(void *data)
 {
         tld_thread_pool*  p = (tld_thread_pool*) data;
@@ -106,6 +85,72 @@ void *pool_worker(void *data)
         pthread_cond_broadcast(&p->working_cond);
         pthread_mutex_unlock(&p->lock);
         return NULL;
+}
+
+/* Stops the workers and joins the first n_started threads, then frees the
+   pool. Does not drain the queue. */
+static void pool_shutdown(tld_thread_pool *p, int n_started)
+{
+        pthread_mutex_lock(&p->lock);
+        pool_set_stop_locked(p);
+        pthread_mutex_unlock(&p->lock);
+
+        for(int t = 0; t < n_started; t++) {
+                int rc = pthread_join(p->threads[t], NULL);
+                if(rc){
+                        WARNING_MSG("pthread_join() failed with return code %d", rc);
+                }
+        }
+
+        MFREE(p->threads);
+        gfree(p->thread_id_map);
+        work_queue_free(p->work);
+        pthread_attr_destroy(&p->attr);
+        pthread_mutex_destroy(&p->lock);
+        pthread_cond_destroy(&p->work_cond);
+        pthread_cond_destroy(&p->working_cond);
+        MFREE(p);
+}
+
+int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run)
+{
+        double diff_t = 0.0;
+        time_t cur_time;
+
+        time(&cur_time);
+        diff_t = difftime(cur_time , *stop_watch) / 60.0;
+
+        if(diff_t > 1.0){
+                time(stop_watch);
+        }
+
+        diff_t = difftime(cur_time , internal_time) / 60.0;
+        if(diff_t > maxtime){
+                *run = 1;
+        }
+        return OK;
+}
+
+int pool_get_tid(tld_thread_pool *p)
+{
+        int i;
+        int64_t tid = (int64_t) pthread_self();
+        int ID = -1;
+        pthread_mutex_lock(&p->lock);
+        for(i = 0; i < p->thread_id_idx;i++){
+                if(p->thread_id_map[i] == tid){
+                        ID = i;
+                        break;
+                }
+        }
+        if(ID == -1){
+                ID = p->thread_id_idx;
+                p->thread_id_map[p->thread_id_idx] = tid;
+                p->thread_id_idx++;
+        }
+        pthread_mutex_unlock(&p->lock);
+
+        return ID;
 }
 
 int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads)
@@ -179,6 +224,27 @@ ERROR:
         return FAIL;
 }
 
+int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end)
+{
+        int status = OK;
+        ASSERT(p != NULL, "No thread pool");
+        pthread_mutex_lock(&p->lock);
+        if(tld_global_stop_run == 1 && !p->stop){
+                pool_set_stop_locked(p);
+        }
+        if(!p->stop){
+                status = work_queue_push(p->work, func_ptr, data, start, end);
+                if(status == OK){
+                        pthread_cond_broadcast(&p->work_cond);
+                }
+        }
+        pthread_mutex_unlock(&p->lock);
+        RUN(status);
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 void tld_thread_pool_wait(tld_thread_pool *p)
 {
         if(p){
@@ -199,31 +265,6 @@ void tld_thread_pool_wait(tld_thread_pool *p)
         }
 }
 
-/* Stops the workers and joins the first n_started threads, then frees the
-   pool. Does not drain the queue. */
-static void pool_shutdown(tld_thread_pool *p, int n_started)
-{
-        pthread_mutex_lock(&p->lock);
-        pool_set_stop_locked(p);
-        pthread_mutex_unlock(&p->lock);
-
-        for(int t = 0; t < n_started; t++) {
-                int rc = pthread_join(p->threads[t], NULL);
-                if(rc){
-                        WARNING_MSG("pthread_join() failed with return code %d", rc);
-                }
-        }
-
-        MFREE(p->threads);
-        gfree(p->thread_id_map);
-        work_queue_free(p->work);
-        pthread_attr_destroy(&p->attr);
-        pthread_mutex_destroy(&p->lock);
-        pthread_cond_destroy(&p->work_cond);
-        pthread_cond_destroy(&p->working_cond);
-        MFREE(p);
-}
-
 void tld_thread_pool_free(tld_thread_pool *p)
 {
         if(p){
@@ -231,45 +272,4 @@ void tld_thread_pool_free(tld_thread_pool *p)
                 tld_thread_pool_wait(p);
                 pool_shutdown(p, p->n_threads);
         }
-}
-
-int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run)
-{
-        double diff_t = 0.0;
-        time_t cur_time;
-
-        time(&cur_time);
-        diff_t = difftime(cur_time , *stop_watch) / 60.0;
-
-        if(diff_t > 1.0){
-                time(stop_watch);
-        }
-
-        diff_t = difftime(cur_time , internal_time) / 60.0;
-        if(diff_t > maxtime){
-                *run = 1;
-        }
-        return OK;
-}
-
-int pool_get_tid(tld_thread_pool *p)
-{
-        int i;
-        int64_t tid = (int64_t) pthread_self();
-        int ID = -1;
-        pthread_mutex_lock(&p->lock);
-        for(i = 0; i < p->thread_id_idx;i++){
-                if(p->thread_id_map[i] == tid){
-                        ID = i;
-                        break;
-                }
-        }
-        if(ID == -1){
-                ID = p->thread_id_idx;
-                p->thread_id_map[p->thread_id_idx] = tid;
-                p->thread_id_idx++;
-        }
-        pthread_mutex_unlock(&p->lock);
-
-        return ID;
 }

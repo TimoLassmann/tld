@@ -1,31 +1,10 @@
-
 #include "../alloc/tld-alloc.h"
+#include "../string/str.h"
 
 #include "tld-json.h"
 
 #define TLD_JSON_MEM_IMPORT
 #include "tld-json_mem.h"
-
-int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s)
-{
-        tld_json_obj* t = NULL;
-        RUN(tld_json_obj_alloc(&t));
-        for(int i = 0; i < s->n;i++){
-                RUN(tld_append(t->key[i], TLD_STR(s->key[i])));
-                RUN(tld_json_val_copy(t->v[i], s->v[i]));
-                t->n++;
-                RUN(tld_json_obj_chk_space(t));
-        }
-
-        *target = t;
-        return OK;
-ERROR:
-        if(t){
-                tld_json_obj_free(t);
-        }
-        return FAIL;
-}
-
 
 int tld_json_obj_alloc(tld_json_obj **node)
 {
@@ -56,6 +35,40 @@ int tld_json_obj_alloc(tld_json_obj **node)
 ERROR:
         if(n){
                 tld_json_obj_free(n);
+        }
+        return FAIL;
+}
+
+void tld_json_obj_free(tld_json_obj *n)
+{
+        if(n){
+                for(int i = 0 ;i < n->n_alloc;i++){
+                        tld_json_val_free(n->v[i]);
+                        tld_strbuf_free(n->key[i]);
+                }
+
+                MFREE(n->key);
+                MFREE(n->v);
+                MFREE(n);
+        }
+}
+
+int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s)
+{
+        tld_json_obj* t = NULL;
+        RUN(tld_json_obj_alloc(&t));
+        for(int i = 0; i < s->n;i++){
+                RUN(tld_append(t->key[i], TLD_STR(s->key[i])));
+                RUN(tld_json_val_copy(t->v[i], s->v[i]));
+                t->n++;
+                RUN(tld_json_obj_chk_space(t));
+        }
+
+        *target = t;
+        return OK;
+ERROR:
+        if(t){
+                tld_json_obj_free(t);
         }
         return FAIL;
 }
@@ -99,16 +112,121 @@ ERROR:
         return FAIL;
 }
 
-void tld_json_obj_free(tld_json_obj *n)
+int tld_json_arr_alloc(tld_json_arr **arr)
+{
+        tld_json_arr* n = NULL;
+        const int want = 16;
+        MMALLOC(n, sizeof(tld_json_arr));
+        n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
+        n->n = 0;
+        n->read_head = 0;
+        n->v = NULL;
+        MMALLOC(n->v,sizeof(tld_json_val*) * want);
+        while(n->n_alloc < want){
+                n->v[n->n_alloc] = NULL;
+                RUN(tld_json_val_alloc(&n->v[n->n_alloc]));
+                n->n_alloc++;
+        }
+        *arr = n;
+        return OK;
+ERROR:
+        if(n){
+                tld_json_arr_free(n);
+        }
+        return FAIL;
+}
+
+void tld_json_arr_free(tld_json_arr *n)
 {
         if(n){
-                for(int i = 0 ;i < n->n_alloc;i++){
-                        tld_json_val_free(n->v[i]);
-                        tld_strbuf_free(n->key[i]);
+                if(n->v){
+                        for(int i = 0; i < n->n_alloc;i++){
+                                tld_json_val_free(n->v[i]);
+                        }
+                        MFREE(n->v);
                 }
+                MFREE(n);
+        }
+}
 
-                MFREE(n->key);
-                MFREE(n->v);
+/* <> arr copy must be implemented here  */
+int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s)
+{
+        tld_json_arr* n = NULL;
+        RUN(tld_json_arr_alloc(&n));
+        for(int i = 0; i < s->n;i++){
+                RUN(tld_json_val_copy(n->v[n->n] , s->v[i]));
+                n->n++;
+                RUN(tld_json_arr_chk_space(n));
+        }
+        *t = n;
+        return OK;
+ERROR:
+        tld_json_arr_free(n);
+        return FAIL;
+}
+
+int tld_json_arr_chk_space(tld_json_arr *n)
+{
+        if(n->n == n->n_alloc){
+                RUN(tld_json_arr_realloc(n));
+        }
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_json_arr_realloc(tld_json_arr *n)
+{
+        /* As for objects: n_alloc only counts slots that exist. */
+        int target = n->n_alloc + n->n_alloc / 2 + 1;
+
+        MREALLOC(n->v, sizeof(tld_json_val*) * target);
+        while(n->n_alloc < target){
+                int i = n->n_alloc;
+                n->v[i] = NULL;
+                RUN(tld_json_val_alloc(&n->v[i]));
+                n->n_alloc++;
+        }
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_json_val_alloc(tld_json_val **node)
+{
+        tld_json_val* n = NULL;
+        MMALLOC(n, sizeof(tld_json_val));
+        n->type = TLD_JSON_UNDEF;
+        *node = n;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+void tld_json_val_free(tld_json_val* n)
+{
+        if(n){
+                switch (n->type) {
+                case TLD_JSON_DBL:
+                case TLD_JSON_INT:
+                case TLD_JSON_BOOL_TRUE:
+                case TLD_JSON_BOOL_FALSE:
+                        break;
+                case TLD_JSON_STR:
+                        tld_strbuf_free(n->value.str);
+                        break;
+                case TLD_JSON_ARR:
+                        tld_json_arr_free(n->value.arr);
+                        /* free space here !! */
+                        break;
+                case TLD_JSON_OBJ:
+                        tld_json_obj_free(n->value.obj);
+                        /* free object space here  */
+                        break;
+                case TLD_JSON_UNDEF:
+                        break;
+                }
                 MFREE(n);
         }
 }
@@ -182,126 +300,4 @@ int tld_json_val_copy(tld_json_val *t, tld_json_val *s)
         return OK;
 ERROR:
         return FAIL;
-}
-
-
-int tld_json_val_alloc(tld_json_val **node)
-{
-        tld_json_val* n = NULL;
-        MMALLOC(n, sizeof(tld_json_val));
-        n->type = TLD_JSON_UNDEF;
-        *node = n;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-void tld_json_val_free(tld_json_val* n)
-{
-        if(n){
-                switch (n->type) {
-                case TLD_JSON_DBL:
-                case TLD_JSON_INT:
-                case TLD_JSON_BOOL_TRUE:
-                case TLD_JSON_BOOL_FALSE:
-                        break;
-                case TLD_JSON_STR:
-                        tld_strbuf_free(n->value.str);
-                        break;
-                case TLD_JSON_ARR:
-                        tld_json_arr_free(n->value.arr);
-                        /* free space here !! */
-                        break;
-                case TLD_JSON_OBJ:
-                        tld_json_obj_free(n->value.obj);
-                        /* free object space here  */
-                        break;
-                case TLD_JSON_UNDEF:
-                        break;
-                }
-                MFREE(n);
-        }
-}
-
-
-/* <> arr copy must be implemented here  */
-int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s)
-{
-        tld_json_arr* n = NULL;
-        RUN(tld_json_arr_alloc(&n));
-        for(int i = 0; i < s->n;i++){
-                RUN(tld_json_val_copy(n->v[n->n] , s->v[i]));
-                n->n++;
-                RUN(tld_json_arr_chk_space(n));
-        }
-        *t = n;
-        return OK;
-ERROR:
-        tld_json_arr_free(n);
-        return FAIL;
-}
-
-int tld_json_arr_alloc(tld_json_arr **arr)
-{
-        tld_json_arr* n = NULL;
-        const int want = 16;
-        MMALLOC(n, sizeof(tld_json_arr));
-        n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
-        n->n = 0;
-        n->read_head = 0;
-        n->v = NULL;
-        MMALLOC(n->v,sizeof(tld_json_val*) * want);
-        while(n->n_alloc < want){
-                n->v[n->n_alloc] = NULL;
-                RUN(tld_json_val_alloc(&n->v[n->n_alloc]));
-                n->n_alloc++;
-        }
-        *arr = n;
-        return OK;
-ERROR:
-        if(n){
-                tld_json_arr_free(n);
-        }
-        return FAIL;
-}
-
-int tld_json_arr_chk_space(tld_json_arr *n)
-{
-        if(n->n == n->n_alloc){
-                RUN(tld_json_arr_realloc(n));
-        }
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_json_arr_realloc(tld_json_arr *n)
-{
-        /* As for objects: n_alloc only counts slots that exist. */
-        int target = n->n_alloc + n->n_alloc / 2 + 1;
-
-        MREALLOC(n->v, sizeof(tld_json_val*) * target);
-        while(n->n_alloc < target){
-                int i = n->n_alloc;
-                n->v[i] = NULL;
-                RUN(tld_json_val_alloc(&n->v[i]));
-                n->n_alloc++;
-        }
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-
-void tld_json_arr_free(tld_json_arr *n)
-{
-        if(n){
-                if(n->v){
-                        for(int i = 0; i < n->n_alloc;i++){
-                                tld_json_val_free(n->v[i]);
-                        }
-                        MFREE(n->v);
-                }
-                MFREE(n);
-        }
 }

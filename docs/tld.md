@@ -20,25 +20,25 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [Licence](#sec-licence)
 - [core](#mod-core): 30 symbols (`src/core/tld-core.h`)
 - [alloc](#mod-alloc): 19 symbols (`src/alloc/tld-alloc.h`)
-- [rng](#mod-rng): 13 symbols (`src/rng/tld-rng.h`)
-- [kdtree](#mod-kdtree): 14 symbols (`src/kdtree/tld-kdtree.h`)
-- [hash](#mod-hash): 10 symbols (`src/hash/hash.h`)
-- [logsum](#mod-logsum): 7 symbols (`src/logsum/tld-logsum.h`)
-- [tpool](#mod-tpool): 8 symbols (`src/tpool/tpool.h`)
-- [json types](#mod-json-types): 5 symbols (`src/json/tld-json_struct.h`)
-- [json](#mod-json): 25 symbols (`src/json/tld-json.h`)
-- [json memory](#mod-json-memory): 13 symbols (`src/json/tld-json_mem.h`)
-- [json misc](#mod-json-misc): 7 symbols (`src/json/tld-json_misc.h`)
-- [timing](#mod-timing): 3 symbols (`src/timing/tld-timing.h`)
 - [string](#mod-string): 18 symbols (`src/string/str.h`)
+- [misc](#mod-misc): 7 symbols (`src/misc/misc.h`)
+- [timing](#mod-timing): 3 symbols (`src/timing/tld-timing.h`)
+- [bitfield](#mod-bitfield): 10 symbols (`src/data/bitfield.h`)
+- [hash](#mod-hash): 10 symbols (`src/hash/hash.h`)
+- [json types](#mod-json-types): 5 symbols (`src/json/tld-json_struct.h`)
+- [json memory](#mod-json-memory): 13 symbols (`src/json/tld-json_mem.h`)
+- [json](#mod-json): 25 symbols (`src/json/tld-json.h`)
+- [json misc](#mod-json-misc): 7 symbols (`src/json/tld-json_misc.h`)
 - [template](#mod-template): 2 symbols (`src/template/template.h`)
+- [rng](#mod-rng): 13 symbols (`src/rng/tld-rng.h`)
+- [sort](#mod-sort): 25 symbols (`src/sort/tld-sort.h`)
+- [shuffle](#mod-shuffle): 13 symbols (`src/shuffle/tld-shuffle.h`)
 - [stats](#mod-stats): 13 symbols (`src/stats/basic.h`)
 - [norm_quantile](#mod-norm_quantile): 1 symbol (`src/stats/norm_quantile.h`)
 - [auc](#mod-auc): 3 symbols (`src/stats/auc.h`)
-- [sort](#mod-sort): 25 symbols (`src/sort/tld-sort.h`)
-- [shuffle](#mod-shuffle): 13 symbols (`src/shuffle/tld-shuffle.h`)
-- [misc](#mod-misc): 7 symbols (`src/misc/misc.h`)
-- [bitfield](#mod-bitfield): 10 symbols (`src/data/bitfield.h`)
+- [logsum](#mod-logsum): 7 symbols (`src/logsum/tld-logsum.h`)
+- [kdtree](#mod-kdtree): 14 symbols (`src/kdtree/tld-kdtree.h`)
+- [tpool](#mod-tpool): 8 symbols (`src/tpool/tpool.h`)
 - [Index](#index)
 
 <a id="sec-usage"></a>
@@ -205,24 +205,6 @@ failure. Compare with == OK; do not use the result as a boolean.
 
 Smaller / larger of a and b. Arguments are evaluated twice: no side effects.
 
-<a id="ASSERT"></a>
-
-### `ASSERT`
-
-```c
-#define ASSERT(TEST,...) do {                                   \
-                if(!(TEST)) {                                   \
-                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, "Assertion failed: %s", #TEST); \
-                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
-                        goto ERROR;                             \
-                }                                               \
-        } while (0)
-```
-
-ASSERT(TEST, fmt, ...): if TEST is false, print "Assertion failed: TEST" and the
-printf-style message as ERROR lines (with file and line) and goto ERROR. The message
-is required. Active in all builds; the enclosing function needs an ERROR: label.
-
 <a id="MESSAGE_TYPE_MSG"></a><a id="MESSAGE_TYPE_WARNING"></a><a id="MESSAGE_TYPE_ERROR"></a>
 
 ### `MESSAGE_TYPE_MSG`, `MESSAGE_TYPE_WARNING`, `MESSAGE_TYPE_ERROR`
@@ -234,6 +216,28 @@ is required. Active in all builds; the enclosing function needs an ERROR: label.
 ```
 
 Message types for tld_message and tld_message_at.
+
+<a id="tld_message"></a>
+
+### `tld_message`
+
+```c
+tld_external void tld_message(uint8_t type, const char *format, ...);
+```
+
+Print a timestamped message of type MESSAGE_TYPE_* (printf-style, newline added) to
+stderr. LOG and WARNING lines are dropped when TLD_VERBOSE=0; errors never are.
+
+<a id="tld_message_at"></a>
+
+### `tld_message_at`
+
+```c
+tld_external void tld_message_at(uint8_t type, const char *file, int line, const char *format, ...)
+        __attribute__((format(printf, 4, 5)));
+```
+
+Like tld_message; an ERROR line also names file and line. Used by the macros.
 
 <a id="LOG_MSG"></a><a id="WARNING_MSG"></a>
 
@@ -287,27 +291,45 @@ The string literal "Function \"x\" failed." with x macro-expanded; used by RUN.
 RUN(EXP): evaluate EXP (a call returning OK/FAIL); if it is not OK, print
 Function "EXP" failed. as an ERROR line with file and line and goto ERROR.
 
-<a id="tld_message"></a>
+<a id="ASSERT"></a>
 
-### `tld_message`
-
-```c
-tld_external void tld_message(uint8_t type, const char *format, ...);
-```
-
-Print a timestamped message of type MESSAGE_TYPE_* (printf-style, newline added) to
-stderr. LOG and WARNING lines are dropped when TLD_VERBOSE=0; errors never are.
-
-<a id="tld_message_at"></a>
-
-### `tld_message_at`
+### `ASSERT`
 
 ```c
-tld_external void tld_message_at(uint8_t type, const char *file, int line, const char *format, ...)
-        __attribute__((format(printf, 4, 5)));
+#define ASSERT(TEST,...) do {                                   \
+                if(!(TEST)) {                                   \
+                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, "Assertion failed: %s", #TEST); \
+                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
+                        goto ERROR;                             \
+                }                                               \
+        } while (0)
 ```
 
-Like tld_message; an ERROR line also names file and line. Used by the macros.
+ASSERT(TEST, fmt, ...): if TEST is false, print "Assertion failed: TEST" and the
+printf-style message as ERROR lines (with file and line) and goto ERROR. The message
+is required. Active in all builds; the enclosing function needs an ERROR: label.
+
+<a id="tld_verbosity"></a>
+
+### `tld_verbosity`
+
+```c
+tld_external int tld_verbosity(void);
+```
+
+The TLD_VERBOSE level: 0, 1 (the default, also for unset or unparsable values) or 2.
+A single digit is accepted; the variable is read on every call.
+
+<a id="tld_term_color"></a>
+
+### `tld_term_color`
+
+```c
+tld_external int tld_term_color(void);
+```
+
+1 if stderr gets colour: it is a terminal, NO_COLOR is unset or empty and TERM is
+not "dumb"; 0 otherwise.
 
 <a id="SECTION_MSG"></a><a id="KV_MSG"></a><a id="OK_MSG"></a><a id="DEBUG_MSG"></a>
 
@@ -332,28 +354,6 @@ OK_MSG("done in %.1f s", t);                ✓ done in 1.9 s
 DEBUG_MSG("seed %u", seed);                 · seed 42          (TLD_VERBOSE=2)
 tld_progress(i + 1, n, "aligning");        aligning [#######.....]  58% 23/40
 ```
-
-<a id="tld_verbosity"></a>
-
-### `tld_verbosity`
-
-```c
-tld_external int tld_verbosity(void);
-```
-
-The TLD_VERBOSE level: 0, 1 (the default, also for unset or unparsable values) or 2.
-A single digit is accepted; the variable is read on every call.
-
-<a id="tld_term_color"></a>
-
-### `tld_term_color`
-
-```c
-tld_external int tld_term_color(void);
-```
-
-1 if stderr gets colour: it is a terminal, NO_COLOR is unset or empty and TERM is
-not "dumb"; 0 otherwise.
 
 <a id="tld_section"></a><a id="tld_kv"></a><a id="tld_ok"></a><a id="tld_debug"></a>
 
@@ -387,21 +387,6 @@ meant to be called from several threads at once.
 ## alloc
 
 `src/alloc/tld-alloc.h`: Checked allocation macros (MMALLOC, MREALLOC, MFREE) and galloc/gfree, which allocate zeroed, typed 1D arrays and 2D matrices that remember their dimensions. All allocation macros goto ERROR on failure.
-
-<a id="MFREE"></a>
-
-### `MFREE`
-
-```c
-#define MFREE(p)                                                        \
-        do {                                                            \
-                free(p);                                                \
-                (p) = NULL;                                             \
-        } while (0)
-```
-
-MFREE(p): free(p) and set p to NULL. For memory from MMALLOC, MREALLOC or malloc (use
-gfree for galloc memory). p must be an lvalue; a NULL p is fine.
 
 <a id="MMALLOC"></a>
 
@@ -442,6 +427,70 @@ rounded up. The block is freed with plain free(), so MFREE works unchanged.
 MREALLOC(p, size): resize p to size bytes (malloc when p is NULL). Bytes beyond the old
 size are not zeroed. On failure p is unchanged, an error is printed and goto ERROR;
 size 0 is an error.
+
+<a id="MFREE"></a>
+
+### `MFREE`
+
+```c
+#define MFREE(p)                                                        \
+        do {                                                            \
+                free(p);                                                \
+                (p) = NULL;                                             \
+        } while (0)
+```
+
+MFREE(p): free(p) and set p to NULL. For memory from MMALLOC, MREALLOC or malloc (use
+gfree for galloc memory). p must be an lvalue; a NULL p is fine.
+
+<a id="galloc"></a>
+
+### `galloc`
+
+```c
+#define galloc(...) GALLOC_ARGS(__VA_ARGS__)
+```
+
+galloc(&a, n): a = zeroed array of n elements of a's element type.
+galloc(&m, n, k): m = zeroed n x k matrix, used as m[i][j]; the rows share one
+contiguous block. Element types: char, int8_t..int64_t, uint8_t..uint64_t, float,
+double. The pointer should be NULL (an existing block is not freed or resized). On
+failure an error is printed and goto ERROR. Free with gfree; get_dim1/get_dim2 give
+the dimensions back.
+
+<a id="gfree"></a>
+
+### `gfree`
+
+```c
+#define gfree(a) tld_free(a)
+```
+
+gfree(p): free memory from galloc (1D or 2D). A NULL p is fine; p is not set to
+NULL. Never pass galloc memory to free() or MFREE.
+
+<a id="get_dim1"></a><a id="get_dim2"></a>
+
+### `get_dim1`, `get_dim2`
+
+```c
+tld_external int get_dim1(void *ptr, uint32_t *d);
+tld_external int get_dim2(void *ptr, uint32_t *d);
+```
+
+Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
+into *d. FAIL if ptr is NULL. Only valid for memory from galloc.
+
+<a id="tld_free"></a>
+
+### `tld_free`
+
+```c
+tld_external void tld_free(void *p);
+```
+
+The function behind gfree: frees a galloc block and its 2D data block. NULL is
+ignored.
 
 <a id="tld_valid_1D"></a><a id="tld_valid_2D"></a>
 
@@ -499,17 +548,6 @@ header. Row offsets are computed in size_t.
 The local names are chosen so they cannot capture an identifier used in the caller's
 (b) or (c).
 
-<a id="gfree"></a>
-
-### `gfree`
-
-```c
-#define gfree(a) tld_free(a)
-```
-
-gfree(p): free memory from galloc (1D or 2D). A NULL p is fine; p is not set to
-NULL. Never pass galloc memory to free() or MFREE.
-
 <a id="XXGALLOC_ARGS"></a><a id="XGALLOC_ARGS"></a><a id="GALLOC_ARGS"></a>
 
 ### `XXGALLOC_ARGS`, `XGALLOC_ARGS`, `GALLOC_ARGS`
@@ -522,358 +560,397 @@ NULL. Never pass galloc memory to free() or MFREE.
 
 Dispatch from galloc to XGALLOC_ARGS_<number of arguments>. Use galloc.
 
-<a id="galloc"></a>
+<a id="mod-string"></a>
 
-### `galloc`
+## string
 
-```c
-#define galloc(...) GALLOC_ARGS(__VA_ARGS__)
-```
+`src/string/str.h`: Tld_strbuf, a growable NUL-terminated byte buffer (append, prepend, copy), and tld_str, a pointer-and-length string with prefix and suffix tests. Inspired by the rayfork str code by Sas Luca.
 
-galloc(&a, n): a = zeroed array of n elements of a's element type.
-galloc(&m, n, k): m = zeroed n x k matrix, used as m[i][j]; the rows share one
-contiguous block. Element types: char, int8_t..int64_t, uint8_t..uint64_t, float,
-double. The pointer should be NULL (an existing block is not freed or resized). On
-failure an error is printed and goto ERROR. Free with gfree; get_dim1/get_dim2 give
-the dimensions back.
+<a id="tld_str"></a>
 
-<a id="tld_free"></a>
-
-### `tld_free`
+### `tld_str`
 
 ```c
-tld_external void tld_free(void *p);
+typedef struct tld_string {
+        uint8_t* str;
+        int32_t len;
+} tld_str;
 ```
 
-The function behind gfree: frees a galloc block and its 2D data block. NULL is
-ignored.
+A string as pointer and length: len bytes at str. Owned when made by tld_strmk or
+tld_str_alloc (free with tld_str_free); a borrowed view when made by
+tld_strbuf_to_str or tld_char_to_str (never free).
 
-<a id="get_dim1"></a><a id="get_dim2"></a>
+<a id="tld_strbuf"></a>
 
-### `get_dim1`, `get_dim2`
+### `tld_strbuf`
 
 ```c
-tld_external int get_dim1(void *ptr, uint32_t *d);
-tld_external int get_dim2(void *ptr, uint32_t *d);
+typedef struct tld_string_buffer {
+        uint8_t* str;
+        int32_t len;
+        int32_t alloc_len;
+} tld_strbuf;
 ```
 
-Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
-into *d. FAIL if ptr is NULL. Only valid for memory from galloc.
+A growable byte buffer: len bytes at str, always followed by a NUL, in alloc_len
+bytes. TLD_STR(b) gives it as char *. Appending may move str, so do not keep that
+pointer across changes. Create with tld_strbuf_alloc, free with tld_strbuf_free.
 
-<a id="mod-rng"></a>
+<a id="TLD_STR"></a><a id="TLD_STRLEN"></a>
 
-## rng
-
-`src/rng/tld-rng.h`: The xoshiro256** random number generator (seedable, and splittable for threads) with uniform, integer, Gaussian and gamma draws, plus alias-table sampling from a discrete distribution. A generator is not locked: use one per thread.
-
-<a id="rng_state"></a>
-
-### `rng_state`
+### `TLD_STR`, `TLD_STRLEN`
 
 ```c
-typedef struct rng_state rng_state;
+#define TLD_STR(X) ((char*)(X)->str)
+#define TLD_STRLEN(X) (X)->len
 ```
 
-Opaque generator state. Create with init_rng or init_rng_from_rng, free with
-free_rng.
+TLD_STR(x): the contents of a tld_strbuf * or tld_str * as char *; TLD_STRLEN(x): its
+length in bytes.
 
-<a id="rng_dist"></a>
+<a id="tld_strbuf_alloc"></a>
 
-### `rng_dist`
+### `tld_strbuf_alloc`
 
 ```c
-struct rng_dist;
+tld_external int tld_strbuf_alloc(tld_strbuf **buffer, int size);
 ```
 
-Opaque alias table for sampling from a discrete distribution (tl_random_sdist_*).
+A new empty buffer in *buffer with size bytes reserved (0 means 1024; size < 0 is an
+error). It grows as needed. Free with tld_strbuf_free.
 
-<a id="init_rng"></a>
+<a id="tld_strbuf_free"></a>
 
-### `init_rng`
+### `tld_strbuf_free`
 
 ```c
-tld_external int init_rng(struct rng_state **rng, uint64_t seed);
+tld_external void tld_strbuf_free(tld_strbuf *b);
 ```
 
-Allocate a generator in *rng seeded with seed; the same seed gives the same sequence.
-seed 0 picks an arbitrary seed from the time and clock (differs between runs). Free
-with free_rng.
+Free a buffer; NULL is ignored.
 
-<a id="tld_rng_set_seed"></a>
+<a id="tld_str_alloc"></a>
 
-### `tld_rng_set_seed`
+### `tld_str_alloc`
 
 ```c
-tld_external int tld_rng_set_seed(struct rng_state *s, uint64_t seed);
+tld_external int tld_str_alloc(tld_str **string, int size);
 ```
 
-Reseed an existing generator (seed is used as given, 0 included) and drop any cached
-Gaussian deviate.
+A new tld_str in *string with a zeroed buffer of size bytes and len = size. Free
+with tld_str_free.
 
-<a id="init_rng_from_rng"></a>
+<a id="tld_str_free"></a>
 
-### `init_rng_from_rng`
+### `tld_str_free`
 
 ```c
-tld_external int init_rng_from_rng(struct rng_state** target, struct rng_state* rng);
+tld_external void tld_str_free(tld_str *a);
 ```
 
-Allocate a generator for another thread in *target: it continues rng's current
-stream, and rng itself jumps 2^128 draws ahead, so the two streams never overlap.
-Free with free_rng.
+Free a tld_str made by tld_strmk or tld_str_alloc; NULL is ignored.
 
-<a id="tl_random_sdist_init"></a>
+<a id="tld_strmk"></a>
 
-### `tl_random_sdist_init`
+### `tld_strmk`
 
 ```c
-tld_external int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed);
+tld_external int tld_strmk(tld_str **string,const char *src);
 ```
 
-Build in *rng_dist an alias table that samples index i in [0, n) with probability
-w[i] / sum(w). Weights must be >= 0 with a finite, positive sum. The table owns its
-own generator seeded with seed (0 = arbitrary). Free with tl_random_sdist_free.
+A new tld_str in *string holding a NUL-terminated copy of src (len = strlen(src)).
+Free with tld_str_free.
 
-<a id="tl_random_sdist_smpl"></a>
+<a id="tld_strbuf_clear"></a>
 
-### `tl_random_sdist_smpl`
+### `tld_strbuf_clear`
 
 ```c
-tld_external int tl_random_sdist_smpl(struct rng_dist* d);
+tld_external int tld_strbuf_clear(tld_strbuf *b);
 ```
 
-One sample from the table: an index in [0, n).
+Empty the buffer (len 0); the memory is kept.
 
-<a id="tl_random_sdist_free"></a>
+<a id="tld_strbuf_copy"></a>
 
-### `tl_random_sdist_free`
+### `tld_strbuf_copy`
 
 ```c
-tld_external void tl_random_sdist_free(struct rng_dist* d);
+tld_external int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
 ```
 
-Free an alias table and its generator; NULL is ignored.
+Replace the contents of t with a copy of s; t grows as needed.
 
-<a id="free_rng"></a>
+<a id="tld_append"></a>
 
-### `free_rng`
+### `tld_append`
 
 ```c
-tld_external void free_rng(struct rng_state* rng);
+tld_external int tld_append(tld_strbuf *b, char *content);
 ```
 
-Free a generator; NULL is ignored.
+Append the NUL-terminated string content to b; b grows as needed.
 
-<a id="tl_random_double"></a>
+<a id="tld_append_char"></a>
 
-### `tl_random_double`
+### `tld_append_char`
 
 ```c
-tld_external double tl_random_double(struct rng_state* rng);
+tld_external int tld_append_char(tld_strbuf *b, char c);
 ```
 
-Uniform double on the open interval (0, 1): never exactly 0 or 1.
+Append the single character c to b.
 
-<a id="tl_random_gaussian"></a>
+<a id="tld_prepend"></a>
 
-### `tl_random_gaussian`
+### `tld_prepend`
 
 ```c
-tld_external double tl_random_gaussian(struct rng_state* rng, double mu, double sigma);
+tld_external int tld_prepend(tld_strbuf *b, char *content);
 ```
 
-Normal deviate with mean mu and standard deviation sigma (Box-Muller; values are made
-in pairs and every other call returns the cached second one).
+Insert the NUL-terminated string content at the start of b.
 
-<a id="tl_random_gamma"></a>
+<a id="tld_suffix_match"></a><a id="tld_prefix_match"></a>
 
-### `tl_random_gamma`
+### `tld_suffix_match`, `tld_prefix_match`
 
 ```c
-tld_external double tl_random_gamma(struct rng_state* rng, double shape, double scale);
+tld_external int tld_suffix_match(tld_str t, tld_str s);
+tld_external int tld_prefix_match(tld_str t, tld_str s);
 ```
 
-Gamma deviate with the given shape (> 0, not checked) and scale; mean shape * scale.
+1 if t ends with s (tld_suffix_match) or starts with s (tld_prefix_match), else 0.
+A boolean, not OK/FAIL.
 
-<a id="tl_random_int"></a>
+<a id="tld_strbuf_to_str"></a>
 
-### `tl_random_int`
+### `tld_strbuf_to_str`
 
 ```c
-tld_external int tl_random_int(struct rng_state* rng,int a);
+tld_external tld_str tld_strbuf_to_str(tld_strbuf s);
 ```
 
-Uniform integer in [0, a), without modulo bias; 0 when a <= 1.
+A borrowed tld_str view of the buffer's current contents: tld_strbuf_to_str(*b).
 
-<a id="mod-kdtree"></a>
+<a id="tld_char_to_str"></a>
 
-## kdtree
-
-`src/kdtree/tld-kdtree.h`: A k-d tree of double vectors with caller-chosen ids for nearest-neighbour search (squared Euclidean distance by default); points can be built in bulk or inserted one at a time. Not locked: one thread per tree.
-
-<a id="kd_node"></a>
-
-### `kd_node`
+### `tld_char_to_str`
 
 ```c
-typedef struct kd_node {
-        double* p;
-        struct kd_node* left;
-        struct kd_node* right;
-        /* int split; */
-        uint32_t id;
-        int n;
-} kd_node;
+tld_external tld_str tld_char_to_str(char* s);
 ```
 
-A tree node: p is the point (n doubles, owned by the tree), id the caller's id.
+A borrowed tld_str view of the C string s (len = strlen(s)).
 
-<a id="kdtree"></a>
+<a id="mod-misc"></a>
 
-### `kdtree`
+## misc
+
+`src/misc/misc.h`: File and directory checks, absolute paths, file and directory names of a path, and capturing the command line.
+
+<a id="tld_file_exists"></a>
+
+### `tld_file_exists`
 
 ```c
-typedef struct kdtree {
-        /* kd_node* root; */
-        kd_node* root;
-        struct kdyard* yard;
-        int(*fptr_cmp)(double*, double*, int, double*);
-        int(*fptr_plane)(double*, double*, int, double);
-        int rebalance_at;
-        int n_step;
-        int depth;
-        int max_depth;
-        int min_depth;
-        int vec_len;
-} kdtree;
+tld_external int tld_file_exists(const char* name);
 ```
 
-A k-d tree; create with kdtree_alloc, free with kdtree_free. Fields a caller may set:
-fptr_cmp (distance, default kddist_euclidian) with the matching fptr_plane (default
-kdplane_check_euclidian), and rebalance_at (insertions between balance checks, default
-10000). The rest is internal.
+OK if name exists (a file, directory or anything else stat() sees), FAIL otherwise,
+without a message. Test with == OK.
 
-<a id="kdtree_bf_search"></a>
+<a id="tld_dir_exists"></a>
 
-### `kdtree_bf_search`
+### `tld_dir_exists`
 
 ```c
-tld_external  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
+tld_external int tld_dir_exists(const char *name);
 ```
 
-Brute force: the id of the stored point nearest to x, comparing every point; 0 when
-the tree is empty. For checking kdtree_nn_search.
+OK if name is a directory that can be opened; otherwise prints an error and returns
+FAIL.
 
-<a id="kdtree_nn_search"></a>
+<a id="tld_dir_create"></a>
 
-### `kdtree_nn_search`
+### `tld_dir_create`
 
 ```c
-tld_external  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
+tld_external int tld_dir_create(char *dir);
 ```
 
-The id of the stored point nearest to x (a vector of the tree's length) into *id.
-*id is left unchanged when the tree is empty.
+Create the directory dir (mode 0700; its parent must exist). OK when it was created
+or already exists as a directory (with a warning); FAIL otherwise.
 
-<a id="kdtree_build"></a>
+<a id="tld_get_full_path"></a>
 
-### `kdtree_build`
+### `tld_get_full_path`
 
 ```c
-tld_external  int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size);
+tld_external int tld_get_full_path(tld_strbuf **full, char *filename);
 ```
 
-Build a balanced tree from n points x[i] of size doubles (size <= the length given
-to kdtree_alloc) with ids[i]. The points are copied; the x pointer array and ids are
-reordered in place. Use on an empty tree (new or after kdtree_reset).
+The absolute, symlink-free path of the existing file filename into *full. A non-NULL
+*full is cleared and reused; otherwise a buffer is allocated (free with
+tld_strbuf_free). FAIL when the file does not exist.
 
-<a id="kdtree_insert"></a>
+<a id="tld_capture_cmd_line"></a>
 
-### `kdtree_insert`
+### `tld_capture_cmd_line`
 
 ```c
-tld_external  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
+tld_external int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[]);
 ```
 
-Insert one point x of size doubles with id (copied). Every rebalance_at insertions
-the tree is rebuilt if its depth is more than 10 levels off the balanced depth.
+Append argv[0] .. argv[argc - 1], each followed by a space, to *cmdline (allocated when
+NULL; free with tld_strbuf_free). For recording how a program was run.
 
-<a id="kdtree_rebalance"></a>
+<a id="tld_get_filename"></a>
 
-### `kdtree_rebalance`
+### `tld_get_filename`
 
 ```c
-tld_external  int kdtree_rebalance(kdtree *t);
+tld_external int tld_get_filename(char* path, char** out);
 ```
 
-Rebuild the tree balanced from the points it holds.
+A new string in *out (free with MFREE or free) with the part of path after the last
+'/'. FAIL when that part is empty (path is empty or ends in '/').
 
-<a id="kdtree_alloc"></a>
+<a id="tld_get_dirname"></a>
 
-### `kdtree_alloc`
+### `tld_get_dirname`
 
 ```c
-tld_external  int kdtree_alloc(kdtree **tree, int size);
+tld_external int tld_get_dirname(char* path, char** out);
 ```
 
-Allocate in *tree an empty tree for points of size (> 0) dimensions, using squared
-Euclidean distance. Storage grows as points are added. Free with kdtree_free.
+A new string in *out (free with MFREE or free) with the part of path before the last
+'/' ("/" for "/name"). FAIL when path contains no '/'.
 
-<a id="kdtree_reset"></a>
+<a id="mod-timing"></a>
 
-### `kdtree_reset`
+## timing
+
+`src/timing/tld-timing.h`: One global wall-clock stopwatch that prints elapsed seconds to stdout.
+
+<a id="set_exec_time"></a>
+
+### `set_exec_time`
 
 ```c
-tld_external  int kdtree_reset(kdtree *t);
+tld_external void set_exec_time(int end);
 ```
 
-Remove every point and keep the memory for reuse.
+end 0 starts the stopwatch; 1 prints "\nexec time: 1.23s\n" and 2 prints "1.23s" to
+stdout. One global timer (static state, not thread-safe).
 
-<a id="kdtree_free"></a>
+<a id="TLD_START_TIMER"></a><a id="TLD_END_TIMER"></a>
 
-### `kdtree_free`
+### `TLD_START_TIMER`, `TLD_END_TIMER`
 
 ```c
-tld_external void kdtree_free(kdtree *t);
+#define TLD_START_TIMER set_exec_time(0);
+#define TLD_END_TIMER set_exec_time(1);
 ```
 
-Free the tree and all its points; NULL is ignored.
+Complete statements (they include the semicolon): TLD_START_TIMER starts the
+stopwatch, TLD_END_TIMER prints the elapsed time (set_exec_time(0) / (1)).
 
-<a id="kdtree_debug_chk"></a><a id="kdtree_debug_print"></a>
+<a id="mod-bitfield"></a>
 
-### `kdtree_debug_chk`, `kdtree_debug_print`
+## bitfield
+
+`src/data/bitfield.h`: Fixed-length bit sets with set, get and clear, OR, copy and (masked) Hamming distance.
+
+<a id="tl_bitfield"></a>
+
+### `tl_bitfield`
 
 ```c
-tld_external void kdtree_debug_chk(kd_node *n, int depth);
-tld_external void kdtree_debug_print(kd_node *n, int depth);
+typedef struct {
+        uint64_t* m;
+        int32_t len;
+        int32_t alloc_len;
+} tl_bitfield;
 ```
 
-Debugging: print the subtree under n (pass t->root, depth 0) to stderr, as split
-values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). A NULL
-n prints nothing.
+A set of len bits, stored in alloc_len 64-bit words m. Create with tl_bitfield_alloc,
+free with tl_bitfield_free.
 
-<a id="kddist_euclidian"></a>
+<a id="tl_bitfield_alloc"></a>
 
-### `kddist_euclidian`
+### `tl_bitfield_alloc`
 
 ```c
-tld_external  int kddist_euclidian(double *a, double *b, int vec_len, double *dist);
+tld_external  int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size);
 ```
 
-Squared Euclidean distance between a and b (vec_len doubles) into *dist. The default
-fptr_cmp.
+A new bitfield of size bits, all 0, in *bit_f. Free with tl_bitfield_free.
 
-<a id="kdplane_check_euclidian"></a>
+<a id="tl_bitfield_free"></a>
 
-### `kdplane_check_euclidian`
+### `tl_bitfield_free`
 
 ```c
-tld_external  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
+tld_external void tl_bitfield_free(tl_bitfield *b);
 ```
 
-OK when the squared distance between a and b along dimension cd is below min_dist
-(the far side of the splitting plane may hold a nearer point), FAIL otherwise. The
-default fptr_plane.
+Free a bitfield; NULL is ignored.
+
+<a id="tl_bitfield_reset"></a>
+
+### `tl_bitfield_reset`
+
+```c
+tld_external  int tl_bitfield_reset(tl_bitfield *b);
+```
+
+Clear every bit.
+
+<a id="tl_bitfield_set"></a><a id="tl_bitfield_get"></a><a id="tl_bitfield_clear"></a>
+
+### `tl_bitfield_set`, `tl_bitfield_get`, `tl_bitfield_clear`
+
+```c
+tld_external  int tl_bitfield_set(tl_bitfield *b, int32_t index);
+tld_external  int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit);
+tld_external  int tl_bitfield_clear(tl_bitfield *b, int32_t index);
+```
+
+Set bit index to 1, read it into *bit (0 or 1), or clear it to 0. FAIL, without a
+message, when index is outside [0, len).
+
+<a id="tl_bitfield_copy"></a>
+
+### `tl_bitfield_copy`
+
+```c
+tld_external  int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src);
+```
+
+Copy the bits of src into dst; both must have the same length.
+
+<a id="tl_bitfield_or"></a>
+
+### `tl_bitfield_or`
+
+```c
+tld_external  int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret);
+```
+
+ret = b1 | b2, bit by bit; all three must have the same length.
+
+<a id="tl_bitfield_hamming"></a>
+
+### `tl_bitfield_hamming`
+
+```c
+tld_external  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield *mask, int32_t *dist);
+```
+
+The number of positions at which b1 and b2 differ into *dist, counting only positions
+set in mask (NULL: all). The bitfields (and mask) must have the same length.
 
 <a id="mod-hash"></a>
 
@@ -891,6 +968,71 @@ typedef struct tld_hash tld_hash;
 
 Opaque string-to-string map. Create with tld_hash_alloc (or let tld_hash_add create
 it), free with tld_hash_free.
+
+<a id="tld_hash_alloc"></a>
+
+### `tld_hash_alloc`
+
+```c
+tld_external  int tld_hash_alloc(tld_hash **hash, int size);
+```
+
+Allocate an empty map in *hash with more than size buckets (a prime); it grows when
+the entries outnumber 3/4 of the buckets. Free with tld_hash_free.
+
+<a id="tld_hash_free"></a>
+
+### `tld_hash_free`
+
+```c
+tld_external void tld_hash_free(tld_hash *h);
+```
+
+Free the map and every key and value; NULL is ignored.
+
+<a id="tld_hash_add"></a>
+
+### `tld_hash_add`
+
+```c
+tld_external  int tld_hash_add(tld_hash **hash, char *key, char *val);
+```
+
+Insert key -> val (both copied), replacing the value if key exists. When *hash is NULL
+a map is allocated first and stored in *hash.
+
+<a id="tld_hash_get"></a>
+
+### `tld_hash_get`
+
+```c
+tld_external  int tld_hash_get(tld_hash *h, char *key, char **val);
+```
+
+Look up key: *val points to the stored value (borrowed; valid until the entry changes
+or the map is freed). Returns FAIL, without a message, and sets *val to NULL when key
+is absent.
+
+<a id="tld_hash_del"></a>
+
+### `tld_hash_del`
+
+```c
+tld_external  int tld_hash_del(tld_hash *h, char *key);
+```
+
+Remove key. Returns FAIL, without a message, when key is absent.
+
+<a id="tld_hash_rename"></a>
+
+### `tld_hash_rename`
+
+```c
+tld_external  int tld_hash_rename(tld_hash *h, char *key, char* new_key);
+```
+
+Move the value stored under key to new_key (replacing any value there). Returns FAIL
+when key is absent.
 
 <a id="tld_hash_iter_init"></a>
 
@@ -919,71 +1061,6 @@ RUN(tld_hash_iter_init(h));
 while(tld_hash_iterator_next(h, &k, &v) == OK){ ... }
 ```
 
-<a id="tld_hash_add"></a>
-
-### `tld_hash_add`
-
-```c
-tld_external  int tld_hash_add(tld_hash **hash, char *key, char *val);
-```
-
-Insert key -> val (both copied), replacing the value if key exists. When *hash is NULL
-a map is allocated first and stored in *hash.
-
-<a id="tld_hash_get"></a>
-
-### `tld_hash_get`
-
-```c
-tld_external  int tld_hash_get(tld_hash *h, char *key, char **val);
-```
-
-Look up key: *val points to the stored value (borrowed; valid until the entry changes
-or the map is freed). Returns FAIL, without a message, and sets *val to NULL when key
-is absent.
-
-<a id="tld_hash_rename"></a>
-
-### `tld_hash_rename`
-
-```c
-tld_external  int tld_hash_rename(tld_hash *h, char *key, char* new_key);
-```
-
-Move the value stored under key to new_key (replacing any value there). Returns FAIL
-when key is absent.
-
-<a id="tld_hash_del"></a>
-
-### `tld_hash_del`
-
-```c
-tld_external  int tld_hash_del(tld_hash *h, char *key);
-```
-
-Remove key. Returns FAIL, without a message, when key is absent.
-
-<a id="tld_hash_alloc"></a>
-
-### `tld_hash_alloc`
-
-```c
-tld_external  int tld_hash_alloc(tld_hash **hash, int size);
-```
-
-Allocate an empty map in *hash with more than size buckets (a prime); it grows when
-the entries outnumber 3/4 of the buckets. Free with tld_hash_free.
-
-<a id="tld_hash_free"></a>
-
-### `tld_hash_free`
-
-```c
-tld_external void tld_hash_free(tld_hash *h);
-```
-
-Free the map and every key and value; NULL is ignored.
-
 <a id="tld_hash_print"></a>
 
 ### `tld_hash_print`
@@ -993,182 +1070,6 @@ tld_external  int tld_hash_print(tld_hash *h);
 ```
 
 Print every entry as "key: value" lines to stdout.
-
-<a id="mod-logsum"></a>
-
-## logsum
-
-`src/logsum/tld-logsum.h`: Arithmetic on probabilities stored as logarithms (log-sum-exp via a lookup table) and tolerant floating-point equality.
-
-<a id="nearly_equal_float"></a><a id="nearly_equal_double"></a>
-
-### `nearly_equal_float`, `nearly_equal_double`
-
-```c
-tld_external int nearly_equal_float(float a, float b);
-tld_external int nearly_equal_double(double a, double b);
-```
-
-1 if a and b are equal up to a relative difference of FLT_EPSILON / DBL_EPSILON (an
-absolute one when either is 0 or both are tiny), else 0.
-
-<a id="TLSAFE_EQ"></a>
-
-### `TLSAFE_EQ`
-
-```c
-#define TLSAFE_EQ(X,Y) _Generic((X),                        \
-                                float: nearly_equal_float,  \
-                                double: nearly_equal_double \
-                )(X,Y)
-```
-
-TLSAFE_EQ(X, Y): nearly_equal_float or nearly_equal_double, chosen by the type of X
-(float or double only).
-
-<a id="init_logsum"></a>
-
-### `init_logsum`
-
-```c
-tld_external void init_logsum(void);
-```
-
-Fill logsum's lookup table. Optional (logsum does it on first use); thread-safe.
-
-<a id="logsum"></a>
-
-### `logsum`
-
-```c
-tld_external float logsum(const float a,const float b);
-```
-
-log(exp(a) + exp(b)) for log-space values, from a table with steps of 0.001. NaN if
-either is NaN; -INFINITY acts as log(0); returns max(a, b) when they differ by 15.7 or
-more.
-
-<a id="prob2scaledprob"></a>
-
-### `prob2scaledprob`
-
-```c
-tld_external float prob2scaledprob(float p);
-```
-
-log(p), with -INFINITY for p == 0.
-
-<a id="scaledprob2prob"></a>
-
-### `scaledprob2prob`
-
-```c
-tld_external float scaledprob2prob(float p);
-```
-
-exp(p), with 0 for p == -INFINITY.
-
-<a id="mod-tpool"></a>
-
-## tpool
-
-`src/tpool/tpool.h`: A pthread pool. Jobs func(pool, data, start, end, thread_id) are queued with tld_thread_pool_add and run in FIFO order by a fixed set of worker threads; optional time limit and a global stop flag.
-
-<a id="tld_global_stop_run"></a><a id="tld_global_cond_mutex"></a><a id="tld_global_cond"></a>
-
-### `tld_global_stop_run`, `tld_global_cond_mutex`, `tld_global_cond`
-
-```c
-tld_external atomic_int tld_global_stop_run;
-tld_external pthread_mutex_t tld_global_cond_mutex;
-tld_external  pthread_cond_t tld_global_cond;
-```
-
-Global stop flag. The library installs no signal handlers: a program that wants to
-stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself; workers
-check it between jobs and stop, dropping queued jobs. The mutex and condition are not
-used by tld; they are there for programs that want to sleep until the flag is set.
-
-<a id="tld_thread_pool"></a>
-
-### `tld_thread_pool`
-
-```c
-typedef struct tld_thread_pool {
-        struct work_queue* work;
-        int n_threads;
-        int n_active_threads;
-        int n_jobs_processed;
-        /* Pausing */
-        pthread_mutex_t lock;
-
-        pthread_cond_t work_cond;
-        pthread_cond_t working_cond;
-        pthread_attr_t attr;
-
-        pthread_t* threads;
-        int64_t* thread_id_map;
-        int thread_id_idx;
-        int n_working;
-        /* int n_work; */
-        int stop;
-        double maxtime;
-        time_t internal_time;
-        time_t stop_watch;
-        /* void (*function_ptr)(void*); */
-
-} tld_thread_pool;
-```
-
-A thread pool; create with tld_thread_pool_create, free with tld_thread_pool_free.
-The fields are internal (n_threads may be read).
-
-<a id="tld_thread_pool_add"></a>
-
-### `tld_thread_pool_add`
-
-```c
-tld_external int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
-```
-
-Queue a job: a worker calls func_ptr(p, data, start, end, thread_id), thread_id in
-[0, n_threads). start and end are passed through (e.g. a slice of an index range).
-Thread-safe; may be called from inside a job. Once the pool has stopped (time limit
-or tld_global_stop_run) the job is dropped and OK is still returned.
-
-<a id="tld_thread_pool_create"></a>
-
-### `tld_thread_pool_create`
-
-```c
-tld_external int  tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads);
-```
-
-Start a pool of n_threads workers (at least 2) in *pool. max_time is a limit in
-minutes since creation, checked after each job: once passed, the pool stops and
-queued jobs are dropped. 0 means no limit.
-
-<a id="tld_thread_pool_wait"></a>
-
-### `tld_thread_pool_wait`
-
-```c
-tld_external void tld_thread_pool_wait(tld_thread_pool *p);
-```
-
-Block until the queue is empty and no job is running (after a stop: until every
-worker has exited). The pool can take more jobs afterwards. NULL is ignored.
-
-<a id="tld_thread_pool_free"></a>
-
-### `tld_thread_pool_free`
-
-```c
-tld_external void tld_thread_pool_free(tld_thread_pool *p);
-```
-
-Run every job still queued, then stop and join the workers and free the pool. NULL
-is ignored.
 
 <a id="mod-json-types"></a>
 
@@ -1269,11 +1170,198 @@ typedef struct {
 One entry for JSON_OBJ / JSON_ARR, made by JS, JO, JA, JSTR, JNUM, JINT, JBOOL or
 JNULL.
 
+<a id="mod-json-memory"></a>
+
+## json memory
+
+`src/json/tld-json_mem.h`: Allocate, deep-copy and free JSON objects, arrays and values.
+
+<a id="tld_json_obj_alloc"></a>
+
+### `tld_json_obj_alloc`
+
+```c
+EXTERN  int tld_json_obj_alloc(tld_json_obj **obj);
+```
+
+A new empty object in *obj. Free with tld_json_obj_free.
+
+<a id="tld_json_obj_free"></a>
+
+### `tld_json_obj_free`
+
+```c
+EXTERN void tld_json_obj_free(tld_json_obj *n);
+```
+
+Free an object with all its keys and values; NULL is ignored.
+
+<a id="tld_json_obj_copy"></a>
+
+### `tld_json_obj_copy`
+
+```c
+EXTERN  int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s);
+```
+
+Deep copy of the object s into a new object in *target (free with tld_json_obj_free).
+
+<a id="tld_json_obj_chk_space"></a><a id="tld_json_obj_realloc"></a>
+
+### `tld_json_obj_chk_space`, `tld_json_obj_realloc`
+
+```c
+EXTERN  int tld_json_obj_chk_space(tld_json_obj *n);
+EXTERN  int tld_json_obj_realloc(tld_json_obj *n);
+```
+
+Make room for more entries: chk_space grows n when every slot is used (n == n_alloc),
+realloc always grows it by half. Only needed by code that fills key[n] / v[n]
+directly; JSON_OBJ and the parser do this themselves.
+
+<a id="tld_json_arr_alloc"></a>
+
+### `tld_json_arr_alloc`
+
+```c
+EXTERN  int tld_json_arr_alloc(tld_json_arr **arr);
+```
+
+A new empty array in *arr. Free with tld_json_arr_free.
+
+<a id="tld_json_arr_free"></a>
+
+### `tld_json_arr_free`
+
+```c
+EXTERN void tld_json_arr_free(tld_json_arr *n);
+```
+
+Free an array with all its values; NULL is ignored.
+
+<a id="tld_json_arr_copy"></a>
+
+### `tld_json_arr_copy`
+
+```c
+EXTERN  int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s);
+```
+
+Deep copy of the array s into a new array in *t (free with tld_json_arr_free).
+
+<a id="tld_json_arr_chk_space"></a><a id="tld_json_arr_realloc"></a>
+
+### `tld_json_arr_chk_space`, `tld_json_arr_realloc`
+
+```c
+EXTERN  int tld_json_arr_chk_space(tld_json_arr *n);
+EXTERN  int tld_json_arr_realloc(tld_json_arr *n);
+```
+
+Make room for more values: chk_space grows n when every slot is used, realloc always
+grows it by half. Only needed by code that fills v[n] directly.
+
+<a id="tld_json_val_alloc"></a>
+
+### `tld_json_val_alloc`
+
+```c
+EXTERN   int tld_json_val_alloc(tld_json_val **node);
+```
+
+A new value of type TLD_JSON_UNDEF (null) in *node. Free with tld_json_val_free.
+
+<a id="tld_json_val_free"></a>
+
+### `tld_json_val_free`
+
+```c
+EXTERN  void tld_json_val_free(tld_json_val *n);
+```
+
+Free a value and everything it owns; NULL is ignored.
+
+<a id="tld_json_val_copy"></a>
+
+### `tld_json_val_copy`
+
+```c
+EXTERN   int tld_json_val_copy(tld_json_val *t, tld_json_val *s);
+```
+
+Deep copy s into t. Whatever t held is released first, so t may change type; s may
+live inside t.
+
 <a id="mod-json"></a>
 
 ## json
 
 `src/json/tld-json.h`: Parse JSON text into a tree (tld_json_parse), build trees with JSON_OBJ and JSON_ARR, read values by path (tld_json_get_*), search and update, and write JSON text (tld_json_dump).
+
+<a id="tld_json_parse"></a>
+
+### `tld_json_parse`
+
+```c
+EXTERN  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
+```
+
+Parse the JSON text in t (standard JSON, nesting up to 512 levels) into a new object in
+*out; free it with tld_json_obj_free. A top-level array becomes the single entry of
+an object, under the key "Top Level Arr". Invalid JSON prints an error naming the byte
+offset and returns FAIL.
+
+<a id="tld_json_search"></a>
+
+### `tld_json_search`
+
+```c
+EXTERN int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
+```
+
+Collect deep copies of every value stored under key, at any depth, into a new object
+in *ret (entries named key, in document order; free with tld_json_obj_free). OK with
+an empty result when nothing matches.
+
+<a id="tld_json_get_str"></a><a id="tld_json_get_num"></a><a id="tld_json_get_int"></a><a id="tld_json_get_bool"></a><a id="tld_json_get_obj"></a><a id="tld_json_get_arr"></a>
+
+### `tld_json_get_str`, `tld_json_get_num`, `tld_json_get_int`, `tld_json_get_bool`, `tld_json_get_obj`, `tld_json_get_arr`
+
+```c
+EXTERN int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out);
+EXTERN int tld_json_get_num(tld_json_obj *obj, const char *path, double *out);
+EXTERN int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out);
+EXTERN int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out);
+EXTERN int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out);
+EXTERN int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out);
+```
+
+Path getters. A path is dot-separated keys with [i] for array elements,
+e.g. "message.content", "embeddings[0]", "models[2].name". tld_json_parse
+stores a top-level array under the key "Top Level Arr"; address it as
+"Top Level Arr[0]..." or simply "[0]...". Keys containing '.' or '[' cannot
+be addressed. All return OK, or FAIL (leaving *out unchanged) when the path
+does not exist or the value has another type. Strings, objects and arrays
+are borrowed from the tree. get_num accepts integers; get_int accepts
+integral doubles inside the int64_t range. JSON null has type
+TLD_JSON_UNDEF and fails every getter. An empty path in get_obj returns
+obj itself. out may be NULL to test whether the path exists.
+
+<a id="tld_json_set_val"></a>
+
+### `tld_json_set_val`
+
+```c
+EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
+```
+
+Set the value at a path to a deep copy of v. key is a path in the syntax of the
+tld_json_get_* getters ("name", "a.b", "list[2].id", "[0]" for a parsed top-level
+array). Everything before the last step must exist. The last step may name a key
+that is missing (it is added at the end of its object) or the index one past the
+end of an array (v is appended). An existing value is replaced, even by one of
+another type, and v may be part of n. Returns FAIL for a missing parent, an index
+further past the end, or no memory. Keys containing '.' or '[' cannot be addressed.
 
 <a id="JS"></a><a id="JO"></a><a id="JA"></a>
 
@@ -1344,71 +1432,6 @@ and return it. They stop at the first entry that cannot be added: a container cr
 by the call is then freed, with the children of entries not yet attached, and NULL is
 returned; a caller-supplied container is returned holding the entries added so far.
 
-<a id="tld_json_parse"></a>
-
-### `tld_json_parse`
-
-```c
-EXTERN  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
-```
-
-Parse the JSON text in t (standard JSON, nesting up to 512 levels) into a new object in
-*out; free it with tld_json_obj_free. A top-level array becomes the single entry of
-an object, under the key "Top Level Arr". Invalid JSON prints an error naming the byte
-offset and returns FAIL.
-
-<a id="tld_json_search"></a>
-
-### `tld_json_search`
-
-```c
-EXTERN int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
-```
-
-Collect deep copies of every value stored under key, at any depth, into a new object
-in *ret (entries named key, in document order; free with tld_json_obj_free). OK with
-an empty result when nothing matches.
-
-<a id="tld_json_set_val"></a>
-
-### `tld_json_set_val`
-
-```c
-EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
-```
-
-Set the value at a path to a deep copy of v. key is a path in the syntax of the
-tld_json_get_* getters ("name", "a.b", "list[2].id", "[0]" for a parsed top-level
-array). Everything before the last step must exist. The last step may name a key
-that is missing (it is added at the end of its object) or the index one past the
-end of an array (v is appended). An existing value is replaced, even by one of
-another type, and v may be part of n. Returns FAIL for a missing parent, an index
-further past the end, or no memory. Keys containing '.' or '[' cannot be addressed.
-
-<a id="tld_json_get_str"></a><a id="tld_json_get_num"></a><a id="tld_json_get_int"></a><a id="tld_json_get_bool"></a><a id="tld_json_get_obj"></a><a id="tld_json_get_arr"></a>
-
-### `tld_json_get_str`, `tld_json_get_num`, `tld_json_get_int`, `tld_json_get_bool`, `tld_json_get_obj`, `tld_json_get_arr`
-
-```c
-EXTERN int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out);
-EXTERN int tld_json_get_num(tld_json_obj *obj, const char *path, double *out);
-EXTERN int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out);
-EXTERN int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out);
-EXTERN int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out);
-EXTERN int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out);
-```
-
-Path getters. A path is dot-separated keys with [i] for array elements,
-e.g. "message.content", "embeddings[0]", "models[2].name". tld_json_parse
-stores a top-level array under the key "Top Level Arr"; address it as
-"Top Level Arr[0]..." or simply "[0]...". Keys containing '.' or '[' cannot
-be addressed. All return OK, or FAIL (leaving *out unchanged) when the path
-does not exist or the value has another type. Strings, objects and arrays
-are borrowed from the tree. get_num accepts integers; get_int accepts
-integral doubles inside the int64_t range. JSON null has type
-TLD_JSON_UNDEF and fails every getter. An empty path in get_obj returns
-obj itself. out may be NULL to test whether the path exists.
-
 <a id="tld_json_dump"></a><a id="tld_json_dump_arr"></a>
 
 ### `tld_json_dump`, `tld_json_dump_arr`
@@ -1432,128 +1455,6 @@ EXTERN int tld_json_arr_print(tld_json_arr *n, FILE *out);
 ```
 
 Debug listing of the tree (not JSON) to out, or stdout when out is NULL.
-
-<a id="mod-json-memory"></a>
-
-## json memory
-
-`src/json/tld-json_mem.h`: Allocate, deep-copy and free JSON objects, arrays and values.
-
-<a id="tld_json_obj_copy"></a>
-
-### `tld_json_obj_copy`
-
-```c
-EXTERN  int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s);
-```
-
-Deep copy of the object s into a new object in *target (free with tld_json_obj_free).
-
-<a id="tld_json_obj_alloc"></a>
-
-### `tld_json_obj_alloc`
-
-```c
-EXTERN  int tld_json_obj_alloc(tld_json_obj **obj);
-```
-
-A new empty object in *obj. Free with tld_json_obj_free.
-
-<a id="tld_json_obj_chk_space"></a><a id="tld_json_obj_realloc"></a>
-
-### `tld_json_obj_chk_space`, `tld_json_obj_realloc`
-
-```c
-EXTERN  int tld_json_obj_chk_space(tld_json_obj *n);
-EXTERN  int tld_json_obj_realloc(tld_json_obj *n);
-```
-
-Make room for more entries: chk_space grows n when every slot is used (n == n_alloc),
-realloc always grows it by half. Only needed by code that fills key[n] / v[n]
-directly; JSON_OBJ and the parser do this themselves.
-
-<a id="tld_json_obj_free"></a>
-
-### `tld_json_obj_free`
-
-```c
-EXTERN void tld_json_obj_free(tld_json_obj *n);
-```
-
-Free an object with all its keys and values; NULL is ignored.
-
-<a id="tld_json_val_copy"></a>
-
-### `tld_json_val_copy`
-
-```c
-EXTERN   int tld_json_val_copy(tld_json_val *t, tld_json_val *s);
-```
-
-Deep copy s into t. Whatever t held is released first, so t may change type; s may
-live inside t.
-
-<a id="tld_json_val_alloc"></a>
-
-### `tld_json_val_alloc`
-
-```c
-EXTERN   int tld_json_val_alloc(tld_json_val **node);
-```
-
-A new value of type TLD_JSON_UNDEF (null) in *node. Free with tld_json_val_free.
-
-<a id="tld_json_val_free"></a>
-
-### `tld_json_val_free`
-
-```c
-EXTERN  void tld_json_val_free(tld_json_val *n);
-```
-
-Free a value and everything it owns; NULL is ignored.
-
-<a id="tld_json_arr_copy"></a>
-
-### `tld_json_arr_copy`
-
-```c
-EXTERN  int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s);
-```
-
-Deep copy of the array s into a new array in *t (free with tld_json_arr_free).
-
-<a id="tld_json_arr_alloc"></a>
-
-### `tld_json_arr_alloc`
-
-```c
-EXTERN  int tld_json_arr_alloc(tld_json_arr **arr);
-```
-
-A new empty array in *arr. Free with tld_json_arr_free.
-
-<a id="tld_json_arr_chk_space"></a><a id="tld_json_arr_realloc"></a>
-
-### `tld_json_arr_chk_space`, `tld_json_arr_realloc`
-
-```c
-EXTERN  int tld_json_arr_chk_space(tld_json_arr *n);
-EXTERN  int tld_json_arr_realloc(tld_json_arr *n);
-```
-
-Make room for more values: chk_space grows n when every slot is used, realloc always
-grows it by half. Only needed by code that fills v[n] directly.
-
-<a id="tld_json_arr_free"></a>
-
-### `tld_json_arr_free`
-
-```c
-EXTERN void tld_json_arr_free(tld_json_arr *n);
-```
-
-Free an array with all its values; NULL is ignored.
 
 <a id="mod-json-misc"></a>
 
@@ -1589,219 +1490,6 @@ EXTERN int is_comma(tld_json_val *v);
 
 1 if v is a string value consisting of exactly that one character ({, }, [, ], :
 or ,), else 0.
-
-<a id="mod-timing"></a>
-
-## timing
-
-`src/timing/tld-timing.h`: One global wall-clock stopwatch that prints elapsed seconds to stdout.
-
-<a id="set_exec_time"></a>
-
-### `set_exec_time`
-
-```c
-tld_external void set_exec_time(int end);
-```
-
-end 0 starts the stopwatch; 1 prints "\nexec time: 1.23s\n" and 2 prints "1.23s" to
-stdout. One global timer (static state, not thread-safe).
-
-<a id="TLD_START_TIMER"></a><a id="TLD_END_TIMER"></a>
-
-### `TLD_START_TIMER`, `TLD_END_TIMER`
-
-```c
-#define TLD_START_TIMER set_exec_time(0);
-#define TLD_END_TIMER set_exec_time(1);
-```
-
-Complete statements (they include the semicolon): TLD_START_TIMER starts the
-stopwatch, TLD_END_TIMER prints the elapsed time (set_exec_time(0) / (1)).
-
-<a id="mod-string"></a>
-
-## string
-
-`src/string/str.h`: Tld_strbuf, a growable NUL-terminated byte buffer (append, prepend, copy), and tld_str, a pointer-and-length string with prefix and suffix tests. Inspired by the rayfork str code by Sas Luca.
-
-<a id="tld_str"></a>
-
-### `tld_str`
-
-```c
-typedef struct tld_string {
-        uint8_t* str;
-        int32_t len;
-} tld_str;
-```
-
-A string as pointer and length: len bytes at str. Owned when made by tld_strmk or
-tld_str_alloc (free with tld_str_free); a borrowed view when made by
-tld_strbuf_to_str or tld_char_to_str (never free).
-
-<a id="tld_strbuf"></a>
-
-### `tld_strbuf`
-
-```c
-typedef struct tld_string_buffer {
-        uint8_t* str;
-        int32_t len;
-        int32_t alloc_len;
-} tld_strbuf;
-```
-
-A growable byte buffer: len bytes at str, always followed by a NUL, in alloc_len
-bytes. TLD_STR(b) gives it as char *. Appending may move str, so do not keep that
-pointer across changes. Create with tld_strbuf_alloc, free with tld_strbuf_free.
-
-<a id="TLD_STR"></a><a id="TLD_STRLEN"></a>
-
-### `TLD_STR`, `TLD_STRLEN`
-
-```c
-#define TLD_STR(X) ((char*)(X)->str)
-#define TLD_STRLEN(X) (X)->len
-```
-
-TLD_STR(x): the contents of a tld_strbuf * or tld_str * as char *; TLD_STRLEN(x): its
-length in bytes.
-
-<a id="tld_strbuf_clear"></a>
-
-### `tld_strbuf_clear`
-
-```c
-tld_external int tld_strbuf_clear(tld_strbuf *b);
-```
-
-Empty the buffer (len 0); the memory is kept.
-
-<a id="tld_strbuf_copy"></a>
-
-### `tld_strbuf_copy`
-
-```c
-tld_external int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
-```
-
-Replace the contents of t with a copy of s; t grows as needed.
-
-<a id="tld_append"></a>
-
-### `tld_append`
-
-```c
-tld_external int tld_append(tld_strbuf *b, char *content);
-```
-
-Append the NUL-terminated string content to b; b grows as needed.
-
-<a id="tld_append_char"></a>
-
-### `tld_append_char`
-
-```c
-tld_external int tld_append_char(tld_strbuf *b, char c);
-```
-
-Append the single character c to b.
-
-<a id="tld_prepend"></a>
-
-### `tld_prepend`
-
-```c
-tld_external int tld_prepend(tld_strbuf *b, char *content);
-```
-
-Insert the NUL-terminated string content at the start of b.
-
-<a id="tld_suffix_match"></a><a id="tld_prefix_match"></a>
-
-### `tld_suffix_match`, `tld_prefix_match`
-
-```c
-tld_external int tld_suffix_match(tld_str t, tld_str s);
-tld_external int tld_prefix_match(tld_str t, tld_str s);
-```
-
-1 if t ends with s (tld_suffix_match) or starts with s (tld_prefix_match), else 0.
-A boolean, not OK/FAIL.
-
-<a id="tld_strbuf_to_str"></a>
-
-### `tld_strbuf_to_str`
-
-```c
-tld_external tld_str tld_strbuf_to_str(tld_strbuf s);
-```
-
-A borrowed tld_str view of the buffer's current contents: tld_strbuf_to_str(*b).
-
-<a id="tld_char_to_str"></a>
-
-### `tld_char_to_str`
-
-```c
-tld_external tld_str tld_char_to_str(char* s);
-```
-
-A borrowed tld_str view of the C string s (len = strlen(s)).
-
-<a id="tld_strmk"></a>
-
-### `tld_strmk`
-
-```c
-tld_external int tld_strmk(tld_str **string,const char *src);
-```
-
-A new tld_str in *string holding a NUL-terminated copy of src (len = strlen(src)).
-Free with tld_str_free.
-
-<a id="tld_strbuf_alloc"></a>
-
-### `tld_strbuf_alloc`
-
-```c
-tld_external int tld_strbuf_alloc(tld_strbuf **buffer, int size);
-```
-
-A new empty buffer in *buffer with size bytes reserved (0 means 1024; size < 0 is an
-error). It grows as needed. Free with tld_strbuf_free.
-
-<a id="tld_strbuf_free"></a>
-
-### `tld_strbuf_free`
-
-```c
-tld_external void tld_strbuf_free(tld_strbuf *b);
-```
-
-Free a buffer; NULL is ignored.
-
-<a id="tld_str_alloc"></a>
-
-### `tld_str_alloc`
-
-```c
-tld_external int tld_str_alloc(tld_str **string, int size);
-```
-
-A new tld_str in *string with a zeroed buffer of size bytes and len = size. Free
-with tld_str_free.
-
-<a id="tld_str_free"></a>
-
-### `tld_str_free`
-
-```c
-tld_external void tld_str_free(tld_str *a);
-```
-
-Free a tld_str made by tld_strmk or tld_str_alloc; NULL is ignored.
 
 <a id="mod-template"></a>
 
@@ -1841,6 +1529,268 @@ tld_external int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash);
 
 A new map in *hash (free with tld_hash_free) whose keys are the variable names used
 in txt, from {{name}} and {{IF name}}, each mapped to itself.
+
+<a id="mod-rng"></a>
+
+## rng
+
+`src/rng/tld-rng.h`: The xoshiro256** random number generator (seedable, and splittable for threads) with uniform, integer, Gaussian and gamma draws, plus alias-table sampling from a discrete distribution. A generator is not locked: use one per thread.
+
+<a id="rng_state"></a>
+
+### `rng_state`
+
+```c
+typedef struct rng_state rng_state;
+```
+
+Opaque generator state. Create with init_rng or init_rng_from_rng, free with
+free_rng.
+
+<a id="rng_dist"></a>
+
+### `rng_dist`
+
+```c
+struct rng_dist;
+```
+
+Opaque alias table for sampling from a discrete distribution (tl_random_sdist_*).
+
+<a id="init_rng"></a>
+
+### `init_rng`
+
+```c
+tld_external int init_rng(struct rng_state **rng, uint64_t seed);
+```
+
+Allocate a generator in *rng seeded with seed; the same seed gives the same sequence.
+seed 0 picks an arbitrary seed from the time and clock (differs between runs). Free
+with free_rng.
+
+<a id="init_rng_from_rng"></a>
+
+### `init_rng_from_rng`
+
+```c
+tld_external int init_rng_from_rng(struct rng_state** target, struct rng_state* rng);
+```
+
+Allocate a generator for another thread in *target: it continues rng's current
+stream, and rng itself jumps 2^128 draws ahead, so the two streams never overlap.
+Free with free_rng.
+
+<a id="tld_rng_set_seed"></a>
+
+### `tld_rng_set_seed`
+
+```c
+tld_external int tld_rng_set_seed(struct rng_state *s, uint64_t seed);
+```
+
+Reseed an existing generator (seed is used as given, 0 included) and drop any cached
+Gaussian deviate.
+
+<a id="free_rng"></a>
+
+### `free_rng`
+
+```c
+tld_external void free_rng(struct rng_state* rng);
+```
+
+Free a generator; NULL is ignored.
+
+<a id="tl_random_double"></a>
+
+### `tl_random_double`
+
+```c
+tld_external double tl_random_double(struct rng_state* rng);
+```
+
+Uniform double on the open interval (0, 1): never exactly 0 or 1.
+
+<a id="tl_random_gaussian"></a>
+
+### `tl_random_gaussian`
+
+```c
+tld_external double tl_random_gaussian(struct rng_state* rng, double mu, double sigma);
+```
+
+Normal deviate with mean mu and standard deviation sigma (Box-Muller; values are made
+in pairs and every other call returns the cached second one).
+
+<a id="tl_random_gamma"></a>
+
+### `tl_random_gamma`
+
+```c
+tld_external double tl_random_gamma(struct rng_state* rng, double shape, double scale);
+```
+
+Gamma deviate with the given shape (> 0, not checked) and scale; mean shape * scale.
+
+<a id="tl_random_int"></a>
+
+### `tl_random_int`
+
+```c
+tld_external int tl_random_int(struct rng_state* rng,int a);
+```
+
+Uniform integer in [0, a), without modulo bias; 0 when a <= 1.
+
+<a id="tl_random_sdist_init"></a>
+
+### `tl_random_sdist_init`
+
+```c
+tld_external int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed);
+```
+
+Build in *rng_dist an alias table that samples index i in [0, n) with probability
+w[i] / sum(w). Weights must be >= 0 with a finite, positive sum. The table owns its
+own generator seeded with seed (0 = arbitrary). Free with tl_random_sdist_free.
+
+<a id="tl_random_sdist_smpl"></a>
+
+### `tl_random_sdist_smpl`
+
+```c
+tld_external int tl_random_sdist_smpl(struct rng_dist* d);
+```
+
+One sample from the table: an index in [0, n).
+
+<a id="tl_random_sdist_free"></a>
+
+### `tl_random_sdist_free`
+
+```c
+tld_external void tl_random_sdist_free(struct rng_dist* d);
+```
+
+Free an alias table and its generator; NULL is ignored.
+
+<a id="mod-sort"></a>
+
+## sort
+
+`src/sort/tld-sort.h`: In-place sorting of arrays of char, int8_t..int64_t, uint8_t..uint64_t, float and double, ascending or descending; TLD_SORT_ASC and TLD_SORT_DESC pick the function from the array's type.
+
+<a id="SORT_HEADER"></a>
+
+### `SORT_HEADER`
+
+```c
+#define SORT_HEADER(type)                       \
+        int sort_desc_##type(type *a, int len); \
+        int sort_asc_##type (type* a, int len);
+```
+
+SORT_HEADER(type) declares sort_desc_<type> and sort_asc_<type>.
+
+<a id="sort_desc_char"></a><a id="sort_asc_char"></a><a id="sort_desc_int8_t"></a><a id="sort_asc_int8_t"></a><a id="sort_desc_uint8_t"></a><a id="sort_asc_uint8_t"></a><a id="sort_desc_int16_t"></a><a id="sort_asc_int16_t"></a><a id="sort_desc_uint16_t"></a><a id="sort_asc_uint16_t"></a><a id="sort_desc_int32_t"></a><a id="sort_asc_int32_t"></a><a id="sort_desc_uint32_t"></a><a id="sort_asc_uint32_t"></a><a id="sort_desc_int64_t"></a><a id="sort_asc_int64_t"></a><a id="sort_desc_uint64_t"></a><a id="sort_asc_uint64_t"></a><a id="sort_desc_float"></a><a id="sort_asc_float"></a><a id="sort_desc_double"></a><a id="sort_asc_double"></a>
+
+### `sort_desc_<type>`, `sort_asc_<type>`
+
+```c
+int sort_desc_char(char *a, int len);
+int sort_asc_char(char* a, int len);
+int sort_desc_int8_t(int8_t *a, int len);
+int sort_asc_int8_t(int8_t* a, int len);
+int sort_desc_uint8_t(uint8_t *a, int len);
+int sort_asc_uint8_t(uint8_t* a, int len);
+int sort_desc_int16_t(int16_t *a, int len);
+int sort_asc_int16_t(int16_t* a, int len);
+int sort_desc_uint16_t(uint16_t *a, int len);
+int sort_asc_uint16_t(uint16_t* a, int len);
+int sort_desc_int32_t(int32_t *a, int len);
+int sort_asc_int32_t(int32_t* a, int len);
+int sort_desc_uint32_t(uint32_t *a, int len);
+int sort_asc_uint32_t(uint32_t* a, int len);
+int sort_desc_int64_t(int64_t *a, int len);
+int sort_asc_int64_t(int64_t* a, int len);
+int sort_desc_uint64_t(uint64_t *a, int len);
+int sort_asc_uint64_t(uint64_t* a, int len);
+int sort_desc_float(float *a, int len);
+int sort_asc_float(float* a, int len);
+int sort_desc_double(double *a, int len);
+int sort_asc_double(double* a, int len);
+```
+
+Sort len elements of a in place, descending (sort_desc_*) or ascending (sort_asc_*),
+with qsort (not stable). Always OK. Arrays holding NaN have no defined order.
+
+<a id="TLD_SORT_DESC"></a>
+
+### `TLD_SORT_DESC`
+
+```c
+#define TLD_SORT_DESC(A,N) ...
+```
+
+TLD_SORT_DESC(a, len): sort_desc_<type>(a, len) for a's element type.
+
+<a id="TLD_SORT_ASC"></a>
+
+### `TLD_SORT_ASC`
+
+```c
+#define TLD_SORT_ASC(A,N) ...
+```
+
+TLD_SORT_ASC(a, len): sort_asc_<type>(a, len) for a's element type.
+
+<a id="mod-shuffle"></a>
+
+## shuffle
+
+`src/shuffle/tld-shuffle.h`: Uniform random permutation (Fisher-Yates) in place of arrays of char, int8_t..int64_t, uint8_t..uint64_t, float and double; TLD_SHUFFLE picks the function from the array's type.
+
+<a id="SHUFFLE_HEADER"></a>
+
+### `SHUFFLE_HEADER`
+
+```c
+#define SHUFFLE_HEADER(type)                        \
+        int tld_shuffle_##type(type *a, int len, struct rng_state* rng);
+```
+
+SHUFFLE_HEADER(type) declares tld_shuffle_<type>.
+
+<a id="tld_shuffle_char"></a><a id="tld_shuffle_int8_t"></a><a id="tld_shuffle_uint8_t"></a><a id="tld_shuffle_int16_t"></a><a id="tld_shuffle_uint16_t"></a><a id="tld_shuffle_int32_t"></a><a id="tld_shuffle_uint32_t"></a><a id="tld_shuffle_int64_t"></a><a id="tld_shuffle_uint64_t"></a><a id="tld_shuffle_float"></a><a id="tld_shuffle_double"></a>
+
+### `tld_shuffle_<type>`
+
+```c
+int tld_shuffle_char(char *a, int len, struct rng_state* rng);
+int tld_shuffle_int8_t(int8_t *a, int len, struct rng_state* rng);
+int tld_shuffle_uint8_t(uint8_t *a, int len, struct rng_state* rng);
+int tld_shuffle_int16_t(int16_t *a, int len, struct rng_state* rng);
+int tld_shuffle_uint16_t(uint16_t *a, int len, struct rng_state* rng);
+int tld_shuffle_int32_t(int32_t *a, int len, struct rng_state* rng);
+int tld_shuffle_uint32_t(uint32_t *a, int len, struct rng_state* rng);
+int tld_shuffle_int64_t(int64_t *a, int len, struct rng_state* rng);
+int tld_shuffle_uint64_t(uint64_t *a, int len, struct rng_state* rng);
+int tld_shuffle_float(float *a, int len, struct rng_state* rng);
+int tld_shuffle_double(double *a, int len, struct rng_state* rng);
+```
+
+Shuffle len elements of a in place, drawing from rng (see init_rng). Always OK.
+
+<a id="TLD_SHUFFLE"></a>
+
+### `TLD_SHUFFLE`
+
+```c
+#define TLD_SHUFFLE(A,N,R) ...
+```
+
+TLD_SHUFFLE(a, len, rng): tld_shuffle_<type>(a, len, rng) for a's element type.
 
 <a id="mod-stats"></a>
 
@@ -2012,301 +1962,351 @@ tld_external int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double 
 tld_auc giving only the AUC (tld_auc_calculate) or only the threshold
 (tld_auc_best_threshold).
 
-<a id="mod-sort"></a>
+<a id="mod-logsum"></a>
 
-## sort
+## logsum
 
-`src/sort/tld-sort.h`: In-place sorting of arrays of char, int8_t..int64_t, uint8_t..uint64_t, float and double, ascending or descending; TLD_SORT_ASC and TLD_SORT_DESC pick the function from the array's type.
+`src/logsum/tld-logsum.h`: Arithmetic on probabilities stored as logarithms (log-sum-exp via a lookup table) and tolerant floating-point equality.
 
-<a id="SORT_HEADER"></a>
+<a id="init_logsum"></a>
 
-### `SORT_HEADER`
-
-```c
-#define SORT_HEADER(type)                       \
-        int sort_desc_##type(type *a, int len); \
-        int sort_asc_##type (type* a, int len);
-```
-
-SORT_HEADER(type) declares sort_desc_<type> and sort_asc_<type>.
-
-<a id="sort_desc_char"></a><a id="sort_asc_char"></a><a id="sort_desc_int8_t"></a><a id="sort_asc_int8_t"></a><a id="sort_desc_uint8_t"></a><a id="sort_asc_uint8_t"></a><a id="sort_desc_int16_t"></a><a id="sort_asc_int16_t"></a><a id="sort_desc_uint16_t"></a><a id="sort_asc_uint16_t"></a><a id="sort_desc_int32_t"></a><a id="sort_asc_int32_t"></a><a id="sort_desc_uint32_t"></a><a id="sort_asc_uint32_t"></a><a id="sort_desc_int64_t"></a><a id="sort_asc_int64_t"></a><a id="sort_desc_uint64_t"></a><a id="sort_asc_uint64_t"></a><a id="sort_desc_float"></a><a id="sort_asc_float"></a><a id="sort_desc_double"></a><a id="sort_asc_double"></a>
-
-### `sort_desc_<type>`, `sort_asc_<type>`
+### `init_logsum`
 
 ```c
-int sort_desc_char(char *a, int len);
-int sort_asc_char(char* a, int len);
-int sort_desc_int8_t(int8_t *a, int len);
-int sort_asc_int8_t(int8_t* a, int len);
-int sort_desc_uint8_t(uint8_t *a, int len);
-int sort_asc_uint8_t(uint8_t* a, int len);
-int sort_desc_int16_t(int16_t *a, int len);
-int sort_asc_int16_t(int16_t* a, int len);
-int sort_desc_uint16_t(uint16_t *a, int len);
-int sort_asc_uint16_t(uint16_t* a, int len);
-int sort_desc_int32_t(int32_t *a, int len);
-int sort_asc_int32_t(int32_t* a, int len);
-int sort_desc_uint32_t(uint32_t *a, int len);
-int sort_asc_uint32_t(uint32_t* a, int len);
-int sort_desc_int64_t(int64_t *a, int len);
-int sort_asc_int64_t(int64_t* a, int len);
-int sort_desc_uint64_t(uint64_t *a, int len);
-int sort_asc_uint64_t(uint64_t* a, int len);
-int sort_desc_float(float *a, int len);
-int sort_asc_float(float* a, int len);
-int sort_desc_double(double *a, int len);
-int sort_asc_double(double* a, int len);
+tld_external void init_logsum(void);
 ```
 
-Sort len elements of a in place, descending (sort_desc_*) or ascending (sort_asc_*),
-with qsort (not stable). Always OK. Arrays holding NaN have no defined order.
+Fill logsum's lookup table. Optional (logsum does it on first use); thread-safe.
 
-<a id="TLD_SORT_DESC"></a>
+<a id="logsum"></a>
 
-### `TLD_SORT_DESC`
+### `logsum`
 
 ```c
-#define TLD_SORT_DESC(A,N) ...
+tld_external float logsum(const float a,const float b);
 ```
 
-TLD_SORT_DESC(a, len): sort_desc_<type>(a, len) for a's element type.
+log(exp(a) + exp(b)) for log-space values, from a table with steps of 0.001. NaN if
+either is NaN; -INFINITY acts as log(0); returns max(a, b) when they differ by 15.7 or
+more.
 
-<a id="TLD_SORT_ASC"></a>
+<a id="prob2scaledprob"></a>
 
-### `TLD_SORT_ASC`
+### `prob2scaledprob`
 
 ```c
-#define TLD_SORT_ASC(A,N) ...
+tld_external float prob2scaledprob(float p);
 ```
 
-TLD_SORT_ASC(a, len): sort_asc_<type>(a, len) for a's element type.
+log(p), with -INFINITY for p == 0.
 
-<a id="mod-shuffle"></a>
+<a id="scaledprob2prob"></a>
 
-## shuffle
-
-`src/shuffle/tld-shuffle.h`: Uniform random permutation (Fisher-Yates) in place of arrays of char, int8_t..int64_t, uint8_t..uint64_t, float and double; TLD_SHUFFLE picks the function from the array's type.
-
-<a id="SHUFFLE_HEADER"></a>
-
-### `SHUFFLE_HEADER`
+### `scaledprob2prob`
 
 ```c
-#define SHUFFLE_HEADER(type)                        \
-        int tld_shuffle_##type(type *a, int len, struct rng_state* rng);
+tld_external float scaledprob2prob(float p);
 ```
 
-SHUFFLE_HEADER(type) declares tld_shuffle_<type>.
+exp(p), with 0 for p == -INFINITY.
 
-<a id="tld_shuffle_char"></a><a id="tld_shuffle_int8_t"></a><a id="tld_shuffle_uint8_t"></a><a id="tld_shuffle_int16_t"></a><a id="tld_shuffle_uint16_t"></a><a id="tld_shuffle_int32_t"></a><a id="tld_shuffle_uint32_t"></a><a id="tld_shuffle_int64_t"></a><a id="tld_shuffle_uint64_t"></a><a id="tld_shuffle_float"></a><a id="tld_shuffle_double"></a>
+<a id="nearly_equal_float"></a><a id="nearly_equal_double"></a>
 
-### `tld_shuffle_<type>`
+### `nearly_equal_float`, `nearly_equal_double`
 
 ```c
-int tld_shuffle_char(char *a, int len, struct rng_state* rng);
-int tld_shuffle_int8_t(int8_t *a, int len, struct rng_state* rng);
-int tld_shuffle_uint8_t(uint8_t *a, int len, struct rng_state* rng);
-int tld_shuffle_int16_t(int16_t *a, int len, struct rng_state* rng);
-int tld_shuffle_uint16_t(uint16_t *a, int len, struct rng_state* rng);
-int tld_shuffle_int32_t(int32_t *a, int len, struct rng_state* rng);
-int tld_shuffle_uint32_t(uint32_t *a, int len, struct rng_state* rng);
-int tld_shuffle_int64_t(int64_t *a, int len, struct rng_state* rng);
-int tld_shuffle_uint64_t(uint64_t *a, int len, struct rng_state* rng);
-int tld_shuffle_float(float *a, int len, struct rng_state* rng);
-int tld_shuffle_double(double *a, int len, struct rng_state* rng);
+tld_external int nearly_equal_float(float a, float b);
+tld_external int nearly_equal_double(double a, double b);
 ```
 
-Shuffle len elements of a in place, drawing from rng (see init_rng). Always OK.
+1 if a and b are equal up to a relative difference of FLT_EPSILON / DBL_EPSILON (an
+absolute one when either is 0 or both are tiny), else 0.
 
-<a id="TLD_SHUFFLE"></a>
+<a id="TLSAFE_EQ"></a>
 
-### `TLD_SHUFFLE`
+### `TLSAFE_EQ`
 
 ```c
-#define TLD_SHUFFLE(A,N,R) ...
+#define TLSAFE_EQ(X,Y) _Generic((X),                        \
+                                float: nearly_equal_float,  \
+                                double: nearly_equal_double \
+                )(X,Y)
 ```
 
-TLD_SHUFFLE(a, len, rng): tld_shuffle_<type>(a, len, rng) for a's element type.
+TLSAFE_EQ(X, Y): nearly_equal_float or nearly_equal_double, chosen by the type of X
+(float or double only).
 
-<a id="mod-misc"></a>
+<a id="mod-kdtree"></a>
 
-## misc
+## kdtree
 
-`src/misc/misc.h`: File and directory checks, absolute paths, file and directory names of a path, and capturing the command line.
+`src/kdtree/tld-kdtree.h`: A k-d tree of double vectors with caller-chosen ids for nearest-neighbour search (squared Euclidean distance by default); points can be built in bulk or inserted one at a time. Not locked: one thread per tree.
 
-<a id="tld_file_exists"></a>
+<a id="kd_node"></a>
 
-### `tld_file_exists`
+### `kd_node`
 
 ```c
-tld_external int tld_file_exists(const char* name);
+typedef struct kd_node {
+        double* p;
+        struct kd_node* left;
+        struct kd_node* right;
+        /* int split; */
+        uint32_t id;
+        int n;
+} kd_node;
 ```
 
-OK if name exists (a file, directory or anything else stat() sees), FAIL otherwise,
-without a message. Test with == OK.
+A tree node: p is the point (n doubles, owned by the tree), id the caller's id.
 
-<a id="tld_dir_exists"></a>
+<a id="kdtree"></a>
 
-### `tld_dir_exists`
+### `kdtree`
 
 ```c
-tld_external int tld_dir_exists(const char *name);
+typedef struct kdtree {
+        /* kd_node* root; */
+        kd_node* root;
+        struct kdyard* yard;
+        int(*fptr_cmp)(double*, double*, int, double*);
+        int(*fptr_plane)(double*, double*, int, double);
+        int rebalance_at;
+        int n_step;
+        int depth;
+        int max_depth;
+        int min_depth;
+        int vec_len;
+} kdtree;
 ```
 
-OK if name is a directory that can be opened; otherwise prints an error and returns
-FAIL.
+A k-d tree; create with kdtree_alloc, free with kdtree_free. Fields a caller may set:
+fptr_cmp (distance, default kddist_euclidian) with the matching fptr_plane (default
+kdplane_check_euclidian), and rebalance_at (insertions between balance checks, default
+10000). The rest is internal.
 
-<a id="tld_dir_create"></a>
+<a id="kdtree_alloc"></a>
 
-### `tld_dir_create`
+### `kdtree_alloc`
 
 ```c
-tld_external int tld_dir_create(char *dir);
+tld_external  int kdtree_alloc(kdtree **tree, int size);
 ```
 
-Create the directory dir (mode 0700; its parent must exist). OK when it was created
-or already exists as a directory (with a warning); FAIL otherwise.
+Allocate in *tree an empty tree for points of size (> 0) dimensions, using squared
+Euclidean distance. Storage grows as points are added. Free with kdtree_free.
 
-<a id="tld_get_full_path"></a>
+<a id="kdtree_free"></a>
 
-### `tld_get_full_path`
+### `kdtree_free`
 
 ```c
-tld_external int tld_get_full_path(tld_strbuf **full, char *filename);
+tld_external void kdtree_free(kdtree *t);
 ```
 
-The absolute, symlink-free path of the existing file filename into *full. A non-NULL
-*full is cleared and reused; otherwise a buffer is allocated (free with
-tld_strbuf_free). FAIL when the file does not exist.
+Free the tree and all its points; NULL is ignored.
 
-<a id="tld_capture_cmd_line"></a>
+<a id="kdtree_reset"></a>
 
-### `tld_capture_cmd_line`
+### `kdtree_reset`
 
 ```c
-tld_external int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[]);
+tld_external  int kdtree_reset(kdtree *t);
 ```
 
-Append argv[0] .. argv[argc - 1], each followed by a space, to *cmdline (allocated when
-NULL; free with tld_strbuf_free). For recording how a program was run.
+Remove every point and keep the memory for reuse.
 
-<a id="tld_get_filename"></a>
+<a id="kdtree_build"></a>
 
-### `tld_get_filename`
+### `kdtree_build`
 
 ```c
-tld_external int tld_get_filename(char* path, char** out);
+tld_external  int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size);
 ```
 
-A new string in *out (free with MFREE or free) with the part of path after the last
-'/'. FAIL when that part is empty (path is empty or ends in '/').
+Build a balanced tree from n points x[i] of size doubles (size <= the length given
+to kdtree_alloc) with ids[i]. The points are copied; the x pointer array and ids are
+reordered in place. Use on an empty tree (new or after kdtree_reset).
 
-<a id="tld_get_dirname"></a>
+<a id="kdtree_insert"></a>
 
-### `tld_get_dirname`
+### `kdtree_insert`
 
 ```c
-tld_external int tld_get_dirname(char* path, char** out);
+tld_external  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
 ```
 
-A new string in *out (free with MFREE or free) with the part of path before the last
-'/' ("/" for "/name"). FAIL when path contains no '/'.
+Insert one point x of size doubles with id (copied). Every rebalance_at insertions
+the tree is rebuilt if its depth is more than 10 levels off the balanced depth.
 
-<a id="mod-bitfield"></a>
+<a id="kdtree_rebalance"></a>
 
-## bitfield
-
-`src/data/bitfield.h`: Fixed-length bit sets with set, get and clear, OR, copy and (masked) Hamming distance.
-
-<a id="tl_bitfield"></a>
-
-### `tl_bitfield`
+### `kdtree_rebalance`
 
 ```c
-typedef struct {
-        uint64_t* m;
-        int32_t len;
-        int32_t alloc_len;
-} tl_bitfield;
+tld_external  int kdtree_rebalance(kdtree *t);
 ```
 
-A set of len bits, stored in alloc_len 64-bit words m. Create with tl_bitfield_alloc,
-free with tl_bitfield_free.
+Rebuild the tree balanced from the points it holds.
 
-<a id="tl_bitfield_hamming"></a>
+<a id="kdtree_nn_search"></a>
 
-### `tl_bitfield_hamming`
+### `kdtree_nn_search`
 
 ```c
-tld_external  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield *mask, int32_t *dist);
+tld_external  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
 ```
 
-The number of positions at which b1 and b2 differ into *dist, counting only positions
-set in mask (NULL: all). The bitfields (and mask) must have the same length.
+The id of the stored point nearest to x (a vector of the tree's length) into *id.
+*id is left unchanged when the tree is empty.
 
-<a id="tl_bitfield_or"></a>
+<a id="kdtree_bf_search"></a>
 
-### `tl_bitfield_or`
+### `kdtree_bf_search`
 
 ```c
-tld_external  int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret);
+tld_external  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
 ```
 
-ret = b1 | b2, bit by bit; all three must have the same length.
+Brute force: the id of the stored point nearest to x, comparing every point; 0 when
+the tree is empty. For checking kdtree_nn_search.
 
-<a id="tl_bitfield_set"></a><a id="tl_bitfield_get"></a><a id="tl_bitfield_clear"></a>
+<a id="kddist_euclidian"></a>
 
-### `tl_bitfield_set`, `tl_bitfield_get`, `tl_bitfield_clear`
+### `kddist_euclidian`
 
 ```c
-tld_external  int tl_bitfield_set(tl_bitfield *b, int32_t index);
-tld_external  int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit);
-tld_external  int tl_bitfield_clear(tl_bitfield *b, int32_t index);
+tld_external  int kddist_euclidian(double *a, double *b, int vec_len, double *dist);
 ```
 
-Set bit index to 1, read it into *bit (0 or 1), or clear it to 0. FAIL, without a
-message, when index is outside [0, len).
+Squared Euclidean distance between a and b (vec_len doubles) into *dist. The default
+fptr_cmp.
 
-<a id="tl_bitfield_copy"></a>
+<a id="kdplane_check_euclidian"></a>
 
-### `tl_bitfield_copy`
+### `kdplane_check_euclidian`
 
 ```c
-tld_external  int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src);
+tld_external  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
 ```
 
-Copy the bits of src into dst; both must have the same length.
+OK when the squared distance between a and b along dimension cd is below min_dist
+(the far side of the splitting plane may hold a nearer point), FAIL otherwise. The
+default fptr_plane.
 
-<a id="tl_bitfield_reset"></a>
+<a id="kdtree_debug_chk"></a><a id="kdtree_debug_print"></a>
 
-### `tl_bitfield_reset`
+### `kdtree_debug_chk`, `kdtree_debug_print`
 
 ```c
-tld_external  int tl_bitfield_reset(tl_bitfield *b);
+tld_external void kdtree_debug_chk(kd_node *n, int depth);
+tld_external void kdtree_debug_print(kd_node *n, int depth);
 ```
 
-Clear every bit.
+Debugging: print the subtree under n (pass t->root, depth 0) to stderr, as split
+values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). A NULL
+n prints nothing.
 
-<a id="tl_bitfield_alloc"></a>
+<a id="mod-tpool"></a>
 
-### `tl_bitfield_alloc`
+## tpool
+
+`src/tpool/tpool.h`: A pthread pool. Jobs func(pool, data, start, end, thread_id) are queued with tld_thread_pool_add and run in FIFO order by a fixed set of worker threads; optional time limit and a global stop flag.
+
+<a id="tld_global_stop_run"></a><a id="tld_global_cond_mutex"></a><a id="tld_global_cond"></a>
+
+### `tld_global_stop_run`, `tld_global_cond_mutex`, `tld_global_cond`
 
 ```c
-tld_external  int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size);
+tld_external atomic_int tld_global_stop_run;
+tld_external pthread_mutex_t tld_global_cond_mutex;
+tld_external  pthread_cond_t tld_global_cond;
 ```
 
-A new bitfield of size bits, all 0, in *bit_f. Free with tl_bitfield_free.
+Global stop flag. The library installs no signal handlers: a program that wants to
+stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself; workers
+check it between jobs and stop, dropping queued jobs. The mutex and condition are not
+used by tld; they are there for programs that want to sleep until the flag is set.
 
-<a id="tl_bitfield_free"></a>
+<a id="tld_thread_pool"></a>
 
-### `tl_bitfield_free`
+### `tld_thread_pool`
 
 ```c
-tld_external void tl_bitfield_free(tl_bitfield *b);
+typedef struct tld_thread_pool {
+        struct work_queue* work;
+        int n_threads;
+        int n_active_threads;
+        int n_jobs_processed;
+        /* Pausing */
+        pthread_mutex_t lock;
+
+        pthread_cond_t work_cond;
+        pthread_cond_t working_cond;
+        pthread_attr_t attr;
+
+        pthread_t* threads;
+        int64_t* thread_id_map;
+        int thread_id_idx;
+        int n_working;
+        /* int n_work; */
+        int stop;
+        double maxtime;
+        time_t internal_time;
+        time_t stop_watch;
+        /* void (*function_ptr)(void*); */
+
+} tld_thread_pool;
 ```
 
-Free a bitfield; NULL is ignored.
+A thread pool; create with tld_thread_pool_create, free with tld_thread_pool_free.
+The fields are internal (n_threads may be read).
+
+<a id="tld_thread_pool_create"></a>
+
+### `tld_thread_pool_create`
+
+```c
+tld_external int  tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads);
+```
+
+Start a pool of n_threads workers (at least 2) in *pool. max_time is a limit in
+minutes since creation, checked after each job: once passed, the pool stops and
+queued jobs are dropped. 0 means no limit.
+
+<a id="tld_thread_pool_add"></a>
+
+### `tld_thread_pool_add`
+
+```c
+tld_external int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
+```
+
+Queue a job: a worker calls func_ptr(p, data, start, end, thread_id), thread_id in
+[0, n_threads). start and end are passed through (e.g. a slice of an index range).
+Thread-safe; may be called from inside a job. Once the pool has stopped (time limit
+or tld_global_stop_run) the job is dropped and OK is still returned.
+
+<a id="tld_thread_pool_wait"></a>
+
+### `tld_thread_pool_wait`
+
+```c
+tld_external void tld_thread_pool_wait(tld_thread_pool *p);
+```
+
+Block until the queue is empty and no job is running (after a stop: until every
+worker has exited). The pool can take more jobs afterwards. NULL is ignored.
+
+<a id="tld_thread_pool_free"></a>
+
+### `tld_thread_pool_free`
+
+```c
+tld_external void tld_thread_pool_free(tld_thread_pool *p);
+```
+
+Run every job still queued, then stop and join the workers and free the pool. NULL
+is ignored.
 
 <a id="index"></a>
 

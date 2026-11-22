@@ -102,6 +102,34 @@ ERROR:
 
 }
 
+int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[])
+{
+
+        tld_strbuf* cmd = NULL;
+        int allocated = 0;
+
+        ASSERT(cmdline != NULL, "No output buffer pointer");
+        if(*cmdline == NULL){
+                RUN(tld_strbuf_alloc(&cmd, 128));
+                allocated = 1;
+        }else{
+                cmd = *cmdline;
+        }
+        for(int i = 0; i < argc;i++){
+                RUN(tld_append(cmd, argv[i]));
+                RUN(tld_append(cmd, " "));
+        }
+        /* LOG_MSG("%s",TLD_STR(cmd)); */
+
+        *cmdline = cmd;
+        return OK;
+ERROR:
+        if(allocated){
+                tld_strbuf_free(cmd);
+        }
+        return FAIL;
+}
+
 /* I don't like that both libgen and string have functions to work with
    directory / filenames. The functions below copy the input path and alloc
    a new character array to store the output. Needs to be MFREE'd...
@@ -169,34 +197,6 @@ int tld_get_dirname(char* path, char** out)
 ERROR:
         if(tmp){
                 MFREE(tmp);
-        }
-        return FAIL;
-}
-
-int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[])
-{
-
-        tld_strbuf* cmd = NULL;
-        int allocated = 0;
-
-        ASSERT(cmdline != NULL, "No output buffer pointer");
-        if(*cmdline == NULL){
-                RUN(tld_strbuf_alloc(&cmd, 128));
-                allocated = 1;
-        }else{
-                cmd = *cmdline;
-        }
-        for(int i = 0; i < argc;i++){
-                RUN(tld_append(cmd, argv[i]));
-                RUN(tld_append(cmd, " "));
-        }
-        /* LOG_MSG("%s",TLD_STR(cmd)); */
-
-        *cmdline = cmd;
-        return OK;
-ERROR:
-        if(allocated){
-                tld_strbuf_free(cmd);
         }
         return FAIL;
 }

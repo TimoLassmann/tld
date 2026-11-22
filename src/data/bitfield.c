@@ -11,63 +11,37 @@ static inline int _tl_bitfield_popcount_branchless(uint64_t x);
         available on most modern CPUs
  */
 
-int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int32_t* dist)
+int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size)
 {
-        /* making sure the bitfields have the same length */
-        if(b1->len != b2->len || b2->alloc_len < b1->alloc_len){
-                ERROR_MSG("bitfields have different lengths");
-        }
-        int32_t len = b1->alloc_len;
-        int32_t count = 0;
-        if(mask == NULL){
-                for(int i = 0; i <  len; i++){
-                        count += _tl_bitfield_popcount_branchless(b1->m[i] ^ b2->m[i]);
-                }
-        }else{
-                if(mask->len != b1->len || mask->alloc_len < len){
-                        ERROR_MSG("mask and bitfields have different lengths");
-                }
-                for(int i = 0; i <  len; i++){
-                        count += _tl_bitfield_popcount_branchless((b1->m[i] ^ b2->m[i]) & mask->m[i]);
-                }
-        }
-        *dist = count;
+        tl_bitfield* b = NULL;
+        MMALLOC(b, sizeof(tl_bitfield));
+        b->alloc_len = 1 + size / BITS_W;
+        galloc(&b->m, b->alloc_len);
+        b->len = size;
+
+        RUN(tl_bitfield_reset(b));
+        *bit_f = b;
         return OK;
 ERROR:
+        tl_bitfield_free(b);
         return FAIL;
 }
 
-/* here is an alternative implementation of popcountll using branchless code*/
-int _tl_bitfield_popcount_branchless(uint64_t x)
+void tl_bitfield_free(tl_bitfield *b)
 {
-        x = x - ((x >> 1) & 0x5555555555555555ULL);
-        x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
-        x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
-        x = x + (x >> 8);
-        x = x + (x >> 16);
-        x = x + (x >> 32);
-        return x & 0x7F;
+        if(b){
+                if(b->m){
+                        gfree(b->m);
+                }
+                free(b);
+        }
 }
 
-int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret)
+int tl_bitfield_reset(tl_bitfield *b)
 {
-        if(b1->len != b2->len){
-                ERROR_MSG("bitfields have different lengths");
-        }
-        if(ret->len != b1->len){
-                ERROR_MSG("bitfields have different lengths");
-        }
-
-        int32_t len = b1->alloc_len;
-
-        for(int i = 0; i <  len; i++){
-                ret->m[i] = b1->m[i] | b2->m[i];
-        }
+        memset(b->m, 0, b->alloc_len * sizeof(uint64_t));
         return OK;
-ERROR:
-        return FAIL;
 }
-
 
 int tl_bitfield_set(tl_bitfield *b, int32_t index)
 {
@@ -96,12 +70,6 @@ int tl_bitfield_clear(tl_bitfield *b, int32_t index)
         return OK;
 }
 
-int tl_bitfield_reset(tl_bitfield *b)
-{
-        memset(b->m, 0, b->alloc_len * sizeof(uint64_t));
-        return OK;
-}
-
 int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src)
 {
         if(dst->len != src->len){
@@ -115,32 +83,62 @@ ERROR:
         return FAIL;
 }
 
-int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size)
+int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret)
 {
-        tl_bitfield* b = NULL;
-        MMALLOC(b, sizeof(tl_bitfield));
-        b->alloc_len = 1 + size / BITS_W;
-        galloc(&b->m, b->alloc_len);
-        b->len = size;
+        if(b1->len != b2->len){
+                ERROR_MSG("bitfields have different lengths");
+        }
+        if(ret->len != b1->len){
+                ERROR_MSG("bitfields have different lengths");
+        }
 
-        RUN(tl_bitfield_reset(b));
-        *bit_f = b;
+        int32_t len = b1->alloc_len;
+
+        for(int i = 0; i <  len; i++){
+                ret->m[i] = b1->m[i] | b2->m[i];
+        }
         return OK;
 ERROR:
-        tl_bitfield_free(b);
         return FAIL;
 }
 
-void tl_bitfield_free(tl_bitfield *b)
+/* here is an alternative implementation of popcountll using branchless code*/
+int _tl_bitfield_popcount_branchless(uint64_t x)
 {
-        if(b){
-                if(b->m){
-                        gfree(b->m);
-                }
-                free(b);
-        }
+        x = x - ((x >> 1) & 0x5555555555555555ULL);
+        x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
+        x = (x + (x >> 4)) & 0x0F0F0F0F0F0F0F0FULL;
+        x = x + (x >> 8);
+        x = x + (x >> 16);
+        x = x + (x >> 32);
+        return x & 0x7F;
 }
 
+int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int32_t* dist)
+{
+        /* making sure the bitfields have the same length */
+        if(b1->len != b2->len || b2->alloc_len < b1->alloc_len){
+                ERROR_MSG("bitfields have different lengths");
+        }
+        int32_t len = b1->alloc_len;
+        int32_t count = 0;
+        if(mask == NULL){
+                for(int i = 0; i <  len; i++){
+                        count += _tl_bitfield_popcount_branchless(b1->m[i] ^ b2->m[i]);
+                }
+        }else{
+                if(mask->len != b1->len || mask->alloc_len < len){
+                        ERROR_MSG("mask and bitfields have different lengths");
+                }
+                for(int i = 0; i <  len; i++){
+                        count += _tl_bitfield_popcount_branchless((b1->m[i] ^ b2->m[i]) & mask->m[i]);
+                }
+        }
+        *dist = count;
+        return OK;
+ERROR:
+        return FAIL;
+}
 
 #undef BIT_MASK
 #undef BIT_SHIFT

@@ -1,6 +1,7 @@
 
 
 #include <string.h>
+#include "../string/str.h"
 
 #define  TLD_JSON_MISC_IMPORT
 #include "tld-json_misc.h"

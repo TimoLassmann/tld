@@ -8,7 +8,6 @@
 #define TYPE_MARGIN 8
 #define MESSAGE_MARGIN 22
 
-
 #define AT __FILE__ " line " tld_tostring(__LINE__)
 
 /* #define AT __FILE__ " line " tld_tostring(__LINE__) */
@@ -16,6 +15,77 @@
 tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *file, int line,const char *format,  va_list argp);
 
 tld_internal int get_time(char* time_ptr, int size);
+
+void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
+{
+        char time_string[BUFSIZ];
+        int col = (f_ptr == stderr) && tld_term_color();
+        if(type != MESSAGE_TYPE_ERROR && tld_verbosity() < 1){
+                return;
+        }
+
+        if(get_time(time_string,BUFSIZ) != OK){
+                fprintf(stderr,"notime");
+        }
+        fprintf(f_ptr,"%*s: ",MESSAGE_MARGIN,time_string);
+        switch (type) {
+        case MESSAGE_TYPE_MSG: {
+                fprintf(f_ptr,"%*s: ",TYPE_MARGIN,"LOG ");
+                vfprintf(f_ptr, format, argp);
+                fprintf(f_ptr,"\n");
+                break;
+        }
+        case MESSAGE_TYPE_WARNING: {
+                fprintf(f_ptr,col ? "\033[1;33m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"WARNING ");
+                vfprintf(f_ptr, format, argp);
+                fprintf(f_ptr,"\n");
+                break;
+        }
+        case MESSAGE_TYPE_ERROR: {
+                fprintf(f_ptr,col ? "\033[1;31m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"ERROR ");
+                vfprintf(f_ptr, format, argp);
+                if(file){
+                        fprintf(f_ptr," (%s line %d)\n",file,line);
+                }else{
+                        fprintf(f_ptr,"\n");
+                }
+                break;
+        }
+        default:
+                fprintf(f_ptr,"Unrecognized Message type (in tld) - this should never happen");
+                break;
+        }
+
+        fflush(f_ptr);
+}
+
+int get_time(char* time_ptr, int size)
+{
+        /* time_t timer = 0; */
+        /* struct tm* tm_info = NULL; */
+
+        /* timer = time(NULL); */
+        /* localtime_r(&timer, tm_info); */
+
+        struct tm newtime;
+        time_t ltime = 0;
+        /* char buf[50]; */
+
+        ltime=time(&ltime);
+        localtime_r(&ltime, &newtime);
+
+
+        if(!strftime(time_ptr, size, "[%F %H:%M:%S] ", &newtime)){
+                /* ERROR_MSG("write failed"); */
+                fprintf(stderr,"%*s: ",TYPE_MARGIN,"ERROR ");
+                fprintf(stderr, "Could not get the time");
+                fprintf(stderr," (%s)\n",AT);
+                goto ERROR;
+        }
+        return OK;
+ERROR:
+        return FAIL;
+}
 
 void tld_message(uint8_t type, const char *format, ...)
 {
@@ -168,75 +238,4 @@ void tld_progress(long done, long total, const char *label)
                 fputc('\n', stderr);
         }
         fflush(stderr);
-}
-
-void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
-{
-        char time_string[BUFSIZ];
-        int col = (f_ptr == stderr) && tld_term_color();
-        if(type != MESSAGE_TYPE_ERROR && tld_verbosity() < 1){
-                return;
-        }
-
-        if(get_time(time_string,BUFSIZ) != OK){
-                fprintf(stderr,"notime");
-        }
-        fprintf(f_ptr,"%*s: ",MESSAGE_MARGIN,time_string);
-        switch (type) {
-        case MESSAGE_TYPE_MSG: {
-                fprintf(f_ptr,"%*s: ",TYPE_MARGIN,"LOG ");
-                vfprintf(f_ptr, format, argp);
-                fprintf(f_ptr,"\n");
-                break;
-        }
-        case MESSAGE_TYPE_WARNING: {
-                fprintf(f_ptr,col ? "\033[1;33m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"WARNING ");
-                vfprintf(f_ptr, format, argp);
-                fprintf(f_ptr,"\n");
-                break;
-        }
-        case MESSAGE_TYPE_ERROR: {
-                fprintf(f_ptr,col ? "\033[1;31m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"ERROR ");
-                vfprintf(f_ptr, format, argp);
-                if(file){
-                        fprintf(f_ptr," (%s line %d)\n",file,line);
-                }else{
-                        fprintf(f_ptr,"\n");
-                }
-                break;
-        }
-        default:
-                fprintf(f_ptr,"Unrecognized Message type (in tld) - this should never happen");
-                break;
-        }
-
-        fflush(f_ptr);
-}
-
-int get_time(char* time_ptr, int size)
-{
-        /* time_t timer = 0; */
-        /* struct tm* tm_info = NULL; */
-
-        /* timer = time(NULL); */
-        /* localtime_r(&timer, tm_info); */
-
-        struct tm newtime;
-        time_t ltime = 0;
-        /* char buf[50]; */
-
-        ltime=time(&ltime);
-        localtime_r(&ltime, &newtime);
-
-
-        if(!strftime(time_ptr, size, "[%F %H:%M:%S] ", &newtime)){
-                /* ERROR_MSG("write failed"); */
-                fprintf(stderr,"%*s: ",TYPE_MARGIN,"ERROR ");
-                fprintf(stderr, "Could not get the time");
-                fprintf(stderr," (%s)\n",AT);
-                goto ERROR;
-        }
-        return OK;
-ERROR:
-        return FAIL;
 }

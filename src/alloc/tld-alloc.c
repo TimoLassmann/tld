@@ -34,17 +34,18 @@ int get_dim2(void* ptr,uint32_t* d)
         return FAIL;
 }
 
-int tld__galloc_data(void* ptr,void** d)
+void tld_free(void* p)
 {
-        if(ptr){
-                mem_i* h = NULL;
-                h = (mem_i*) ( (size_t)ptr - tld_mem_shift);
-                *d = h->ptr;
-                return OK;
+        mem_i* h = NULL;
+        if(p == NULL){
+                return;
         }
-        return FAIL;
+        h = (mem_i*) ( (size_t)p - tld_mem_shift);
+        if(h->ptr){
+                MFREE(h->ptr);
+        }
+        MFREE(h);
 }
-
 
 int tld__galloc_too_few(void)
 {
@@ -53,7 +54,6 @@ int tld__galloc_too_few(void)
 ERROR:
         return FAIL;
 }
-
 
 void* tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2)
 {
@@ -87,15 +87,13 @@ ERROR:
         return NULL;
 }
 
-void tld_free(void* p)
+int tld__galloc_data(void* ptr,void** d)
 {
-        mem_i* h = NULL;
-        if(p == NULL){
-                return;
+        if(ptr){
+                mem_i* h = NULL;
+                h = (mem_i*) ( (size_t)ptr - tld_mem_shift);
+                *d = h->ptr;
+                return OK;
         }
-        h = (mem_i*) ( (size_t)p - tld_mem_shift);
-        if(h->ptr){
-                MFREE(h->ptr);
-        }
-        MFREE(h);
+        return FAIL;
 }

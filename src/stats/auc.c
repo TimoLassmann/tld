@@ -1,6 +1,5 @@
 #include "auc.h"
 
-
 #include "../alloc/tld-alloc.h"
 
 #include <float.h>
@@ -26,43 +25,6 @@ static int auc_pt_sort(const void *a, const void *b) {
         } else {
                 return 0;
         }
-}
-
-/* Function to compute AUC and determine the best threshold */
-int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret)
-{
-        double thres = 0.0;
-        double auc = 0.0;
-        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
-        *t = thres;
-        *ret = auc;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
-{
-        double thres = 0.0;
-        double auc = 0.0;
-        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
-        *ret = auc;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-/* The best threshold is the score closest to the (0,1) corner of the
-   ROC curve; samples with Y_hat >= threshold are called positive. */
-int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold)
-{
-        double thres = 0.0;
-        double auc = 0.0;
-        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
-        *best_threshold = thres;
-        return OK;
-ERROR:
-        return FAIL;
 }
 
 /* Sorts the scores, sweeps the ROC curve from the highest score down,
@@ -156,5 +118,42 @@ ERROR:
                 }
                 MFREE(l);
         }
+        return FAIL;
+}
+
+/* Function to compute AUC and determine the best threshold */
+int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret)
+{
+        double thres = 0.0;
+        double auc = 0.0;
+        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        *t = thres;
+        *ret = auc;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
+{
+        double thres = 0.0;
+        double auc = 0.0;
+        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        *ret = auc;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+/* The best threshold is the score closest to the (0,1) corner of the
+   ROC curve; samples with Y_hat >= threshold are called positive. */
+int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold)
+{
+        double thres = 0.0;
+        double auc = 0.0;
+        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        *best_threshold = thres;
+        return OK;
+ERROR:
         return FAIL;
 }

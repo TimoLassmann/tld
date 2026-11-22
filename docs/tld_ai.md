@@ -32,13 +32,16 @@ Every public symbol of tld_ai.h is documented below, module by module, with its 
 - [status codes (ai_status)](#mod-status-codes-ai_status): 9 symbols
 - [options](#mod-options): 6 symbols
 - [program-set defaults](#mod-program-set-defaults): 3 symbols
-- [plain calls](#mod-plain-calls): 11 symbols
+- [plain calls](#mod-plain-calls): 4 symbols
 - [embeddings](#mod-embeddings): 9 symbols
-- [parallel work](#mod-parallel-work): 1 symbol
 - [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm): 5 symbols
 - [decisions: pick one label](#mod-decisions-pick-one-label): 1 symbol
 - [decisions: place on an ordered scale](#mod-decisions-place-on-an-ordered-scale): 1 symbol
 - [the calls a program makes](#mod-the-calls-a-program-makes): 6 symbols
+- [asking a person](#mod-asking-a-person): 1 symbol
+- [errors and the last call](#mod-errors-and-the-last-call): 4 symbols
+- [library memory](#mod-library-memory): 2 symbols
+- [parallel work](#mod-parallel-work): 1 symbol
 - [Index](#index)
 
 <a id="sec-usage"></a>
@@ -349,90 +352,6 @@ Probability in [0, 1] that the answer to question about state is yes, from the
 decision model (TLD_AI_DECIDER, or o->model); -1 on failure. A state that starts
 with '{' and parses as JSON is sent as a JSON object, anything else as text.
 
-<a id="ai_review"></a>
-
-### `ai_review`
-
-```c
-const char *ai_review(const char *what, const char *payload);
-```
-
-Ask a person (see Human review above). The first call writes TLD_AI_REVIEWS/<key>.json, the
-key a hash of what and payload, and returns NULL with ai_status() == AI_OK; so does
-every call while the review is open. Once a person has set "status" to "done" and
-"answer" to a string, the call returns that answer (library memory). NULL with
-another status on errors.
-
-<a id="ai_fmt"></a>
-
-### `ai_fmt`
-
-```c
-char       *ai_fmt(const char *fmt, ...);
-```
-
-sprintf into library memory: the formatted string, valid until ai_reset() (never free
-it); NULL on failure.
-
-<a id="ai_error"></a>
-
-### `ai_error`
-
-```c
-const char *ai_error(void);
-```
-
-The message about this thread's last call: why it failed, or empty after a success
-(ai_review leaves a note while a review is open). Valid until the thread's next call.
-
-<a id="ai_status"></a>
-
-### `ai_status`
-
-```c
-int         ai_status(void);
-```
-
-The status code (AI_OK, AI_ENOSERVER, ...) of this thread's last call.
-
-<a id="ai_reset"></a>
-
-### `ai_reset`
-
-```c
-void        ai_reset(void);
-```
-
-Free every string and vector the library has returned, in all threads. Call it only
-when no thread still uses them; the library keeps working afterwards.
-
-<a id="ai_info"></a>
-
-### `ai_info`
-
-```c
-typedef struct {
-    const char *thinking;         /* model's thinking text, if requested */
-    long   prompt_tokens, output_tokens;
-    double seconds;               /* wall time of the HTTP call, 0 if cached */
-    int    from_cache;
-    const char *model;            /* model that answered */
-    const char *host;             /* server that was asked */
-} ai_info;
-```
-
-Details of a request to the server, from ai_last(). Strings are library memory.
-
-<a id="ai_last"></a>
-
-### `ai_last`
-
-```c
-const ai_info *ai_last(void);
-```
-
-Details of the last request this thread sent (or tried to send) to the server.
-
 <a id="mod-embeddings"></a>
 
 ## embeddings
@@ -505,22 +424,6 @@ int    ai_nearest(ai_vec q, ai_vecs m, int k, int *idx, double *score);
 The k rows of m most similar to q (cosine), best first: row indices into idx and
 similarities into score, two arrays of at least k elements. Returns how many were
 written (fewer than k when m has fewer rows; 0 on bad input).
-
-<a id="mod-parallel-work"></a>
-
-## parallel work
-
-<a id="ai_parallel"></a>
-
-### `ai_parallel`
-
-```c
-void ai_parallel(int n, int threads, void (*fn)(int i, void *ctx), void *ctx);
-```
-
-Run fn(i, ctx) for i = 0..n-1 on `threads` threads and wait for all. The calling
-thread works too; the calls run concurrently, in no fixed order, and may themselves
-call tld_ai.h.
 
 <a id="mod-typed-structs-filled-by-an-llm"></a>
 
@@ -660,6 +563,118 @@ ai_rate(T, state): place state on the scale T (AI_SCALE); returns struct T_answe
 level and clamped to the scale) and .confidence. ai_rate_with(o, T, state) takes
 options (model, images, fresh).
 
+<a id="mod-asking-a-person"></a>
+
+## asking a person
+
+<a id="ai_review"></a>
+
+### `ai_review`
+
+```c
+const char *ai_review(const char *what, const char *payload);
+```
+
+Ask a person (see Human review above). The first call writes TLD_AI_REVIEWS/<key>.json, the
+key a hash of what and payload, and returns NULL with ai_status() == AI_OK; so does
+every call while the review is open. Once a person has set "status" to "done" and
+"answer" to a string, the call returns that answer (library memory). NULL with
+another status on errors.
+
+<a id="mod-errors-and-the-last-call"></a>
+
+## errors and the last call
+
+<a id="ai_error"></a>
+
+### `ai_error`
+
+```c
+const char *ai_error(void);
+```
+
+The message about this thread's last call: why it failed, or empty after a success
+(ai_review leaves a note while a review is open). Valid until the thread's next call.
+
+<a id="ai_status"></a>
+
+### `ai_status`
+
+```c
+int         ai_status(void);
+```
+
+The status code (AI_OK, AI_ENOSERVER, ...) of this thread's last call.
+
+<a id="ai_info"></a>
+
+### `ai_info`
+
+```c
+typedef struct {
+    const char *thinking;         /* model's thinking text, if requested */
+    long   prompt_tokens, output_tokens;
+    double seconds;               /* wall time of the HTTP call, 0 if cached */
+    int    from_cache;
+    const char *model;            /* model that answered */
+    const char *host;             /* server that was asked */
+} ai_info;
+```
+
+Details of a request to the server, from ai_last(). Strings are library memory.
+
+<a id="ai_last"></a>
+
+### `ai_last`
+
+```c
+const ai_info *ai_last(void);
+```
+
+Details of the last request this thread sent (or tried to send) to the server.
+
+<a id="mod-library-memory"></a>
+
+## library memory
+
+<a id="ai_fmt"></a>
+
+### `ai_fmt`
+
+```c
+char       *ai_fmt(const char *fmt, ...);
+```
+
+sprintf into library memory: the formatted string, valid until ai_reset() (never free
+it); NULL on failure.
+
+<a id="ai_reset"></a>
+
+### `ai_reset`
+
+```c
+void        ai_reset(void);
+```
+
+Free every string and vector the library has returned, in all threads. Call it only
+when no thread still uses them; the library keeps working afterwards.
+
+<a id="mod-parallel-work"></a>
+
+## parallel work
+
+<a id="ai_parallel"></a>
+
+### `ai_parallel`
+
+```c
+void ai_parallel(int n, int threads, void (*fn)(int i, void *ctx), void *ctx);
+```
+
+Run fn(i, ctx) for i = 0..n-1 on `threads` threads and wait for all. The calling
+thread works too; the calls run concurrently, in no fixed order, and may themselves
+call tld_ai.h.
+
 <a id="index"></a>
 
 ## Index
@@ -684,20 +699,20 @@ options (model, images, fresh).
 | [`AI_ENOMODEL`](#AI_ENOMODEL) | constant | [status codes (ai_status)](#mod-status-codes-ai_status) |
 | [`AI_ENOSERVER`](#AI_ENOSERVER) | constant | [status codes (ai_status)](#mod-status-codes-ai_status) |
 | [`AI_EPARSE`](#AI_EPARSE) | constant | [status codes (ai_status)](#mod-status-codes-ai_status) |
-| [`ai_error`](#ai_error) | function | [plain calls](#mod-plain-calls) |
+| [`ai_error`](#ai_error) | function | [errors and the last call](#mod-errors-and-the-last-call) |
 | [`AI_ESCHEMA`](#AI_ESCHEMA) | constant | [status codes (ai_status)](#mod-status-codes-ai_status) |
 | [`AI_F`](#AI_F) | macro | [options](#mod-options) |
 | [`ai_f`](#ai_f) | type | [options](#mod-options) |
 | [`ai_field`](#ai_field) | type | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |
 | [`ai_fill`](#ai_fill) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
 | [`ai_fill_with`](#ai_fill_with) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
-| [`ai_fmt`](#ai_fmt) | function | [plain calls](#mod-plain-calls) |
+| [`ai_fmt`](#ai_fmt) | function | [library memory](#mod-library-memory) |
 | [`AI_I`](#AI_I) | macro | [options](#mod-options) |
 | [`ai_i`](#ai_i) | type | [options](#mod-options) |
-| [`ai_info`](#ai_info) | type | [plain calls](#mod-plain-calls) |
+| [`ai_info`](#ai_info) | type | [errors and the last call](#mod-errors-and-the-last-call) |
 | [`ai_kind`](#ai_kind) | type | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |
 | [`ai_label`](#ai_label) | type | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |
-| [`ai_last`](#ai_last) | function | [plain calls](#mod-plain-calls) |
+| [`ai_last`](#ai_last) | function | [errors and the last call](#mod-errors-and-the-last-call) |
 | [`ai_nearest`](#ai_nearest) | function | [embeddings](#mod-embeddings) |
 | [`AI_OK`](#AI_OK) | constant | [status codes (ai_status)](#mod-status-codes-ai_status) |
 | [`AI_OPTS`](#AI_OPTS) | macro | [options](#mod-options) |
@@ -705,11 +720,11 @@ options (model, images, fresh).
 | [`ai_parallel`](#ai_parallel) | function | [parallel work](#mod-parallel-work) |
 | [`ai_rate`](#ai_rate) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
 | [`ai_rate_with`](#ai_rate_with) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
-| [`ai_reset`](#ai_reset) | function | [plain calls](#mod-plain-calls) |
-| [`ai_review`](#ai_review) | function | [plain calls](#mod-plain-calls) |
+| [`ai_reset`](#ai_reset) | function | [library memory](#mod-library-memory) |
+| [`ai_review`](#ai_review) | function | [asking a person](#mod-asking-a-person) |
 | [`ai_row`](#ai_row) | macro | [embeddings](#mod-embeddings) |
 | [`AI_SCALE`](#AI_SCALE) | macro | [decisions: place on an ordered scale](#mod-decisions-place-on-an-ordered-scale) |
-| [`ai_status`](#ai_status) | function | [plain calls](#mod-plain-calls) |
+| [`ai_status`](#ai_status) | function | [errors and the last call](#mod-errors-and-the-last-call) |
 | [`AI_STRUCT`](#AI_STRUCT) | macro | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |
 | [`AI_T_bool`](#ai_kind) | constant | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |
 | [`AI_T_int`](#ai_kind) | constant | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |

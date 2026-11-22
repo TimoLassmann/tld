@@ -41,6 +41,56 @@ void tld_strbuf_free(tld_strbuf *b)
         }
 }
 
+int tld_str_alloc(tld_str **string, int size)
+{
+        tld_str* a = NULL;
+        MMALLOC(a, sizeof(tld_str));
+        a->len = size;
+        a->str = NULL;
+        galloc(&a->str, a->len);
+        *string = a;
+        return OK;
+ERROR:
+        tld_str_free(a);
+        return FAIL;
+}
+
+void tld_str_free(tld_str *a)
+{
+        if(a){
+                if(a->str){
+                        gfree(a->str);
+                }
+                MFREE(a);
+        }
+}
+
+int tld_strmk(tld_str **string,const char *src)
+{
+        int size = strlen(src);
+        tld_str* a = NULL;
+        /* buffer holds the characters plus the terminating NUL; len excludes the NUL */
+        RUN(tld_str_alloc(&a,size + 1));
+        memcpy(a->str,src, size + 1);
+        a->len = size;
+
+        *string = a;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_strbuf_clear(tld_strbuf *b)
+{
+        ASSERT(b != NULL,"No buffer");
+        b->len = 0;
+        b->str[b->len] = 0;
+
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 int tld_strbuf_resize(tld_strbuf *b, int new_size)
 {
         uint8_t* tmp = NULL;
@@ -93,32 +143,6 @@ ERROR:
         return FAIL;
 }
 
-int tld_strbuf_clear(tld_strbuf *b)
-{
-        ASSERT(b != NULL,"No buffer");
-        b->len = 0;
-        b->str[b->len] = 0;
-
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-
-int tld_prepend(tld_strbuf *b, char *content)
-{
-        int size = strlen(content);
-
-        RUN(tld_strbuf_ensure_size(b, size));
-        memmove(b->str + size, b->str, b->len);
-        memcpy(b->str, content, size);
-        b->len += size;
-        b->str[b->len] = 0;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
 int tld_append(tld_strbuf *b, char *content)
 {
         int size = strlen(content);
@@ -143,6 +167,20 @@ int tld_append_char(tld_strbuf *b, char c)
         b->len++;
         b->str[b->len] = 0;
 
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_prepend(tld_strbuf *b, char *content)
+{
+        int size = strlen(content);
+
+        RUN(tld_strbuf_ensure_size(b, size));
+        memmove(b->str + size, b->str, b->len);
+        memcpy(b->str, content, size);
+        b->len += size;
+        b->str[b->len] = 0;
         return OK;
 ERROR:
         return FAIL;
@@ -180,44 +218,4 @@ tld_str tld_char_to_str(char* s)
                 .len = size,
         };
         return r;
-}
-
-
-int tld_strmk(tld_str **string,const char *src)
-{
-        int size = strlen(src);
-        tld_str* a = NULL;
-        /* buffer holds the characters plus the terminating NUL; len excludes the NUL */
-        RUN(tld_str_alloc(&a,size + 1));
-        memcpy(a->str,src, size + 1);
-        a->len = size;
-
-        *string = a;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_str_alloc(tld_str **string, int size)
-{
-        tld_str* a = NULL;
-        MMALLOC(a, sizeof(tld_str));
-        a->len = size;
-        a->str = NULL;
-        galloc(&a->str, a->len);
-        *string = a;
-        return OK;
-ERROR:
-        tld_str_free(a);
-        return FAIL;
-}
-
-void tld_str_free(tld_str *a)
-{
-        if(a){
-                if(a->str){
-                        gfree(a->str);
-                }
-                MFREE(a);
-        }
 }
