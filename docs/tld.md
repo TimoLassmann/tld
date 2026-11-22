@@ -37,7 +37,7 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [auc](#mod-auc): 1 symbol (`src/stats/tld-auc.h`)
 - [logsum](#mod-logsum): 5 symbols (`src/logsum/tld-logsum.h`)
 - [kdtree](#mod-kdtree): 9 symbols (`src/kdtree/tld-kdtree.h`)
-- [tpool](#mod-tpool): 8 symbols (`src/tpool/tld-tpool.h`)
+- [tpool](#mod-tpool): 6 symbols (`src/tpool/tld-tpool.h`)
 - [Index](#index)
 
 <a id="sec-usage"></a>
@@ -1824,55 +1824,30 @@ Brute force: the id of the stored point nearest to x, comparing every point; FAI
 
 ## tpool
 
-`src/tpool/tld-tpool.h`: A pthread pool. Jobs func(pool, data, start, end, thread_id) are queued with tld_thread_pool_add and run in FIFO order by a fixed set of worker threads; optional time limit and a global stop flag.
-
-<a id="tld_global_stop_run"></a><a id="tld_global_cond_mutex"></a><a id="tld_global_cond"></a>
-
-### `tld_global_stop_run`, `tld_global_cond_mutex`, `tld_global_cond`
-
-```c
-TLD_API atomic_int tld_global_stop_run;
-TLD_API pthread_mutex_t tld_global_cond_mutex;
-TLD_API  pthread_cond_t tld_global_cond;
-```
-
-Global stop flag. The library installs no signal handlers: a program that wants to
-stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself; workers
-check it between jobs and stop, dropping queued jobs. The mutex and condition are not
-used by tld; they are there for programs that want to sleep until the flag is set.
+`src/tpool/tld-tpool.h`: A pthread pool. Jobs func(pool, data, start, end, thread_id) are queued with tld_thread_pool_add and run in FIFO order by a fixed set of worker threads; optional time limit and a program-wide stop (tld_thread_pool_stop_all).
 
 <a id="tld_thread_pool"></a>
 
 ### `tld_thread_pool`
 
 ```c
-typedef struct tld_thread_pool {
-        struct tld__work_queue* work;
-        int n_threads;
-        int n_active_threads;
-        int n_jobs_processed;
-        /* Pausing */
-        pthread_mutex_t lock;
-
-        pthread_cond_t work_cond;
-        pthread_cond_t working_cond;
-        pthread_attr_t attr;
-
-        pthread_t* threads;
-        int64_t* thread_id_map;
-        int thread_id_idx;
-        int n_working;
-        int stop;
-        double maxtime;
-        time_t internal_time;
-        time_t stop_watch;
-        int n_dropped;          /* jobs refused or abandoned after a stop */
-
-} tld_thread_pool;
+typedef struct tld_thread_pool tld_thread_pool;
 ```
 
-A thread pool; create with tld_thread_pool_alloc, free with tld_thread_pool_free.
-The fields are internal (n_threads may be read).
+Opaque pool; create with tld_thread_pool_alloc, free with tld_thread_pool_free.
+
+<a id="tld_thread_pool_stop_all"></a>
+
+### `tld_thread_pool_stop_all`
+
+```c
+TLD_API void tld_thread_pool_stop_all(void);
+```
+
+Stop every pool, running and future, for the rest of the program: workers stop
+between jobs and drop queued jobs, and tld_thread_pool_add refuses new ones. The
+library installs no signal handlers; this only sets an atomic flag, so a program may
+call it from its own handler (e.g. on SIGINT).
 
 <a id="tld_thread_pool_alloc"></a>
 
@@ -1897,7 +1872,7 @@ TLD_API int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_
 Queue a job: a worker calls func_ptr(p, data, start, end, thread_id), thread_id in
 [0, n_threads). start and end are passed through (e.g. a slice of an index range).
 Thread-safe; may be called from inside a job. Once the pool has stopped (time limit
-or tld_global_stop_run) the job is refused: FAIL without a message, and data is still
+or tld_thread_pool_stop_all) the job is refused: FAIL without a message, and data is still
 the caller's to free.
 
 <a id="tld_thread_pool_wait"></a>
@@ -1963,9 +1938,6 @@ is ignored.
 | [`TLD_END_TIMER`](#TLD_END_TIMER) | macro | [timing](#mod-timing) |
 | [`tld_galloc_dim1`](#tld_galloc_dim1) | function | [alloc](#mod-alloc) |
 | [`tld_galloc_dim2`](#tld_galloc_dim2) | function | [alloc](#mod-alloc) |
-| [`tld_global_cond`](#tld_global_cond) | variable | [tpool](#mod-tpool) |
-| [`tld_global_cond_mutex`](#tld_global_cond_mutex) | variable | [tpool](#mod-tpool) |
-| [`tld_global_stop_run`](#tld_global_stop_run) | variable | [tpool](#mod-tpool) |
 | [`tld_hash`](#tld_hash) | type | [hash](#mod-hash) |
 | [`tld_hash_add`](#tld_hash_add) | function | [hash](#mod-hash) |
 | [`tld_hash_alloc`](#tld_hash_alloc) | function | [hash](#mod-hash) |
@@ -2127,6 +2099,7 @@ is ignored.
 | [`tld_thread_pool_add`](#tld_thread_pool_add) | function | [tpool](#mod-tpool) |
 | [`tld_thread_pool_alloc`](#tld_thread_pool_alloc) | function | [tpool](#mod-tpool) |
 | [`tld_thread_pool_free`](#tld_thread_pool_free) | function | [tpool](#mod-tpool) |
+| [`tld_thread_pool_stop_all`](#tld_thread_pool_stop_all) | function | [tpool](#mod-tpool) |
 | [`tld_thread_pool_wait`](#tld_thread_pool_wait) | function | [tpool](#mod-tpool) |
 | [`tld_verbosity`](#tld_verbosity) | function | [core](#mod-core) |
 | [`WARNING_MSG`](#WARNING_MSG) | macro | [core](#mod-core) |

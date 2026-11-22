@@ -106,7 +106,6 @@ static int test_maxtime(void)
         /* the limit passed after the only job: nothing was lost, so OK */
         RUN(tld_thread_pool_wait(pool));
         ASSERT(atomic_load(&counter) == 1, "slow job did not run");
-        ASSERT(pool->stop == 1, "pool not stopped after maxtime");
         /* A stopped pool refuses jobs, and wait reports that work was lost. */
         ASSERT(tld_thread_pool_add(pool, inc_job, NULL, 0, 1) == FAIL,
                "a stopped pool accepted a job");
@@ -139,16 +138,14 @@ static int test_global_stop(void)
         tld_thread_pool *pool = NULL;
         RUN(tld_thread_pool_alloc(&pool, 0.0, 4));
         atomic_store(&counter, 0);
-        tld_global_stop_run = 1;
+        tld_thread_pool_stop_all();
         ASSERT(tld_thread_pool_add(pool, inc_job, NULL, 0, 1) == FAIL,
-               "job accepted after tld_global_stop_run was set");
+               "job accepted after tld_thread_pool_stop_all");
         ASSERT(tld_thread_pool_wait(pool) == FAIL, "wait hid a refused job");
-        ASSERT(atomic_load(&counter) == 0, "job ran after tld_global_stop_run was set");
+        ASSERT(atomic_load(&counter) == 0, "job ran after tld_thread_pool_stop_all");
         tld_thread_pool_free(pool);
-        tld_global_stop_run = 0;
         return OK;
 ERROR:
-        tld_global_stop_run = 0;
         tld_thread_pool_free(pool);
         return FAIL;
 }
@@ -211,7 +208,7 @@ int main(int argc, char *argv[])
 {
         test_init(&argc, argv, "[THREADS JOBS [MS]]",
                   "With no arguments: thread pool checks (no signal handlers installed, wait,\n"
-                  "free drains the queue, maxtime stops the pool, tld_global_stop_run). A hang\n"
+                  "free drains the queue, maxtime stops the pool, tld_thread_pool_stop_all). A hang\n"
                   "is a failure: the program is killed after 30 s.\n"
                   "With THREADS and JOBS: runs JOBS jobs that each sleep MS milliseconds\n"
                   "(default 10) on a pool of THREADS threads and prints the wall time and the\n"
@@ -238,7 +235,7 @@ int main(int argc, char *argv[])
         SECTION_MSG("maxtime");
         RUN(test_maxtime());
         OK_MSG("pool stopped after maxtime; no job runs on a stopped pool");
-        SECTION_MSG("tld_global_stop_run");
+        SECTION_MSG("tld_thread_pool_stop_all (last: the stop is permanent)");
         RUN(test_global_stop());
         OK_MSG("no job ran after the global stop");
         return EXIT_SUCCESS;

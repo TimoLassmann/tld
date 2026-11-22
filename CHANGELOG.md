@@ -120,6 +120,10 @@ tld.h to this. Old → new:
   lose their size argument. The node type, the `fptr_cmp`/`fptr_plane` distance hooks,
   `tld_kdtree_dist_euclidean`, `tld_kdtree_plane_euclidean` and the settable
   `rebalance_at` are gone; distance is Euclidean.
+- tpool: `tld_thread_pool` is opaque. `tld_thread_pool_stop_all()` replaces setting
+  `tld_global_stop_run`; it stops every pool for the rest of the program and is safe to
+  call from a signal handler. `tld_global_stop_run`, `tld_global_cond_mutex` and
+  `tld_global_cond` are gone.
 
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,

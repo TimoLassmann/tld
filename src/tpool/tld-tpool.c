@@ -9,13 +9,37 @@
 
 #include "tld-tpool.h"
 
-/* The library does not install signal handlers. A program that wants to
-   stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself;
-   workers check the flag between jobs. The mutex and condition are left for
-   programs that want to sleep until the flag is set. */
-atomic_int tld_global_stop_run;
-pthread_mutex_t tld_global_cond_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t tld_global_cond = PTHREAD_COND_INITIALIZER;
+struct tld_thread_pool {
+        struct tld__work_queue* work;
+        int n_threads;
+        int n_active_threads;
+        int n_jobs_processed;
+        /* Pausing */
+        pthread_mutex_t lock;
+
+        pthread_cond_t work_cond;
+        pthread_cond_t working_cond;
+        pthread_attr_t attr;
+
+        pthread_t* threads;
+        int64_t* thread_id_map;
+        int thread_id_idx;
+        int n_working;
+        int stop;
+        double maxtime;
+        time_t internal_time;
+        time_t stop_watch;
+        int n_dropped;          /* jobs refused or abandoned after a stop */
+};
+
+/* Set by tld_thread_pool_stop_all (possibly from a signal handler); workers and
+   tld_thread_pool_add check it. Never cleared. */
+static atomic_int tld__pool_stop_all;
+
+void tld_thread_pool_stop_all(void)
+{
+        atomic_store(&tld__pool_stop_all, 1);
+}
 
 static void *tld__pool_worker(void *data);
 static int tld__pool_get_tid(tld_thread_pool *p);
@@ -48,7 +72,7 @@ void *tld__pool_worker(void *data)
                 while(!tld__work_queue_haswork(p->work) && !p->stop){
                         pthread_cond_wait(&p->work_cond, &p->lock);
                 }
-                if(tld_global_stop_run == 1 && !p->stop){
+                if(atomic_load(&tld__pool_stop_all) && !p->stop){
                         tld__pool_set_stop_locked(p);
                 }
                 /* stop means abandon queued work (time limit or global
@@ -230,7 +254,7 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
         ASSERT(p != NULL, "No thread pool");
         ASSERT(func_ptr != NULL, "No job function");
         pthread_mutex_lock(&p->lock);
-        if(tld_global_stop_run == 1 && !p->stop){
+        if(atomic_load(&tld__pool_stop_all) && !p->stop){
                 tld__pool_set_stop_locked(p);
         }
         if(p->stop){

@@ -1217,47 +1217,20 @@ TLD_API int tld_kdtree_bf_search(tld_kdtree *t, double *x, uint32_t *id);
 /* ---- src/tpool/tld-tpool.h ---- */
 /* tpool: a pthread pool. Jobs func(pool, data, start, end, thread_id) are queued with
  * tld_thread_pool_add and run in FIFO order by a fixed set of worker threads; optional
- * time limit and a global stop flag. */
+ * time limit and a program-wide stop (tld_thread_pool_stop_all). */
 #ifndef TLD_TPOOL_H
 #define TLD_TPOOL_H
 #include <pthread.h>
 #include <stdint.h>
 #include <stdatomic.h>
-struct tld__work_queue;
+/* Opaque pool; create with tld_thread_pool_alloc, free with tld_thread_pool_free. */
+typedef struct tld_thread_pool tld_thread_pool;
 
-/* Global stop flag. The library installs no signal handlers: a program that wants to
- * stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself; workers
- * check it between jobs and stop, dropping queued jobs. The mutex and condition are not
- * used by tld; they are there for programs that want to sleep until the flag is set. */
-TLD_API atomic_int tld_global_stop_run;
-TLD_API pthread_mutex_t tld_global_cond_mutex;
-TLD_API  pthread_cond_t tld_global_cond;
-
-/* A thread pool; create with tld_thread_pool_alloc, free with tld_thread_pool_free.
- * The fields are internal (n_threads may be read). */
-typedef struct tld_thread_pool {
-        struct tld__work_queue* work;
-        int n_threads;
-        int n_active_threads;
-        int n_jobs_processed;
-        /* Pausing */
-        pthread_mutex_t lock;
-
-        pthread_cond_t work_cond;
-        pthread_cond_t working_cond;
-        pthread_attr_t attr;
-
-        pthread_t* threads;
-        int64_t* thread_id_map;
-        int thread_id_idx;
-        int n_working;
-        int stop;
-        double maxtime;
-        time_t internal_time;
-        time_t stop_watch;
-        int n_dropped;          /* jobs refused or abandoned after a stop */
-
-} tld_thread_pool;
+/* Stop every pool, running and future, for the rest of the program: workers stop
+ * between jobs and drop queued jobs, and tld_thread_pool_add refuses new ones. The
+ * library installs no signal handlers; this only sets an atomic flag, so a program may
+ * call it from its own handler (e.g. on SIGINT). */
+TLD_API void tld_thread_pool_stop_all(void);
 
 /* Start a pool of n_threads workers (at least 2) in *pool. max_time is a limit in
  * minutes since creation, checked after each job: once passed, the pool stops and
@@ -1267,7 +1240,7 @@ TLD_API int  tld_thread_pool_alloc(tld_thread_pool **pool, double max_time, int 
 /* Queue a job: a worker calls func_ptr(p, data, start, end, thread_id), thread_id in
  * [0, n_threads). start and end are passed through (e.g. a slice of an index range).
  * Thread-safe; may be called from inside a job. Once the pool has stopped (time limit
- * or tld_global_stop_run) the job is refused: FAIL without a message, and data is still
+ * or tld_thread_pool_stop_all) the job is refused: FAIL without a message, and data is still
  * the caller's to free. */
 TLD_API int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
 
@@ -7111,13 +7084,37 @@ void tld__work_item_free(struct tld__work_item *w)
 #include <unistd.h>
 
 
-/* The library does not install signal handlers. A program that wants to
-   stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself;
-   workers check the flag between jobs. The mutex and condition are left for
-   programs that want to sleep until the flag is set. */
-atomic_int tld_global_stop_run;
-pthread_mutex_t tld_global_cond_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t tld_global_cond = PTHREAD_COND_INITIALIZER;
+struct tld_thread_pool {
+        struct tld__work_queue* work;
+        int n_threads;
+        int n_active_threads;
+        int n_jobs_processed;
+        /* Pausing */
+        pthread_mutex_t lock;
+
+        pthread_cond_t work_cond;
+        pthread_cond_t working_cond;
+        pthread_attr_t attr;
+
+        pthread_t* threads;
+        int64_t* thread_id_map;
+        int thread_id_idx;
+        int n_working;
+        int stop;
+        double maxtime;
+        time_t internal_time;
+        time_t stop_watch;
+        int n_dropped;          /* jobs refused or abandoned after a stop */
+};
+
+/* Set by tld_thread_pool_stop_all (possibly from a signal handler); workers and
+   tld_thread_pool_add check it. Never cleared. */
+static atomic_int tld__pool_stop_all;
+
+void tld_thread_pool_stop_all(void)
+{
+        atomic_store(&tld__pool_stop_all, 1);
+}
 
 static void *tld__pool_worker(void *data);
 static int tld__pool_get_tid(tld_thread_pool *p);
@@ -7150,7 +7147,7 @@ void *tld__pool_worker(void *data)
                 while(!tld__work_queue_haswork(p->work) && !p->stop){
                         pthread_cond_wait(&p->work_cond, &p->lock);
                 }
-                if(tld_global_stop_run == 1 && !p->stop){
+                if(atomic_load(&tld__pool_stop_all) && !p->stop){
                         tld__pool_set_stop_locked(p);
                 }
                 /* stop means abandon queued work (time limit or global
@@ -7332,7 +7329,7 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
         ASSERT(p != NULL, "No thread pool");
         ASSERT(func_ptr != NULL, "No job function");
         pthread_mutex_lock(&p->lock);
-        if(tld_global_stop_run == 1 && !p->stop){
+        if(atomic_load(&tld__pool_stop_all) && !p->stop){
                 tld__pool_set_stop_locked(p);
         }
         if(p->stop){
