@@ -2056,7 +2056,7 @@ TLSAFE_EQ(X, Y): nearly_equal_float or nearly_equal_double, chosen by the type o
 
 ## kdtree
 
-`src/kdtree/tld-kdtree.h`: A k-d tree of double vectors with caller-chosen ids for nearest-neighbour search (squared Euclidean distance by default); points can be built in bulk or inserted one at a time. Not locked: one thread per tree.
+`src/kdtree/tld-kdtree.h`: A k-d tree of double vectors with caller-chosen ids for nearest-neighbour search (squared Euclidean distance by default); points can be built in bulk or inserted one at a time. Not locked: changing a tree (alloc, build, insert, rebalance, reset) needs it to itself, but searches only read it and may run at the same time.
 
 <a id="kd_node"></a>
 
@@ -2139,9 +2139,9 @@ Remove every point and keep the memory for reuse.
 tld_external  int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size);
 ```
 
-Build a balanced tree from n points x[i] of size doubles (size <= the length given
-to kdtree_alloc) with ids[i]. The points are copied; the x pointer array and ids are
-reordered in place. Use on an empty tree (new or after kdtree_reset).
+Add n points x[i] of size doubles (size <= the length given to kdtree_alloc) with
+ids[i] and rebuild the tree balanced. The points are copied; x and ids are not
+changed. On failure (no memory) the tree is unchanged.
 
 <a id="kdtree_insert"></a>
 
@@ -2152,7 +2152,8 @@ tld_external  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
 ```
 
 Insert one point x of size doubles with id (copied). Every rebalance_at insertions
-the tree is rebuilt if its depth is more than 10 levels off the balanced depth.
+the tree is rebuilt if its depth is more than 10 levels off the balanced depth. On
+failure (no memory) the tree is unchanged.
 
 <a id="kdtree_rebalance"></a>
 
@@ -2162,7 +2163,7 @@ the tree is rebuilt if its depth is more than 10 levels off the balanced depth.
 tld_external  int kdtree_rebalance(kdtree *t);
 ```
 
-Rebuild the tree balanced from the points it holds.
+Rebuild the tree balanced from the points it holds (allocates nothing).
 
 <a id="kdtree_nn_search"></a>
 
@@ -2173,7 +2174,7 @@ tld_external  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
 ```
 
 The id of the stored point nearest to x (a vector of the tree's length) into *id.
-*id is left unchanged when the tree is empty.
+FAIL (with an error) when the tree is empty.
 
 <a id="kdtree_bf_search"></a>
 
@@ -2183,8 +2184,8 @@ The id of the stored point nearest to x (a vector of the tree's length) into *id
 tld_external  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
 ```
 
-Brute force: the id of the stored point nearest to x, comparing every point; 0 when
-the tree is empty. For checking kdtree_nn_search.
+Brute force: the id of the stored point nearest to x, comparing every point; FAIL
+(with an error) when the tree is empty. For checking kdtree_nn_search.
 
 <a id="kddist_euclidian"></a>
 
