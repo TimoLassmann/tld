@@ -217,6 +217,8 @@ typedef struct {
     long   prompt_tokens, output_tokens;
     double seconds;               /* wall time of the HTTP call, 0 if cached */
     int    from_cache;
+    const char *model;            /* model that answered */
+    const char *host;             /* server that was asked */
 } ai_info;
 const ai_info *ai_last(void);                /* previous call in this thread */
 
@@ -1680,6 +1682,9 @@ static void ai__cache_store(const char *key, const char *ep, const char *model,
 static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *req,
                               int fresh) {
     memset(&ai__t_last, 0, sizeof ai__t_last);
+    ai__t_last.model = ai__kdup(model);
+    ai__t_last.host = ai__kdup(ai__c->str[AI__S_HOST]);
+    DEBUG_MSG("ai: %s %s @ %s", ep, model, ai__c->str[AI__S_HOST]);
     if (ai__host_ok() || ai__server_up()) return NULL;
     if (ai__c->cache_on && ai__cache_open()) return NULL;
     char dg[200];
@@ -1717,6 +1722,7 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
             return NULL;
         }
         ai__t_last.from_cache = 1;
+        DEBUG_MSG("ai: %s answered from the cache", ep);
         return resp;
     }
 
@@ -1730,8 +1736,10 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
     tld_strbuf_free(body);
     if (rc) {
         ai__seen_release(base, occ);
+        DEBUG_MSG("ai: %s failed after %.1f s: %s", ep, ai__t_last.seconds, ai_error());
         return NULL;
     }
+    DEBUG_MSG("ai: %s answered in %.1f s", ep, ai__t_last.seconds);
     if (ai__c->cache_on) ai__cache_store(key, ep, model, dg, req, resp,
                                           ai__t_last.seconds);
     return resp;

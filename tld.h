@@ -80,8 +80,8 @@
 
 #define ASSERT(TEST,...) do {                                   \
                 if(!(TEST)) {                                   \
-                        tld_message(MESSAGE_TYPE_ERROR, #TEST );        \
-                        tld_message(MESSAGE_TYPE_ERROR, __VA_ARGS__ );  \
+                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, "Assertion failed: %s", #TEST); \
+                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
                         goto ERROR;                             \
                 }                                               \
         } while (0)
@@ -95,7 +95,7 @@
 #define LOG_MSG(...) (tld_message(MESSAGE_TYPE_MSG, __VA_ARGS__ ))
 #define WARNING_MSG(...) (tld_message(MESSAGE_TYPE_WARNING, __VA_ARGS__ ))
 #define ERROR_MSG(...) do {                                     \
-                tld_message(MESSAGE_TYPE_ERROR, __VA_ARGS__ );  \
+                tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
                 goto ERROR;                                     \
         }while (0)
 
@@ -104,13 +104,43 @@
 #define ADDFAILED(x)  "Function \"" tld_tostring(x) "\" failed."
 #define RUN(EXP) do {                                           \
                 if((EXP) != OK){                                \
-                        tld_message(MESSAGE_TYPE_ERROR,ADDFAILED(EXP)); \
+                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, "%s", ADDFAILED(EXP)); \
                         goto ERROR;                             \
                 }                                               \
         } while (0)
 
 
 tld_external void tld_message(uint8_t type, const char *format, ...);
+tld_external void tld_message_at(uint8_t type, const char *file, int line, const char *format, ...)
+        __attribute__((format(printf, 4, 5)));
+
+/* Rich terminal output. Everything goes to stderr, so stdout keeps only a program's
+ * results. Colour and symbols are used only when stderr is a terminal and NO_COLOR is
+ * not set. TLD_VERBOSE sets how much is shown: 0 errors only, 1 normal (default),
+ * 2 also DEBUG_MSG lines.
+ *
+ *   SECTION_MSG("Aligning %d sequences", n);   ── Aligning 40 sequences ──────────
+ *   KV_MSG("model", "%s", name);                  model     inkling-2-mini:latest
+ *   OK_MSG("done in %.1f s", t);                ✓ done in 1.9 s
+ *   DEBUG_MSG("seed %u", seed);                 · seed 42          (TLD_VERBOSE=2)
+ *   tld_progress(i + 1, n, "aligning");        aligning [#######.....]  58% 23/40
+ */
+#define SECTION_MSG(...) tld_section(__VA_ARGS__)
+#define KV_MSG(KEY, ...) tld_kv(KEY, __VA_ARGS__)
+#define OK_MSG(...) tld_ok(__VA_ARGS__)
+#define DEBUG_MSG(...) tld_debug(__VA_ARGS__)
+
+tld_external int tld_verbosity(void);       /* TLD_VERBOSE: 0, 1 (default) or 2 */
+tld_external int tld_term_color(void);      /* 1 if stderr gets colour */
+tld_external void tld_section(const char *format, ...) __attribute__((format(printf, 1, 2)));
+tld_external void tld_kv(const char *key, const char *format, ...)
+        __attribute__((format(printf, 2, 3)));
+tld_external void tld_ok(const char *format, ...) __attribute__((format(printf, 1, 2)));
+tld_external void tld_debug(const char *format, ...) __attribute__((format(printf, 1, 2)));
+/* Progress of a loop: call with done = 1..total. On a terminal one line is redrawn
+ * (only when the percentage changes); otherwise only the final line is printed. Not
+ * meant to be called from several threads at once. */
+tld_external void tld_progress(long done, long total, const char *label);
 
 #endif
 
@@ -917,7 +947,9 @@ tld_external void tl_bitfield_free(tl_bitfield *b);
 /* ---- src/core/tld-core.c ---- */
 
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #define TYPE_MARGIN 8
 #define MESSAGE_MARGIN 22
@@ -927,7 +959,7 @@ tld_external void tl_bitfield_free(tl_bitfield *b);
 
 /* #define AT __FILE__ " line " tld_tostring(__LINE__) */
 
-tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *format,  va_list argp);
+tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *file, int line,const char *format,  va_list argp);
 tld_internal void verror(FILE* f_ptr, const char *format,  va_list argp);
 
 tld_internal int get_time(char* time_ptr, int size);
@@ -937,10 +969,155 @@ tld_internal void error(const char *format, ...) __attribute__((unused));
 
 void tld_message(uint8_t type, const char *format, ...)
 {
-        va_list argp = {0};
+        va_list argp;
         va_start(argp, format);
-        vlog(type,stderr,format, argp);
+        vlog(type,stderr,NULL,0,format, argp);
         va_end(argp);
+}
+
+void tld_message_at(uint8_t type, const char *file, int line, const char *format, ...)
+{
+        va_list argp;
+        va_start(argp, format);
+        vlog(type,stderr,file,line,format, argp);
+        va_end(argp);
+}
+
+int tld_verbosity(void)
+{
+        const char *v = getenv("TLD_VERBOSE");
+        if(v && v[0] >= '0' && v[0] <= '9' && v[1] == 0){
+                return v[0] - '0';
+        }
+        return 1;
+}
+
+int tld_term_color(void)
+{
+        const char *nc = getenv("NO_COLOR");
+        const char *term = getenv("TERM");
+        if(nc && *nc){
+                return 0;
+        }
+        if(term && strcmp(term, "dumb") == 0){
+                return 0;
+        }
+        return isatty(fileno(stderr));
+}
+
+void tld_section(const char *format, ...)
+{
+        char title[256];
+        va_list argp;
+        int len;
+        int col = tld_term_color();
+        if(tld_verbosity() < 1){
+                return;
+        }
+        va_start(argp, format);
+        len = vsnprintf(title, sizeof title, format, argp);
+        va_end(argp);
+        if(len < 0){
+                return;
+        }
+        if(len >= (int)sizeof title){
+                len = (int)sizeof title - 1;
+        }
+        if(col){
+                fprintf(stderr, "\033[1;36m── %s ", title);
+                for(int i = len + 4; i < 60; i++){
+                        fputs("─", stderr);
+                }
+                fputs("\033[0m\n", stderr);
+        }else{
+                fprintf(stderr, "== %s ==\n", title);
+        }
+        fflush(stderr);
+}
+
+void tld_kv(const char *key, const char *format, ...)
+{
+        va_list argp;
+        if(tld_verbosity() < 1){
+                return;
+        }
+        if(tld_term_color()){
+                fprintf(stderr, "   \033[2m%-9s\033[0m ", key);
+        }else{
+                fprintf(stderr, "   %-9s ", key);
+        }
+        va_start(argp, format);
+        vfprintf(stderr, format, argp);
+        va_end(argp);
+        fputc('\n', stderr);
+        fflush(stderr);
+}
+
+void tld_ok(const char *format, ...)
+{
+        va_list argp;
+        if(tld_verbosity() < 1){
+                return;
+        }
+        fputs(tld_term_color() ? " \033[1;32m✓\033[0m " : " OK ", stderr);
+        va_start(argp, format);
+        vfprintf(stderr, format, argp);
+        va_end(argp);
+        fputc('\n', stderr);
+        fflush(stderr);
+}
+
+void tld_debug(const char *format, ...)
+{
+        va_list argp;
+        int col;
+        if(tld_verbosity() < 2){
+                return;
+        }
+        col = tld_term_color();
+        fputs(col ? " \033[2m· " : " . ", stderr);
+        va_start(argp, format);
+        vfprintf(stderr, format, argp);
+        va_end(argp);
+        fputs(col ? "\033[0m\n" : "\n", stderr);
+        fflush(stderr);
+}
+
+void tld_progress(long done, long total, const char *label)
+{
+        static int last = -1;
+        int pct;
+        int fill;
+        if(tld_verbosity() < 1 || total <= 0){
+                return;
+        }
+        if(done < 0){
+                done = 0;
+        }
+        if(done > total){
+                done = total;
+        }
+        pct = (int)(100.0 * (double)done / (double)total);
+        if(!isatty(fileno(stderr))){
+                if(done == total){
+                        fprintf(stderr, "   %s %ld/%ld done\n", label ? label : "", done, total);
+                }
+                return;
+        }
+        if(pct == last && done != total){
+                return;
+        }
+        last = (done == total) ? -1 : pct;
+        fill = pct * 30 / 100;
+        fprintf(stderr, "\r   %s [", label ? label : "");
+        for(int i = 0; i < 30; i++){
+                fputs(i < fill ? "#" : ".", stderr);
+        }
+        fprintf(stderr, "] %3d%% %ld/%ld\033[K", pct, done, total);
+        if(done == total){
+                fputc('\n', stderr);
+        }
+        fflush(stderr);
 }
 
 void error(const char *format, ...)
@@ -951,9 +1128,13 @@ void error(const char *format, ...)
         va_end(argp);
 }
 
-void vlog( uint8_t type, FILE* f_ptr,const char *format,  va_list argp)
+void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
 {
         char time_string[BUFSIZ];
+        int col = (f_ptr == stderr) && tld_term_color();
+        if(type != MESSAGE_TYPE_ERROR && tld_verbosity() < 1){
+                return;
+        }
 
         if(get_time(time_string,BUFSIZ) != OK){
                 fprintf(stderr,"notime");
@@ -967,15 +1148,19 @@ void vlog( uint8_t type, FILE* f_ptr,const char *format,  va_list argp)
                 break;
         }
         case MESSAGE_TYPE_WARNING: {
-                fprintf(f_ptr,"%*s: ",TYPE_MARGIN,"WARNING ");
+                fprintf(f_ptr,col ? "\033[1;33m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"WARNING ");
                 vfprintf(f_ptr, format, argp);
                 fprintf(f_ptr,"\n");
                 break;
         }
         case MESSAGE_TYPE_ERROR: {
-                fprintf(f_ptr,"%*s: ",TYPE_MARGIN,"ERROR ");
+                fprintf(f_ptr,col ? "\033[1;31m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"ERROR ");
                 vfprintf(f_ptr, format, argp);
-                fprintf(f_ptr," (%s)\n",AT);
+                if(file){
+                        fprintf(f_ptr," (%s line %d)\n",file,line);
+                }else{
+                        fprintf(f_ptr,"\n");
+                }
                 break;
         }
         default:

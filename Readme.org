@@ -53,6 +53,19 @@ make
 make test
 #+end_src
 
+* Terminal output
+
+Everything goes to stderr, so stdout holds only a program's results. Colour and symbols appear only when stderr is a terminal and =NO_COLOR= is unset. =TLD_VERBOSE= sets how much is shown: =0= errors only, =1= normal (default), =2= also =DEBUG_MSG=.
+
+#+begin_src C :eval never
+SECTION_MSG("Aligning %d sequences", n);   /* ── Aligning 40 sequences ────── */
+KV_MSG("model", "%s", name);               /*    model     inkling-2-mini     */
+OK_MSG("done in %.1f s", t);               /*  ✓ done in 1.9 s                */
+DEBUG_MSG("seed %u", seed);                /*  · seed 42   (TLD_VERBOSE=2)    */
+for (long i = 0; i < n; i++) { work(i); tld_progress(i + 1, n, "aligning"); }
+LOG_MSG(...); WARNING_MSG(...); ERROR_MSG(...);   /* timestamped, as before    */
+#+end_src
+
 * tld_ai.h: local models as C functions
 
 =tld_ai.h= is a second single-header library, built on =tld.h=. It calls the LLMs, decision models and embedding models served by the Ollama server on this machine as ordinary C functions: HTTP, JSON, schemas, caching and replay are hidden. It needs nothing beyond libc, libm and pthreads (no libcurl, SQLite or cJSON).

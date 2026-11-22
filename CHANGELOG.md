@@ -15,6 +15,7 @@ here fix bugs.
 - Licence: MIT (was BSD-style).
 
 ### Fixed: behaviour changes (bugs; no interface change)
+- core: `ERROR_MSG`, `RUN` and `ASSERT` report the caller's file and line (they reported a fixed line inside tld-core.c); `tld_message_at()` added for this.
 - core: RUN and ASSERT are now single statements (`do { } while (0)`). A trailing `;` is required, and they can be the body of an unbraced if/else.
 - core: LOG_MSG, WARNING_MSG and ERROR_MSG write to stderr instead of stdout, so stdout stays free for program output.
 - core: the internal `error()` function is static. It no longer clashes with glibc's `error()` when linking statically.
@@ -51,6 +52,8 @@ here fix bugs.
 - template: a false IF no longer renders an enclosing IF's ELSE. IF nesting deeper than 512 fails, and parse errors no longer leak.
 
 ### Added
+- core: rich terminal output on stderr: `SECTION_MSG`, `KV_MSG`, `OK_MSG`, `DEBUG_MSG` and `tld_progress()`, plus `tld_verbosity()`/`tld_term_color()`. Colour only when stderr is a terminal and `NO_COLOR` is unset; `TLD_VERBOSE` = 0 (errors only), 1 (default) or 2 (debug). WARNING/ERROR tags are coloured on a terminal.
+- tld_ai.h: `ai_last()` also reports `model` and `host`; at `TLD_VERBOSE=2` every request and its outcome is logged. `examples/hello.c` shows prompt, host, model, time and tokens on stderr and only the answer on stdout.
 - tld_ai.h: single header (needs tld.h) that calls the LLMs, decision models and embedding models of the local Ollama server as C functions: `ai_text`, `ai_yesno`, `ai_choose`/`AI_CHOICE`, `ai_rate`/`AI_SCALE`, `ai_fill`/`AI_STRUCT`, `ai_embed*`, `ai_nearest`, `ai_parallel`, `ai_review`. Public API as in aic-project's tld_ai.h, plus `ai_status()` with `AI_E*` codes, the `max_retries` option, and `ai_defaults()`/`AI_CONFIG` for defaults set in code (per-call options > environment > ai_defaults > built-in; each call replaces the previous one, NULL resets).
 - tld_ai.h: no libcurl, SQLite or cJSON. Own HTTP/1.1 client over sockets (Content-Length, chunked, read-to-close, TLD_AI_TIMEOUT, SIGPIPE-safe; https gives AI_EHTTP), JSON through tld_json, an append-only JSONL cache (`TLD_AI_DB`, flock-shared between processes) and one JSON file per review (`TLD_AI_REVIEWS`).
 - tld_ai.h: the cache is off unless a file is named with `ai_defaults(AI_CONFIG(.db = "..."))` or `TLD_AI_DB` (which wins), so a plain run writes no files. Environment variables are named `TLD_AI_*` (`TLD_AI_HOST`, `TLD_AI_LLM`, `TLD_AI_DECIDER`, `TLD_AI_EMBEDDER`, `TLD_AI_DB`, `TLD_AI_REVIEWS`, `TLD_AI_NUM_CTX`, `TLD_AI_TIMEOUT`, `TLD_AI_FRESH`).
