@@ -5,11 +5,17 @@
 Local LLMs, decision models and embeddings through the Ollama server on this machine, called as ordinary C functions. Single header, builds on tld.h. Thread-safe.
 
 ```c
-const char *s = ai_text("Summarise:\n%s", doc);
+#define TEAM(X) X(bug, "A software defect") X(billing, "Payments and refunds")
+AI_CHOICE(team, "Which team should handle this ticket?", TEAM)
+#define FIX(X) X(str, title, "One-line summary") X(num, risk, "Risk 0 to 1")
+AI_STRUCT(fix, FIX)
+const char *ticket = "The app crashes on start and I want my money back.";
+const char *s = ai_text("Summarise:\n%s", ticket);
 double p = ai_yesno("Is a refund being requested?", ticket);
 struct team_answer t = ai_choose(team, ticket);
-ai_fill(&fix, fix, "Propose a fix for:\n%s", ticket);
-ai_vec v = ai_embed(abstract);
+struct fix f;
+int rc = ai_fill(&f, fix, "Propose a fix for:\n%s", ticket);
+ai_vec v = ai_embed(ticket);
 ```
 
 Manual: docs/tld_ai.md, generated from tld_ai.h by tools/tlddoc.c.
