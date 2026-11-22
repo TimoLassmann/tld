@@ -52,3 +52,66 @@ cmake ..
 make
 make test
 #+end_src
+
+* ai.h: local models as C functions
+
+=ai.h= is a second single-header library, built on =tld.h=. It calls the LLMs, decision models and embedding models served by the Ollama server on this machine as ordinary C functions: HTTP, JSON, schemas, caching and replay are hidden. It needs nothing beyond libc, libm and pthreads (no libcurl, SQLite or cJSON).
+
+#+begin_src C :eval never
+#define TLD_IMPLEMENTATION          /* in one .c file, before any other #include */
+#define AI_IMPLEMENTATION
+#include "ai.h"
+
+#define TEAM(X) X(bug, "A software defect") X(billing, "Payments and refunds")
+AI_CHOICE(team, "Which team should handle this ticket?", TEAM)
+
+int main(void) {
+    ai_defaults(AI_CONFIG(.host = "http://localhost:11434", .llm = "inkling-2-mini",
+                          .decider = "autotrust-jev", .embedder = "embeddinggemma-2"));
+    struct team_answer t = ai_choose(team, "The app crashes on start");
+    char *reply = ai_text("Write a one-line apology for: %s", "a crash");
+    if (!t.ok || !reply) { fprintf(stderr, "ai: %s\n", ai_error()); return 1; }
+    printf("team %d (%.2f): %s\n", t.value, t.confidence, reply);
+}
+#+end_src
+
+Build with =cc -std=c11 -I. prog.c -lpthread -lm=. Larger examples: =examples/triage.c= (choice, scale, yes/no, struct filling, human review) and =examples/par.c= (parallel calls, embeddings, nearest neighbours). Failures return NULL, -1 or =.ok = 0=; =ai_status()= gives the code (=AI_ENOSERVER=, =AI_EBUSY=, ...) and =ai_error()= the message. With no server running every call fails at once with =AI_ENOSERVER=.
+
+** Settings
+
+Every setting is decided on its own, highest first: per-call options (=AI_OPTS(...)=), environment variable, =ai_defaults()=, built-in. The environment is read once, at the first call. =ai_effective()= and =ai_setting_source("llm")= show what is in force and where it came from.
+
+| Variable    | Built-in default          | Meaning                                       |
+|-------------+---------------------------+-----------------------------------------------|
+| AI_HOST     | http://localhost:11434    | Ollama server (plain http only)               |
+| AI_LLM      | inkling-2-mini:latest     | text model: ai_text, ai_fill                  |
+| AI_DECIDER  | autotrust-jev:latest      | decision model: ai_yesno, ai_choose, ai_rate  |
+| AI_EMBEDDER | embeddinggemma-2:latest   | embedding model: ai_embed, ai_embed_all       |
+| AI_NUM_CTX  | not sent                  | context length for LLM and embedding calls    |
+| AI_TIMEOUT  | 300                       | seconds per request                           |
+| AI_FRESH    | 0                         | 1 = ignore the cache                          |
+| AI_DB       | ai.cache                  | cache file (JSON lines), =off= = no cache     |
+| AI_REVIEWS  | ai-reviews                | directory of review files (=ai_review=)       |
+| AI_GUARD    | on                        | =off= disables the one-model guard            |
+
+Every answered call is appended to the cache, so a rerun replays finished calls in order and costs nothing. A review is a file =AI_REVIEWS/<key>.json=; set its ="status"= to ="done"=, fill in ="answer"=, and rerun. Vectors from different embedding models are not comparable; store the embedder's name next to any vectors you save (ai.h warns once if a program switches embedder).
+
+** The one-model guard
+
+The machine holds one model in memory at a time. Before a live call to a local model, ai.h asks the server what is loaded (=/api/ps=). Models that this program loaded are unloaded first, so one program can mix an LLM, a decision model and an embedder. A model loaded by anyone else is never unloaded: the call fails with =AI_EBUSY= and names the model. That includes a model left loaded by an earlier run of the same program, until the server's =keep_alive= (5 minutes by default) runs out, and it means two programs that mix models cannot share the server; =ollama stop <model>= frees it. Threads in one program never use two local models at once. =AI_GUARD=off= turns the guard off on machines with plenty of memory.
+
+** Cloud models
+
+Cloud models (those whose =/api/tags= entry has =remote_host=) are reached through the local server and are exempt from the guard. They are opt-in only: the defaults are local, so a prompt leaves the machine only when a cloud model is named in =AI_LLM=, =AI_DECIDER=, =AI_EMBEDDER=, =ai_defaults()= or =.model=. A server that is not signed in answers with an HTTP error, reported as =AI_EHTTP=.
+
+** Tests and the live run
+
+=ctest= runs the ai.h tests against =tests/ai/mock_ollama.py= (started with =uv run python=, or =python3=); they never contact a real server. A run against the real models is manual, for the owner only, with no other model loaded (=ollama ps= shows nothing):
+
+#+begin_src bash :eval never
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
+ollama ps                                   # must list no model
+AI_DB=build/live.cache build/tests/ai-triage tests/ai/ticket.txt
+AI_DB=build/live.cache build/tests/ai-par 4
+ollama ps                                   # ai.h leaves at most one model loaded
+#+end_src

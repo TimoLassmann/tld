@@ -13,6 +13,22 @@
  * Licence: MIT, see the end of this file.
  */
 /* ---- src/tld.h ---- */
+/* Single-header use: the file with TLD_IMPLEMENTATION needs POSIX.1-2008 and the
+ * BSD/XSI extras (realpath, localtime_r, strnlen, ...). A strict -std=c11 build
+ * hides them on glibc, so ask for them here, before the first system header. */
+#if defined(TLD_IMPLEMENTATION) && !defined(TLD__FEATURES)
+#define TLD__FEATURES
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
+#endif
+
 #ifndef TLD_H
 #define TLD_H
 

@@ -82,6 +82,12 @@ target_include_directories(single-header PRIVATE ${CMAKE_SOURCE_DIR})
 set_target_properties(single-header PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
 target_link_libraries(single-header PRIVATE m Threads::Threads)
 add_test(NAME single-header COMMAND single-header)
+# The same two TUs in strict ISO C with warnings as errors: on glibc this caught
+# realpath/localtime_r/strnlen being used without declarations.
+add_test(NAME single-header-strict
+  COMMAND ${CMAKE_C_COMPILER} -std=c11 -Wall -Wextra -pedantic -Werror -I${CMAKE_SOURCE_DIR}
+          ${CMAKE_CURRENT_SOURCE_DIR}/single/single_impl.c ${CMAKE_CURRENT_SOURCE_DIR}/single/single_use.c
+          -o ${CMAKE_CURRENT_BINARY_DIR}/single-header-strict -lm -lpthread)
 
 # ./tld.h must be regenerated whenever src/ changes.
 find_program(UV_PROGRAM uv)
@@ -97,3 +103,6 @@ else()
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
   endif()
 endif()
+
+# ai.h: mock-server tests, compile checks, sanitizer runs
+include(${CMAKE_CURRENT_SOURCE_DIR}/ai.cmake)
