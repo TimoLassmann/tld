@@ -33,7 +33,8 @@ arguments (that is what ctest does) and is quiet unless something fails. By hand
 build/tests/unit-sort -h        # usage: what it checks and which arguments it takes
 build/tests/unit-sort -v        # the checks, with sections, inputs, results and passes
 build/tests/unit-sort -vv       # also debug detail
-build/tests/unit-sort 5 3 9 -1  # the module on your own input (results on stdout)
+build/tests/unit-sort -- 5 -3 9 # the module on your own input (results on stdout;
+                                # -- before negative numbers)
 ```
 
 `-v` sets `TLD_VERBOSE=1`, `-vv` sets 2; without either, `TLD_VERBOSE` from the
