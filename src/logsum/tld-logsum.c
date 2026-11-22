@@ -1,4 +1,5 @@
 #include "tld-logsum.h"
+#include <pthread.h>
 
 #include <math.h>
 #include <float.h>
@@ -7,30 +8,37 @@
 #define LOGSUM_SIZE 16000
 
 static float logsum_lookup[LOGSUM_SIZE];
+static pthread_once_t logsum_once = PTHREAD_ONCE_INIT;
 
+static void logsum_fill_table(void)
+{
+        for(int i = 0; i < LOGSUM_SIZE;i++){
+                logsum_lookup[i] = logf(1.0F + expf((float) -i / SCALE));
+        }
+}
+
+/* Thread-safe; calling it is optional, logsum() initialises the table on first use. */
 void init_logsum(void)
 {
-        static int called = 0;
-        int i = 0;
-        if(!called){
-                called = 1;
-                for(i = 0; i < LOGSUM_SIZE;i++){
-                        logsum_lookup[i] = logf(1.0F + expf((float) -i / SCALE));
-                }
-        }
+        pthread_once(&logsum_once, logsum_fill_table);
 }
 
 float logsum(const float a,const float b)
 {
-        register const float max = MACRO_MAX(a, b);
-        register const float min = MACRO_MIN(a, b);
+        if(isnan(a) || isnan(b)){
+                return NAN;
+        }
+        const float max = MACRO_MAX(a, b);
+        const float min = MACRO_MIN(a, b);
 
         if(  TLSAFE_EQ(min, -INFINITY)){
                 return max;
         }
-        if( (max-min) >= 15.7F){
+        /* !(d < 15.7) also catches +inf - +inf = NaN */
+        if( !((max-min) < 15.7F)){
                 return max;
         }
+        init_logsum();
         return  max+ logsum_lookup[(int)((max-min)*SCALE)];
 }
 
@@ -68,7 +76,7 @@ int nearly_equal_float(float a, float b)
         }else if (a == 0.0F || b == 0 || (absa + absb < min)){
                 ret =  d < (FLT_EPSILON * min);
         }else{
-                ret =  d / MACRO_MIN((absa+absb), min) < FLT_EPSILON;
+                ret =  d / MACRO_MIN((absa+absb), FLT_MAX) < FLT_EPSILON;
         }
         return ret;
 }
@@ -87,7 +95,7 @@ int nearly_equal_double(double a, double b)
         }else if (a == 0.0 || b == 0 || (absa + absb < min)){
                 ret = d < (DBL_EPSILON * min);
         }else{
-                ret = d / MACRO_MIN((absa+absb), min) < DBL_EPSILON;
+                ret = d / MACRO_MIN((absa+absb), DBL_MAX) < DBL_EPSILON;
         }
         return ret;
 }

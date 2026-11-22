@@ -5,28 +5,27 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define MFREE(p)                                        \
-        if (p) {                                        \
-                free(p);                                \
-                (p) = NULL;                             \
-        } else {                                        \
-                WARNING_MSG("free on a null pointer");  \
-        }
+/* MFREE: free(NULL) is legal, so a NULL pointer is not reported. The pointer is set
+ * to NULL afterwards either way. */
+#define MFREE(p)                                                        \
+        do {                                                            \
+                free(p);                                                \
+                (p) = NULL;                                             \
+        } while (0)
 
-#define MMALLOC(p, size)                                        \
-        if ((p) != NULL) {                                      \
-                ERROR_MSG("malloc on a nun-null pointer");      \
-                goto ERROR;                                     \
-        }                                                       \
-        if ((size) == 0) {                                      \
-                ERROR_MSG("malloc of size %d failed", size);    \
-                goto ERROR;                                     \
-        }                                                       \
-        if (((p) = malloc(size)) == NULL) {                     \
-                ERROR_MSG("malloc of size %d failed", size);    \
-                goto ERROR;                                     \
-        }                                                       \
-        memset(p, 0, size);
+#define MMALLOC(p, size)                                                \
+        do {                                                            \
+                if ((p) != NULL) {                                      \
+                        ERROR_MSG("malloc on a nun-null pointer");      \
+                }                                                       \
+                if ((size) == 0) {                                      \
+                        ERROR_MSG("malloc of size %zu failed", (size_t)(size)); \
+                }                                                       \
+                if (((p) = malloc(size)) == NULL) {                     \
+                        ERROR_MSG("malloc of size %zu failed", (size_t)(size)); \
+                }                                                       \
+                memset(p, 0, size);                                     \
+        } while (0)
 
 /* MMALLOC_ALIGNED: like MMALLOC, for a struct whose declaration asks for more alignment
  * than malloc guarantees (16 bytes on 64-bit), e.g. __attribute__((aligned(64))). Using
@@ -35,29 +34,27 @@
  * Pass the struct's own alignment: MMALLOC_ALIGNED(p, sizeof(struct s), _Alignof(struct s)).
  * C11 aligned_alloc requires the size to be a multiple of the alignment, so the size is
  * rounded up. The block is freed with plain free(), so MFREE works unchanged. */
-#define MMALLOC_ALIGNED(p, size, align)                                         \
-        if ((p) != NULL) {                                                      \
-                ERROR_MSG("malloc on a nun-null pointer");                      \
-                goto ERROR;                                                     \
-        }                                                                       \
-        if ((size) == 0) {                                                      \
-                ERROR_MSG("malloc of size %d failed", size);                    \
-                goto ERROR;                                                     \
-        }                                                                       \
-        if (((p) = aligned_alloc((align),                                       \
-                                 (((size) + (align) - 1) / (align)) * (align))) == NULL) { \
-                ERROR_MSG("aligned malloc of size %d (alignment %d) failed",    \
-                          (int)(size), (int)(align));                           \
-                goto ERROR;                                                     \
-        }                                                                       \
-        memset(p, 0, size);
+#define MMALLOC_ALIGNED(p, size, align)                                 \
+        do {                                                            \
+                if ((p) != NULL) {                                      \
+                        ERROR_MSG("malloc on a nun-null pointer");      \
+                }                                                       \
+                if ((size) == 0) {                                      \
+                        ERROR_MSG("malloc of size %zu failed", (size_t)(size)); \
+                }                                                       \
+                if (((p) = aligned_alloc((align),                       \
+                                         (((size) + (align) - 1) / (align)) * (align))) == NULL) { \
+                        ERROR_MSG("aligned malloc of size %zu (alignment %zu) failed", \
+                                  (size_t)(size), (size_t)(align));     \
+                }                                                       \
+                memset(p, 0, size);                                     \
+        } while (0)
 
 #define MREALLOC(p, size)                                               \
         do {                                                            \
                 void *tmpp;                                             \
                 if ((size) == 0) {                                      \
-                        ERROR_MSG("malloc of size %d failed", size);    \
-                        goto ERROR;                                     \
+                        ERROR_MSG("malloc of size %zu failed", (size_t)(size)); \
                 }                                                       \
                 if ((p) == NULL) {                                      \
                         tmpp = malloc(size);                            \
@@ -67,8 +64,7 @@
                 if (tmpp != NULL) {                                     \
                         (p) = tmpp;                                     \
                 } else {                                                \
-                        ERROR_MSG("realloc for size %d failed", size);  \
-                        goto ERROR;                                     \
+                        ERROR_MSG("realloc for size %zu failed", (size_t)(size)); \
                 }                                                       \
         } while (0)
 
@@ -96,23 +92,36 @@
                 if (*(a) == NULL) {                                     \
                         ERROR_MSG("Could not alloc 1D");                \
                 }                                                       \
-        } while (0);
+        } while (0)
 
+/* 2D: galloc_hlp returns the array of row pointers; the data block hangs off its
+ * header. Row offsets are computed in size_t. The local names are chosen so they
+ * cannot capture an identifier used in the caller's (b) or (c). */
 #define XGALLOC_ARGS_3(a, b, c)                                         \
         do {                                                            \
                 if (!tld_valid_2D((a))) {                               \
                         ERROR_MSG("Wrong pointer type for 2D alloc");   \
                 }                                                       \
-                __typeof__(*(a)) ptr_t = NULL;                          \
-                ptr_t = galloc_hlp(sizeof(__typeof__(**(a))), (b), (c)); \
-                void *__tld_internal_p = NULL;                          \
-                get_ptr(ptr_t, &__tld_internal_p);                                     \
-                ptr_t[0] = (__typeof__(**(a)))__tld_internal_p;         \
-                for (int i = 1; i < (b); i++) {                         \
-                        ptr_t[i] = ptr_t[0] + (c)*i;                    \
+                const size_t tld_galloc_n_ = (size_t)(b);               \
+                const size_t tld_galloc_m_ = (size_t)(c);               \
+                __typeof__(*(a)) tld_galloc_rows_ =                     \
+                        galloc_hlp(sizeof(__typeof__(**(a))), (b), (c)); \
+                void *tld_galloc_data_ = NULL;                          \
+                if (tld_galloc_rows_ == NULL) {                         \
+                        ERROR_MSG("Could not alloc 2D");                \
                 }                                                       \
-                *(a) = ptr_t;                                           \
-        } while (0);
+                if (get_ptr(tld_galloc_rows_, &tld_galloc_data_) != OK || \
+                    tld_galloc_data_ == NULL) {                         \
+                        tld_free(tld_galloc_rows_);                     \
+                        ERROR_MSG("Could not alloc 2D");                \
+                }                                                       \
+                tld_galloc_rows_[0] = (__typeof__(**(a)))tld_galloc_data_; \
+                for (size_t tld_galloc_i_ = 1; tld_galloc_i_ < tld_galloc_n_; tld_galloc_i_++) { \
+                        tld_galloc_rows_[tld_galloc_i_] =               \
+                                tld_galloc_rows_[0] + tld_galloc_m_ * tld_galloc_i_; \
+                }                                                       \
+                *(a) = tld_galloc_rows_;                                \
+        } while (0)
 
 #define gfree(a) tld_free(a)
 

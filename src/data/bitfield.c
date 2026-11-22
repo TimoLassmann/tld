@@ -14,7 +14,7 @@ static inline int _tl_bitfield_popcount_branchless(uint64_t x);
 int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int32_t* dist)
 {
         /* making sure the bitfields have the same length */
-        if(b1->len != b2->len){
+        if(b1->len != b2->len || b2->alloc_len < b1->alloc_len){
                 ERROR_MSG("bitfields have different lengths");
         }
         int32_t len = b1->alloc_len;
@@ -24,6 +24,9 @@ int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int3
                         count += _tl_bitfield_popcount_branchless(b1->m[i] ^ b2->m[i]);
                 }
         }else{
+                if(mask->len != b1->len || mask->alloc_len < len){
+                        ERROR_MSG("mask and bitfields have different lengths");
+                }
                 for(int i = 0; i <  len; i++){
                         count += _tl_bitfield_popcount_branchless((b1->m[i] ^ b2->m[i]) & mask->m[i]);
                 }

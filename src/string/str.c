@@ -8,10 +8,12 @@
 tld_internal inline int tld_strbuf_free_space(tld_strbuf *b);
 
 tld_internal int tld_strbuf_resize(tld_strbuf *b, int new_size);
+tld_internal int tld_strbuf_ensure_size(tld_strbuf *b, int size);
 
 int tld_strbuf_alloc(tld_strbuf **buffer, int size)
 {
         tld_strbuf* b = NULL;
+        ASSERT(size >= 0, "Negative buffer size: %d", size);
         MMALLOC(b,sizeof(tld_strbuf));
         if(size == 0){
                 size = 1024;
@@ -20,10 +22,12 @@ int tld_strbuf_alloc(tld_strbuf **buffer, int size)
         b->len = 0;
         b->str = NULL;
         galloc(&b->str, b->alloc_len);
+        b->str[0] = 0;
 
         *buffer = b;
         return OK;
 ERROR:
+        tld_strbuf_free(b);
         return FAIL;
 }
 
@@ -48,6 +52,7 @@ int tld_strbuf_resize(tld_strbuf *b, int new_size)
 
                 gfree(b->str);
                 b->str = tmp;
+                b->alloc_len = new_size;
         }
         return OK;
 ERROR:
@@ -182,10 +187,10 @@ int tld_strmk(tld_str **string,const char *src)
 {
         int size = strlen(src);
         tld_str* a = NULL;
-        size = size +1;
-        RUN(tld_str_alloc(&a,size));
-        memcpy(a->str,src, size);
-        a->str[size] = 0;
+        /* buffer holds the characters plus the terminating NUL; len excludes the NUL */
+        RUN(tld_str_alloc(&a,size + 1));
+        memcpy(a->str,src, size + 1);
+        a->len = size;
 
         *string = a;
         return OK;

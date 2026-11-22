@@ -44,27 +44,38 @@ ERROR:
 
 int tld_dir_create(char* dir)
 {
-        if(tld_dir_exists(dir) == OK){
-                WARNING_MSG("Directory %s already exists",dir);
-        }else{
+        struct stat st;
+        ASSERT(dir != NULL, "No directory name!");
+        if(mkdir(dir, 0700) == 0){
                 LOG_MSG("Creating output directory");
-                mkdir(dir, 0700);
+                return OK;
         }
-        return OK;
+        if(errno == EEXIST){
+                if(stat(dir, &st) == 0 && S_ISDIR(st.st_mode)){
+                        WARNING_MSG("Directory %s already exists",dir);
+                        return OK;
+                }
+                ERROR_MSG("Could not create directory %s: a file of that name exists", dir);
+        }
+        ERROR_MSG("Could not create directory %s: %s", dir, strerror(errno));
+ERROR:
+        return FAIL;
 }
 
 int tld_get_full_path(tld_strbuf **full, char *filename)
 {
         char* full_path = NULL;
         tld_strbuf *f = NULL;
+        int allocated = 0;
+        ASSERT(full != NULL, "tld_get_full_path: No output buffer pointer");
+        ASSERT(filename != NULL, "tld_get_full_path: No filename");
         if(*full){
                 f = *full;
-                f->len = 0;
+                RUN(tld_strbuf_clear(f));
         }else{
                 RUN(tld_strbuf_alloc(&f,512));
+                allocated = 1;
         }
-
-        ASSERT(filename != NULL, "tld_get_full_path: No filename");
         if(tld_file_exists(filename) != OK){
                 ERROR_MSG("tld_get_full_path: file %s does not exist!", filename);
         }
@@ -77,10 +88,14 @@ int tld_get_full_path(tld_strbuf **full, char *filename)
 
         RUN(tld_append(f, full_path));
         free(full_path);
+        full_path = NULL;
 
+        *full = f;
         return OK;
 ERROR:
-        if(f){
+        free(full_path);
+        /* free only what this call allocated; a caller-supplied buffer stays theirs */
+        if(allocated){
                 tld_strbuf_free(f);
         }
         return FAIL;
@@ -132,7 +147,7 @@ int tld_get_dirname(char* path, char** out)
         len = (int) strlen(path);
         MMALLOC(tmp, sizeof(char) * (len+1));
         c = 0;
-        e = 0;
+        e = -1;
         for(i = 0;i < len;i++){
 
                 tmp[c] = path[i];
@@ -141,10 +156,14 @@ int tld_get_dirname(char* path, char** out)
                 }
                 c++;
         }
-        tmp[e] = 0;
-        if(e == 0){
+        if(e < 0){
                 ERROR_MSG("No dirname found in: %s", path);
         }
+        if(e == 0){
+                /* the only slash is the leading one: the directory is the root */
+                e = 1;
+        }
+        tmp[e] = 0;
         *out = tmp;
         return OK;
 ERROR:
@@ -158,21 +177,27 @@ int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[
 {
 
         tld_strbuf* cmd = NULL;
+        int allocated = 0;
 
+        ASSERT(cmdline != NULL, "No output buffer pointer");
         if(*cmdline == NULL){
                 RUN(tld_strbuf_alloc(&cmd, 128));
+                allocated = 1;
         }else{
                 cmd = *cmdline;
         }
         for(int i = 0; i < argc;i++){
-                tld_append(cmd, argv[i]);
-                tld_append(cmd, " ");
+                RUN(tld_append(cmd, argv[i]));
+                RUN(tld_append(cmd, " "));
         }
         /* LOG_MSG("%s",TLD_STR(cmd)); */
 
         *cmdline = cmd;
         return OK;
 ERROR:
+        if(allocated){
+                tld_strbuf_free(cmd);
+        }
         return FAIL;
 }
 

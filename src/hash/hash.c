@@ -29,10 +29,16 @@ static unsigned int fnv1a_hash(char *str, int table_size)
 int tld_hash_add(tld_hash **hash, char *key, char *val)
 {
         tld_hash* h = NULL;
+        tld_hash_entry* new_entry = NULL;
+        int allocated = 0;
+        ASSERT(hash != NULL, "No Map pointer");
+        ASSERT(key != NULL, "No key");
+        ASSERT(val != NULL, "No value");
         if(*hash){
                 h = *hash;
         }else{
                 RUN(tld_hash_alloc(&h, 1024));
+                allocated = 1;
         }
 
 
@@ -45,9 +51,6 @@ int tld_hash_add(tld_hash **hash, char *key, char *val)
                 RUN(tld_hash_resize(h)); // Double the table size
         }
 
-
-        ASSERT(h != NULL, "No Map");
-
         unsigned int index = fnv1a_hash(key, h->table_size);
 
         // Check if key already exists
@@ -55,19 +58,18 @@ int tld_hash_add(tld_hash **hash, char *key, char *val)
         while (current) {
                 if (strcmp(TLD_STR(current->key), key) == 0) {
                         // Key exists, replace the value
-                        tld_strbuf_clear(current->value);
-                        tld_append(current->value, val);
+                        RUN(tld_strbuf_clear(current->value));
+                        RUN(tld_append(current->value, val));
                         return OK;
                 }
                 current = current->next;
         }
 
         // Key does not exist, create a new entry
-        tld_hash_entry* new_entry = NULL;
-        tld_hash_entry_alloc(&new_entry);
+        RUN(tld_hash_entry_alloc(&new_entry));
 
-        tld_append(new_entry->key, key);
-        tld_append(new_entry->value, val);
+        RUN(tld_append(new_entry->key, key));
+        RUN(tld_append(new_entry->value, val));
         new_entry->next = h->table[index];
         h->table[index] = new_entry;
         h->n++;
@@ -75,6 +77,11 @@ int tld_hash_add(tld_hash **hash, char *key, char *val)
         *hash = h;
         return OK;
 ERROR:
+        tld_hash_entry_free(new_entry);
+        /* a table allocated by this call is not handed back on failure */
+        if(allocated){
+                tld_hash_free(h);
+        }
         return FAIL;
 }
 
@@ -101,22 +108,25 @@ ERROR:
 }
 
 int tld_hash_rename(tld_hash *h, char *key, char* new_key) {
+        tld_strbuf* tmp = NULL;
         ASSERT(h != NULL, "No Map!!");
         ASSERT(key != NULL, "No key");
+        ASSERT(new_key != NULL, "No new key");
 
         unsigned int index = fnv1a_hash(key, h->table_size);
         tld_hash_entry* entry = h->table[index];
 
         while (entry) {
                 if (strcmp(TLD_STR(entry->key), key) == 0) {
-                        tld_strbuf* tmp = NULL;
-                        tld_strbuf_alloc(&tmp, 64);
-                        // Remove the old key from the hash table
-                        tld_strbuf_copy(tmp, entry->value);
-
-                        tld_hash_del(h, key);
-                        // Add the new key with the existing replacement
-                        tld_hash_add(&h, new_key, TLD_STR(tmp));
+                        if(strcmp(key, new_key) == 0){
+                                return OK;
+                        }
+                        RUN(tld_strbuf_alloc(&tmp, 64));
+                        RUN(tld_strbuf_copy(tmp, entry->value));
+                        /* Add the new key first so a failure leaves the old
+                           entry in place, then remove the old key. */
+                        RUN(tld_hash_add(&h, new_key, TLD_STR(tmp)));
+                        RUN(tld_hash_del(h, key));
                         tld_strbuf_free(tmp);
                         return OK;
                 }
@@ -125,6 +135,7 @@ int tld_hash_rename(tld_hash *h, char *key, char* new_key) {
 
         return FAIL; // Key not found
 ERROR:
+        tld_strbuf_free(tmp);
         return FAIL;
 }
 
@@ -232,7 +243,11 @@ int tld_hash_alloc(tld_hash **hash, int size)
                 }
         }
 
-        h->table_size = new_size; // Choose an appropriate size
+        ASSERT(new_size > 0, "Requested hash size %d is too large", size);
+
+        /* table_size stays 0 until the table exists, so tld_hash_free on the
+           error path never walks a missing table */
+        h->table_size = 0;
         h->table = NULL;
         // Initialize the map with a default size
 
@@ -241,7 +256,8 @@ int tld_hash_alloc(tld_hash **hash, int size)
         h->cur_index = 0;
         h->cur_entry = NULL;
 
-        MMALLOC(h->table, sizeof(tld_hash_entry*) * h->table_size);
+        MMALLOC(h->table, sizeof(tld_hash_entry*) * new_size);
+        h->table_size = new_size; // Choose an appropriate size
         for (int i = 0; i < h->table_size; i++) {
                 h->table[i] = NULL;
         }
@@ -355,6 +371,7 @@ int tld_hash_entry_alloc(tld_hash_entry **entry)
         *entry = e;
         return OK;
 ERROR:
+        tld_hash_entry_free(e);
         return FAIL;
 }
 

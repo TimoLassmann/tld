@@ -14,11 +14,7 @@
         {                                                           \
                 const type  *ia = (const type *)a;                  \
                 const type  *ib = (const type *)b;                  \
-                if(*ia < *ib ){                                     \
-                        return 1;                                   \
-                }else{                                              \
-                        return -1;                                  \
-                }                                                   \
+                return (*ia < *ib) - (*ia > *ib);                   \
         }                                                           \
                                                                     \
         static int cmp_asc_##type (const void *a, const void *b);   \
@@ -33,11 +29,7 @@
         {                                                           \
                 const type  *ia = (const type *)a;                  \
                 const type  *ib = (const type *)b;                  \
-                if(*ia > *ib ){                                     \
-                        return 1;                                   \
-                }else{                                              \
-                        return -1;                                  \
-                }                                                   \
+                return (*ia > *ib) - (*ia < *ib);                   \
         }
 
 
