@@ -381,7 +381,9 @@ def sources(paths, excludes):
         files = [p] if p.is_file() else sorted(q for q in p.rglob("*") if q.suffix in (".c", ".h"))
         for q in files:
             rel = str(q)
-            parts = q.parts
+            # Only directories met while walking p are skipped, not those above p, and
+            # never a file named on the command line.
+            parts = q.relative_to(p).parts if p.is_dir() else ()
             if any(x == ".git" or x.startswith("build") for x in parts[:-1]):
                 continue
             if any(fnmatch.fnmatch(rel, g) or fnmatch.fnmatch(str(q.relative_to(p)) if p.is_dir()
