@@ -9,22 +9,9 @@
 #include "kdtree/tld-kdtree.c"
 #include "hash/hash.c"
 
-#ifndef BOOT
-#include "seq/tld-seqbuffer.c"
-#include "seq/tld-seqio.c"
-#include "seq/tld-seqalphabet.c"
-#include "seq/tld-revcomp.c"
-#include "seq/tld-detect.c"
-#endif
 
 #include "logsum/tld-logsum.c"
 
-#if !defined(BOOT) && !defined(TLD_NO_HDF5)
-#include "hdf5/tld-hdf5.c"
-#include "hdf5/tld-hdf5_types.c"
-#include "hdf5/tld-hdf5_tree.c"
-#endif
-/* #include "hdf5/tld-hdf5_utils.c" */
 
 
 

@@ -43,9 +43,6 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-# find_package(HTSlib)
-# find_package(ZLIB)
-# find_package(HDF5 COMPONENTS C HL)
 
 
 add_subdirectory(src)
@@ -55,7 +52,6 @@ add_subdirectory(src)
 #target_compile_features(tld PUBLIC c_std_99)
 # target_include_directories(tld-dev PUBLIC "src") # "src/core")
 # target_link_libraries(tld-dev PRIVATE m)
-# target_link_libraries(tld-dev PRIVATE ZLIB::ZLIB)
 #target_compile_definitions(rayfork-dev PUBLIC RAYFORK_GRAPHICS_BACKEND_DIRECTX)
 
 

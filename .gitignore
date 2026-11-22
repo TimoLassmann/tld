@@ -20,3 +20,5 @@
 !src/**
 !tests/**
 !cmake/**
+# Local scratch area (not tracked)
+scratch/

@@ -18,18 +18,9 @@
 
 #include "kdtree/tld-kdtree.h"
 #include "hash/hash.h"
-#ifndef BOOT
-#include "seq/tld-seq.h"
-#endif
 
 #include "logsum/tld-logsum.h"
 
-/* #include "./hdf5/tld-hdf5_struct.h" */
-#if !defined(BOOT) && !defined(TLD_NO_HDF5)
-#include "hdf5/tld-hdf5.h"
-#include "hdf5/tld-hdf5_types.h"
-#include "hdf5/tld-hdf5_tree.h"
-#endif
 
 /* #include "tpool/tpool_internal.h" */
 /* #include "tpool/tpool_sig.h" */
@@ -41,7 +32,6 @@
 #include "json/tld-json_mem.h"
 #include "json/tld-json_misc.h"
 
-/* #include "./hdf5/tld-hdf5_utils.h" */
 #include "timing/tld-timing.h"
 #include "string/str.h"
 #include "template/template.h"
