@@ -812,6 +812,109 @@ static void test_build_request(void)
         tld_strbuf_free(b);
 }
 
+/* tld_json_search compared at most 256 bytes of the key: a 300-byte key matched a
+   stored 256-byte key that is its prefix, and missed the real 300-byte key. */
+static void test_long_key(void)
+{
+        char k256[257];
+        char k300[301];
+        tld_strbuf* b = NULL;
+        tld_json_obj* o = NULL;
+        tld_json_obj* r = NULL;
+        const char* v = NULL;
+        memset(k256, 'k', 256);
+        k256[256] = 0;
+        memset(k300, 'k', 300);
+        k300[300] = 0;
+        tld_strbuf_alloc(&b, 1024);
+        tld_append(b, "{\"");
+        tld_append(b, k256);
+        tld_append(b, "\":\"short\",\"");
+        tld_append(b, k300);
+        tld_append(b, "\":\"long\"}");
+        CHECK(tld_json_parse(b, &o) == OK);
+        CHECK(tld_json_search(o, k300, &r) == OK);
+        CHECK(r != NULL && r->n == 1);
+        if(r && r->n == 1){
+                CHECK(tld_json_get_str(r, k300, &v) == OK && strcmp(v, "long") == 0);
+        }
+        tld_json_obj_free(r);
+        r = NULL;
+        CHECK(tld_json_search(o, k256, &r) == OK);
+        CHECK(r != NULL && r->n == 1);
+        tld_json_obj_free(r);
+        tld_json_obj_free(o);
+        tld_strbuf_free(b);
+}
+
+/* tld_json_dump stopped indenting at 31 spaces: level 8 and deeper all sat at 31. */
+static void test_deep_indent(void)
+{
+        tld_json_obj* o = NULL;
+        tld_strbuf* b = NULL;
+        char want[64];
+        CHECK(parse_cstr("{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":{\"a\":1}}}}}}}}}}", &o) == OK);
+        tld_strbuf_alloc(&b, 256);
+        CHECK(tld_json_dump(o, b, 0) == OK);
+        /* the innermost key is at level 10: 40 spaces */
+        want[0] = '\n';
+        memset(want + 1, ' ', 40);
+        memcpy(want + 41, "\"a\": 1", 7);
+        CHECK(strstr(TLD_STR(b), want) != NULL);
+        if(strstr(TLD_STR(b), want) == NULL){
+                fprintf(stderr, "%s\n", TLD_STR(b));
+        }
+        tld_json_obj_free(o);
+        tld_strbuf_free(b);
+}
+
+/* A nested JSON_OBJ / JSON_ARR that fails returns NULL; JO/JA used to skip a NULL
+   value, so the outer build reported success without the nested part. */
+static void test_null_entry(void)
+{
+        tld_json_obj* o = NULL;
+        tld_json_arr* a = NULL;
+        o = JSON_OBJ(JSTR("a", "x"), JA("v", NULL));
+        CHECK(o == NULL);
+        tld_json_obj_free(o);
+        o = JSON_OBJ(JSTR("a", "x"), JO("v", NULL), JA("w", JSON_ARR(JINT(NULL, 1))));
+        CHECK(o == NULL);                       /* and the JSON_ARR after it is freed */
+        tld_json_obj_free(o);
+        a = JSON_ARR(JINT(NULL, 1), JO(NULL, NULL));
+        CHECK(a == NULL);
+        tld_json_arr_free(a);
+        /* a NULL string is still skipped */
+        o = JSON_OBJ(JSTR("a", NULL), JS("b", NULL), JINT("n", 3));
+        CHECK(o != NULL && o->n == 1);
+        tld_json_obj_free(o);
+}
+
+/* With a caller-supplied container the back ends returned that same container on
+   failure, so failure looked like success. They now return NULL and leave the
+   container to the caller, holding the entries added so far. */
+static void test_caller_container(void)
+{
+        tld_json_obj* o = JSON_OBJ(JINT("n", 1));
+        tld_json_obj* r = NULL;
+        tld_json_arr* a = JSON_ARR(JINT(NULL, 1));
+        tld_json_arr* ra = NULL;
+        CHECK(o != NULL && a != NULL);
+        if(o == NULL || a == NULL){
+                return;
+        }
+        r = json_obj_add_multiple(o, (tld_json_decoration[]){JINT("m", 2), JA("bad", NULL),
+                                                             JA("later", JSON_ARR(JINT(NULL, 3)))}, 3);
+        CHECK(r == NULL);
+        CHECK(o->n == 2);                       /* n and m */
+        ra = json_arr_add_multiple(a, (tld_json_decoration[]){JO(NULL, NULL)}, 1);
+        CHECK(ra == NULL);
+        CHECK(a->n == 1);
+        r = json_obj_add_multiple(o, (tld_json_decoration[]){JINT("k", 4)}, 1);
+        CHECK(r == o && o->n == 3);
+        tld_json_obj_free(o);
+        tld_json_arr_free(a);
+}
+
 /* The checks, in the order a plain run does them; arguments select by name. */
 /* tld_json_set_val takes a getter path and sets exactly that one value: nested keys,
  * array elements, appending, adding a missing key, refusing a missing parent, and no
@@ -894,6 +997,10 @@ static const struct {
         {"set-val", test_set_val, "setting values"},
         {"set-path", test_set_path, "tld_json_set_val with paths"},
         {"build-request", test_build_request, "building a request object"},
+        {"long-key", test_long_key, "search with keys longer than 256 bytes"},
+        {"deep-indent", test_deep_indent, "dump indents every level, also past 31 spaces"},
+        {"null-entry", test_null_entry, "a JO/JA entry holding NULL fails the build"},
+        {"caller-container", test_caller_container, "a failed add to the caller's container returns NULL"},
 };
 
 int main(int argc, char *argv[])
@@ -920,7 +1027,12 @@ int main(int argc, char *argv[])
                   "  long-strings       long strings\n"
                   "  search-many        lookups in a large object\n"
                   "  set-val            setting values\n"
+                  "  set-path           tld_json_set_val with paths\n"
                   "  build-request      building a request object\n"
+                  "  long-key           search with keys longer than 256 bytes\n"
+                  "  deep-indent        dump indents every level, also past 31 spaces\n"
+                  "  null-entry         a JO/JA entry holding NULL fails the build\n"
+                  "  caller-container   a failed add to the caller's container returns NULL\n"
                   "\n"
                   "Example: regress-json escapes malformed");
         for(int i = 1; i < argc; i++){

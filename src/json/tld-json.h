@@ -55,8 +55,10 @@ EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 /* Entries for JSON_OBJ / JSON_ARR. JS(k, s): the string s, with its type guessed from
  * the text: "12" becomes an integer, "0.2" a number, true/false (also True, TRUE, ...) a
  * boolean, anything else a string. JO(k, o) / JA(k, a): a nested tld_json_obj * /
- * tld_json_arr *, which the new container takes over (do not free it yourself). An entry
- * whose value is NULL is skipped. Arrays ignore the key; pass NULL. */
+ * tld_json_arr *, which the new container takes over (do not free it yourself), also
+ * when the build fails. A JS or JSTR entry whose string is NULL is skipped; a JO or JA
+ * entry whose value is NULL makes the build fail, since a nested JSON_OBJ / JSON_ARR
+ * returns NULL only when it failed. Arrays ignore the key; pass NULL. */
 #define JS(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_STRING, .value = (void*)(v)})
 #define JO(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_OBJ, .value = (void*)(v)})
 #define JA(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_ARR, .value = (void*)(v)})
@@ -73,9 +75,9 @@ EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 #define JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = VAL_NULL, .value = (void*)""})
 
 /* JSON_OBJ(entry, ...): a new tld_json_obj * holding the entries in order; JSON_ARR(...)
- * a new tld_json_arr *. NULL when an entry cannot be added (out of memory); the
- * containers passed in with JO/JA are then freed too. Free the result with
- * tld_json_obj_free / tld_json_arr_free.
+ * a new tld_json_arr *. NULL (with an error printed) when an entry cannot be added: out
+ * of memory, or a JO/JA entry holding NULL. The containers passed in with JO/JA are then
+ * freed too. Free the result with tld_json_obj_free / tld_json_arr_free.
  *
  *   tld_json_obj *o = JSON_OBJ(JSTR("name", "x"), JINT("n", 3),
  *                              JA("v", JSON_ARR(JNUM(NULL, 0.5), JNUM(NULL, 2))));
@@ -86,9 +88,9 @@ EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))
 
 /* Back ends of JSON_OBJ / JSON_ARR: add count entries to obj / arr (allocated when NULL)
- * and return it. They stop at the first entry that cannot be added: a container created
- * by the call is then freed, with the children of entries not yet attached, and NULL is
- * returned; a caller-supplied container is returned holding the entries added so far. */
+ * and return it. They stop at the first entry that cannot be added and return NULL: the
+ * JO/JA children not yet attached are freed, as is a container created by the call; a
+ * caller-supplied container keeps the entries added so far and stays the caller's. */
 EXTERN tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs, int count);
 EXTERN tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs, int count);
 

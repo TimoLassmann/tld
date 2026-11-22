@@ -677,8 +677,8 @@ const char *(ai_fmt)(const char *fmt, ...) {
 }
 
 /* ---- JSON helpers on top of tld_json ----------------------------------- */
-/* JSON_OBJ/json_obj_add_multiple swallow allocation failures once the object
- * exists, so tld_ai.h adds one entry at a time and checks that the count grew. */
+/* tld_ai.h adds one entry at a time and checks each add (json_*_add_multiple return
+ * NULL on failure and free the entry's object or array). */
 
 static void ai__drop(tld_json_decoration d) {
     if (!d.value) return;
@@ -686,30 +686,21 @@ static void ai__drop(tld_json_decoration d) {
     if (d.type == VAL_ARR) tld_json_arr_free((tld_json_arr *)d.value);
 }
 
-/* Add d to *o (created if NULL). A NULL value is skipped, as in tld. Ownership of an
- * object or array value passes to *o, also on failure, when it is freed: by tld when
- * *o was NULL (the result is NULL), here when *o exists (returned unchanged, without
- * the child). */
+/* Add d to *o (created if NULL). A NULL value is skipped. Ownership of an object or
+ * array value passes to *o, also on failure, when tld frees it (*o is then unchanged:
+ * NULL, or the caller's object without the child). */
 static int ai__put(tld_json_obj **o, tld_json_decoration d) {
     if (!d.value) return 0;
-    int before = *o ? (*o)->n : 0;
     tld_json_obj *r = json_obj_add_multiple(*o, &d, 1);
-    if (!r || r->n != before + 1) {
-        if (r) ai__drop(d);
-        return ai__nomem();
-    }
+    if (!r) return ai__nomem();
     *o = r;
     return 0;
 }
 
 static int ai__push(tld_json_arr **a, tld_json_decoration d) {
     if (!d.value) return 0;
-    int before = *a ? (*a)->n : 0;
     tld_json_arr *r = json_arr_add_multiple(*a, &d, 1);
-    if (!r || r->n != before + 1) {
-        if (r) ai__drop(d);
-        return ai__nomem();
-    }
+    if (!r) return ai__nomem();
     *a = r;
     return 0;
 }

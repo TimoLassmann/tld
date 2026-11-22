@@ -636,18 +636,14 @@ int search(tld_json_obj *n, char *key, tld_json_obj* r)
 {
         if(n){
                 for(int i = 0; i < n->n;i++){
-                        int len = strnlen(key, 256);
-                        if(len == n->key[i]->len){
-                                if(strncmp((char*)n->key[i]->str, key, n->key[i]->len)==0){
-                                        RUN(tld_append(r->key[r->n], TLD_STR(n->key[i])));
-                                        RUN(tld_json_val_copy(r->v[r->n], n->v[i]));
-                                        r->n++;
-                                        RUN(tld_json_obj_chk_space(r));
-                                        /* keep scanning the siblings (was
-                                           'break', which missed matches in
-                                           later siblings) */
-                                        continue;
-                                }
+                        if(strcmp(TLD_STR(n->key[i]), key) == 0){
+                                RUN(tld_append(r->key[r->n], TLD_STR(n->key[i])));
+                                RUN(tld_json_val_copy(r->v[r->n], n->v[i]));
+                                r->n++;
+                                RUN(tld_json_obj_chk_space(r));
+                                /* a match is not searched inside; later
+                                   siblings still are */
+                                continue;
                         }
 
                         if(n->v[i]->type == TLD_JSON_ARR){
@@ -1233,16 +1229,21 @@ ERROR:
         return FAIL;
 }
 
-/* JSON_OBJ / JSON_ARR back ends. They stop at the first entry that cannot be added. A
- * container created by the call is then freed (with the children of entries not yet
- * attached, which were built for this call) and NULL is returned; a caller-supplied
- * container is returned holding the entries added so far. */
+/* JSON_OBJ / JSON_ARR back ends. They stop at the first entry that cannot be added and
+ * return NULL: the JO/JA children of that entry and the later ones are freed, as is a
+ * container created by the call; a caller-supplied container keeps the entries added
+ * so far and stays the caller's. A JO/JA entry with a NULL value is such a failure
+ * (a nested JSON_OBJ / JSON_ARR returns NULL only when it failed). */
 tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs, int count)
 {
         tld_json_obj *in = obj;
-        for (int i = 0; i < count; i++) {
+        int i = 0;
+        for (i = 0; i < count; i++) {
                 int before = obj ? obj->n : 0;
                 if(kvs[i].value == NULL){
+                        if(kvs[i].type == VAL_OBJ || kvs[i].type == VAL_ARR){
+                                ERROR_MSG("Entry %d holds no object or array (did a nested JSON_OBJ / JSON_ARR fail?)", i + 1);
+                        }
                         continue;
                 }
                 switch (kvs[i].type) {
@@ -1264,16 +1265,16 @@ tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs,
                         break;
                 }
                 if(obj == NULL || obj->n != before + 1){
-                        if(in == NULL){
-                                json_free_unattached(kvs, i, count);
-                                if(obj != NULL){
-                                        tld_json_obj_free(obj);
-                                }
-                        }
-                        return in;
+                        ERROR_MSG("Could not add entry %d", i + 1);
                 }
         }
         return obj;
+ERROR:
+        json_free_unattached(kvs, i, count);
+        if(in == NULL){
+                tld_json_obj_free(obj);
+        }
+        return NULL;
 }
 
 tld_json_arr* tld_json_arr_add_val(tld_json_arr *arr, char* val)
@@ -1341,9 +1342,13 @@ ERROR:
 tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs, int count)
 {
         tld_json_arr *in = arr;
-        for (int i = 0; i < count; i++) {
+        int i = 0;
+        for (i = 0; i < count; i++) {
                 int before = arr ? arr->n : 0;
                 if(kvs[i].value == NULL){
+                        if(kvs[i].type == VAL_OBJ || kvs[i].type == VAL_ARR){
+                                ERROR_MSG("Entry %d holds no object or array (did a nested JSON_OBJ / JSON_ARR fail?)", i + 1);
+                        }
                         continue;
                 }
                 switch (kvs[i].type) {
@@ -1365,16 +1370,16 @@ tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs,
                         break;
                 }
                 if(arr == NULL || arr->n != before + 1){
-                        if(in == NULL){
-                                json_free_unattached(kvs, i, count);
-                                if(arr != NULL){
-                                        tld_json_arr_free(arr);
-                                }
-                        }
-                        return in;
+                        ERROR_MSG("Could not add entry %d", i + 1);
                 }
         }
         return arr;
+ERROR:
+        json_free_unattached(kvs, i, count);
+        if(in == NULL){
+                tld_json_arr_free(arr);
+        }
+        return NULL;
 }
 
 /* Write s as a quoted JSON string, escaping '"', '\\' and control
@@ -1464,17 +1469,13 @@ ERROR:
 
 int tld_json_add_indent(tld_strbuf *b, int indent)
 {
-
-        char buf[32];
-        if(indent > 31){
-                indent = 31;
+        static const char spaces[] = "                                ";   /* 32 */
+        const int n_spaces = (int) sizeof spaces - 1;
+        while(indent > 0){
+                int k = indent < n_spaces ? indent : n_spaces;
+                RUN(tld_append(b, spaces + n_spaces - k));
+                indent -= k;
         }
-
-        for (int i = 0; i < indent; i++) {
-                buf[i] = ' ';
-        }
-        buf[indent] = 0;
-        RUN(tld_append(b, buf));
         return OK;
 ERROR:
         return FAIL;

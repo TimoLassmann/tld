@@ -1389,8 +1389,10 @@ further past the end, or no memory. Keys containing '.' or '[' cannot be address
 Entries for JSON_OBJ / JSON_ARR. JS(k, s): the string s, with its type guessed from
 the text: "12" becomes an integer, "0.2" a number, true/false (also True, TRUE, ...) a
 boolean, anything else a string. JO(k, o) / JA(k, a): a nested tld_json_obj * /
-tld_json_arr *, which the new container takes over (do not free it yourself). An entry
-whose value is NULL is skipped. Arrays ignore the key; pass NULL.
+tld_json_arr *, which the new container takes over (do not free it yourself), also
+when the build fails. A JS or JSTR entry whose string is NULL is skipped; a JO or JA
+entry whose value is NULL makes the build fail, since a nested JSON_OBJ / JSON_ARR
+returns NULL only when it failed. Arrays ignore the key; pass NULL.
 
 <a id="JSTR"></a><a id="JNUM"></a><a id="JINT"></a><a id="JBOOL"></a><a id="JNULL"></a>
 
@@ -1422,9 +1424,9 @@ A NULL string in JSTR skips the entry, like JS.
 ```
 
 JSON_OBJ(entry, ...): a new tld_json_obj * holding the entries in order; JSON_ARR(...)
-a new tld_json_arr *. NULL when an entry cannot be added (out of memory); the
-containers passed in with JO/JA are then freed too. Free the result with
-tld_json_obj_free / tld_json_arr_free.
+a new tld_json_arr *. NULL (with an error printed) when an entry cannot be added: out
+of memory, or a JO/JA entry holding NULL. The containers passed in with JO/JA are then
+freed too. Free the result with tld_json_obj_free / tld_json_arr_free.
 
 ```c
 tld_json_obj *o = JSON_OBJ(JSTR("name", "x"), JINT("n", 3),
@@ -1441,9 +1443,9 @@ EXTERN tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoratio
 ```
 
 Back ends of JSON_OBJ / JSON_ARR: add count entries to obj / arr (allocated when NULL)
-and return it. They stop at the first entry that cannot be added: a container created
-by the call is then freed, with the children of entries not yet attached, and NULL is
-returned; a caller-supplied container is returned holding the entries added so far.
+and return it. They stop at the first entry that cannot be added and return NULL: the
+JO/JA children not yet attached are freed, as is a container created by the call; a
+caller-supplied container keeps the entries added so far and stays the caller's.
 
 <a id="tld_json_dump"></a><a id="tld_json_dump_arr"></a>
 
