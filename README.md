@@ -117,12 +117,14 @@ with `"%s"`: `LOG_MSG("%s", line)`, not `LOG_MSG(line)`.
 
 #define TEAM(X) X(bug, "A software defect") X(billing, "Payments and refunds")
 AI_CHOICE(team, "Which team should handle this ticket?", TEAM)
+#define NAME(label, description) #label,
+static const char *team_name[] = {TEAM(NAME)};      /* "bug", "billing" */
 
 int main(void) {
     struct team_answer t = ai_choose(team, "The app crashes on start");
     const char *reply = ai_text("Write a one-line apology for: %s", "a crash");
     if (!t.ok || !reply) { fprintf(stderr, "ai: %s\n", ai_error()); return 1; }
-    printf("team %d (%.2f): %s\n", t.value, t.confidence, reply);
+    printf("team %s (%.2f): %s\n", team_name[t.value], t.confidence, reply);
     return 0;
 }
 ```
