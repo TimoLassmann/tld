@@ -15,7 +15,7 @@ struct auc_pt {
 static int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out);
 
 /* Comparator function for qsort to sort in ascending order */
-int auc_pt_sort(const void *a, const void *b) {
+static int auc_pt_sort(const void *a, const void *b) {
         struct auc_pt * const *one = a;
         struct auc_pt * const *two = b;
 

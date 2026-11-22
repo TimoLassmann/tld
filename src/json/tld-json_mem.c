@@ -30,24 +30,33 @@ ERROR:
 int tld_json_obj_alloc(tld_json_obj **node)
 {
         tld_json_obj *n = NULL;
+        const int want = 4;
         MMALLOC(n, sizeof(tld_json_obj));
         n->key = NULL;
         n->v = NULL;
-        n->n_alloc = 4;
+        n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
         n->n = 0;
 
-        MMALLOC(n->key, sizeof(tld_strbuf*) * n->n_alloc);
-        MMALLOC(n->v, sizeof(tld_json_val*) * n->n_alloc);
+        MMALLOC(n->key, sizeof(tld_strbuf*) * want);
+        MMALLOC(n->v, sizeof(tld_json_val*) * want);
 
-        for(int i = 0; i < n->n_alloc;i++){
-                tld_strbuf_alloc(&n->key[i], 16);
-                tld_json_val_alloc(&n->v[i]);
-                /* MMALLOC(n->v[i], sizeof(tld_json_val)); */
-                /* n->v[i]->type = TLD_JSON_UNDEF; */
+        while(n->n_alloc < want){
+                int i = n->n_alloc;
+                n->key[i] = NULL;
+                n->v[i] = NULL;
+                RUN(tld_strbuf_alloc(&n->key[i], 16));
+                if(tld_json_val_alloc(&n->v[i]) != OK){
+                        tld_strbuf_free(n->key[i]);
+                        ERROR_MSG("Could not allocate a JSON object");
+                }
+                n->n_alloc++;
         }
         *node = n;
         return OK;
 ERROR:
+        if(n){
+                tld_json_obj_free(n);
+        }
         return FAIL;
 }
 
@@ -235,20 +244,24 @@ ERROR:
 int tld_json_arr_alloc(tld_json_arr **arr)
 {
         tld_json_arr* n = NULL;
+        const int want = 16;
         MMALLOC(n, sizeof(tld_json_arr));
-        n->n_alloc = 16;
+        n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
         n->n = 0;
         n->read_head = 0;
         n->v = NULL;
-        MMALLOC(n->v,sizeof(tld_json_val*) * n->n_alloc);
-        for(int i = 0; i < n->n_alloc;i++){
-                n->v[i] = NULL;
-                RUN(tld_json_val_alloc(&n->v[i]));
-                /* MMALLOC(n->v[i], sizeof(tld_json_val)); */
+        MMALLOC(n->v,sizeof(tld_json_val*) * want);
+        while(n->n_alloc < want){
+                n->v[n->n_alloc] = NULL;
+                RUN(tld_json_val_alloc(&n->v[n->n_alloc]));
+                n->n_alloc++;
         }
         *arr = n;
         return OK;
 ERROR:
+        if(n){
+                tld_json_arr_free(n);
+        }
         return FAIL;
 }
 

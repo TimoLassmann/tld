@@ -37,7 +37,6 @@ static int tld_json_dump_str(tld_strbuf *b, const uint8_t *s, int len);
 static int tld_json_add_indent(tld_strbuf *b, int indent);
 static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj *res);
 
-static int tld_json_set_arr_val(tld_json_arr *n, char *key, tld_json_val *v);
 
 static int add_val(char *buf, int len, tld_json_val *val);
 static int json_val_set_str(tld_json_val *v, const char *s, int len);
@@ -45,7 +44,6 @@ static void json_val_set_int64(tld_json_val *v, long long x);
 static int json_val_from_decoration(tld_json_val *v, tld_json_decoration *d);
 
 static int print_val(tld_json_val *val, FILE *out);
-int print_arr(tld_json_arr* n);
 static int search(tld_json_obj *n, char *key, tld_json_obj* r);
 
 /* parser */
@@ -380,49 +378,118 @@ ERROR:
         return FAIL;
 }
 
+/* Set the value at path (same syntax as the tld_json_get_* getters) to a deep copy of v.
+   The last step may name a missing key (it is added) or the index one past the end of an
+   array (the value is appended); everything before it must exist. */
 int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
 {
-        if(n){
-                for(int i = 0; i < n->n;i++){
-                        int len = strnlen(key, 256);
-                        if(len == n->key[i]->len){
-                                if(strncmp((char*)n->key[i]->str, key, n->key[i]->len)==0){
-                                        /* tld_json_val_copy releases the old
-                                           contents, so a change of type is safe */
-                                        RUN(tld_json_val_copy(n->v[i], v));
-                                        break;
-                                }
-                        }
+        const char* path = key;
+        const char* last = NULL;
+        tld_json_val* pv = NULL;
+        tld_json_obj* po = NULL;
+        tld_json_arr* pa = NULL;
+        char* prefix = NULL;
+        size_t plen;
 
-                        if(n->v[i]->type == TLD_JSON_ARR){
-                                RUN(tld_json_set_arr_val(n->v[i]->value.arr,key,v));
-                        }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                RUN(tld_json_set_val(n->v[i]->value.obj, key,v));
-                        }
+        ASSERT(n != NULL, "No JSON object");
+        ASSERT(path != NULL && *path, "No path");
+        ASSERT(v != NULL, "No value");
+
+        /* the last step starts at the last '.' or '[' (keys contain neither) */
+        for(const char* c = path; *c; c++){
+                if(*c == '.' || *c == '['){
+                        last = c;
                 }
         }
+        if(last == NULL){
+                last = path;            /* a single key */
+        }
+        plen = (size_t)(last - path);
 
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_json_set_arr_val(tld_json_arr *n, char *key, tld_json_val *v)
-{
-        if(n){
-                for(int i = 0; i < n->n;i++){
-                        if(n->v[i]->type == TLD_JSON_ARR){
-                                RUN(tld_json_set_arr_val(n->v[i]->value.arr,key,v));
-                        }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                RUN(tld_json_set_val(n->v[i]->value.obj, key,v));
+        if(plen == 0 && *last == '['){
+                /* "[i]": the array that tld_json_parse wraps under "Top Level Arr" */
+                for(int i = 0; i < n->n; i++){
+                        if(strcmp(TLD_STR(n->key[i]), TLD_JSON_TOP_LEVEL_ARR) == 0){
+                                pv = n->v[i];
+                                break;
                         }
                 }
+                if(pv == NULL || pv->type != TLD_JSON_ARR){
+                        ERROR_MSG("Path %s: no top-level array", path);
+                }
+                pa = pv->value.arr;
+        }else if(plen == 0){
+                po = n;
+        }else{
+                MMALLOC(prefix, plen + 1);
+                memcpy(prefix, path, plen);
+                prefix[plen] = 0;
+                if(json_path_resolve(n, prefix, &pv) != OK || pv == NULL){
+                        ERROR_MSG("Path %s: %s does not exist", path, prefix);
+                }
+                if(pv->type == TLD_JSON_OBJ){
+                        po = pv->value.obj;
+                }else if(pv->type == TLD_JSON_ARR){
+                        pa = pv->value.arr;
+                }
+                MFREE(prefix);
+        }
+
+        if(*last == '['){
+                long idx = 0;
+                int digits = 0;
+                const char* c = last + 1;
+                while(*c >= '0' && *c <= '9' && digits < 9){
+                        idx = idx * 10 + (*c - '0');
+                        digits++;
+                        c++;
+                }
+                if(!digits || *c != ']' || c[1] != 0){
+                        ERROR_MSG("Path %s: bad array index", path);
+                }
+                if(pa == NULL){
+                        ERROR_MSG("Path %s: not an array", path);
+                }
+                if(idx < pa->n){
+                        RUN(tld_json_val_copy(pa->v[idx], v));
+                }else if(idx == pa->n){
+                        tld_json_arr* r = NULL;
+                        RUN(json_arr_slot(pa, &r));
+                        RUN(tld_json_val_copy(pa->v[pa->n], v));
+                        pa->n++;
+                }else{
+                        ERROR_MSG("Path %s: index %ld is past the end (%d entries)", path, idx, pa->n);
+                }
+                return OK;
+        }
+
+        {
+                const char* k = (*last == '.') ? last + 1 : last;
+                int klen = (int)strlen(k);
+                tld_json_obj* r = NULL;
+                if(klen == 0){
+                        ERROR_MSG("Path %s: empty key", path);
+                }
+                if(po == NULL){
+                        ERROR_MSG("Path %s: not an object", path);
+                }
+                for(int i = 0; i < po->n; i++){
+                        if(po->key[i]->len == klen && memcmp(po->key[i]->str, k, klen) == 0){
+                                RUN(tld_json_val_copy(po->v[i], v));
+                                return OK;
+                        }
+                }
+                RUN(json_obj_slot(po, &r));
+                tld_strbuf_clear(po->key[po->n]);
+                RUN(tld_append(po->key[po->n], (char*)k));
+                RUN(tld_json_val_copy(po->v[po->n], v));
+                po->n++;
         }
         return OK;
 ERROR:
+        MFREE(prefix);
         return FAIL;
 }
-
 
 int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret)
 {
@@ -1575,39 +1642,3 @@ ERROR:
         return FAIL;
 }
 
-int print_arr(tld_json_arr* n)
-{
-        tld_json_val* val = NULL;
-        for(int i = 0; i < n->n;i++){
-                val = n->v[i];
-                switch (val->type) {
-                case TLD_JSON_DBL:
-                        LOG_MSG("Token %5d: %f - DBL",i, val->value.d_num);
-                        break;
-                case TLD_JSON_INT:
-                        LOG_MSG("Token %5d: %d - INT",i, val->value.i_num);
-                        break;
-                case TLD_JSON_BOOL_TRUE:
-                        LOG_MSG("Token %5d: %s - BOOL",i, "TRUE");
-                        break;
-                case TLD_JSON_BOOL_FALSE:
-                        LOG_MSG("Token %5d: %s - BOOL",i, "FALSE");
-                        break;
-                case TLD_JSON_STR:
-                        LOG_MSG("Token %5d: %s - STRING",i, TLD_STR(val->value.str));
-                        break;
-                case TLD_JSON_ARR:
-                        ERROR_MSG("This should never happen!!@");
-                        break;
-                case TLD_JSON_OBJ:
-                        ERROR_MSG("This should never happen!!@");
-                        break;
-                case TLD_JSON_UNDEF:
-                        ERROR_MSG("This should never happen!!@");
-                        break;
-                }
-        }
-        return OK;
-ERROR:
-        return FAIL;
-}

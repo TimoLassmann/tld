@@ -71,9 +71,13 @@ EXTERN  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
  * an empty result when nothing matches. */
 EXTERN int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
 
-/* Overwrite, with a deep copy of v, the value stored under key: in each object the first
- * entry named key, searching nested objects and arrays before it as well. Nothing is
- * added when key is absent; returns OK either way. */
+/* Set the value at a path to a deep copy of v. key is a path in the syntax of the
+ * tld_json_get_* getters ("name", "a.b", "list[2].id", "[0]" for a parsed top-level
+ * array). Everything before the last step must exist. The last step may name a key
+ * that is missing (it is added at the end of its object) or the index one past the
+ * end of an array (v is appended). An existing value is replaced, even by one of
+ * another type, and v may be part of n. Returns FAIL for a missing parent, an index
+ * further past the end, or no memory. Keys containing '.' or '[' cannot be addressed. */
 EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 
 /* Path getters. A path is dot-separated keys with [i] for array elements,

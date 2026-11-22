@@ -313,18 +313,21 @@ ERROR:
 
 void kdtree_debug_print(kd_node *n, int depth)
 {
+        if(n == NULL){
+                return;
+        }
         if(n->left){
                 kdtree_debug_print(n->left, depth+1);
         }
 
         for(int i = 0; i < depth*3;i++){
-                fprintf(stdout," ");
+                fprintf(stderr," ");
         }
         int cd = depth % n->n;
-        fprintf(stdout,"%d -> id: %d",cd,n->id);
+        fprintf(stderr,"%d -> id: %d",cd,n->id);
 
 
-        fprintf(stdout,"\n");
+        fprintf(stderr,"\n");
 
         if(n->right){
                 kdtree_debug_print(n->right, depth+1);
@@ -334,9 +337,13 @@ void kdtree_debug_print(kd_node *n, int depth)
 
 void kdtree_debug_chk(kd_node *n, int depth)
 {
-        int cd = depth % n->n;
+        int cd;
+        if(n == NULL){
+                return;
+        }
+        cd = depth % n->n;
         if(n->left && n->right){
-                fprintf(stdout,"L:%f\tM:%f\tR:%f\n",n->left->p[cd], n->p[cd],n->right->p[cd]  );
+                fprintf(stderr,"L:%f\tM:%f\tR:%f\n",n->left->p[cd], n->p[cd],n->right->p[cd]  );
         }
         if(n->left){
                 kdtree_debug_chk(n->left, depth+1);

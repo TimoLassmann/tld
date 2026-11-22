@@ -66,8 +66,9 @@ tld_external  int kdtree_reset(kdtree *t);
 /* Free the tree and all its points; NULL is ignored. */
 tld_external void kdtree_free(kdtree *t);
 
-/* Debugging: print the subtree under n (pass t->root, depth 0) to stdout, as split
- * values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). */
+/* Debugging: print the subtree under n (pass t->root, depth 0) to stderr, as split
+ * values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). A NULL
+ * n prints nothing. */
 tld_external void kdtree_debug_chk(kd_node *n, int depth);
 tld_external void kdtree_debug_print(kd_node *n, int depth);
 

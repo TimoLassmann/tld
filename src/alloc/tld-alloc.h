@@ -95,20 +95,21 @@
 #define NARG3(...) XARG3(__VA_ARGS__, 3, 2, 1, 0)
 
 /* galloc with 1 argument (an error: too few) and with 2 (a 1D array). Use galloc. */
-#define XGALLOC_ARGS_1(a) galloc_too_few()
+#define XGALLOC_ARGS_1(a) tld__galloc_too_few()
 #define XGALLOC_ARGS_2(a, b)                                            \
         do {                                                            \
                 if (!tld_valid_1D((a))) {                               \
                         ERROR_MSG("Wrong pointer type for 1D alloc");   \
                 }                                                       \
-                *(a) = galloc_hlp(sizeof(__typeof__(**(a))), (b), 0);   \
+                *(a) = tld__galloc(sizeof(__typeof__(**(a))),           \
+                                   sizeof(__typeof__(**(a))), (b), 0);  \
                 if (*(a) == NULL) {                                     \
                         ERROR_MSG("Could not alloc 1D");                \
                 }                                                       \
         } while (0)
 
-/* galloc with 3 arguments (a 2D matrix). Use galloc. galloc_hlp returns the array of
- * row pointers; the data block hangs off its header. Row offsets are computed in size_t.
+/* galloc with 3 arguments (a 2D matrix). Use galloc. tld__galloc returns the array of
+ * row pointers (sized by sizeof(T *)); the data block (sized by sizeof(T)) and the data block hangs off its header. Row offsets are computed in size_t.
  * The local names are chosen so they cannot capture an identifier used in the caller's
  * (b) or (c). */
 #define XGALLOC_ARGS_3(a, b, c)                                         \
@@ -119,12 +120,13 @@
                 const size_t tld_galloc_n_ = (size_t)(b);               \
                 const size_t tld_galloc_m_ = (size_t)(c);               \
                 __typeof__(*(a)) tld_galloc_rows_ =                     \
-                        galloc_hlp(sizeof(__typeof__(**(a))), (b), (c)); \
+                        tld__galloc(sizeof(__typeof__(**(a))),          \
+                                    sizeof(__typeof__(***(a))), (b), (c)); \
                 void *tld_galloc_data_ = NULL;                          \
                 if (tld_galloc_rows_ == NULL) {                         \
                         ERROR_MSG("Could not alloc 2D");                \
                 }                                                       \
-                if (get_ptr(tld_galloc_rows_, &tld_galloc_data_) != OK || \
+                if (tld__galloc_data(tld_galloc_rows_, &tld_galloc_data_) != OK || \
                     tld_galloc_data_ == NULL) {                         \
                         tld_free(tld_galloc_rows_);                     \
                         ERROR_MSG("Could not alloc 2D");                \
@@ -154,13 +156,14 @@
  * the dimensions back. */
 #define galloc(...) GALLOC_ARGS(__VA_ARGS__)
 
-/* Called by galloc with a single argument: prints an error and returns FAIL. */
-tld_external int galloc_too_few(void);
+/* Internal: called by galloc with a single argument; prints an error, returns FAIL. */
+tld_external int tld__galloc_too_few(void);
 
-/* Back end of galloc: a zeroed block of dim1 elements of tsize bytes behind a hidden
- * header that records dim1 and dim2; with dim2 > 0 also a zeroed dim1 x dim2 data block
- * (see get_ptr). Returns NULL on failure (dim1 < 1, dim2 < 0, overflow, no memory). */
-tld_external void *galloc_hlp(size_t tsize, int dim1, int dim2);
+/* Internal back end of galloc: a zeroed block of dim1 entries of rsize bytes behind a
+ * hidden header that records dim1 and dim2; with dim2 > 0 also a zeroed dim1 x dim2
+ * data block of tsize-byte elements. NULL on failure (dim1 < 1, dim2 < 0, overflow, no
+ * memory). */
+tld_external void *tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2);
 
 /* The function behind gfree: frees a galloc block and its 2D data block. NULL is
  * ignored. */
@@ -171,8 +174,8 @@ tld_external void tld_free(void *p);
 tld_external int get_dim1(void *ptr, uint32_t *d);
 tld_external int get_dim2(void *ptr, uint32_t *d);
 
-/* The data block of a 2D galloc block into *d (NULL for a 1D array); FAIL if ptr is
- * NULL. Used by galloc. */
-tld_external int get_ptr(void *ptr, void **d);
+/* Internal: the data block of a 2D galloc block into *d (NULL for a 1D array); FAIL
+ * if ptr is NULL. Used by galloc. */
+tld_external int tld__galloc_data(void *ptr, void **d);
 
 #endif

@@ -15,6 +15,11 @@ here fix bugs.
 - Licence: MIT (was BSD-style).
 
 ### Fixed: behaviour changes (bugs; no interface change)
+- json: `tld_json_set_val(obj, path, v)` takes a path in the getters' syntax (`"a.b[2].c"`, `"[0]"`) and sets exactly that value; a missing last key is added and index n appends. It used to replace same-named keys anywhere in the tree, skipping the rest of a level after the first match, and silently did nothing for a missing key.
+- json: `tld_json_obj_alloc` and `tld_json_arr_alloc` check every allocation and clean up on failure.
+- alloc: 2D `galloc` sizes the data block by the element type (it used the pointer size: 8x too much memory for char matrices, 2x for int/float, too little for 8-byte types on 32-bit).
+- kdtree: `kdtree_debug_print` and `kdtree_debug_chk` accept NULL and print to stderr.
+- Internal helpers no longer pollute the caller's namespace: `galloc_hlp`, `get_ptr` and `galloc_too_few` (needed by the galloc macro) are now `tld__galloc`, `tld__galloc_data` and `tld__galloc_too_few`; `auc_pt_sort` is static; the unused `print_arr` is removed.
 - core: `ERROR_MSG`, `RUN` and `ASSERT` report the caller's file and line (they reported a fixed line inside tld-core.c); `tld_message_at()` added for this.
 - core: RUN and ASSERT are now single statements (`do { } while (0)`). A trailing `;` is required, and they can be the body of an unbraced if/else.
 - core: LOG_MSG, WARNING_MSG and ERROR_MSG write to stderr instead of stdout, so stdout stays free for program output.
@@ -41,7 +46,6 @@ here fix bugs.
 - single header: the file with `TLD_IMPLEMENTATION` now asks for POSIX.1-2008 itself (`_POSIX_C_SOURCE`, `_DEFAULT_SOURCE`, `_DARWIN_C_SOURCE`, at the top of tld.h). A strict `-std=c11` build on glibc used `realpath`, `localtime_r` and `strnlen` undeclared (an implicit `realpath` truncates its pointer result on 64-bit). New test: `single-header-strict`.
 
 ### Known limitation
-- 2D galloc sizes its data block with `sizeof(T*)` rather than `sizeof(T)`. That is harmless on 64-bit, but too small for 8-byte element types on 32-bit platforms. Fixing it needs a new helper.
 - json: `tld_json_parse` returns FAIL on malformed, truncated or too-deep (>512) input, on trailing characters and on non-JSON literals (`hello`, `True`, `NaN`, `01`). It used to return OK with a NULL or partial tree.
 - json: quoted values are always strings ("123", "true", "{" no longer change type). String escapes, including `\uXXXX` and surrogate pairs, are decoded to UTF-8, and `\u0000` is rejected. Unquoted `null` parses to TLD_JSON_UNDEF and is written as `null`.
 - json: integers outside the int32 range are stored as TLD_JSON_DBL, for example Ollama durations in nanoseconds. Integers beyond 2^53 lose precision.

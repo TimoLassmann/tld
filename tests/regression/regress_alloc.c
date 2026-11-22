@@ -204,7 +204,7 @@ static int test_galloc_2d(void)
         gfree(m);
         m = NULL;
 
-        /* dim1 < 1: galloc_hlp returns NULL; the macro must fail, not crash */
+        /* dim1 < 1: tld__galloc returns NULL; the macro must fail, not crash */
         ASSERT(galloc_2d(&m, 0, 5) == FAIL, "2D galloc with 0 rows succeeded");
         ASSERT(m == NULL, "m was set on failure");
 

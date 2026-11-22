@@ -326,20 +326,21 @@ tld_external void tld_progress(long done, long total, const char *label);
 #define NARG3(...) XARG3(__VA_ARGS__, 3, 2, 1, 0)
 
 /* galloc with 1 argument (an error: too few) and with 2 (a 1D array). Use galloc. */
-#define XGALLOC_ARGS_1(a) galloc_too_few()
+#define XGALLOC_ARGS_1(a) tld__galloc_too_few()
 #define XGALLOC_ARGS_2(a, b)                                            \
         do {                                                            \
                 if (!tld_valid_1D((a))) {                               \
                         ERROR_MSG("Wrong pointer type for 1D alloc");   \
                 }                                                       \
-                *(a) = galloc_hlp(sizeof(__typeof__(**(a))), (b), 0);   \
+                *(a) = tld__galloc(sizeof(__typeof__(**(a))),           \
+                                   sizeof(__typeof__(**(a))), (b), 0);  \
                 if (*(a) == NULL) {                                     \
                         ERROR_MSG("Could not alloc 1D");                \
                 }                                                       \
         } while (0)
 
-/* galloc with 3 arguments (a 2D matrix). Use galloc. galloc_hlp returns the array of
- * row pointers; the data block hangs off its header. Row offsets are computed in size_t.
+/* galloc with 3 arguments (a 2D matrix). Use galloc. tld__galloc returns the array of
+ * row pointers (sized by sizeof(T *)); the data block (sized by sizeof(T)) and the data block hangs off its header. Row offsets are computed in size_t.
  * The local names are chosen so they cannot capture an identifier used in the caller's
  * (b) or (c). */
 #define XGALLOC_ARGS_3(a, b, c)                                         \
@@ -350,12 +351,13 @@ tld_external void tld_progress(long done, long total, const char *label);
                 const size_t tld_galloc_n_ = (size_t)(b);               \
                 const size_t tld_galloc_m_ = (size_t)(c);               \
                 __typeof__(*(a)) tld_galloc_rows_ =                     \
-                        galloc_hlp(sizeof(__typeof__(**(a))), (b), (c)); \
+                        tld__galloc(sizeof(__typeof__(**(a))),          \
+                                    sizeof(__typeof__(***(a))), (b), (c)); \
                 void *tld_galloc_data_ = NULL;                          \
                 if (tld_galloc_rows_ == NULL) {                         \
                         ERROR_MSG("Could not alloc 2D");                \
                 }                                                       \
-                if (get_ptr(tld_galloc_rows_, &tld_galloc_data_) != OK || \
+                if (tld__galloc_data(tld_galloc_rows_, &tld_galloc_data_) != OK || \
                     tld_galloc_data_ == NULL) {                         \
                         tld_free(tld_galloc_rows_);                     \
                         ERROR_MSG("Could not alloc 2D");                \
@@ -385,13 +387,14 @@ tld_external void tld_progress(long done, long total, const char *label);
  * the dimensions back. */
 #define galloc(...) GALLOC_ARGS(__VA_ARGS__)
 
-/* Called by galloc with a single argument: prints an error and returns FAIL. */
-tld_external int galloc_too_few(void);
+/* Internal: called by galloc with a single argument; prints an error, returns FAIL. */
+tld_external int tld__galloc_too_few(void);
 
-/* Back end of galloc: a zeroed block of dim1 elements of tsize bytes behind a hidden
- * header that records dim1 and dim2; with dim2 > 0 also a zeroed dim1 x dim2 data block
- * (see get_ptr). Returns NULL on failure (dim1 < 1, dim2 < 0, overflow, no memory). */
-tld_external void *galloc_hlp(size_t tsize, int dim1, int dim2);
+/* Internal back end of galloc: a zeroed block of dim1 entries of rsize bytes behind a
+ * hidden header that records dim1 and dim2; with dim2 > 0 also a zeroed dim1 x dim2
+ * data block of tsize-byte elements. NULL on failure (dim1 < 1, dim2 < 0, overflow, no
+ * memory). */
+tld_external void *tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2);
 
 /* The function behind gfree: frees a galloc block and its 2D data block. NULL is
  * ignored. */
@@ -402,9 +405,9 @@ tld_external void tld_free(void *p);
 tld_external int get_dim1(void *ptr, uint32_t *d);
 tld_external int get_dim2(void *ptr, uint32_t *d);
 
-/* The data block of a 2D galloc block into *d (NULL for a 1D array); FAIL if ptr is
- * NULL. Used by galloc. */
-tld_external int get_ptr(void *ptr, void **d);
+/* Internal: the data block of a 2D galloc block into *d (NULL for a 1D array); FAIL
+ * if ptr is NULL. Used by galloc. */
+tld_external int tld__galloc_data(void *ptr, void **d);
 
 #endif
 
@@ -537,8 +540,9 @@ tld_external  int kdtree_reset(kdtree *t);
 /* Free the tree and all its points; NULL is ignored. */
 tld_external void kdtree_free(kdtree *t);
 
-/* Debugging: print the subtree under n (pass t->root, depth 0) to stdout, as split
- * values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). */
+/* Debugging: print the subtree under n (pass t->root, depth 0) to stderr, as split
+ * values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). A NULL
+ * n prints nothing. */
 tld_external void kdtree_debug_chk(kd_node *n, int depth);
 tld_external void kdtree_debug_print(kd_node *n, int depth);
 
@@ -869,9 +873,13 @@ EXTERN  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
  * an empty result when nothing matches. */
 EXTERN int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
 
-/* Overwrite, with a deep copy of v, the value stored under key: in each object the first
- * entry named key, searching nested objects and arrays before it as well. Nothing is
- * added when key is absent; returns OK either way. */
+/* Set the value at a path to a deep copy of v. key is a path in the syntax of the
+ * tld_json_get_* getters ("name", "a.b", "list[2].id", "[0]" for a parsed top-level
+ * array). Everything before the last step must exist. The last step may name a key
+ * that is missing (it is added at the end of its object) or the index one past the
+ * end of an array (v is appended). An existing value is replaced, even by one of
+ * another type, and v may be part of n. Returns FAIL for a missing parent, an index
+ * further past the end, or no memory. Keys containing '.' or '[' cannot be addressed. */
 EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 
 /* Path getters. A path is dot-separated keys with [i] for array elements,
@@ -1721,7 +1729,7 @@ int get_dim2(void* ptr,uint32_t* d)
         return FAIL;
 }
 
-int get_ptr(void* ptr,void** d)
+int tld__galloc_data(void* ptr,void** d)
 {
         if(ptr){
                 mem_i* h = NULL;
@@ -1733,7 +1741,7 @@ int get_ptr(void* ptr,void** d)
 }
 
 
-int galloc_too_few(void)
+int tld__galloc_too_few(void)
 {
         ERROR_MSG("Too few parameters passed to galloc.\nExpects at least 2");
         return OK;
@@ -1742,23 +1750,23 @@ ERROR:
 }
 
 
-void* galloc_hlp( size_t tsize, int dim1, int dim2)
+void* tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2)
 {
         mem_i* h = NULL;
         void* tmp = NULL;
 
         ASSERT(dim1 >= 1,"DIM1 is too small: %d",dim1);
         ASSERT(dim2 >= 0,"DIM2 is negative: %d",dim2);
-        ASSERT(tsize > 0,"Element size is 0");
+        ASSERT(tsize > 0 && rsize > 0,"Element size is 0");
         /* All sizes in size_t; refuse requests whose byte count does not fit. */
-        ASSERT((size_t)dim1 <= (SIZE_MAX - tld_mem_shift) / tsize,
-               "Allocation of %d x %zu bytes is too large", dim1, tsize);
+        ASSERT((size_t)dim1 <= (SIZE_MAX - tld_mem_shift) / rsize,
+               "Allocation of %d x %zu bytes is too large", dim1, rsize);
         if(dim2){
                 ASSERT((size_t)dim1 <= SIZE_MAX / (size_t)dim2 / tsize,
                        "Allocation of %d x %d x %zu bytes is too large", dim1, dim2, tsize);
         }
 
-        MMALLOC(tmp, (size_t)dim1 * tsize + tld_mem_shift);
+        MMALLOC(tmp, (size_t)dim1 * rsize + tld_mem_shift);
 
         h = (mem_i*)(tmp);
         h->aligned = 0u;
@@ -2756,18 +2764,21 @@ ERROR:
 
 void kdtree_debug_print(kd_node *n, int depth)
 {
+        if(n == NULL){
+                return;
+        }
         if(n->left){
                 kdtree_debug_print(n->left, depth+1);
         }
 
         for(int i = 0; i < depth*3;i++){
-                fprintf(stdout," ");
+                fprintf(stderr," ");
         }
         int cd = depth % n->n;
-        fprintf(stdout,"%d -> id: %d",cd,n->id);
+        fprintf(stderr,"%d -> id: %d",cd,n->id);
 
 
-        fprintf(stdout,"\n");
+        fprintf(stderr,"\n");
 
         if(n->right){
                 kdtree_debug_print(n->right, depth+1);
@@ -2777,9 +2788,13 @@ void kdtree_debug_print(kd_node *n, int depth)
 
 void kdtree_debug_chk(kd_node *n, int depth)
 {
-        int cd = depth % n->n;
+        int cd;
+        if(n == NULL){
+                return;
+        }
+        cd = depth % n->n;
         if(n->left && n->right){
-                fprintf(stdout,"L:%f\tM:%f\tR:%f\n",n->left->p[cd], n->p[cd],n->right->p[cd]  );
+                fprintf(stderr,"L:%f\tM:%f\tR:%f\n",n->left->p[cd], n->p[cd],n->right->p[cd]  );
         }
         if(n->left){
                 kdtree_debug_chk(n->left, depth+1);
@@ -4131,7 +4146,6 @@ static int tld_json_dump_str(tld_strbuf *b, const uint8_t *s, int len);
 static int tld_json_add_indent(tld_strbuf *b, int indent);
 static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj *res);
 
-static int tld_json_set_arr_val(tld_json_arr *n, char *key, tld_json_val *v);
 
 static int add_val(char *buf, int len, tld_json_val *val);
 static int json_val_set_str(tld_json_val *v, const char *s, int len);
@@ -4139,7 +4153,6 @@ static void json_val_set_int64(tld_json_val *v, long long x);
 static int json_val_from_decoration(tld_json_val *v, tld_json_decoration *d);
 
 static int print_val(tld_json_val *val, FILE *out);
-int print_arr(tld_json_arr* n);
 static int search(tld_json_obj *n, char *key, tld_json_obj* r);
 
 /* parser */
@@ -4474,49 +4487,118 @@ ERROR:
         return FAIL;
 }
 
+/* Set the value at path (same syntax as the tld_json_get_* getters) to a deep copy of v.
+   The last step may name a missing key (it is added) or the index one past the end of an
+   array (the value is appended); everything before it must exist. */
 int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
 {
-        if(n){
-                for(int i = 0; i < n->n;i++){
-                        int len = strnlen(key, 256);
-                        if(len == n->key[i]->len){
-                                if(strncmp((char*)n->key[i]->str, key, n->key[i]->len)==0){
-                                        /* tld_json_val_copy releases the old
-                                           contents, so a change of type is safe */
-                                        RUN(tld_json_val_copy(n->v[i], v));
-                                        break;
-                                }
-                        }
+        const char* path = key;
+        const char* last = NULL;
+        tld_json_val* pv = NULL;
+        tld_json_obj* po = NULL;
+        tld_json_arr* pa = NULL;
+        char* prefix = NULL;
+        size_t plen;
 
-                        if(n->v[i]->type == TLD_JSON_ARR){
-                                RUN(tld_json_set_arr_val(n->v[i]->value.arr,key,v));
-                        }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                RUN(tld_json_set_val(n->v[i]->value.obj, key,v));
-                        }
+        ASSERT(n != NULL, "No JSON object");
+        ASSERT(path != NULL && *path, "No path");
+        ASSERT(v != NULL, "No value");
+
+        /* the last step starts at the last '.' or '[' (keys contain neither) */
+        for(const char* c = path; *c; c++){
+                if(*c == '.' || *c == '['){
+                        last = c;
                 }
         }
+        if(last == NULL){
+                last = path;            /* a single key */
+        }
+        plen = (size_t)(last - path);
 
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_json_set_arr_val(tld_json_arr *n, char *key, tld_json_val *v)
-{
-        if(n){
-                for(int i = 0; i < n->n;i++){
-                        if(n->v[i]->type == TLD_JSON_ARR){
-                                RUN(tld_json_set_arr_val(n->v[i]->value.arr,key,v));
-                        }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                RUN(tld_json_set_val(n->v[i]->value.obj, key,v));
+        if(plen == 0 && *last == '['){
+                /* "[i]": the array that tld_json_parse wraps under "Top Level Arr" */
+                for(int i = 0; i < n->n; i++){
+                        if(strcmp(TLD_STR(n->key[i]), TLD_JSON_TOP_LEVEL_ARR) == 0){
+                                pv = n->v[i];
+                                break;
                         }
                 }
+                if(pv == NULL || pv->type != TLD_JSON_ARR){
+                        ERROR_MSG("Path %s: no top-level array", path);
+                }
+                pa = pv->value.arr;
+        }else if(plen == 0){
+                po = n;
+        }else{
+                MMALLOC(prefix, plen + 1);
+                memcpy(prefix, path, plen);
+                prefix[plen] = 0;
+                if(json_path_resolve(n, prefix, &pv) != OK || pv == NULL){
+                        ERROR_MSG("Path %s: %s does not exist", path, prefix);
+                }
+                if(pv->type == TLD_JSON_OBJ){
+                        po = pv->value.obj;
+                }else if(pv->type == TLD_JSON_ARR){
+                        pa = pv->value.arr;
+                }
+                MFREE(prefix);
+        }
+
+        if(*last == '['){
+                long idx = 0;
+                int digits = 0;
+                const char* c = last + 1;
+                while(*c >= '0' && *c <= '9' && digits < 9){
+                        idx = idx * 10 + (*c - '0');
+                        digits++;
+                        c++;
+                }
+                if(!digits || *c != ']' || c[1] != 0){
+                        ERROR_MSG("Path %s: bad array index", path);
+                }
+                if(pa == NULL){
+                        ERROR_MSG("Path %s: not an array", path);
+                }
+                if(idx < pa->n){
+                        RUN(tld_json_val_copy(pa->v[idx], v));
+                }else if(idx == pa->n){
+                        tld_json_arr* r = NULL;
+                        RUN(json_arr_slot(pa, &r));
+                        RUN(tld_json_val_copy(pa->v[pa->n], v));
+                        pa->n++;
+                }else{
+                        ERROR_MSG("Path %s: index %ld is past the end (%d entries)", path, idx, pa->n);
+                }
+                return OK;
+        }
+
+        {
+                const char* k = (*last == '.') ? last + 1 : last;
+                int klen = (int)strlen(k);
+                tld_json_obj* r = NULL;
+                if(klen == 0){
+                        ERROR_MSG("Path %s: empty key", path);
+                }
+                if(po == NULL){
+                        ERROR_MSG("Path %s: not an object", path);
+                }
+                for(int i = 0; i < po->n; i++){
+                        if(po->key[i]->len == klen && memcmp(po->key[i]->str, k, klen) == 0){
+                                RUN(tld_json_val_copy(po->v[i], v));
+                                return OK;
+                        }
+                }
+                RUN(json_obj_slot(po, &r));
+                tld_strbuf_clear(po->key[po->n]);
+                RUN(tld_append(po->key[po->n], (char*)k));
+                RUN(tld_json_val_copy(po->v[po->n], v));
+                po->n++;
         }
         return OK;
 ERROR:
+        MFREE(prefix);
         return FAIL;
 }
-
 
 int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret)
 {
@@ -5669,42 +5751,6 @@ ERROR:
         return FAIL;
 }
 
-int print_arr(tld_json_arr* n)
-{
-        tld_json_val* val = NULL;
-        for(int i = 0; i < n->n;i++){
-                val = n->v[i];
-                switch (val->type) {
-                case TLD_JSON_DBL:
-                        LOG_MSG("Token %5d: %f - DBL",i, val->value.d_num);
-                        break;
-                case TLD_JSON_INT:
-                        LOG_MSG("Token %5d: %d - INT",i, val->value.i_num);
-                        break;
-                case TLD_JSON_BOOL_TRUE:
-                        LOG_MSG("Token %5d: %s - BOOL",i, "TRUE");
-                        break;
-                case TLD_JSON_BOOL_FALSE:
-                        LOG_MSG("Token %5d: %s - BOOL",i, "FALSE");
-                        break;
-                case TLD_JSON_STR:
-                        LOG_MSG("Token %5d: %s - STRING",i, TLD_STR(val->value.str));
-                        break;
-                case TLD_JSON_ARR:
-                        ERROR_MSG("This should never happen!!@");
-                        break;
-                case TLD_JSON_OBJ:
-                        ERROR_MSG("This should never happen!!@");
-                        break;
-                case TLD_JSON_UNDEF:
-                        ERROR_MSG("This should never happen!!@");
-                        break;
-                }
-        }
-        return OK;
-ERROR:
-        return FAIL;
-}
 /* ---- src/json/tld-json_mem.c ---- */
 
 
@@ -5735,24 +5781,33 @@ ERROR:
 int tld_json_obj_alloc(tld_json_obj **node)
 {
         tld_json_obj *n = NULL;
+        const int want = 4;
         MMALLOC(n, sizeof(tld_json_obj));
         n->key = NULL;
         n->v = NULL;
-        n->n_alloc = 4;
+        n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
         n->n = 0;
 
-        MMALLOC(n->key, sizeof(tld_strbuf*) * n->n_alloc);
-        MMALLOC(n->v, sizeof(tld_json_val*) * n->n_alloc);
+        MMALLOC(n->key, sizeof(tld_strbuf*) * want);
+        MMALLOC(n->v, sizeof(tld_json_val*) * want);
 
-        for(int i = 0; i < n->n_alloc;i++){
-                tld_strbuf_alloc(&n->key[i], 16);
-                tld_json_val_alloc(&n->v[i]);
-                /* MMALLOC(n->v[i], sizeof(tld_json_val)); */
-                /* n->v[i]->type = TLD_JSON_UNDEF; */
+        while(n->n_alloc < want){
+                int i = n->n_alloc;
+                n->key[i] = NULL;
+                n->v[i] = NULL;
+                RUN(tld_strbuf_alloc(&n->key[i], 16));
+                if(tld_json_val_alloc(&n->v[i]) != OK){
+                        tld_strbuf_free(n->key[i]);
+                        ERROR_MSG("Could not allocate a JSON object");
+                }
+                n->n_alloc++;
         }
         *node = n;
         return OK;
 ERROR:
+        if(n){
+                tld_json_obj_free(n);
+        }
         return FAIL;
 }
 
@@ -5940,20 +5995,24 @@ ERROR:
 int tld_json_arr_alloc(tld_json_arr **arr)
 {
         tld_json_arr* n = NULL;
+        const int want = 16;
         MMALLOC(n, sizeof(tld_json_arr));
-        n->n_alloc = 16;
+        n->n_alloc = 0;         /* counts slots that really exist, so n can always be freed */
         n->n = 0;
         n->read_head = 0;
         n->v = NULL;
-        MMALLOC(n->v,sizeof(tld_json_val*) * n->n_alloc);
-        for(int i = 0; i < n->n_alloc;i++){
-                n->v[i] = NULL;
-                RUN(tld_json_val_alloc(&n->v[i]));
-                /* MMALLOC(n->v[i], sizeof(tld_json_val)); */
+        MMALLOC(n->v,sizeof(tld_json_val*) * want);
+        while(n->n_alloc < want){
+                n->v[n->n_alloc] = NULL;
+                RUN(tld_json_val_alloc(&n->v[n->n_alloc]));
+                n->n_alloc++;
         }
         *arr = n;
         return OK;
 ERROR:
+        if(n){
+                tld_json_arr_free(n);
+        }
         return FAIL;
 }
 
@@ -7573,7 +7632,7 @@ struct auc_pt {
 static int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out);
 
 /* Comparator function for qsort to sort in ascending order */
-int auc_pt_sort(const void *a, const void *b) {
+static int auc_pt_sort(const void *a, const void *b) {
         struct auc_pt * const *one = a;
         struct auc_pt * const *two = b;
 

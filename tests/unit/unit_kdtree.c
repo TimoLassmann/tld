@@ -192,7 +192,7 @@ int test_random_inserts(void)
         }
 
         if(tld_verbosity() >= 2){
-                kdtree_debug_chk(kd->root, 0); /* prints to stdout */
+                kdtree_debug_chk(kd->root, 0); /* prints to stderr */
         }
         DEBUG_MSG("Insertion done - let's search !");
         for(int i = 0; i < 1;i++){

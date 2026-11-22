@@ -162,11 +162,8 @@ struct name_fn { const char *name; tld_any_fn fn; };
 static const struct name_fn fns[] = {
         F(detect_type),
         F(free_rng),
-        F(galloc_hlp),
-        F(galloc_too_few),
         F(get_dim1),
         F(get_dim2),
-        F(get_ptr),
         F(init_logsum),
         F(init_rng),
         F(init_rng_from_rng),
@@ -354,8 +351,8 @@ int main(int argc, char *argv[])
         }
         KV_MSG("functions", "%d", n);
         KV_MSG("macros", "48");
-        if (n != 161) {
-                fprintf(stderr, "unit-names: %d functions, expected 161\n", n);
+        if (n != 158) {
+                fprintf(stderr, "unit-names: %d functions, expected 158\n", n);
                 return EXIT_FAILURE;
         }
         OK_MSG("%d functions and 48 macros present", n);

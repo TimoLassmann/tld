@@ -813,6 +813,63 @@ static void test_build_request(void)
 }
 
 /* The checks, in the order a plain run does them; arguments select by name. */
+/* tld_json_set_val takes a getter path and sets exactly that one value: nested keys,
+ * array elements, appending, adding a missing key, refusing a missing parent, and no
+ * longer touching same-named keys elsewhere in the tree. */
+static void test_set_path(void)
+{
+        tld_json_obj* o = NULL;
+        tld_json_obj* t = NULL;
+        tld_json_val* v = NULL;
+        int64_t i = 0;
+        const char* s = NULL;
+        tld_json_arr* a = NULL;
+
+        CHECK(parse_cstr("{\"id\":1,\"a\":{\"id\":2,\"b\":[{\"id\":3},{\"id\":4}]},\"c\":{\"id\":5}}", &o) == OK);
+        tld_json_val_alloc(&v);
+        v->type = TLD_JSON_INT;
+        v->value.i_num = 99;
+
+        CHECK(tld_json_set_val(o, "a.b[1].id", v) == OK);       /* one nested value */
+        CHECK(tld_json_get_int(o, "a.b[1].id", &i) == OK && i == 99);
+        CHECK(tld_json_get_int(o, "a.b[0].id", &i) == OK && i == 3);
+        CHECK(tld_json_get_int(o, "a.id", &i) == OK && i == 2);
+        CHECK(tld_json_get_int(o, "c.id", &i) == OK && i == 5);
+        CHECK(tld_json_get_int(o, "id", &i) == OK && i == 1);
+
+        CHECK(tld_json_set_val(o, "id", v) == OK);              /* top level only */
+        CHECK(tld_json_get_int(o, "id", &i) == OK && i == 99);
+        CHECK(tld_json_get_int(o, "a.id", &i) == OK && i == 2);
+        CHECK(tld_json_get_int(o, "c.id", &i) == OK && i == 5);
+
+        CHECK(tld_json_set_val(o, "c.new", v) == OK);           /* missing key is added */
+        CHECK(tld_json_get_int(o, "c.new", &i) == OK && i == 99);
+        CHECK(tld_json_set_val(o, "a.b[2]", v) == OK);          /* one past the end: append */
+        CHECK(tld_json_get_arr(o, "a.b", &a) == OK && a->n == 3);
+        CHECK(tld_json_get_int(o, "a.b[2]", &i) == OK && i == 99);
+
+        CHECK(tld_json_set_val(o, "a.b[9]", v) == FAIL);        /* further past the end */
+        CHECK(tld_json_set_val(o, "nope.x", v) == FAIL);        /* missing parent */
+        CHECK(tld_json_set_val(o, "id.x", v) == FAIL);          /* parent is not an object */
+        CHECK(tld_json_set_val(o, "a[0]", v) == FAIL);          /* parent is not an array */
+        CHECK(tld_json_set_val(o, "a.", v) == FAIL);            /* empty key */
+        tld_json_val_free(v);
+        v = NULL;
+
+        /* a parsed top-level array */
+        CHECK(parse_cstr("[\"x\",\"y\"]", &t) == OK);
+        tld_json_val_alloc(&v);
+        v->type = TLD_JSON_STR;
+        tld_strbuf_alloc(&v->value.str, 8);
+        tld_append(v->value.str, "z");
+        CHECK(tld_json_set_val(t, "[1]", v) == OK);
+        CHECK(tld_json_get_str(t, "[1]", &s) == OK && strcmp(s, "z") == 0);
+        CHECK(tld_json_get_str(t, "[0]", &s) == OK && strcmp(s, "x") == 0);
+        tld_json_val_free(v);
+        tld_json_obj_free(t);
+        tld_json_obj_free(o);
+}
+
 static const struct {
         const char *name;
         void (*fn)(void);
@@ -835,6 +892,7 @@ static const struct {
         {"long-strings", test_long_strings, "long strings"},
         {"search-many", test_search_many, "lookups in a large object"},
         {"set-val", test_set_val, "setting values"},
+        {"set-path", test_set_path, "tld_json_set_val with paths"},
         {"build-request", test_build_request, "building a request object"},
 };
 

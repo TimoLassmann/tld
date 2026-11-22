@@ -34,7 +34,7 @@ int get_dim2(void* ptr,uint32_t* d)
         return FAIL;
 }
 
-int get_ptr(void* ptr,void** d)
+int tld__galloc_data(void* ptr,void** d)
 {
         if(ptr){
                 mem_i* h = NULL;
@@ -46,7 +46,7 @@ int get_ptr(void* ptr,void** d)
 }
 
 
-int galloc_too_few(void)
+int tld__galloc_too_few(void)
 {
         ERROR_MSG("Too few parameters passed to galloc.\nExpects at least 2");
         return OK;
@@ -55,23 +55,23 @@ ERROR:
 }
 
 
-void* galloc_hlp( size_t tsize, int dim1, int dim2)
+void* tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2)
 {
         mem_i* h = NULL;
         void* tmp = NULL;
 
         ASSERT(dim1 >= 1,"DIM1 is too small: %d",dim1);
         ASSERT(dim2 >= 0,"DIM2 is negative: %d",dim2);
-        ASSERT(tsize > 0,"Element size is 0");
+        ASSERT(tsize > 0 && rsize > 0,"Element size is 0");
         /* All sizes in size_t; refuse requests whose byte count does not fit. */
-        ASSERT((size_t)dim1 <= (SIZE_MAX - tld_mem_shift) / tsize,
-               "Allocation of %d x %zu bytes is too large", dim1, tsize);
+        ASSERT((size_t)dim1 <= (SIZE_MAX - tld_mem_shift) / rsize,
+               "Allocation of %d x %zu bytes is too large", dim1, rsize);
         if(dim2){
                 ASSERT((size_t)dim1 <= SIZE_MAX / (size_t)dim2 / tsize,
                        "Allocation of %d x %d x %zu bytes is too large", dim1, dim2, tsize);
         }
 
-        MMALLOC(tmp, (size_t)dim1 * tsize + tld_mem_shift);
+        MMALLOC(tmp, (size_t)dim1 * rsize + tld_mem_shift);
 
         h = (mem_i*)(tmp);
         h->aligned = 0u;

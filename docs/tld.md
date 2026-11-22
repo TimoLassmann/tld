@@ -18,7 +18,7 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [Environment](#sec-environment)
 - [Licence](#sec-licence)
 - [core](#mod-core): 30 symbols (`src/core/tld-core.h`)
-- [alloc](#mod-alloc): 22 symbols (`src/alloc/tld-alloc.h`)
+- [alloc](#mod-alloc): 19 symbols (`src/alloc/tld-alloc.h`)
 - [rng](#mod-rng): 13 symbols (`src/rng/tld-rng.h`)
 - [kdtree](#mod-kdtree): 14 symbols (`src/kdtree/tld-kdtree.h`)
 - [hash](#mod-hash): 10 symbols (`src/hash/hash.h`)
@@ -467,7 +467,7 @@ Argument counting for galloc: NARG3(...) is the number of its 1 to 3 arguments.
 ### `XGALLOC_ARGS_1`, `XGALLOC_ARGS_2`
 
 ```c
-#define XGALLOC_ARGS_1(a) galloc_too_few()
+#define XGALLOC_ARGS_1(a) tld__galloc_too_few()
 #define XGALLOC_ARGS_2(a, b) ...
 ```
 
@@ -481,8 +481,8 @@ galloc with 1 argument (an error: too few) and with 2 (a 1D array). Use galloc.
 #define XGALLOC_ARGS_3(a, b, c) ...
 ```
 
-galloc with 3 arguments (a 2D matrix). Use galloc. galloc_hlp returns the array of
-row pointers; the data block hangs off its header. Row offsets are computed in size_t.
+galloc with 3 arguments (a 2D matrix). Use galloc. tld__galloc returns the array of
+row pointers (sized by sizeof(T *)); the data block (sized by sizeof(T)) and the data block hangs off its header. Row offsets are computed in size_t.
 The local names are chosen so they cannot capture an identifier used in the caller's
 (b) or (c).
 
@@ -524,28 +524,6 @@ double. The pointer should be NULL (an existing block is not freed or resized). 
 failure an error is printed and goto ERROR. Free with gfree; get_dim1/get_dim2 give
 the dimensions back.
 
-<a id="galloc_too_few"></a>
-
-### `galloc_too_few`
-
-```c
-tld_external int galloc_too_few(void);
-```
-
-Called by galloc with a single argument: prints an error and returns FAIL.
-
-<a id="galloc_hlp"></a>
-
-### `galloc_hlp`
-
-```c
-tld_external void *galloc_hlp(size_t tsize, int dim1, int dim2);
-```
-
-Back end of galloc: a zeroed block of dim1 elements of tsize bytes behind a hidden
-header that records dim1 and dim2; with dim2 > 0 also a zeroed dim1 x dim2 data block
-(see get_ptr). Returns NULL on failure (dim1 < 1, dim2 < 0, overflow, no memory).
-
 <a id="tld_free"></a>
 
 ### `tld_free`
@@ -568,17 +546,6 @@ tld_external int get_dim2(void *ptr, uint32_t *d);
 
 Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
 into *d. FAIL if ptr is NULL. Only valid for memory from galloc.
-
-<a id="get_ptr"></a>
-
-### `get_ptr`
-
-```c
-tld_external int get_ptr(void *ptr, void **d);
-```
-
-The data block of a 2D galloc block into *d (NULL for a 1D array); FAIL if ptr is
-NULL. Used by galloc.
 
 <a id="mod-rng"></a>
 
@@ -868,8 +835,9 @@ tld_external void kdtree_debug_chk(kd_node *n, int depth);
 tld_external void kdtree_debug_print(kd_node *n, int depth);
 ```
 
-Debugging: print the subtree under n (pass t->root, depth 0) to stdout, as split
-values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print).
+Debugging: print the subtree under n (pass t->root, depth 0) to stderr, as split
+values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). A NULL
+n prints nothing.
 
 <a id="kddist_euclidian"></a>
 
@@ -1396,9 +1364,13 @@ an empty result when nothing matches.
 EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 ```
 
-Overwrite, with a deep copy of v, the value stored under key: in each object the first
-entry named key, searching nested objects and arrays before it as well. Nothing is
-added when key is absent; returns OK either way.
+Set the value at a path to a deep copy of v. key is a path in the syntax of the
+tld_json_get_* getters ("name", "a.b", "list[2].id", "[0]" for a parsed top-level
+array). Everything before the last step must exist. The last step may name a key
+that is missing (it is added at the end of its object) or the index one past the
+end of an array (v is appended). An existing value is replaced, even by one of
+another type, and v may be part of n. Returns FAIL for a missing parent, an index
+further past the end, or no memory. Keys containing '.' or '[' cannot be addressed.
 
 <a id="tld_json_get_str"></a><a id="tld_json_get_num"></a><a id="tld_json_get_int"></a><a id="tld_json_get_bool"></a><a id="tld_json_get_obj"></a><a id="tld_json_get_arr"></a>
 
@@ -2338,11 +2310,8 @@ Free a bitfield; NULL is ignored.
 | [`free_rng`](#free_rng) | function | [rng](#mod-rng) |
 | [`galloc`](#galloc) | macro | [alloc](#mod-alloc) |
 | [`GALLOC_ARGS`](#GALLOC_ARGS) | macro | [alloc](#mod-alloc) |
-| [`galloc_hlp`](#galloc_hlp) | function | [alloc](#mod-alloc) |
-| [`galloc_too_few`](#galloc_too_few) | function | [alloc](#mod-alloc) |
 | [`get_dim1`](#get_dim1) | function | [alloc](#mod-alloc) |
 | [`get_dim2`](#get_dim2) | function | [alloc](#mod-alloc) |
-| [`get_ptr`](#get_ptr) | function | [alloc](#mod-alloc) |
 | [`gfree`](#gfree) | macro | [alloc](#mod-alloc) |
 | [`init_logsum`](#init_logsum) | function | [logsum](#mod-logsum) |
 | [`init_rng`](#init_rng) | function | [rng](#mod-rng) |
