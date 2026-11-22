@@ -46,6 +46,7 @@ here fix bugs.
 - json: the writer escapes strings and keys and writes doubles so they read back exactly; inf and nan are written as `null`.
 - json: the type guessing in `JS` only matches whole numbers and the exact words true/false (in lower, Capital or UPPER case). "", "truex" and "2024-11" stay strings.
 - json: `tld_json_search` finds all matches; it used to overflow with ≥5 matches and skip later siblings. `tld_json_val_copy` and `tld_json_set_val` release the target's old contents, so changing a value's type is safe.
+- json: JSON_OBJ/JSON_ARR (`json_*_add_multiple`) make room before writing an entry and stop at the first failure. A container created by the call is then freed, and NULL is returned. The containers' realloc counts only slots that were really allocated, and always grows (it was stuck at size 1).
 - template: a false IF no longer renders an enclosing IF's ELSE. IF nesting deeper than 512 fails, and parse errors no longer leak.
 
 ### Added

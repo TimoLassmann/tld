@@ -63,17 +63,27 @@ ERROR:
 
 int tld_json_obj_realloc(tld_json_obj *n)
 {
+        /* Grow the arrays first; n_alloc only counts slots that really exist, so a
+         * failure part-way leaves the object consistent (and freeable). */
+        int target = n->n_alloc + n->n_alloc / 2 + 1;
 
-        int old = n->n_alloc;
-        n->n_alloc = n->n_alloc + n->n_alloc / 2;
+        MREALLOC(n->key, sizeof(tld_strbuf*) * target);
+        MREALLOC(n->v, sizeof(tld_json_val*) * target);
 
-        MREALLOC(n->key, sizeof(tld_strbuf*) * n->n_alloc);
-        MREALLOC(n->v, sizeof(tld_json_val*) * n->n_alloc);
-
-        for(int i = old; i < n->n_alloc;i++){
-                tld_strbuf_alloc(&n->key[i], 16);
-                tld_json_val_alloc(&n->v[i]);
+        while(n->n_alloc < target){
+                int i = n->n_alloc;
+                n->key[i] = NULL;
+                n->v[i] = NULL;
+                if(tld_strbuf_alloc(&n->key[i], 16) != OK){
+                        ERROR_MSG("Could not grow JSON object");
+                }
+                if(tld_json_val_alloc(&n->v[i]) != OK){
+                        tld_strbuf_free(n->key[i]);
+                        n->key[i] = NULL;
+                        ERROR_MSG("Could not grow JSON object");
+                }
                 n->v[i]->type = TLD_JSON_UNDEF;
+                n->n_alloc++;
         }
         return OK;
 ERROR:
@@ -254,15 +264,15 @@ ERROR:
 
 int tld_json_arr_realloc(tld_json_arr *n)
 {
-        int old_size = n->n_alloc;
+        /* As for objects: n_alloc only counts slots that exist. */
+        int target = n->n_alloc + n->n_alloc / 2 + 1;
 
-        n->n_alloc = n->n_alloc + n->n_alloc / 2;
-
-        MREALLOC(n->v,sizeof(tld_json_val*) * n->n_alloc);
-        for(int i = old_size; i < n->n_alloc;i++){
+        MREALLOC(n->v, sizeof(tld_json_val*) * target);
+        while(n->n_alloc < target){
+                int i = n->n_alloc;
                 n->v[i] = NULL;
                 RUN(tld_json_val_alloc(&n->v[i]));
-                /* MMALLOC(n->v[i], sizeof(tld_json_val)); */
+                n->n_alloc++;
         }
         return OK;
 ERROR:

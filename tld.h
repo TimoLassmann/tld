@@ -3551,10 +3551,29 @@ static tld_json_arr* tld_json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val);
 static tld_json_arr *tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj *val);
 static tld_json_arr *tld_json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d);
 
+static void json_free_unattached(tld_json_decoration *kvs, int from, int count)
+{
+        for(int k = from; k < count; k++){
+                if(kvs[k].value == NULL){
+                        continue;
+                }
+                if(kvs[k].type == VAL_OBJ){
+                        tld_json_obj_free((tld_json_obj*)kvs[k].value);
+                }else if(kvs[k].type == VAL_ARR){
+                        tld_json_arr_free((tld_json_arr*)kvs[k].value);
+                }
+        }
+}
+
+/* JSON_OBJ / JSON_ARR back ends. They stop at the first entry that cannot be added. A
+ * container created by the call is then freed (with the children of entries not yet
+ * attached, which were built for this call) and NULL is returned; a caller-supplied
+ * container is returned holding the entries added so far. */
 tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs, int count)
 {
+        tld_json_obj *in = obj;
         for (int i = 0; i < count; i++) {
-
+                int before = obj ? obj->n : 0;
                 if(kvs[i].value == NULL){
                         continue;
                 }
@@ -3576,31 +3595,74 @@ tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs,
                         obj = tld_json_obj_add_typed(obj, kvs[i].key, &kvs[i]);
                         break;
                 }
+                if(obj == NULL || obj->n != before + 1){
+                        if(in == NULL){
+                                json_free_unattached(kvs, i, count);
+                                if(obj != NULL){
+                                        tld_json_obj_free(obj);
+                                }
+                        }
+                        return in;
+                }
         }
         return obj;
 }
 
+/* Make sure obj (allocated here when NULL) has a free slot at index n BEFORE anything is
+ * written to it. On failure an object allocated here is freed. */
+static int json_obj_slot(tld_json_obj *obj, tld_json_obj **np)
+{
+        tld_json_obj *n = obj;
+        if(n == NULL){
+                RUN(tld_json_obj_alloc(&n));
+        }
+        if(n->n >= n->n_alloc){
+                RUN(tld_json_obj_realloc(n));
+        }
+        *np = n;
+        return OK;
+ERROR:
+        if(obj == NULL && n){
+                tld_json_obj_free(n);
+        }
+        *np = NULL;
+        return FAIL;
+}
 
+static int json_arr_slot(tld_json_arr *arr, tld_json_arr **np)
+{
+        tld_json_arr *n = arr;
+        if(n == NULL){
+                RUN(tld_json_arr_alloc(&n));
+        }
+        if(n->n >= n->n_alloc){
+                RUN(tld_json_arr_realloc(n));
+        }
+        *np = n;
+        return OK;
+ERROR:
+        if(arr == NULL && n){
+                tld_json_arr_free(n);
+        }
+        *np = NULL;
+        return FAIL;
+}
+
+/* The add helpers return the (possibly new) container. When an entry cannot be added it
+ * is dropped; a container allocated by the call is freed and NULL returned. */
 tld_json_obj* tld_json_obj_add_val(tld_json_obj *obj, char* key, char* val)
 {
         tld_json_obj* n = NULL;
-        int len;
-        if(obj == NULL){
-                tld_json_obj_alloc(&n);
-        }else{
-                n = obj;
-        }
-
-        tld_append(n->key[n->n], key);
-
-        len = strlen(val);
-        add_val(val,len, n->v[n->n]);
-
+        RUN(json_obj_slot(obj, &n));
+        tld_strbuf_clear(n->key[n->n]);
+        RUN(tld_append(n->key[n->n], key ? key : ""));
+        RUN(add_val(val, (int)strlen(val), n->v[n->n]));
         n->n++;
-
-        tld_json_obj_chk_space(n);
-        if(obj == NULL){
-                return n;
+        return n;
+ERROR:
+        if(obj == NULL && n){
+                tld_json_obj_free(n);
+                return NULL;
         }
         return obj;
 }
@@ -3608,57 +3670,47 @@ tld_json_obj* tld_json_obj_add_val(tld_json_obj *obj, char* key, char* val)
 tld_json_obj* tld_json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val)
 {
         tld_json_obj* n = NULL;
-        if(obj == NULL){
-                tld_json_obj_alloc(&n);
-        }else{
-                n = obj;
-        }
-
-        tld_append(n->key[n->n], key);
+        RUN(json_obj_slot(obj, &n));
+        tld_strbuf_clear(n->key[n->n]);
+        RUN(tld_append(n->key[n->n], key ? key : ""));
         n->v[n->n]->type = TLD_JSON_OBJ;
         n->v[n->n]->value.obj = val;
-
         n->n++;
-        tld_json_obj_chk_space(n);
-        if(obj == NULL){
-                return n;
+        return n;
+ERROR:
+        if(obj == NULL && n){
+                tld_json_obj_free(n);
+                return NULL;
         }
         return obj;
 }
 
-
-
 tld_json_obj* tld_json_obj_add_arr(tld_json_obj *obj, char* key, tld_json_arr*val)
 {
         tld_json_obj* n = NULL;
-        if(obj == NULL){
-                tld_json_obj_alloc(&n);
-        }else{
-                n = obj;
-        }
-
-        tld_append(n->key[n->n], key);
+        RUN(json_obj_slot(obj, &n));
+        tld_strbuf_clear(n->key[n->n]);
+        RUN(tld_append(n->key[n->n], key ? key : ""));
         n->v[n->n]->type = TLD_JSON_ARR;
         n->v[n->n]->value.arr = val;
         n->n++;
-
-        tld_json_obj_chk_space(n);
-        if(obj == NULL){
-                return n;
+        return n;
+ERROR:
+        if(obj == NULL && n){
+                tld_json_obj_free(n);
+                return NULL;
         }
         return obj;
 }
 
 tld_json_obj *tld_json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d)
 {
-        tld_json_obj* n = obj;
-        if(n == NULL){
-                RUN(tld_json_obj_alloc(&n));
-        }
+        tld_json_obj* n = NULL;
+        RUN(json_obj_slot(obj, &n));
+        tld_strbuf_clear(n->key[n->n]);
         RUN(tld_append(n->key[n->n], key ? key : ""));
         RUN(json_val_from_decoration(n->v[n->n], d));
         n->n++;
-        RUN(tld_json_obj_chk_space(n));
         return n;
 ERROR:
         if(obj == NULL && n){
@@ -3670,7 +3722,9 @@ ERROR:
 
 tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs, int count)
 {
+        tld_json_arr *in = arr;
         for (int i = 0; i < count; i++) {
+                int before = arr ? arr->n : 0;
                 if(kvs[i].value == NULL){
                         continue;
                 }
@@ -3692,26 +3746,30 @@ tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs,
                         arr = tld_json_arr_add_typed(arr, &kvs[i]);
                         break;
                 }
+                if(arr == NULL || arr->n != before + 1){
+                        if(in == NULL){
+                                json_free_unattached(kvs, i, count);
+                                if(arr != NULL){
+                                        tld_json_arr_free(arr);
+                                }
+                        }
+                        return in;
+                }
         }
         return arr;
 }
 
-
 tld_json_arr* tld_json_arr_add_val(tld_json_arr *arr, char* val)
 {
         tld_json_arr* n = NULL;
-        int len;
-        if(arr == NULL){
-                tld_json_arr_alloc(&n);
-        }else{
-                n = arr;
-        }
-        len = strlen(val);
-        add_val(val,len, n->v[n->n]);
+        RUN(json_arr_slot(arr, &n));
+        RUN(add_val(val, (int)strlen(val), n->v[n->n]));
         n->n++;
-        tld_json_arr_chk_space(n);
-        if(arr == NULL){
-                return n;
+        return n;
+ERROR:
+        if(arr == NULL && n){
+                tld_json_arr_free(n);
+                return NULL;
         }
         return arr;
 }
@@ -3719,17 +3777,15 @@ tld_json_arr* tld_json_arr_add_val(tld_json_arr *arr, char* val)
 tld_json_arr* tld_json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val)
 {
         tld_json_arr* n = NULL;
-        if(arr == NULL){
-                tld_json_arr_alloc(&n);
-        }else{
-                n = arr;
-        }
+        RUN(json_arr_slot(arr, &n));
         n->v[n->n]->type = TLD_JSON_ARR;
         n->v[n->n]->value.arr = val;
         n->n++;
-        tld_json_arr_chk_space(n);
-        if(arr == NULL){
-                return n;
+        return n;
+ERROR:
+        if(arr == NULL && n){
+                tld_json_arr_free(n);
+                return NULL;
         }
         return arr;
 }
@@ -3737,30 +3793,25 @@ tld_json_arr* tld_json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val)
 tld_json_arr* tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj*val)
 {
         tld_json_arr* n = NULL;
-        if(arr == NULL){
-                tld_json_arr_alloc(&n);
-        }else{
-                n = arr;
-        }
+        RUN(json_arr_slot(arr, &n));
         n->v[n->n]->type = TLD_JSON_OBJ;
         n->v[n->n]->value.obj = val;
         n->n++;
-        tld_json_arr_chk_space(n);
-        if(arr == NULL){
-                return n;
+        return n;
+ERROR:
+        if(arr == NULL && n){
+                tld_json_arr_free(n);
+                return NULL;
         }
         return arr;
 }
 
 tld_json_arr *tld_json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d)
 {
-        tld_json_arr* n = arr;
-        if(n == NULL){
-                RUN(tld_json_arr_alloc(&n));
-        }
+        tld_json_arr* n = NULL;
+        RUN(json_arr_slot(arr, &n));
         RUN(json_val_from_decoration(n->v[n->n], d));
         n->n++;
-        RUN(tld_json_arr_chk_space(n));
         return n;
 ERROR:
         if(arr == NULL && n){
@@ -5101,17 +5152,27 @@ ERROR:
 
 int tld_json_obj_realloc(tld_json_obj *n)
 {
+        /* Grow the arrays first; n_alloc only counts slots that really exist, so a
+         * failure part-way leaves the object consistent (and freeable). */
+        int target = n->n_alloc + n->n_alloc / 2 + 1;
 
-        int old = n->n_alloc;
-        n->n_alloc = n->n_alloc + n->n_alloc / 2;
+        MREALLOC(n->key, sizeof(tld_strbuf*) * target);
+        MREALLOC(n->v, sizeof(tld_json_val*) * target);
 
-        MREALLOC(n->key, sizeof(tld_strbuf*) * n->n_alloc);
-        MREALLOC(n->v, sizeof(tld_json_val*) * n->n_alloc);
-
-        for(int i = old; i < n->n_alloc;i++){
-                tld_strbuf_alloc(&n->key[i], 16);
-                tld_json_val_alloc(&n->v[i]);
+        while(n->n_alloc < target){
+                int i = n->n_alloc;
+                n->key[i] = NULL;
+                n->v[i] = NULL;
+                if(tld_strbuf_alloc(&n->key[i], 16) != OK){
+                        ERROR_MSG("Could not grow JSON object");
+                }
+                if(tld_json_val_alloc(&n->v[i]) != OK){
+                        tld_strbuf_free(n->key[i]);
+                        n->key[i] = NULL;
+                        ERROR_MSG("Could not grow JSON object");
+                }
                 n->v[i]->type = TLD_JSON_UNDEF;
+                n->n_alloc++;
         }
         return OK;
 ERROR:
@@ -5292,15 +5353,15 @@ ERROR:
 
 int tld_json_arr_realloc(tld_json_arr *n)
 {
-        int old_size = n->n_alloc;
+        /* As for objects: n_alloc only counts slots that exist. */
+        int target = n->n_alloc + n->n_alloc / 2 + 1;
 
-        n->n_alloc = n->n_alloc + n->n_alloc / 2;
-
-        MREALLOC(n->v,sizeof(tld_json_val*) * n->n_alloc);
-        for(int i = old_size; i < n->n_alloc;i++){
+        MREALLOC(n->v, sizeof(tld_json_val*) * target);
+        while(n->n_alloc < target){
+                int i = n->n_alloc;
                 n->v[i] = NULL;
                 RUN(tld_json_val_alloc(&n->v[i]));
-                /* MMALLOC(n->v[i], sizeof(tld_json_val)); */
+                n->n_alloc++;
         }
         return OK;
 ERROR:
