@@ -9,6 +9,9 @@ changes. Nearly every public name was renamed ("Renamed" below; `tools/migrate.m
 lists every pair), some signatures changed ("Changed"), and the seq/ and hdf5/ modules
 are gone. Bugs fixed without an interface change are listed under "Fixed".
 
+`tools/migrate.py` does most of the work: it renames, rewrites the calls whose
+arguments changed, and lists every place that needs a person (see "Tests and tooling").
+
 ### Added
 
 - Single-header build: `./tld.h`, generated from `src/` by `tools/amalgamate.py`. Put
@@ -406,6 +409,15 @@ or makes a call read the way it is written.
 
 ### Tests and tooling
 
+- `tools/migrate.py PATH...` rewrites a program written for the old tld: the renames of
+  `tools/migrate.map` (in code only, never in comments, strings or member names, and
+  not for names the program defines itself), moved module includes, the path
+  predicates' `== OK`/`== FAIL` tests, `tld_auc_calculate`/`tld_auc_best_threshold`,
+  the dropped seed and size arguments, `tld_json_parse(TLD_STR(b), ...)`,
+  `tld_global_stop_run = 1`, the `;` the statement macros now need, and
+  `LOG_MSG(text)` → `LOG_MSG("%s", text)`. It reports what needs a hand edit, and a
+  second run changes nothing. It reports by default; `--write` rewrites the files and
+  `--diff` shows the changes. The `migrate` test checks it on `tests/migrate/old.c`.
 - `names`: the symbols, macros and documented names of tld.h follow the naming rules, and
   a program may reuse common names (it replaces `unit-names`).
 - `null-args` (193 calls, each in its own process) and `null-args-covered` (every public

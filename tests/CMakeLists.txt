@@ -92,6 +92,15 @@ else()
   endif()
 endif()
 
+# migrate/: tools/migrate.py turns old.c (code for the old tld) into expected.c, changes
+# nothing on a second run, and flags what needs a person.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+  add_test(NAME migrate
+    COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/migrate/run.sh ${Python3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/migrate)
+endif()
+
 # oom/: every allocation of each scenario fails in turn (built from ./tld.h; leaks, crashes
 # and failures reported as success fail the test). Writes oom-NAME.err here on failure.
 add_executable(oom-tld oom/oom_tld.c)

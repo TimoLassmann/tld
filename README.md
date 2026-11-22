@@ -180,7 +180,9 @@ The manuals are generated from the header comments by `tools/tlddoc.c`:
 - [docs/tld_ai.md](docs/tld_ai.md): the same for `tld_ai.h`.
 
 `CHANGELOG.md` lists what changed on the `modernisation` branch, including every renamed
-function.
+function. To move a program from the old tld, run
+`uv run python tools/migrate.py --write src/` on it, then build it and fix what the
+migrator and the compiler report.
 
 ## Building and testing
 
