@@ -9,24 +9,16 @@
 
 /* regress-rng: regression tests for the rng fixes.
 
-   White-box: struct tld_rng and struct tld_rng_dist are opaque in the public
-   header. The mirrors below copy their layout from src/rng/tld-rng.c so a
-   test can put the generator into a chosen state. Keep them in sync. */
+   White-box: struct tld_rng is opaque in the public header. The mirror below
+   copies its layout from src/rng/tld-rng.c so a
+   test can put the generator into a chosen state. Keep it in sync. */
 
 struct rng_state_mirror {
         uint64_t s[4];
-        uint8_t gen;
-        double z1;
         int has_gauss;
         double gauss;
 } __attribute__((aligned(64)));
 
-struct rng_dist_mirror {
-        struct tld_rng* rng;
-        double* p;
-        int* a;
-        int n;
-} __attribute__((aligned(32)));
 
 /* inverse of an odd number modulo 2^64 (Newton iteration) */
 static uint64_t inv64(uint64_t a)
@@ -296,7 +288,7 @@ static int sdist_init_quiet(struct tld_rng_dist **d, double *w, int n, long *n_b
         saved = dup(STDOUT_FILENO);
         ASSERT(saved >= 0, "dup failed");
         dup2(fd, STDOUT_FILENO);
-        status = tld_rng_dist_alloc(d, w, n, 42);
+        status = tld_rng_dist_alloc(d, w, n);
         fflush(stdout);
         dup2(saved, STDOUT_FILENO);
         close(saved);
@@ -313,6 +305,7 @@ ERROR:
 static int test_sdist(void)
 {
         struct tld_rng_dist *d = NULL;
+        struct tld_rng *rng = NULL;
         double w[6] = {1.0, 1.0, 2.0, 1.0, 1.0, 1.0};
         int count[6] = {0};
         const int draws = 700000;
@@ -321,9 +314,10 @@ static int test_sdist(void)
 
         ASSERT(sdist_init_quiet(&d, w, 6, &n_bytes) == OK, "sdist init failed");
         ASSERT(n_bytes == 0, "tld_rng_dist_alloc wrote %ld bytes to stdout", n_bytes);
+        RUN(tld_rng_alloc(&rng, 42));
 
         for(int i = 0; i < draws; i++){
-                const int k = tld_rng_dist_sample(d);
+                const int k = tld_rng_dist_sample(d, rng);
                 ASSERT(k >= 0 && k < 6, "sample %d out of range", k);
                 count[k]++;
         }
@@ -336,15 +330,16 @@ static int test_sdist(void)
 
         /* the largest draw must not index p[n] (out of bounds before) */
         for(int k = 0; k < 2; k++){
-                struct rng_dist_mirror *dm = (struct rng_dist_mirror *) d;
-                force_next(dm->rng, UINT64_MAX);
-                const int s = tld_rng_dist_sample(d);
+                force_next(rng, UINT64_MAX);
+                const int s = tld_rng_dist_sample(d, rng);
                 ASSERT(s >= 0 && s < 6, "sample %d out of range", s);
         }
         tld_rng_dist_free(d);
+        tld_rng_free(rng);
         return OK;
 ERROR:
         tld_rng_dist_free(d);
+        tld_rng_free(rng);
         return FAIL;
 }
 
@@ -356,12 +351,12 @@ static int test_sdist_errors(void)
         double nan_w[2] = {1.0, NAN};
         /* error paths must fail and free what they allocated (ASan/LSan or
            valgrind report a leak otherwise) */
-        ASSERT(tld_rng_dist_alloc(&d, neg, 3, 1) == FAIL, "negative weight accepted");
+        ASSERT(tld_rng_dist_alloc(&d, neg, 3) == FAIL, "negative weight accepted");
         ASSERT(d == NULL, "output set on failure");
-        ASSERT(tld_rng_dist_alloc(&d, zero, 3, 1) == FAIL, "zero sum accepted");
+        ASSERT(tld_rng_dist_alloc(&d, zero, 3) == FAIL, "zero sum accepted");
         ASSERT(d == NULL, "output set on failure");
-        ASSERT(tld_rng_dist_alloc(&d, nan_w, 2, 1) == FAIL, "NaN weight accepted");
-        ASSERT(tld_rng_dist_alloc(&d, neg, 0, 1) == FAIL, "n = 0 accepted");
+        ASSERT(tld_rng_dist_alloc(&d, nan_w, 2) == FAIL, "NaN weight accepted");
+        ASSERT(tld_rng_dist_alloc(&d, neg, 0) == FAIL, "n = 0 accepted");
         ASSERT(d == NULL, "output set on failure");
         return OK;
 ERROR:

@@ -911,7 +911,7 @@ TLD_API int tld_template_vars(tld_strbuf *txt, tld_hash **hash);
  * tld_rng_free. */
 typedef struct tld_rng tld_rng;
 
-/* Opaque alias table for sampling from a discrete distribution (tl_random_sdist_*). */
+/* Opaque alias table for sampling from a discrete distribution (tld_rng_dist_*). */
 struct tld_rng_dist;
 
 /* Allocate a generator in *rng seeded with seed; the same seed gives the same sequence.
@@ -937,8 +937,9 @@ TLD_API void tld_rng_free(struct tld_rng* rng);
  * table (with an error). */
 TLD_API double tld_rng_double(struct tld_rng* rng);
 
-/* Normal deviate with mean mu and standard deviation sigma (Box-Muller; values are made
- * in pairs and every other call returns the cached second one). */
+/* Normal deviate with mean mu and standard deviation sigma (Marsaglia's polar method:
+ * values are made in pairs and every other call returns the cached second one, a cache
+ * shared with tld_rng_gamma). */
 TLD_API double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma);
 
 /* Gamma deviate with the given shape (> 0, not checked) and scale; mean shape * scale. */
@@ -947,15 +948,16 @@ TLD_API double tld_rng_gamma(struct tld_rng* rng, double shape, double scale);
 /* Uniform integer in [0, a), without modulo bias; 0 when a <= 1. */
 TLD_API int tld_rng_int(struct tld_rng* rng,int a);
 
-/* Build in *tld_rng_dist an alias table that samples index i in [0, n) with probability
- * w[i] / sum(w). Weights must be >= 0 with a finite, positive sum. The table owns its
- * own generator seeded with seed (0 = arbitrary). Free with tld_rng_dist_free. */
-TLD_API int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed);
+/* Build in *dist an alias table that samples index i in [0, n) with probability
+ * w[i] / sum(w). Weights must be >= 0 with a finite, positive sum. The table holds no
+ * generator: each sample draws from the one passed in, so one table can serve several
+ * threads, each with its own generator. Free with tld_rng_dist_free. */
+TLD_API int tld_rng_dist_alloc(struct tld_rng_dist** dist, double* w, int n);
 
-/* One sample from the table: an index in [0, n). */
-TLD_API int tld_rng_dist_sample(struct tld_rng_dist* d);
+/* One sample from the table, drawn with rng: an index in [0, n). */
+TLD_API int tld_rng_dist_sample(struct tld_rng_dist* d, struct tld_rng* rng);
 
-/* Free an alias table and its generator; NULL is ignored. */
+/* Free an alias table; NULL is ignored. */
 TLD_API void tld_rng_dist_free(struct tld_rng_dist* d);
 
 #endif
@@ -5202,8 +5204,6 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>. */
 #define ALIGN64 64
 struct tld_rng{
         uint64_t s[4];
-        uint8_t gen;
-        double z1;
         int has_gauss; /* !=0: gauss contains a gaussian deviate */
         double gauss;
 } __attribute__((aligned(ALIGN64)));
@@ -5211,7 +5211,6 @@ struct tld_rng{
 
 #define ALIGN32 32
 struct tld_rng_dist{
-        struct tld_rng* rng;
         double* p;
         int* a;
         int n;
@@ -5235,8 +5234,6 @@ int tld_rng_alloc(struct tld_rng** rng,uint64_t seed)
         ASSERT(rng != NULL, "No output pointer");
 
         MMALLOC_ALIGNED(s, sizeof(struct tld_rng), _Alignof(struct tld_rng));
-        s->gen = 0;
-        s->z1 = 0.0F;
         s->gauss = 0.0;
         s->has_gauss = 0;
 
@@ -5330,8 +5327,6 @@ int tld_rng_split(struct tld_rng** target, struct tld_rng* rng)
         }
         /* Do not inherit cached deviates: the child must not repeat the
            parent's next gaussian. */
-        s->gen = 0;
-        s->z1 = 0.0;
         s->gauss = 0.0;
         s->has_gauss = 0;
         tld__rng_jump(rng);
@@ -5347,8 +5342,6 @@ int tld_rng_set_seed(struct tld_rng *s, uint64_t seed)
         uint64_t z = 0U;
 
         ASSERT(s != NULL, "No rng allocated in set seed");
-        s->gen = 0;
-        s->z1 = 0.0F;
         s->gauss = 0.0;
         s->has_gauss = 0;
 
@@ -5444,30 +5437,10 @@ ERROR:
         return NAN;
 }
 
-/* from:  */
-/* https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform */
 double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma)
 {
-        double u1 = 0.0;
-        double u2 = 0.0;
-        double z0 = 0.0;
-        const double n2 = -2.0;
         ASSERT(rng != NULL, "No generator");
-        rng->gen = !rng->gen;
-
-        if (!rng->gen){
-                return rng->z1 * sigma + mu;
-        }
-
-        do{
-                u1 = tld_rng_double(rng);
-                u2 = tld_rng_double(rng);
-        } while (u1 <= DBL_EPSILON);
-
-        z0 = sqrt(n2 * log(u1)) * cos(TLD__2PI * u2);
-        rng->z1 = sqrt(n2 * log(u1)) * sin(TLD__2PI * u2);
-
-        return z0 * sigma + mu;
+        return mu + sigma * tld__rng_gauss(rng);
 ERROR:
         return NAN;
 }
@@ -5593,7 +5566,7 @@ ERROR:
         return -1;
 }
 
-int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed)
+int tld_rng_dist_alloc(struct tld_rng_dist** dist, double* w, int n)
 {
         struct tld_rng_dist* d = NULL;
 
@@ -5611,12 +5584,10 @@ int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed)
         MMALLOC_ALIGNED(d, sizeof(struct tld_rng_dist), _Alignof(struct tld_rng_dist));
         d->p = NULL;
         d->a = NULL;
-        d->rng = NULL;
         d->n = n;
 
         galloc(&d->p, d->n);
         galloc(&d->a, d->n);
-        RUN( tld_rng_alloc(&d->rng, seed));
 
         galloc(&p,n);
         galloc(&s,n);
@@ -5691,14 +5662,15 @@ ERROR:
         return FAIL;
 }
 
-int tld_rng_dist_sample(struct tld_rng_dist* d)
+int tld_rng_dist_sample(struct tld_rng_dist* d, struct tld_rng* rng)
 {
         double r1 = 0.0;
         double r2 = 0.0;
         int i = 0;
         ASSERT(d != NULL, "No table");
-        r1 = tld_rng_double(d->rng);
-        r2 = tld_rng_double(d->rng);
+        ASSERT(rng != NULL, "No generator");
+        r1 = tld_rng_double(rng);
+        r2 = tld_rng_double(rng);
         i = (int) (d->n * r1);
         if(i >= d->n){
                 i = d->n - 1;
@@ -5717,7 +5689,6 @@ void tld_rng_dist_free(struct tld_rng_dist* d)
                 if(d->a){
                         gfree(d->a);
                 }
-                tld_rng_free(d->rng);
                 MFREE(d);
         }
 }

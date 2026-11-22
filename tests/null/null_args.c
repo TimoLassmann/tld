@@ -32,7 +32,7 @@ static tld_json_val *JV, *JV2;
 static tld_bitfield *BF, *BF2, *BF3;
 static tld_kdtree *KD;
 static struct tld_rng *R, *OUTR;
-static struct tld_rng_dist *OUTD;
+static struct tld_rng_dist *D_, *OUTD;
 static tld_thread_pool *TP;
 static double *G;                       /* galloc'd */
 static double **OUTM;
@@ -75,6 +75,7 @@ static int setup(int with_pool)
         RUN(tld_kdtree_alloc(&KD, 2));
         RUN(tld_kdtree_insert(KD, P2, 1, 2));
         RUN(tld_rng_alloc(&R, 1));
+        RUN(tld_rng_dist_alloc(&D_, V, 4));
         galloc(&G, 4);
         if(with_pool){
                 RUN(tld_thread_pool_alloc(&TP, 0, 1));
@@ -223,9 +224,10 @@ ERROR:
         X(NUL, 0, isnan(tld_rng_gaussian(NULL, 0.0, 1.0))) \
         X(NUL, 0, isnan(tld_rng_gamma(NULL, 1.0, 1.0))) \
         X(NUL, 0, (tld_rng_int(NULL, 5) == -1)) \
-        X(NUL, 0, FAILS(tld_rng_dist_alloc(NULL, V, 4, 1))) \
-        X(NUL, 0, FAILS(tld_rng_dist_alloc(&OUTD, NULL, 4, 1))) \
-        X(NUL, 0, (tld_rng_dist_sample(NULL) == -1)) \
+        X(NUL, 0, FAILS(tld_rng_dist_alloc(NULL, V, 4))) \
+        X(NUL, 0, FAILS(tld_rng_dist_alloc(&OUTD, NULL, 4))) \
+        X(NUL, 0, (tld_rng_dist_sample(NULL, R) == -1)) \
+        X(NUL, 0, (tld_rng_dist_sample(D_, NULL) == -1)) \
         X(FRE, 0, NONE(tld_rng_dist_free(NULL))) \
         \
         X(NUL, 0, FAILS(tld_auc(NULL, YH, 4, &D, &D2))) \

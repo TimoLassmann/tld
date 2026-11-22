@@ -63,8 +63,6 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>. */
 #define ALIGN64 64
 struct tld_rng{
         uint64_t s[4];
-        uint8_t gen;
-        double z1;
         int has_gauss; /* !=0: gauss contains a gaussian deviate */
         double gauss;
 } __attribute__((aligned(ALIGN64)));
@@ -72,7 +70,6 @@ struct tld_rng{
 
 #define ALIGN32 32
 struct tld_rng_dist{
-        struct tld_rng* rng;
         double* p;
         int* a;
         int n;
@@ -96,8 +93,6 @@ int tld_rng_alloc(struct tld_rng** rng,uint64_t seed)
         ASSERT(rng != NULL, "No output pointer");
 
         MMALLOC_ALIGNED(s, sizeof(struct tld_rng), _Alignof(struct tld_rng));
-        s->gen = 0;
-        s->z1 = 0.0F;
         s->gauss = 0.0;
         s->has_gauss = 0;
 
@@ -191,8 +186,6 @@ int tld_rng_split(struct tld_rng** target, struct tld_rng* rng)
         }
         /* Do not inherit cached deviates: the child must not repeat the
            parent's next gaussian. */
-        s->gen = 0;
-        s->z1 = 0.0;
         s->gauss = 0.0;
         s->has_gauss = 0;
         tld__rng_jump(rng);
@@ -208,8 +201,6 @@ int tld_rng_set_seed(struct tld_rng *s, uint64_t seed)
         uint64_t z = 0U;
 
         ASSERT(s != NULL, "No rng allocated in set seed");
-        s->gen = 0;
-        s->z1 = 0.0F;
         s->gauss = 0.0;
         s->has_gauss = 0;
 
@@ -305,30 +296,10 @@ ERROR:
         return NAN;
 }
 
-/* from:  */
-/* https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform */
 double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma)
 {
-        double u1 = 0.0;
-        double u2 = 0.0;
-        double z0 = 0.0;
-        const double n2 = -2.0;
         ASSERT(rng != NULL, "No generator");
-        rng->gen = !rng->gen;
-
-        if (!rng->gen){
-                return rng->z1 * sigma + mu;
-        }
-
-        do{
-                u1 = tld_rng_double(rng);
-                u2 = tld_rng_double(rng);
-        } while (u1 <= DBL_EPSILON);
-
-        z0 = sqrt(n2 * log(u1)) * cos(TLD__2PI * u2);
-        rng->z1 = sqrt(n2 * log(u1)) * sin(TLD__2PI * u2);
-
-        return z0 * sigma + mu;
+        return mu + sigma * tld__rng_gauss(rng);
 ERROR:
         return NAN;
 }
@@ -454,7 +425,7 @@ ERROR:
         return -1;
 }
 
-int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed)
+int tld_rng_dist_alloc(struct tld_rng_dist** dist, double* w, int n)
 {
         struct tld_rng_dist* d = NULL;
 
@@ -472,12 +443,10 @@ int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed)
         MMALLOC_ALIGNED(d, sizeof(struct tld_rng_dist), _Alignof(struct tld_rng_dist));
         d->p = NULL;
         d->a = NULL;
-        d->rng = NULL;
         d->n = n;
 
         galloc(&d->p, d->n);
         galloc(&d->a, d->n);
-        RUN( tld_rng_alloc(&d->rng, seed));
 
         galloc(&p,n);
         galloc(&s,n);
@@ -552,14 +521,15 @@ ERROR:
         return FAIL;
 }
 
-int tld_rng_dist_sample(struct tld_rng_dist* d)
+int tld_rng_dist_sample(struct tld_rng_dist* d, struct tld_rng* rng)
 {
         double r1 = 0.0;
         double r2 = 0.0;
         int i = 0;
         ASSERT(d != NULL, "No table");
-        r1 = tld_rng_double(d->rng);
-        r2 = tld_rng_double(d->rng);
+        ASSERT(rng != NULL, "No generator");
+        r1 = tld_rng_double(rng);
+        r2 = tld_rng_double(rng);
         i = (int) (d->n * r1);
         if(i >= d->n){
                 i = d->n - 1;
@@ -578,7 +548,6 @@ void tld_rng_dist_free(struct tld_rng_dist* d)
                 if(d->a){
                         gfree(d->a);
                 }
-                tld_rng_free(d->rng);
                 MFREE(d);
         }
 }

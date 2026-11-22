@@ -108,6 +108,13 @@ tld.h to this. Old → new:
 - stats: one sigmoid. `tld_sigmoid` is the former `tld_sigmoid_safe` (NaN gives NaN, +inf 1,
   -inf 0); the old `tld_sigmoid`, which failed on those, is gone.
 - timing: `TLD_END_TIMER` writes a LOG line ("exec time: 1.23s").
+- rng: one Gaussian generator. `tld_rng_gaussian` uses the polar method that `tld_rng_gamma`
+  already used, with one shared cache (the separate Box-Muller code and its state are gone).
+  The draws for a given seed differ from before, so results that depend on
+  `tld_rng_gaussian` are not bit-identical to earlier runs.
+- rng: the alias table holds no generator: `tld_rng_dist_alloc(&d, w, n)` (no seed) and
+  `tld_rng_dist_sample(d, rng)` draw from the caller's generator, so one table serves
+  several threads.
 
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,

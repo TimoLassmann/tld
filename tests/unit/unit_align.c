@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
                 check(rng[i], 64, "tld_rng_alloc tld_rng", i);
                 RUN(tld_rng_split(&rng2[i], rng[i]));
                 check(rng2[i], 64, "tld_rng_split tld_rng", i);
-                RUN(tld_rng_dist_alloc(&dist[i], w, 4, i + 1));
+                RUN(tld_rng_dist_alloc(&dist[i], w, 4));
                 check(dist[i], 32, "tld_rng_dist_alloc tld_rng_dist", i);
                 DEBUG_MSG("#%d: rng %p, rng2 %p, dist %p", i, (void *)rng[i], (void *)rng2[i], (void *)dist[i]);
                 tld_progress(i + 1, n, "allocating");

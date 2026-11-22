@@ -129,6 +129,7 @@ int rng_dist_test(void)
         double* w = NULL;
         int* out = NULL;
         struct tld_rng_dist* d = NULL;
+        struct tld_rng* rng = NULL;
         double sum;
         galloc(&w, 6);
         galloc(&out,6);
@@ -142,9 +143,10 @@ int rng_dist_test(void)
         for(int i = 0; i < 6;i++){
                 sum += w[i];
         }
-        RUN(tld_rng_dist_alloc(&d, w, 6, 0));
+        RUN(tld_rng_alloc(&rng, 0));
+        RUN(tld_rng_dist_alloc(&d, w, 6));
         for(int i = 0; i < 10000000;i++){
-                out[tld_rng_dist_sample(d)]++;
+                out[tld_rng_dist_sample(d, rng)]++;
                 if((i + 1) % 100000 == 0){
                         tld_progress(i + 1, 10000000, "sampling");
                 }
@@ -156,6 +158,7 @@ int rng_dist_test(void)
                 KV_MSG(key, "observed %f expected %f", (double) out[i] /  10000000.0, w[i]/sum);
         }
         tld_rng_dist_free(d);
+        tld_rng_free(rng);
         gfree(w);
         gfree(out);
         return OK;

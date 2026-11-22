@@ -10,7 +10,7 @@
  * tld_rng_free. */
 typedef struct tld_rng tld_rng;
 
-/* Opaque alias table for sampling from a discrete distribution (tl_random_sdist_*). */
+/* Opaque alias table for sampling from a discrete distribution (tld_rng_dist_*). */
 struct tld_rng_dist;
 
 /* Allocate a generator in *rng seeded with seed; the same seed gives the same sequence.
@@ -36,8 +36,9 @@ TLD_API void tld_rng_free(struct tld_rng* rng);
  * table (with an error). */
 TLD_API double tld_rng_double(struct tld_rng* rng);
 
-/* Normal deviate with mean mu and standard deviation sigma (Box-Muller; values are made
- * in pairs and every other call returns the cached second one). */
+/* Normal deviate with mean mu and standard deviation sigma (Marsaglia's polar method:
+ * values are made in pairs and every other call returns the cached second one, a cache
+ * shared with tld_rng_gamma). */
 TLD_API double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma);
 
 /* Gamma deviate with the given shape (> 0, not checked) and scale; mean shape * scale. */
@@ -46,15 +47,16 @@ TLD_API double tld_rng_gamma(struct tld_rng* rng, double shape, double scale);
 /* Uniform integer in [0, a), without modulo bias; 0 when a <= 1. */
 TLD_API int tld_rng_int(struct tld_rng* rng,int a);
 
-/* Build in *tld_rng_dist an alias table that samples index i in [0, n) with probability
- * w[i] / sum(w). Weights must be >= 0 with a finite, positive sum. The table owns its
- * own generator seeded with seed (0 = arbitrary). Free with tld_rng_dist_free. */
-TLD_API int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed);
+/* Build in *dist an alias table that samples index i in [0, n) with probability
+ * w[i] / sum(w). Weights must be >= 0 with a finite, positive sum. The table holds no
+ * generator: each sample draws from the one passed in, so one table can serve several
+ * threads, each with its own generator. Free with tld_rng_dist_free. */
+TLD_API int tld_rng_dist_alloc(struct tld_rng_dist** dist, double* w, int n);
 
-/* One sample from the table: an index in [0, n). */
-TLD_API int tld_rng_dist_sample(struct tld_rng_dist* d);
+/* One sample from the table, drawn with rng: an index in [0, n). */
+TLD_API int tld_rng_dist_sample(struct tld_rng_dist* d, struct tld_rng* rng);
 
-/* Free an alias table and its generator; NULL is ignored. */
+/* Free an alias table; NULL is ignored. */
 TLD_API void tld_rng_dist_free(struct tld_rng_dist* d);
 
 #endif

@@ -269,8 +269,8 @@ static int sc_rng(void)
         double w[5] = {1, 2, 3, 4, 5};
         RUN(tld_rng_alloc(&r, 42));
         RUN(tld_rng_split(&r2, r));
-        RUN(tld_rng_dist_alloc(&d, w, 5, 7));
-        (void)tld_rng_dist_sample(d);
+        RUN(tld_rng_dist_alloc(&d, w, 5));
+        (void)tld_rng_dist_sample(d, r);
         tld_rng_dist_free(d); tld_rng_free(r); tld_rng_free(r2);
         return OK;
 ERROR:
