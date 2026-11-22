@@ -1,3 +1,6 @@
+/* shuffle: uniform random permutation (Fisher-Yates) in place of arrays of char,
+ * int8_t..int64_t, uint8_t..uint64_t, float and double; TLD_SHUFFLE picks the function
+ * from the array's type. */
 #ifndef SHUFFLE_H
 #define SHUFFLE_H
 
@@ -5,9 +8,11 @@
 
 #include "../rng/tld-rng.h"
 
+/* SHUFFLE_HEADER(type) declares tld_shuffle_<type>. */
 #define SHUFFLE_HEADER(type)                        \
         int tld_shuffle_##type(type *a, int len, struct rng_state* rng);
 
+/* Shuffle len elements of a in place, drawing from rng (see init_rng). Always OK. */
 SHUFFLE_HEADER(char)
         SHUFFLE_HEADER(int8_t)
         SHUFFLE_HEADER(uint8_t)
@@ -21,6 +26,7 @@ SHUFFLE_HEADER(char)
         SHUFFLE_HEADER(double)
 
 
+/* TLD_SHUFFLE(a, len, rng): tld_shuffle_<type>(a, len, rng) for a's element type. */
 #define TLD_SHUFFLE(A,N,R) _Generic((A),                                 \
                                     char* : tld_shuffle_char,             \
                                     int8_t* : tld_shuffle_int8_t,         \

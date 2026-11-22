@@ -20,6 +20,8 @@
 !tools/**
 !examples/
 !examples/**
+!docs/
+!docs/**
 !src/
 !tests/
 !cmake/

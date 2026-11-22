@@ -7,6 +7,8 @@
  *   ai_fill(&fix, fix, "Propose a fix for:\n%s", ticket);
  *   ai_vec v = ai_embed(abstract);
  *
+ * Manual: docs/tld_ai.md, generated from tld_ai.h by tools/tlddoc.c.
+ *
  * USAGE
  *   In exactly one .c file, before any other #include:
  *
@@ -26,20 +28,23 @@
  *   that file; if a system header came first, tld_ai.h supplies the few declarations a
  *   strict -std=c11 build hides.
  *
- * ENVIRONMENT (all optional; read once, at the first call into tld_ai.h, so a later
- * setenv() has no effect)
+ * ENVIRONMENT
+ *   All optional; read once, at the first call into tld_ai.h, so a later setenv() has
+ *   no effect.
+ *
  *   TLD_AI_HOST      Ollama base URL                      default http://localhost:11434
- *                (plain http only; https:// fails with AI_EHTTP)
+ *                    (plain http only; https:// fails with AI_EHTTP)
  *   TLD_AI_LLM       default LLM                          default inkling-2-mini:latest
  *   TLD_AI_DECIDER   default decision model               default autotrust-jev:latest
  *   TLD_AI_EMBEDDER  default embedding model              default embeddinggemma-2:latest
  *   TLD_AI_NUM_CTX   context length sent with every LLM and embedding call that does not
- *                set .num_ctx                         default: not sent (server decides)
+ *                    set .num_ctx                         default: not sent (server decides)
  *   TLD_AI_TIMEOUT   seconds per HTTP request             default 300
  *   TLD_AI_FRESH     1 = ignore the cache                 default 0
  *   TLD_AI_DB        cache file (JSON lines)              default: no cache; "off" turns
  *                    off a cache set with ai_defaults(.db = ...)
  *   TLD_AI_REVIEWS   directory for ai_review files        default ai-reviews
+ *
  *   TLD_AI_FRESH accepts 1/0, true/false, yes/no, on/off (any case); TLD_AI_NUM_CTX and
  *   TLD_AI_TIMEOUT must be positive integers. A value that does not parse is ignored with a
  *   warning.
@@ -48,6 +53,7 @@
  *   ai_defaults(AI_CONFIG(.host = "http://192.168.1.20:11434", .llm = "inkling-2-mini",
  *                         .decider = "autotrust-jev", .embedder = "embeddinggemma-2",
  *                         .opts = AI_OPTS(.temperature = AI_F(0.2))));
+ *
  *   Each field that is set (a non-NULL string, an ai_i with .set, a non-NULL .opts)
  *   replaces the built-in default; an environment variable, if set, still wins, and
  *   per-call options win over both. Each call replaces the previous one's settings;
@@ -101,7 +107,7 @@
  *   no thread still uses returned values. Error text, status and ai_last() are
  *   per thread.
  *
- * LICENCE: MIT, see the end of this file.
+ * LICENCE: MIT, see the end of tld_ai.h.
  */
 
 /* Feature macros for the implementation file. They must precede every system header,
@@ -127,6 +133,7 @@
 #endif
 #include <stddef.h>
 
+/* Version of tld_ai.h. */
 #define AI_VERSION "0.3.0"
 
 #ifdef __cplusplus
@@ -135,6 +142,7 @@ extern "C" {
 
 /* ---- status codes (ai_status) ------------------------------------------ */
 
+/* Status codes: ai_status() returns the one for this thread's last call. */
 enum {
     AI_OK = 0,
     AI_ENOSERVER, /* no Ollama server answers at TLD_AI_HOST                       */
@@ -149,11 +157,19 @@ enum {
 
 /* ---- options ----------------------------------------------------------- */
 
+/* Optional numbers for ai_opts and ai_config: .set = 1 marks a value as given, so an
+ * unset field differs from 0. Write AI_F(0.2) and AI_I(7). */
 typedef struct { int set; double v; } ai_f;   /* optional double: unset is not 0 */
 typedef struct { int set; long   v; } ai_i;   /* optional integer */
 #define AI_F(x) ((ai_f){1, (x)})
 #define AI_I(x) ((ai_i){1, (x)})
 
+/* Per-call options for the *_with calls; every field is optional (0 / NULL / unset).
+ * Text calls (ai_text, ai_fill) use all fields except dimensions and no_truncate, with
+ * unset fields taken from ai_defaults(.opts). Decisions (ai_yesno, ai_choose, ai_rate)
+ * use only model, images and fresh. Embeddings use model, dimensions, no_truncate,
+ * fresh and the "options" fields (temperature .. num_predict, stop, extra_options),
+ * think and keep_alive. retries and max_retries apply to ai_fill. */
 typedef struct {
     const char *model;            /* overrides TLD_AI_LLM / TLD_AI_DECIDER / TLD_AI_EMBEDDER */
     const char *system;           /* system prompt (LLM calls) */
@@ -171,12 +187,15 @@ typedef struct {
     ai_i max_retries;             /* extra attempts, 0 allowed; overrides .retries */
 } ai_opts;
 
-/* AI_OPTS(.temperature = AI_F(0), .seed = AI_I(7)) -> const ai_opts * */
+/* AI_OPTS(.temperature = AI_F(0), .seed = AI_I(7)) -> const ai_opts *, pointing to a
+ * compound literal that lives until the end of the enclosing block. */
 #define AI_OPTS(...) (&(const ai_opts){__VA_ARGS__})
 
 /* ---- program-set defaults ---------------------------------------------- */
-/* Precedence, per setting: per-call options > environment > ai_defaults() > built-in.
- * The environment is read once, at the first call into tld_ai.h. */
+
+/* Program-wide defaults for ai_defaults, written AI_CONFIG(.llm = "...", ...). Precedence,
+ * per setting: per-call options > environment > ai_defaults() > built-in. The
+ * environment is read once, at the first call into tld_ai.h. */
 typedef struct {
     const char *host;      /* TLD_AI_HOST      e.g. "http://192.168.1.20:11434" (http:// only) */
     const char *llm;       /* TLD_AI_LLM       text model: ai_text, ai_fill                  */
@@ -188,30 +207,55 @@ typedef struct {
     ai_i timeout;          /* TLD_AI_TIMEOUT   seconds per request                           */
     ai_i fresh;            /* TLD_AI_FRESH     1 = ignore the cache                          */
     ai_i embed_dimensions; /* default output dimensions for embeddings, if the model allows */
-    const ai_opts *opts;   /* default per-call options (system, temperature, seed, top_p,
-                              stop, think, keep_alive, retries, ...) applied to every call */
+    const ai_opts *opts;   /* default options for text calls (system, temperature, seed,
+                              stop, think, keep_alive, retries, ...); decisions take only
+                              .fresh from it, embeddings .dimensions, .no_truncate, .fresh */
 } ai_config;
 #define AI_CONFIG(...) (&(const ai_config){__VA_ARGS__})
 
-/* The fields c sets replace the built-in defaults; NULL resets to the built-ins.
- * 0 on success, -1 with ai_status()/ai_error(); an invalid call changes nothing. */
+/* Set program-wide defaults: the fields c sets replace the built-in defaults; NULL resets
+ * to the built-ins. Each call replaces the previous call's settings; strings and .opts are
+ * copied. 0 on success, -1 with ai_status()/ai_error(); an invalid call (host not
+ * http://, empty name, number <= 0) changes nothing. Calls in flight keep their settings. */
 int ai_defaults(const ai_config *c);
 
 /* ---- plain calls ------------------------------------------------------- */
 
-/* Text from an LLM; NULL on failure. */
+/* Text from the LLM (TLD_AI_LLM, or o->model) for the printf-style prompt fmt. The
+ * string is library memory, valid until ai_reset() (never free it); NULL on failure.
+ * ai_text_with takes per-call options (o may be NULL). */
 char       *ai_text(const char *fmt, ...);
 char       *ai_text_with(const ai_opts *o, const char *fmt, ...);
-/* Probability that the answer is yes, from a decision model; -1 on failure. */
+
+/* Probability in [0, 1] that the answer to question about state is yes, from the
+ * decision model (TLD_AI_DECIDER, or o->model); -1 on failure. A state that starts
+ * with '{' and parses as JSON is sent as a JSON object, anything else as text. */
 double      ai_yesno(const char *question, const char *state);
 double      ai_yesno_with(const ai_opts *o, const char *question, const char *state);
-/* Ask a person: returns their answer, or NULL while the review is open. */
-const char *ai_review(const char *what, const char *payload);
-char       *ai_fmt(const char *fmt, ...);   /* sprintf into library memory */
-const char *ai_error(void);                 /* last error message in this thread */
-int         ai_status(void);                /* last status code in this thread (AI_OK..) */
-void        ai_reset(void);                 /* free all returned strings and vectors */
 
+/* Ask a person (see Human review above). The first call writes TLD_AI_REVIEWS/<key>.json, the
+ * key a hash of what and payload, and returns NULL with ai_status() == AI_OK; so does
+ * every call while the review is open. Once a person has set "status" to "done" and
+ * "answer" to a string, the call returns that answer (library memory). NULL with
+ * another status on errors. */
+const char *ai_review(const char *what, const char *payload);
+
+/* sprintf into library memory: the formatted string, valid until ai_reset() (never free
+ * it); NULL on failure. */
+char       *ai_fmt(const char *fmt, ...);
+
+/* The message about this thread's last call: why it failed, or empty after a success
+ * (ai_review leaves a note while a review is open). Valid until the thread's next call. */
+const char *ai_error(void);
+
+/* The status code (AI_OK, AI_ENOSERVER, ...) of this thread's last call. */
+int         ai_status(void);
+
+/* Free every string and vector the library has returned, in all threads. Call it only
+ * when no thread still uses them; the library keeps working afterwards. */
+void        ai_reset(void);
+
+/* Details of a request to the server, from ai_last(). Strings are library memory. */
 typedef struct {
     const char *thinking;         /* model's thinking text, if requested */
     long   prompt_tokens, output_tokens;
@@ -220,33 +264,51 @@ typedef struct {
     const char *model;            /* model that answered */
     const char *host;             /* server that was asked */
 } ai_info;
-const ai_info *ai_last(void);                /* previous call in this thread */
+
+/* Details of the last request this thread sent (or tried to send) to the server. */
+const ai_info *ai_last(void);
 
 /* ---- embeddings -------------------------------------------------------- */
 
+/* An embedding of dim floats at x (x == NULL on failure), and n embeddings with row i at
+ * x + i*dim. The floats are library memory, valid until ai_reset(); never free them.
+ * Vectors from different embedding models are not comparable. */
 typedef struct { int dim; const float *x; } ai_vec;              /* x == NULL on failure */
 typedef struct { int n, dim; const float *x; } ai_vecs;          /* row i at x + i*dim */
 
+/* The embedding of text from the embedding model (TLD_AI_EMBEDDER, or o->model); .x is
+ * NULL on failure. Long input is truncated unless o->no_truncate is set. */
 ai_vec  ai_embed(const char *text);
 ai_vec  ai_embed_with(const ai_opts *o, const char *text);
+
+/* Embeddings of texts[0..n-1] in one request, as n rows; .x is NULL on failure. */
 ai_vecs ai_embed_all(const char *const *texts, int n);           /* one request, n rows */
 ai_vecs ai_embed_all_with(const ai_opts *o, const char *const *texts, int n);
+
+/* Row i of the ai_vecs vs as an ai_vec (no copy, no bounds check). */
 #define ai_row(vs, i) ((ai_vec){(vs).dim, (vs).x + (size_t)(i) * (vs).dim})
 
+/* Cosine similarity of a and b, in [-1, 1]; 0 if either is all zeros; -2 if the
+ * dimensions differ or either .x is NULL. */
 double ai_cosine(ai_vec a, ai_vec b);                            /* -2 if dims differ */
-/* Indices of the k rows of m most similar to q, best first; returns how many. */
+
+/* The k rows of m most similar to q (cosine), best first: row indices into idx and
+ * similarities into score, two arrays of at least k elements. Returns how many were
+ * written (fewer than k when m has fewer rows; 0 on bad input). */
 int    ai_nearest(ai_vec q, ai_vecs m, int k, int *idx, double *score);
 
 /* ---- parallel work ----------------------------------------------------- */
 
-/* Run fn(i, ctx) for i = 0..n-1 on `threads` threads and wait for all. */
+/* Run fn(i, ctx) for i = 0..n-1 on `threads` threads and wait for all. The calling
+ * thread works too; the calls run concurrently, in no fixed order, and may themselves
+ * call tld_ai.h. */
 void ai_parallel(int n, int threads, void (*fn)(int i, void *ctx), void *ctx);
 
 /* ---- typed structs filled by an LLM ------------------------------------ */
-/* #define FIX(X) X(str, title, "One-line summary") X(num, risk, "Risk 0 to 1")
- * AI_STRUCT(fix, FIX)              -> struct fix { char *title; double risk; };
- * ai_fill(&f, fix, fmt, ...)       -> 0 on success, -1 on failure (f zeroed)  */
 
+/* Run-time descriptions made by AI_STRUCT, AI_CHOICE and AI_SCALE: a member's type
+ * (ai_kind), one member (ai_field), a struct (ai_type) and one choice or scale label
+ * (ai_label). Programs do not normally use them. */
 typedef enum { AI_T_str, AI_T_num, AI_T_int, AI_T_bool } ai_kind;
 typedef struct { const char *name; ai_kind kind; size_t off; const char *desc; } ai_field;
 typedef struct { const char *name; size_t size; const ai_field *f; int n; } ai_type;
@@ -259,6 +321,13 @@ typedef struct { const char *name; const char *desc; } ai_label;
 #define AI__DECL(t, n, d)  AI__CT_##t n;
 #define AI__FIELD(t, n, d) { #n, AI_T_##t, offsetof(S, n), d },
 
+/* AI_STRUCT(name, FIELDS) defines struct name for ai_fill. FIELDS is an X-macro of
+ * X(kind, member, "description") entries; kind is str (char *), num (double), int
+ * (long) or bool (int). The descriptions reach the model in a JSON schema.
+ *
+ *   #define FIX(X) X(str, title, "One-line summary") X(num, risk, "Risk 0 to 1")
+ *   AI_STRUCT(fix, FIX)      // struct fix { char *title; double risk; };
+ */
 #define AI_STRUCT(name, FIELDS)                                               \
     struct name { FIELDS(AI__DECL) };                                         \
     static inline const ai_type *name##__type(void) {                         \
@@ -270,15 +339,19 @@ typedef struct { const char *name; const char *desc; } ai_label;
     }
 
 /* ---- decisions: pick one label ----------------------------------------- */
-/* #define TEAM(X) X(bug, "Software defects") X(billing, "Payments and refunds")
- * AI_CHOICE(team, "Which team should handle this?", TEAM)
- *   -> enum team { bug, billing };  struct team_answer { ok, value, confidence, p[] }
- * Labels become bare enum constants, so two choices cannot share a label
- * (the compiler reports the clash).                                          */
 
 #define AI__ENUM(n, d)  n,
 #define AI__LABEL(n, d) { #n, d },
 
+/* AI_CHOICE(name, question, OPTIONS) defines enum name, one constant per label in order,
+ * and struct name_answer { int ok; enum name value; double confidence; double p[]; }
+ * (p: one probability per label), for ai_choose. OPTIONS is an X-macro of
+ * X(label, "description") entries. Labels become bare enum constants, so two choices
+ * cannot share a label (the compiler reports the clash).
+ *
+ *   #define TEAM(X) X(bug, "Software defects") X(billing, "Payments and refunds")
+ *   AI_CHOICE(team, "Which team should handle this?", TEAM)
+ */
 #define AI_CHOICE(name, question, OPTIONS)                                    \
     enum name { OPTIONS(AI__ENUM) name##__count };                            \
     struct name##_answer { int ok; enum name value; double confidence;        \
@@ -294,10 +367,23 @@ typedef struct { const char *name; const char *desc; } ai_label;
     }
 
 /* ---- decisions: place on an ordered scale ------------------------------ */
-/* #define URGENCY(X) X(routine, "Can wait a week") X(soon, "...") X(urgent, "...")
- * AI_SCALE(urgency, "How urgent is this?", URGENCY)
- *   -> struct urgency_answer { ok, level, score, confidence }   (lowest first) */
 
+/* AI_SCALE(name, question, LEVELS) defines enum name, one constant per level from lowest
+ * to highest, and struct name_answer { int ok; enum name level; double score; double
+ * confidence; }, for ai_rate. LEVELS is an X-macro of X(level, "description") entries.
+ * score is the model's probability-weighted position, 0 (lowest level) to n-1; level is
+ * score rounded to the nearest level.
+ *
+ * How many levels a scale may have depends on the decision model, and models do not
+ * advertise it: autotrust-jev (the default) needs exactly 6. A count the model rejects
+ * fails with AI_EHTTP and the model's own message in ai_error(), e.g. 'question
+ * "urgency": score criteria must contain exactly 6 levels'.
+ *
+ *   #define URGENCY(X) X(none, "No action") X(someday, "Within a month")              \
+ *                      X(routine, "Within a week") X(soon, "This week")               \
+ *                      X(urgent, "Today") X(critical, "Many customers, now")
+ *   AI_SCALE(urgency, "How urgent is this?", URGENCY)
+ */
 #define AI_SCALE(name, question, LEVELS)                                      \
     enum name { LEVELS(AI__ENUM) name##__count };                             \
     struct name##_answer { int ok; enum name level; double score;             \
@@ -316,12 +402,27 @@ typedef struct { const char *name; const char *desc; } ai_label;
 
 #define AI__CHECK(p, T) ((void)sizeof((p) == (struct T *)0), (void *)(p))
 
+/* ai_fill(&s, T, fmt, ...): ask the LLM to fill s, a struct T made by AI_STRUCT, for the
+ * printf-style task fmt. The struct's JSON schema is appended to the prompt; a reply
+ * that does not fit is retried (o->retries, default 2 extra attempts). 0 on success, -1
+ * on failure with s zeroed. Strings in s are library memory until ai_reset(); never free
+ * them. ai_fill_with(o, &s, T, fmt, ...) takes per-call options. */
 #define ai_fill(out, T, ...) \
     ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__)
 #define ai_fill_with(o, out, T, ...) \
     ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__)
+
+/* ai_choose(T, state): ask the decision model which label of the choice T (AI_CHOICE)
+ * fits state; returns struct T_answer (struct team_answer for T = team): .ok (0 on
+ * failure), .value, .confidence and .p[label]. A state that starts with '{' and parses as JSON is sent as JSON.
+ * ai_choose_with(o, T, state) takes options (model, images, fresh). */
 #define ai_choose(T, state)             T##__choose((state), NULL)
 #define ai_choose_with(o, T, state)     T##__choose((state), (o))
+
+/* ai_rate(T, state): place state on the scale T (AI_SCALE); returns struct T_answer:
+ * .ok (0 on failure), .score (the model's score), .level (score rounded to the nearest
+ * level and clamped to the scale) and .confidence. ai_rate_with(o, T, state) takes
+ * options (model, images, fresh). */
 #define ai_rate(T, state)               T##__rate((state), NULL)
 #define ai_rate_with(o, T, state)       T##__rate((state), (o))
 

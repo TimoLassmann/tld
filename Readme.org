@@ -53,6 +53,22 @@ make
 make test
 #+end_src
 
+* Documentation
+
+The manuals are generated from the header comments by =tools/tlddoc.c=:
+
+- [[file:docs/tld.md][docs/tld.md]]: every public function, macro and type of =tld.h=, module by module, with an index
+- [[file:docs/tld_ai.md][docs/tld_ai.md]]: the same for =tld_ai.h=
+
+After changing a comment in =src/= or =tld_ai.h=, regenerate =tld.h= and the manuals:
+
+#+begin_src bash :eval never
+uv run python tools/amalgamate.py
+cmake --build build --target docs
+#+end_src
+
+The test =docs-current= fails while a manual is out of date or a public symbol has no doc comment. The comment convention is in [[file:docs/README.md][docs/README.md]].
+
 * Terminal output
 
 Everything goes to stderr, so stdout holds only a program's results. Colour and symbols appear only when stderr is a terminal and =NO_COLOR= is unset. =TLD_VERBOSE= sets how much is shown: =0= errors only, =1= normal (default), =2= also =DEBUG_MSG=.

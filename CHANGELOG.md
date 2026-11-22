@@ -52,6 +52,7 @@ here fix bugs.
 - template: a false IF no longer renders an enclosing IF's ELSE. IF nesting deeper than 512 fails, and parse errors no longer leak.
 
 ### Added
+- docs: `docs/tld.md` and `docs/tld_ai.md`, generated from the header comments by `tools/tlddoc.c` (`cmake --build build --target docs`). The `docs-current` test fails when the manual is stale or a public symbol has no comment. Every public symbol now has a doc comment (comments only; the compiled code is unchanged).
 - CI: GitHub Actions builds with `-Wall -Wextra -Werror` and runs every test on Ubuntu x86-64 (gcc, clang), Ubuntu arm64 (gcc), macOS (clang) and Alpine (musl), plus an ASan+UBSan job (with leak checking).
 - core: rich terminal output on stderr: `SECTION_MSG`, `KV_MSG`, `OK_MSG`, `DEBUG_MSG` and `tld_progress()`, plus `tld_verbosity()`/`tld_term_color()`. Colour only when stderr is a terminal and `NO_COLOR` is unset; `TLD_VERBOSE` = 0 (errors only), 1 (default) or 2 (debug). WARNING/ERROR tags are coloured on a terminal.
 - tld_ai.h: `ai_last()` also reports `model` and `host`; at `TLD_VERBOSE=2` every request and its outcome is logged. `examples/hello.c` shows prompt, host, model, time and tokens on stderr and only the answer on stdout.

@@ -62,6 +62,8 @@ add_subdirectory(src)
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   include(CTest)
   add_subdirectory(tests)
+  # tlddoc and the docs target (the manuals in docs/)
+  add_subdirectory(tools)
 endif()
 
   
