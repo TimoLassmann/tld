@@ -1,6 +1,7 @@
 /* core: return codes (OK/FAIL), the error-handling macros RUN, ASSERT and ERROR_MSG that
  * jump to a local ERROR label, timestamped log messages and rich terminal output on
- * stderr. Every other module builds on these. */
+ * stderr. No message changes errno, so code can log and then report it. Every other
+ * module builds on these. */
 #ifndef TLD_CORE_H
 #define TLD_CORE_H
 

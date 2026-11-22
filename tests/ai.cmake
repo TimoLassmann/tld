@@ -20,9 +20,10 @@ ai_program(ai-special ai/special.c)
 ai_program(ai-defaults ai/defaults.c)
 ai_program(ai-arena ai/arena.c)
 add_test(NAME ai-arena COMMAND ai-arena)
+ai_program(oom-ai ${CMAKE_CURRENT_SOURCE_DIR}/oom/oom_ai.c)
 
 set(AI_RUN sh ${CMAKE_CURRENT_SOURCE_DIR}/ai/run.sh)
-foreach(group plumbing noserver http json cache defaults)
+foreach(group plumbing noserver http json cache defaults oom)
   add_test(NAME ai-${group}
     COMMAND ${AI_RUN} ${group} $<TARGET_FILE_DIR:ai-triage>
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

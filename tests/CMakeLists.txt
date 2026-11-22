@@ -7,6 +7,7 @@ project(tld-tests LANGUAGES C)
 #   regression/   regress-<name>     tests written when a bug was fixed
 #   integration/  int-*, single-header*   whole-library and packaging tests
 #   ai/           ai-*               tld_ai.h against a mock Ollama (ai.cmake)
+#   oom/          oom-tld, oom-ai    every allocation fails in turn (oom-ai runs in ai.cmake)
 # Every program includes tests/test.h (-h/-v) and with no arguments runs its checks.
 
 find_program(MEMORYCHECK_COMMAND valgrind NO_CACHE)
@@ -89,6 +90,15 @@ else()
       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
   endif()
 endif()
+
+# oom/: every allocation of each scenario fails in turn (built from ./tld.h; leaks, crashes
+# and failures reported as success fail the test). Writes oom-NAME.err here on failure.
+add_executable(oom-tld oom/oom_tld.c)
+target_include_directories(oom-tld PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+set_target_properties(oom-tld PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+target_link_libraries(oom-tld PRIVATE m Threads::Threads)
+add_test(NAME oom-tld COMMAND oom-tld WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set_tests_properties(oom-tld PROPERTIES TIMEOUT 600)
 
 # The compiler rejects the mistakes the headers are designed to catch (text as a
 # printf format, free() on library memory, writable pointers into a hash, gfree(&p)).

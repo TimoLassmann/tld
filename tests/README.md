@@ -6,6 +6,7 @@
 | `regression/`  | `regress-<name>`                    | tests written when a bug was fixed (`regress_<name>.c`)     |
 | `integration/` | `int-kde`, `int-noise`, `single-header`, `single-header-strict`, `single-header-current` | several modules together; the single-header `./tld.h` built in two translation units, in strict C11, and checked to be current with `src/` |
 | `ai/`          | `ai-*`                              | `tld_ai.h` against `ai/mock_ollama.py`, driven by `ai/run.sh`; never contacts a real Ollama |
+| `oom/`         | `oom-tld`, `ai-oom`                 | every allocation of each scenario fails in turn; a leak, a crash or a failure reported as success fails the test (`oom-tld -h`; `ai-oom` runs `oom-ai` through `ai/run.sh oom`) |
 
 `test.h` is the small command-line helper every test program uses (not part of the
 library). `CMakeLists.txt` builds all programs into `build/tests/`; `ai.cmake` holds the

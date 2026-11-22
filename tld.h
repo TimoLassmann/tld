@@ -109,7 +109,8 @@
 /* ---- src/core/tld-core.h ---- */
 /* core: return codes (OK/FAIL), the error-handling macros RUN, ASSERT and ERROR_MSG that
  * jump to a local ERROR label, timestamped log messages and rich terminal output on
- * stderr. Every other module builds on these. */
+ * stderr. No message changes errno, so code can log and then report it. Every other
+ * module builds on these. */
 #ifndef TLD_CORE_H
 #define TLD_CORE_H
 
@@ -1439,6 +1440,7 @@ tld_external void tld_thread_pool_free(tld_thread_pool *p);
 
 /* ---- src/core/tld-core.c ---- */
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -1457,9 +1459,11 @@ tld_internal int get_time(char* time_ptr, int size);
 
 void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
 {
+        int saved_errno = errno;
         char time_string[BUFSIZ];
         int col = (f_ptr == stderr) && tld_term_color();
         if(type != MESSAGE_TYPE_ERROR && tld_verbosity() < 1){
+                errno = saved_errno;
                 return;
         }
 
@@ -1496,6 +1500,7 @@ void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *form
         }
 
         fflush(f_ptr);
+        errno = saved_errno;
 }
 
 int get_time(char* time_ptr, int size)
@@ -1566,17 +1571,20 @@ int tld_term_color(void)
 
 void tld_section(const char *format, ...)
 {
+        int saved_errno = errno;
         char title[256];
         va_list argp;
         int len;
         int col = tld_term_color();
         if(tld_verbosity() < 1){
+                errno = saved_errno;
                 return;
         }
         va_start(argp, format);
         len = vsnprintf(title, sizeof title, format, argp);
         va_end(argp);
         if(len < 0){
+                errno = saved_errno;
                 return;
         }
         if(len >= (int)sizeof title){
@@ -1592,12 +1600,15 @@ void tld_section(const char *format, ...)
                 fprintf(stderr, "== %s ==\n", title);
         }
         fflush(stderr);
+        errno = saved_errno;
 }
 
 void tld_kv(const char *key, const char *format, ...)
 {
+        int saved_errno = errno;
         va_list argp;
         if(tld_verbosity() < 1){
+                errno = saved_errno;
                 return;
         }
         if(tld_term_color()){
@@ -1610,12 +1621,15 @@ void tld_kv(const char *key, const char *format, ...)
         va_end(argp);
         fputc('\n', stderr);
         fflush(stderr);
+        errno = saved_errno;
 }
 
 void tld_ok(const char *format, ...)
 {
+        int saved_errno = errno;
         va_list argp;
         if(tld_verbosity() < 1){
+                errno = saved_errno;
                 return;
         }
         fputs(tld_term_color() ? " \033[1;32m✓\033[0m " : " OK ", stderr);
@@ -1624,13 +1638,16 @@ void tld_ok(const char *format, ...)
         va_end(argp);
         fputc('\n', stderr);
         fflush(stderr);
+        errno = saved_errno;
 }
 
 void tld_debug(const char *format, ...)
 {
+        int saved_errno = errno;
         va_list argp;
         int col;
         if(tld_verbosity() < 2){
+                errno = saved_errno;
                 return;
         }
         col = tld_term_color();
@@ -1640,14 +1657,17 @@ void tld_debug(const char *format, ...)
         va_end(argp);
         fputs(col ? "\033[0m\n" : "\n", stderr);
         fflush(stderr);
+        errno = saved_errno;
 }
 
 void tld_progress(long done, long total, const char *label)
 {
+        int saved_errno = errno;
         static int last = -1;
         int pct;
         int fill;
         if(tld_verbosity() < 1 || total <= 0){
+                errno = saved_errno;
                 return;
         }
         if(done < 0){
@@ -1661,9 +1681,11 @@ void tld_progress(long done, long total, const char *label)
                 if(done == total){
                         fprintf(stderr, "   %s %ld/%ld done\n", label ? label : "", done, total);
                 }
+                errno = saved_errno;
                 return;
         }
         if(pct == last && done != total){
+                errno = saved_errno;
                 return;
         }
         last = (done == total) ? -1 : pct;
@@ -1677,6 +1699,7 @@ void tld_progress(long done, long total, const char *label)
                 fputc('\n', stderr);
         }
         fflush(stderr);
+        errno = saved_errno;
 }
 /* ---- src/alloc/tld-alloc.c ---- */
 #include <stdlib.h>

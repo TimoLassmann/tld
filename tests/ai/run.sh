@@ -7,7 +7,7 @@
 # Ollama: every program gets TLD_AI_HOST pointing at a mock on a random free port, or at a
 # closed port.
 #
-# GROUP: plumbing noserver http json cache defaults sanitize tsan all
+# GROUP: plumbing noserver http json cache defaults sanitize tsan oom all
 set -u
 GROUP=${1:-all}
 B=${2:-build/tests}
@@ -353,9 +353,23 @@ group_tsan() {
     [ "$n" -eq 0 ] || head -80 "$T/tsan.txt" "$T/tsan2.txt"
 }
 
+group_oom() { # allocation-failure sweep over tld_ai.h (tests/oom/oom_ai.c)
+    start_mock oom 0.93 --gen 0
+    bin=$(cd "$B" && pwd)
+    mkdir -p "$T/oom"
+    (cd "$T/oom" && TLD_AI_HOST=$HOST TLD_AI_DB=$T/oom.cache TLD_AI_REVIEWS=$T/oom-reviews \
+        TLD_AI_FRESH=1 TLD_AI_TIMEOUT=20 ASAN_OPTIONS=detect_leaks=0 limit 900 "$bin/oom-ai") \
+        2>"$T/oom.txt"; rc=$?
+    check "allocation-failure sweep over tld_ai.h ($(reqs oom) mock requests)" $rc "rc=$rc"
+    if [ $rc != 0 ]; then
+        grep -v '^ OK ' "$T/oom.txt" | head -40
+        for f in "$T"/oom/oom-*.err; do [ -f "$f" ] && { echo "---- $f"; head -60 "$f"; }; done
+    fi
+}
+
 case $GROUP in
 all) for g in plumbing noserver http json cache defaults; do group_$g; done ;;
-plumbing | noserver | http | json | cache | defaults | sanitize | tsan) group_$GROUP ;;
+plumbing | noserver | http | json | cache | defaults | sanitize | tsan | oom) group_$GROUP ;;
 *) echo "unknown group $GROUP"; exit 2 ;;
 esac
 

@@ -17,6 +17,7 @@ ap.add_argument("port", type=int)
 ap.add_argument("conf", type=float, nargs="?", default=0.93)
 ap.add_argument("--chunked", action="store_true", help="send bodies chunked")
 ap.add_argument("--slow", type=float, default=0, help="seconds before each model reply")
+ap.add_argument("--gen", type=float, default=0.2, help="seconds a /api/chat reply takes (generation)")
 ap.add_argument("--fail-first", default="", help="PATH:N, first N calls to PATH get 500")
 args = ap.parse_args()
 
@@ -122,7 +123,7 @@ class H(BaseHTTPRequestHandler):
             self.reply({"model": req["model"], "embeddings": [vec(t) for t in texts],
                         "prompt_eval_count": 5 * len(texts)})
         elif self.path == "/api/chat":
-            time.sleep(0.2)  # stand-in for generation time
+            time.sleep(args.gen)  # stand-in for generation time
             fmt = req.get("format")
             if isinstance(fmt, dict):
                 with lock:

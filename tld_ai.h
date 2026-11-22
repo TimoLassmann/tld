@@ -752,7 +752,12 @@ static int ai__parse_buf(tld_strbuf *b, tld_json_obj **out) {
     while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t') p++;
     if (*p != '{') return -1;
     *out = NULL;
-    return tld_json_parse(b, out) == OK && *out ? 0 : -1;
+    errno = 0;
+    if (tld_json_parse(b, out) == OK && *out) return 0;
+    /* a failed malloc sets ENOMEM and nothing else in the parser does: out of memory is
+       not "not JSON" */
+    if (errno == ENOMEM) return ai__nomem();
+    return -1;
 }
 
 static int ai__parse(const char *s, tld_json_obj **out) {
@@ -1168,6 +1173,7 @@ static int ai__cache_line(tld_strbuf *line, int *skipped) {
     if (ai__parse_buf(line, &o) || !(k = ai__str(o, "key")) ||
         tld_json_get_obj(o, "response", &resp) != OK) {
         if (o) tld_json_obj_free(o);
+        if (ai__t_st == AI_ENOMEM) return -1;
         (*skipped)++;
         return 0;
     }
@@ -1587,8 +1593,9 @@ static int ai__get(const char *path, tld_json_obj **out) {
     if (ai__http("GET", path, NULL, AI__MIN(ai__c->timeout, 30.0), &b)) return -1;
     int rc = ai__parse_buf(b, out);
     tld_strbuf_free(b);
-    if (rc) return ai__fail(AI_EPARSE, "GET %s: reply is not a JSON object", path);
-    return 0;
+    if (rc && ai__t_st != AI_ENOMEM)
+        return ai__fail(AI_EPARSE, "GET %s: reply is not a JSON object", path);
+    return rc ? -1 : 0;
 }
 
 /* The server is probed with GET /api/version on the first live call, and again at
@@ -1839,6 +1846,8 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
     memset(&ai__t_last, 0, sizeof ai__t_last);
     ai__t_last.model = ai__kdup(model);
     ai__t_last.host = ai__kdup(ai__c->str[AI__S_HOST]);
+    if ((model && !ai__t_last.model) || (ai__c->str[AI__S_HOST] && !ai__t_last.host))
+        return NULL; /* out of memory, status set */
     DEBUG_MSG("ai: %s %s @ %s", ep, model, ai__c->str[AI__S_HOST]);
     if (ai__host_ok() || ai__server_up()) return NULL;
     if (ai__c->cache_on && ai__cache_open()) return NULL;
@@ -1886,7 +1895,9 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
     int rc = ai__http("POST", ep, TLD_STR(body), ai__c->timeout, &rb);
     ai__t_last.seconds = ai__now() - t0;
     if (!rc && ai__parse_buf(rb, &resp))
-        rc = ai__fail(AI_EPARSE, "POST %s: reply is not a JSON object", ep);
+        rc = ai__t_st == AI_ENOMEM
+                 ? -1
+                 : ai__fail(AI_EPARSE, "POST %s: reply is not a JSON object", ep);
     tld_strbuf_free(rb);
     tld_strbuf_free(body);
     if (rc) {

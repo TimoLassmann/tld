@@ -37,6 +37,8 @@ changes listed here fix bugs.
   past the end of the block. Sizes are computed in size_t; a buffer holds at most
   INT32_MAX - 1 bytes and an append past that fails, leaving the buffer unchanged.
 - tld_ai.h: running out of memory while writing a cache entry no longer frees the caller's request or the reply (double free or use after free in `ai_text`, `ai_text_with`, `ai_choose`, `ai_rate`, `ai_yesno`, `ai_fill` and `ai_embed_all`). The entry is now written as text and the request and reply are never attached to it. The warning then says "cannot write a cache entry: out of memory"; it said "cannot append to cache : Inappropriate ioctl for device" (no path, unrelated errno). A failed append names the file and its own error.
+- core: no message (LOG_MSG, WARNING_MSG, ERROR_MSG, SECTION_MSG, KV_MSG, OK_MSG, DEBUG_MSG, tld_progress) changes errno. They did whenever stderr was not a terminal (isatty set ENOTTY), so code that logged and then reported `strerror(errno)` printed "Inappropriate ioctl for device".
+- tld_ai.h: running out of memory while parsing JSON is reported as AI_ENOMEM; it was taken for "not JSON", so a JSON state for `ai_yesno`/`ai_choose`/`ai_rate` was quietly sent as a string, a cache line was skipped as damaged, and a reply was called "not a JSON object". Running out of memory while recording `ai_last()` fails the call; it went on and `ai_last()` had no model or host.
 - tld_ai.h: the chunked-reply decoder could wrap a size check on 32-bit systems and read past
   the reply.
 
@@ -48,6 +50,10 @@ changes listed here fix bugs.
 - tests/fuzz: libFuzzer targets for JSON, templates and tld_ai.h replies (decoding and the
   whole HTTP exchange), with seeds; `-DTLD_FUZZ=ON`, run with `tests/fuzz/run.sh`.
 - CI: MemorySanitizer, ThreadSanitizer and 60 s per fuzz target on every push.
+- tests/oom: `oom-tld` and `ai-oom` fail every allocation of each scenario in turn (14 tld.h
+  scenarios, 8 tld_ai.h scenarios against the mock) and fail on a leak, a crash, or a
+  failure reported as success. `oom-tld NAME:INDEX` reruns one index; `OOM_TRACE=1` prints
+  the failing allocation's stack in an ASan build. The mock takes `--gen SECONDS`.
 - unit-alloc allocates 64 MB instead of 4.7 GB, so it runs under the sanitizers;
   tests/ai/compile.sh uses python3 instead of perl.
 
