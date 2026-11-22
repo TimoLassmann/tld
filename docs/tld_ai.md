@@ -22,11 +22,11 @@ Every public symbol of tld_ai.h is documented below, module by module, with its 
 - [Environment](#sec-environment)
 - [Defaults set in code](#sec-defaults-set-in-code)
 - [Errors](#sec-errors)
-- [Memory](#sec-memory)
+- [Server memory](#sec-server-memory)
 - [Cloud models](#sec-cloud-models)
 - [Cache and replay](#sec-cache-and-replay)
 - [Human review](#sec-human-review)
-- [Returned memory](#sec-returned-memory)
+- [Memory](#sec-memory)
 - [Threads](#sec-threads)
 - [Licence](#sec-licence)
 - [general](#mod-general): 1 symbol
@@ -126,11 +126,14 @@ Failure values: NULL, -1, .x == NULL or .ok == 0, as documented per call. Nothin
 exits or aborts. ai_status() gives this thread's last code (AI_OK, AI_ENOSERVER,
 AI_EHTTP, ...) and ai_error() the message. Every call that needs the server probes
 GET /api/version first; with no server every such call fails fast with
-AI_ENOSERVER, and the probe is retried at most every 5 s.
+AI_ENOSERVER, and the probe is retried at most every 5 s. Failures print nothing;
+warnings (an ignored environment value, a cache line that cannot be read or
+written, too many kept results) and the review notices are tld.h WARNING and LOG
+lines on stderr, so TLD_VERBOSE=0 silences them.
 
-<a id="sec-memory"></a>
+<a id="sec-server-memory"></a>
 
-## Memory
+## Server memory
 
 On a machine that can hold only one model, start Ollama with
 OLLAMA_MAX_LOADED_MODELS=1; the server then swaps models safely between requests.
@@ -167,9 +170,9 @@ ai_review(what, payload) writes TLD_AI_REVIEWS/<key>.json =
 ai_status() == AI_OK) while the review is open. A person edits the file, sets
 "status" to "done" and "answer" to a string; the next run returns that answer.
 
-<a id="sec-returned-memory"></a>
+<a id="sec-memory"></a>
 
-## Returned memory
+## Memory
 
 Strings, vectors and the strings in an AI_STRUCT belong to the library: they are
 const, so the compiler warns when one is passed to free(). They stay valid until
@@ -341,8 +344,8 @@ http://, empty name, number <= 0) changes nothing. Calls in flight keep their se
 ### `ai_text`, `ai_text_with`
 
 ```c
-const char *ai_text(const char *fmt, ...) AI__PRINTF(1, 2);
-const char *ai_text_with(const ai_opts *o, const char *fmt, ...) AI__PRINTF(2, 3);
+const char *ai_text(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+const char *ai_text_with(const ai_opts *o, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 ```
 
 Text from the LLM (TLD_AI_LLM, or o->model) for the printf-style prompt fmt. The
@@ -534,9 +537,9 @@ AI_SCALE(urgency, "How urgent is this?", URGENCY)
 
 ```c
 #define ai_fill(out, T, ...) \
-    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
+    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
 #define ai_fill_with(o, out, T, ...) \
-    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
+    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
 ```
 
 ai_fill(&s, T, fmt, ...): ask the LLM to fill s, a struct T made by AI_STRUCT, for the
@@ -652,7 +655,7 @@ Details of the last request this thread sent (or tried to send) to the server.
 ### `ai_fmt`
 
 ```c
-const char *ai_fmt(const char *fmt, ...) AI__PRINTF(1, 2);
+const char *ai_fmt(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 ```
 
 sprintf into library memory: the formatted string, valid until ai_reset() (never free

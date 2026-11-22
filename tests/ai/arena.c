@@ -37,7 +37,7 @@ static int warnings_during(int n)
 int main(int argc, char *argv[])
 {
         test_init_keep(&argc, argv, "",
-                       "Checks the RETURNED MEMORY warning of tld_ai.h: one warning when 100000\n"
+                       "Checks the MEMORY warning of tld_ai.h: one warning when 100000\n"
                        "results are kept, none before, and a fresh count after ai_reset().");
         int w = warnings_during(99999);
         KV_MSG("warnings for 99999 kept", "%d", w);

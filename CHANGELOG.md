@@ -131,6 +131,17 @@ tld.h to this. Old → new:
   helper per JSON container, `tld_json_val_free` through the clear routine, and a timer
   without the hand-written timeval arithmetic.
 
+### tld_ai.h cleanups
+
+- Messages: tld_ai.h's warnings (an ignored environment value, a damaged or unwritable
+  cache line, too many kept results) are tld.h `WARNING_MSG` lines and the review notices
+  `LOG_MSG` lines, all prefixed `tld_ai:`, so `TLD_VERBOSE=0` silences them. The
+  undocumented `AI_LOG` override hook and the `ai:` prefix are gone.
+- tld_ai.h uses tld.h's `TLD__LITERAL`, `TLD_MIN` and plain format attributes instead of
+  its own copies (`AI__LITERAL`, `AI__MIN`, `AI__PRINTF`).
+- Header sections: MEMORY now means who owns returned values, as in tld.h (it was
+  RETURNED MEMORY); the note on model RAM on the server is SERVER MEMORY.
+
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,
   OK_MSG, DEBUG_MSG) requires a string-literal format, and the format is checked against the

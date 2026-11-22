@@ -72,9 +72,12 @@
  *   exits or aborts. ai_status() gives this thread's last code (AI_OK, AI_ENOSERVER,
  *   AI_EHTTP, ...) and ai_error() the message. Every call that needs the server probes
  *   GET /api/version first; with no server every such call fails fast with
- *   AI_ENOSERVER, and the probe is retried at most every 5 s.
+ *   AI_ENOSERVER, and the probe is retried at most every 5 s. Failures print nothing;
+ *   warnings (an ignored environment value, a cache line that cannot be read or
+ *   written, too many kept results) and the review notices are tld.h WARNING and LOG
+ *   lines on stderr, so TLD_VERBOSE=0 silences them.
  *
- * MEMORY
+ * SERVER MEMORY
  *   On a machine that can hold only one model, start Ollama with
  *   OLLAMA_MAX_LOADED_MODELS=1; the server then swaps models safely between requests.
  *
@@ -101,7 +104,7 @@
  *   ai_status() == AI_OK) while the review is open. A person edits the file, sets
  *   "status" to "done" and "answer" to a string; the next run returns that answer.
  *
- * RETURNED MEMORY
+ * MEMORY
  *   Strings, vectors and the strings in an AI_STRUCT belong to the library: they are
  *   const, so the compiler warns when one is passed to free(). They stay valid until
  *   ai_reset() or exit, which means memory grows with every call. A program that calls
@@ -143,18 +146,10 @@
 #define AI_VERSION "0.3.0"
 
 /* Prompts and ai_fmt take printf formats. The compiler checks the arguments, and the
- * macros below check that the format is a string literal: a compile error at
- * AI__LITERAL means text was passed as the format, which would read or write random
- * memory if it contained a %. Pass text with "%s": ai_text("%s", prompt). */
-#define AI__LITERAL_FIRST(f, ...) f
-#define AI__LITERAL(...) ((void)sizeof("" AI__LITERAL_FIRST(__VA_ARGS__, ~)))
-
-/* printf-style checking of format arguments (gcc, clang). */
-#if defined(__GNUC__) || defined(__clang__)
-#define AI__PRINTF(f, a) __attribute__((format(printf, f, a)))
-#else
-#define AI__PRINTF(f, a)
-#endif
+ * macros below check that the format is a string literal (TLD__LITERAL, as in tld.h's
+ * message macros): a compile error there means text was passed as the format, which
+ * would read or write random memory if it contained a %. Pass text with "%s":
+ * ai_text("%s", prompt). */
 
 #ifdef __cplusplus
 extern "C" {
@@ -244,8 +239,8 @@ int ai_defaults(const ai_config *c);
 /* Text from the LLM (TLD_AI_LLM, or o->model) for the printf-style prompt fmt. The
  * string is library memory, valid until ai_reset() (never free it); NULL on failure.
  * ai_text_with takes per-call options (o may be NULL). */
-const char *ai_text(const char *fmt, ...) AI__PRINTF(1, 2);
-const char *ai_text_with(const ai_opts *o, const char *fmt, ...) AI__PRINTF(2, 3);
+const char *ai_text(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+const char *ai_text_with(const ai_opts *o, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
 /* Probability in [0, 1] that the answer to question about state is yes, from the
  * decision model (TLD_AI_DECIDER, or o->model); -1 on failure. A state that starts
@@ -386,9 +381,9 @@ typedef struct { const char *name; const char *desc; } ai_label;
  * on failure with s zeroed. Strings in s are library memory until ai_reset(); never free
  * them. ai_fill_with(o, &s, T, fmt, ...) takes per-call options. */
 #define ai_fill(out, T, ...) \
-    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
+    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
 #define ai_fill_with(o, out, T, ...) \
-    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
+    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
 
 /* ai_choose(T, state): ask the decision model which label of the choice T (AI_CHOICE)
  * fits state; returns struct T_answer (struct team_answer for T = team): .ok (0 on
@@ -439,13 +434,13 @@ const ai_info *ai_last(void);
 
 /* sprintf into library memory: the formatted string, valid until ai_reset() (never free
  * it); NULL on failure. */
-const char *ai_fmt(const char *fmt, ...) AI__PRINTF(1, 2);
+const char *ai_fmt(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 /* ai_text, ai_text_with and ai_fmt are also macros that require a literal format (see
- * AI__LITERAL); (ai_text)(fmt, ...) calls the function itself. */
-#define ai_text(...) (AI__LITERAL(__VA_ARGS__), (ai_text)(__VA_ARGS__))
-#define ai_text_with(o, ...) (AI__LITERAL(__VA_ARGS__), (ai_text_with)((o), __VA_ARGS__))
-#define ai_fmt(...) (AI__LITERAL(__VA_ARGS__), (ai_fmt)(__VA_ARGS__))
+ * TLD__LITERAL); (ai_text)(fmt, ...) calls the function itself. */
+#define ai_text(...) (TLD__LITERAL(__VA_ARGS__), (ai_text)(__VA_ARGS__))
+#define ai_text_with(o, ...) (TLD__LITERAL(__VA_ARGS__), (ai_text_with)((o), __VA_ARGS__))
+#define ai_fmt(...) (TLD__LITERAL(__VA_ARGS__), (ai_fmt)(__VA_ARGS__))
 
 /* Free every string and vector the library has returned, in all threads. Call it only
  * when no thread still uses them; the library keeps working afterwards. */
@@ -459,7 +454,7 @@ void        ai_reset(void);
 void ai_parallel(int n, int threads, void (*fn)(int i, void *ctx), void *ctx);
 
 /* internals used by the macros */
-int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...) AI__PRINTF(4, 5);
+int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
 int ai__choose(const char *name, const char *question, const ai_label *L, int n,
                const char *state, const ai_opts *o, double *confidence, double *p);
 int ai__rate(const char *name, const char *question, const ai_label *L, int n,
@@ -532,7 +527,6 @@ extern const char *gai_strerror(int);
 #define MSG_NOSIGNAL 0
 #endif
 
-#define AI__MIN(a, b) ((a) < (b) ? (a) : (b))
 #define AI__REPROBE 5.0          /* seconds between probes while the server is down */
 #define AI__CONNECT_MAX 5.0      /* connect timeout cap, seconds */
 #define AI__MAX_BODY (512 << 20) /* largest reply accepted, bytes */
@@ -640,9 +634,9 @@ static void *ai__keep(void *p) {
     int warn = ai__arena_n == AI__KEEP_WARN;
     pthread_mutex_unlock(&ai__mem_mu);
     if (warn)
-        fprintf(stderr, "tld_ai: %d results are kept in memory; call ai_reset() when they "
-                        "are no longer needed (see RETURNED MEMORY in tld_ai.h)\n",
-                AI__KEEP_WARN);
+        WARNING_MSG("tld_ai: %d results are kept in memory; call ai_reset() when they "
+                    "are no longer needed (see MEMORY in tld_ai.h)",
+                    AI__KEEP_WARN);
     return p;
 }
 
@@ -764,12 +758,6 @@ static long ai__long(tld_json_obj *o, const char *path) {
  * Each public call holds a reference to the one in force when it started, so
  * ai_defaults() never changes a call in flight; a replaced ai__conf is freed when its
  * last reference goes. One mutex, ai__cfg_mu, guards all of it. */
-
-#ifndef AI_LOG /* level: 0 info, 1 warning, 2 error */
-#define AI_LOG(level, msg)                                                             \
-    fprintf(stderr, "ai: %s%s\n", (level) >= 2 ? "error: " : (level) == 1 ? "warning: " : "", \
-            (msg))
-#endif
 
 enum { AI__S_HOST, AI__S_LLM, AI__S_DECIDER, AI__S_EMBEDDER, AI__S_DB, AI__S_REVIEWS,
        AI__S_NUM_CTX, AI__S_TIMEOUT, AI__S_FRESH, AI__S_DIMS };
@@ -899,9 +887,7 @@ static void ai__layer_free(ai__layer *l) {
 }
 
 static void ai__env_ignored(const char *name, const char *v, const char *want) {
-    char msg[600];
-    snprintf(msg, sizeof msg, "ignoring %s=%.400s: expected %s", name, v, want);
-    AI_LOG(1, msg);
+    WARNING_MSG("tld_ai: ignoring %s=%.400s: expected %s", name, v, want);
 }
 
 
@@ -973,12 +959,12 @@ static void ai__conf_host(ai__conf *c) {
             return;
         }
         hl = (size_t)(e - a - 1);
-        memcpy(c->name, a + 1, AI__MIN(hl, sizeof c->name - 1));
+        memcpy(c->name, a + 1, TLD_MIN(hl, sizeof c->name - 1));
         if (e[1] == ':') port = e + 2;
     } else {
         const char *col = strrchr(a, ':');
         hl = col ? (size_t)(col - a) : strlen(a);
-        memcpy(c->name, a, AI__MIN(hl, sizeof c->name - 1));
+        memcpy(c->name, a, TLD_MIN(hl, sizeof c->name - 1));
         if (col) port = col + 1;
     }
     ai__setstr(c->port, sizeof c->port, port && *port ? port : "11434");
@@ -1188,11 +1174,7 @@ static int ai__cache_load(const char *path) {
     if (!rc) rc = ai__cache_line(line, &skipped); /* last line without '\n' */
     tld_strbuf_free(line);
     fclose(f);
-    if (!rc && skipped) {
-        char msg[1200];
-        snprintf(msg, sizeof msg, "skipped %d damaged line(s) in cache %s", skipped, path);
-        AI_LOG(1, msg);
-    }
+    if (!rc && skipped) WARNING_MSG("tld_ai: skipped %d damaged line(s) in cache %s", skipped, path);
     return rc;
 }
 
@@ -1414,7 +1396,7 @@ static int ai__http(const char *method, const char *path, const char *body,
     if (ai__host_ok()) return -1;
     double t0 = ai__now(), deadline = t0 + timeout;
     char why[256];
-    int fd = ai__connect(AI__MIN(deadline, t0 + AI__CONNECT_MAX), why, sizeof why);
+    int fd = ai__connect(TLD_MIN(deadline, t0 + AI__CONNECT_MAX), why, sizeof why);
     if (fd < 0) return ai__noserver(why);
 
     tld_strbuf *req = NULL, *raw = NULL, *res = NULL;
@@ -1558,7 +1540,7 @@ done:
 static int ai__get(const char *path, tld_json_obj **out) {
     tld_strbuf *b = NULL;
     *out = NULL;
-    if (ai__http("GET", path, NULL, AI__MIN(ai__c->timeout, 30.0), &b)) return -1;
+    if (ai__http("GET", path, NULL, TLD_MIN(ai__c->timeout, 30.0), &b)) return -1;
     int rc = ai__parse_buf(b, out);
     tld_strbuf_free(b);
     if (rc && ai__t_st != AI_ENOMEM)
@@ -1583,7 +1565,7 @@ static int ai__server_up(void) {
                         "TLD_AI_HOST)",
                         AI__HOST(ai__c), why);
     tld_strbuf *b = NULL;
-    if (ai__http("GET", "/api/version", NULL, AI__MIN(ai__c->timeout, AI__CONNECT_MAX),
+    if (ai__http("GET", "/api/version", NULL, TLD_MIN(ai__c->timeout, AI__CONNECT_MAX),
                  &b)) {
         if (ai__t_st == AI_ENOSERVER) return -1;
         char msg[512];
@@ -1784,7 +1766,7 @@ static void ai__cache_store(const char *key, const char *ep, const char *model,
     char msg[512];
     ai__setstr(msg, sizeof msg, ai__t_err);
     if (ai__cache_entry(&line, key, ep, model, digest, req, resp, seconds, created)) {
-        AI_LOG(1, "cannot write a cache entry: out of memory");
+        WARNING_MSG("tld_ai: cannot write a cache entry: out of memory");
     } else {
         char path[1024] = "";
         int rc = 0, e = 0;
@@ -1795,11 +1777,7 @@ static void ai__cache_store(const char *key, const char *ep, const char *model,
             e = errno;
         }
         pthread_mutex_unlock(&ai__cache_mu);
-        if (rc) {
-            char m[1200];
-            snprintf(m, sizeof m, "cannot append to cache %s: %s", path, strerror(e));
-            AI_LOG(1, m);
-        }
+        if (rc) WARNING_MSG("tld_ai: cannot append to cache %s: %s", path, strerror(e));
     }
     tld_strbuf_free(line);
     ai__t_st = err; /* the call itself succeeded */
@@ -2609,7 +2587,7 @@ static const char *ai__review_impl(const char *what, const char *payload) {
                 ai__fail(AI_ESCHEMA, "review %s is done but has no string answer", path);
             else {
                 ai__fail(AI_OK, "review still open: %s (%s)", path, what);
-                fprintf(stderr, "ai: review still open: %s: %s\n", path, what);
+                LOG_MSG("tld_ai: review still open: %s: %s", path, what);
             }
         }
         if (o) tld_json_obj_free(o);
@@ -2631,7 +2609,7 @@ static const char *ai__review_impl(const char *what, const char *payload) {
                 remove(tmp);
             } else {
                 ai__fail(AI_OK, "review opened: %s (%s)", path, what);
-                fprintf(stderr, "ai: review opened: %s: %s\n", path, what);
+                LOG_MSG("tld_ai: review opened: %s: %s", path, what);
             }
         }
         if (o) tld_json_obj_free(o);

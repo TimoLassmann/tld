@@ -94,5 +94,8 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "oom-ai: run through tests/ai/run.sh oom (needs the mock server)\n");
                 return 2;
         }
+        /* The cache warning is the evidence that a failed allocation was reported; it is a
+           tld.h WARNING line, which the quiet test default (TLD_VERBOSE=0) would hide. */
+        setenv("TLD_VERBOSE", "1", 0);
         return oom_main(argc, argv, scenarios, (int) (sizeof scenarios / sizeof scenarios[0]), "tld_ai.h");
 }
