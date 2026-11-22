@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <time.h>
 
-/* CPU time on stderr (KV_MSG) instead of TLD_START_TIMER/TLD_END_TIMER, which print to stdout */
+/* CPU time on stderr (KV_MSG); TLD_START_TIMER/TLD_END_TIMER measure wall-clock time */
 #define T_START clock_t t0_ = clock();
 #define T_END(WHAT) KV_MSG(WHAT, "%.3f s cpu", (double)(clock() - t0_) / CLOCKS_PER_SEC);
 

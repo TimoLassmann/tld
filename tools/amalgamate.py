@@ -37,9 +37,10 @@ TOP = """\
  *   A function that can fail returns int: OK (0) on success, FAIL (1) on failure, with
  *   its results in pointer arguments; one that returns a pointer returns NULL on
  *   failure. Failures print an ERROR line (time, message, file and line) to stderr;
- *   lookups that just find nothing (tld_hash_get, tld_path_exists, tld_json_get_*, ...)
- *   return FAIL silently. A few functions return a plain value or a 1/0 truth value
- *   instead; each one says so. Nothing exits or aborts.
+ *   lookups that just find nothing (tld_hash_get, tld_json_get_*, ...) return FAIL
+ *   silently. Yes/no questions (tld_path_exists, tld_path_is_dir, tld_nearly_equal_*,
+ *   tld_term_has_color) return 1 or 0, and a few functions return a plain value; each
+ *   one says so. Nothing exits or aborts.
  *
  *   RUN(call), ASSERT(test, fmt, ...), ERROR_MSG(fmt, ...) and the allocation macros
  *   MMALLOC, MREALLOC, MMALLOC_ALIGNED and galloc jump to a label named ERROR in the

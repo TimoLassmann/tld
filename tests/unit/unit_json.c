@@ -212,7 +212,7 @@ int test_file_parser(char *infile)
         char* buffer = NULL;
         tld_json_obj *n = NULL;
         size_t bufsize = 2048;
-        if(tld_path_exists(infile) == FAIL){
+        if(!tld_path_exists(infile)){
                 ERROR_MSG("File : %s does not exist!", infile);
         }
         SECTION_MSG("%s", infile);

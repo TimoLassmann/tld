@@ -32,9 +32,9 @@ void tld__timer(int end)
                 gettimeofday(&time_end, NULL);
                 if (tld__timeval_subtract(&time_diff, time_end, time_start) == 0) {
                         if (end == 1)
-                                fprintf(stdout,"\nexec time: %1.2fs\n",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
+                                fprintf(stderr,"\nexec time: %1.2fs\n",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
                         else if (end == 2)
-                                fprintf(stdout,"%1.2fs",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
+                                fprintf(stderr,"%1.2fs",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
                 }
                 return;
         }

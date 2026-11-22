@@ -61,9 +61,10 @@ realpath); macOS and Linux. Build: cc -std=c11 prog.c -lm -lpthread.
 A function that can fail returns int: OK (0) on success, FAIL (1) on failure, with
 its results in pointer arguments; one that returns a pointer returns NULL on
 failure. Failures print an ERROR line (time, message, file and line) to stderr;
-lookups that just find nothing (tld_hash_get, tld_path_exists, tld_json_get_*, ...)
-return FAIL silently. A few functions return a plain value or a 1/0 truth value
-instead; each one says so. Nothing exits or aborts.
+lookups that just find nothing (tld_hash_get, tld_json_get_*, ...) return FAIL
+silently. Yes/no questions (tld_path_exists, tld_path_is_dir, tld_nearly_equal_*,
+tld_term_has_color) return 1 or 0, and a few functions return a plain value; each
+one says so. Nothing exits or aborts.
 
 RUN(call), ASSERT(test, fmt, ...), ERROR_MSG(fmt, ...) and the allocation macros
 MMALLOC, MREALLOC, MMALLOC_ALIGNED and galloc jump to a label named ERROR in the
@@ -530,50 +531,63 @@ Insert the NUL-terminated string content at the start of b.
 
 `src/path/tld-path.h`: File and directory checks, absolute paths, file and directory names of a path, and capturing the command line.
 
-<a id="tld_path_exists"></a>
+<a id="tld_path_exists"></a><a id="tld_path_is_dir"></a>
 
-### `tld_path_exists`
-
-```c
-TLD_API int tld_path_exists(const char* name);
-```
-
-OK if name exists (a file, directory or anything else stat() sees), FAIL otherwise,
-without a message. Test with == OK.
-
-<a id="tld_path_is_dir"></a>
-
-### `tld_path_is_dir`
+### `tld_path_exists`, `tld_path_is_dir`
 
 ```c
-TLD_API int tld_path_is_dir(const char *name);
+TLD_API int tld_path_exists(const char *path);
+TLD_API int tld_path_is_dir(const char *path);
 ```
 
-OK if name is a directory that can be opened; otherwise prints an error and returns
-FAIL.
+Predicates: 1 or 0, never a message (a NULL path prints an error and gives 0).
+tld_path_exists: 1 if path exists (a file, directory or anything else stat() sees).
+tld_path_is_dir: 1 if path is a directory (following symlinks).
 
 <a id="tld_path_mkdir"></a>
 
 ### `tld_path_mkdir`
 
 ```c
-TLD_API int tld_path_mkdir(char *dir);
+TLD_API int tld_path_mkdir(const char *dir);
 ```
 
 Create the directory dir (mode 0700; its parent must exist). OK when it was created
-or already exists as a directory (with a warning); FAIL otherwise.
+or already exists as a directory (silently); FAIL with an error otherwise, also when
+a file of that name exists.
 
 <a id="tld_path_full"></a>
 
 ### `tld_path_full`
 
 ```c
-TLD_API int tld_path_full(tld_strbuf **full, char *filename);
+TLD_API int tld_path_full(tld_strbuf **full, const char *path);
 ```
 
-The absolute, symlink-free path of the existing file filename into *full. A non-NULL
-*full is cleared and reused; otherwise a buffer is allocated (free with
-tld_strbuf_free). FAIL when the file does not exist.
+The absolute, symlink-free path of the existing file or directory path into *full.
+FAIL when it does not exist.
+
+<a id="tld_path_filename"></a>
+
+### `tld_path_filename`
+
+```c
+TLD_API int tld_path_filename(const char *path, tld_strbuf **out);
+```
+
+The part of path after the last '/' into *out. FAIL when that part is empty (path is
+empty or ends in '/').
+
+<a id="tld_path_dirname"></a>
+
+### `tld_path_dirname`
+
+```c
+TLD_API int tld_path_dirname(const char *path, tld_strbuf **out);
+```
+
+The part of path before the last '/' into *out ("/" for "/name"). FAIL when path
+contains no '/'.
 
 <a id="tld_path_read"></a>
 
@@ -583,10 +597,9 @@ tld_strbuf_free). FAIL when the file does not exist.
 TLD_API int tld_path_read(const char *path, tld_strbuf **out);
 ```
 
-The whole contents of the file at path in a new buffer in *out (free with
-tld_strbuf_free); the bytes may include NUL. FAIL, with an error naming the file and
-the reason, when it cannot be opened or read or is larger than a buffer holds
-(INT32_MAX - 1 bytes); *out is then unchanged.
+The whole contents of the file at path into *out; the bytes may include NUL. FAIL
+when it cannot be opened or read (the error names the file and the reason) or is
+larger than a buffer holds (INT32_MAX - 1 bytes).
 
 <a id="tld_cmdline_capture"></a>
 
@@ -596,36 +609,14 @@ the reason, when it cannot be opened or read or is larger than a buffer holds
 TLD_API int tld_cmdline_capture(tld_strbuf **cmdline, const int argc, char *const argv[]);
 ```
 
-Append argv[0] .. argv[argc - 1], each followed by a space, to *cmdline (allocated when
-NULL; free with tld_strbuf_free). For recording how a program was run.
-
-<a id="tld_path_filename"></a>
-
-### `tld_path_filename`
-
-```c
-TLD_API int tld_path_filename(char* path, char** out);
-```
-
-A new string in *out (free with MFREE or free) with the part of path after the last
-'/'. FAIL when that part is empty (path is empty or ends in '/').
-
-<a id="tld_path_dirname"></a>
-
-### `tld_path_dirname`
-
-```c
-TLD_API int tld_path_dirname(char* path, char** out);
-```
-
-A new string in *out (free with MFREE or free) with the part of path before the last
-'/' ("/" for "/name"). FAIL when path contains no '/'.
+argv[0] .. argv[argc - 1], each followed by a space, into *cmdline: for recording
+how a program was run.
 
 <a id="mod-timing"></a>
 
 ## timing
 
-`src/timing/tld-timing.h`: One global wall-clock stopwatch that prints elapsed seconds to stdout.
+`src/timing/tld-timing.h`: One global wall-clock stopwatch that prints elapsed seconds to stderr.
 
 <a id="TLD_START_TIMER"></a><a id="TLD_END_TIMER"></a>
 

@@ -5,6 +5,8 @@
  * - tld_path_mkdir ignored mkdir's result (returned OK when nothing was made)
  *   and printed an error in the normal case.
  * - tld_path_dirname("/file") failed with "No dirname".
+ * - tld_path_exists / tld_path_is_dir answered OK (0) for yes; they answer 1/0 now, and
+ *   tld_path_is_dir no longer prints an error for "no".
  */
 #include "tld.h"
 #include "test.h"
@@ -91,27 +93,78 @@ ERROR:
         return FAIL;
 }
 
-static int check_dirname(char *path, const char *expect)
+static int check_dirname(const char *path, const char *expect)
 {
-        char *out = NULL;
+        tld_strbuf *out = NULL;
         RUN(tld_path_dirname(path, &out));
-        ASSERT(strcmp(out, expect) == 0, "dirname(%s) = '%s', expected '%s'", path, out, expect);
-        MFREE(out);
+        ASSERT(strcmp(TLD_STR(out), expect) == 0, "dirname(%s) = '%s', expected '%s'", path, TLD_STR(out), expect);
+        tld_strbuf_free(out);
         return OK;
 ERROR:
-        MFREE(out);
+        tld_strbuf_free(out);
+        return FAIL;
+}
+
+static int check_filename(const char *path, const char *expect)
+{
+        tld_strbuf *out = NULL;
+        RUN(tld_path_filename(path, &out));
+        ASSERT(strcmp(TLD_STR(out), expect) == 0, "filename(%s) = '%s', expected '%s'", path, TLD_STR(out), expect);
+        tld_strbuf_free(out);
+        return OK;
+ERROR:
+        tld_strbuf_free(out);
         return FAIL;
 }
 
 static int test_dirname(void)
 {
-        char *out = NULL;
+        tld_strbuf *out = NULL;
         RUN(check_dirname("/file", "/"));
         RUN(check_dirname("/", "/"));
         RUN(check_dirname("/a/b/file.txt", "/a/b"));
         RUN(check_dirname("a/file.txt", "a"));
+        RUN(check_filename("/a/b/file.txt", "file.txt"));
+        RUN(check_filename("file.txt", "file.txt"));
+        RUN(check_filename("/x", "x"));
+        fprintf(stderr, "regress-misc: expect three errors (no dirname, no filename twice):\n");
         ASSERT(tld_path_dirname("file.txt", &out) == FAIL, "dirname of a bare name succeeded");
         ASSERT(out == NULL, "out set on failure");
+        ASSERT(tld_path_filename("/a/", &out) == FAIL, "filename of a directory path succeeded");
+        ASSERT(tld_path_filename("", &out) == FAIL, "filename of an empty path succeeded");
+        ASSERT(out == NULL, "out set on failure");
+
+        /* a caller's buffer is cleared and reused, not appended to */
+        RUN(tld_path_filename("/a/first", &out));
+        RUN(tld_path_filename("/b/second", &out));
+        ASSERT(strcmp(TLD_STR(out), "second") == 0, "reused filename buffer holds '%s'", TLD_STR(out));
+        RUN(tld_path_dirname("/c/d/x", &out));
+        ASSERT(strcmp(TLD_STR(out), "/c/d") == 0, "reused dirname buffer holds '%s'", TLD_STR(out));
+        tld_strbuf_free(out);
+        return OK;
+ERROR:
+        tld_strbuf_free(out);
+        return FAIL;
+}
+
+/* tld_path_exists / tld_path_is_dir answer 1 or 0 and print nothing. */
+static int test_predicates(const char *dir)
+{
+        char file[1024];
+        char missing[1024];
+        FILE *f = NULL;
+        snprintf(file, sizeof file, "%s/pfile", dir);
+        snprintf(missing, sizeof missing, "%s/no-such-entry", dir);
+        f = fopen(file, "w");
+        ASSERT(f != NULL, "could not create %s", file);
+        fclose(f);
+        ASSERT(tld_path_exists(file) == 1, "file does not exist");
+        ASSERT(tld_path_exists(dir) == 1, "directory does not exist");
+        ASSERT(tld_path_exists(missing) == 0, "missing entry exists");
+        ASSERT(tld_path_is_dir(dir) == 1, "directory is not a directory");
+        ASSERT(tld_path_is_dir(file) == 0, "file is a directory");
+        ASSERT(tld_path_is_dir(missing) == 0, "missing entry is a directory");
+        unlink(file);
         return OK;
 ERROR:
         return FAIL;
@@ -123,6 +176,8 @@ static int test_cmd_line(void)
         char *argv[] = {"prog", "-x", "1"};
         RUN(tld_cmdline_capture(&cmd, 3, argv));
         ASSERT(strcmp(TLD_STR(cmd), "prog -x 1 ") == 0, "got '%s'", TLD_STR(cmd));
+        RUN(tld_cmdline_capture(&cmd, 2, argv));                /* replaces, not appends */
+        ASSERT(strcmp(TLD_STR(cmd), "prog -x ") == 0, "reused buffer holds '%s'", TLD_STR(cmd));
         tld_strbuf_free(cmd);
         return OK;
 ERROR:
@@ -136,6 +191,7 @@ static int test_read(const char *dir)
         FILE *f = NULL;
         tld_strbuf *b = NULL;
         tld_strbuf *keep = NULL;
+        tld_strbuf *kept = NULL;
         static char big[200000];
         for(size_t i = 0; i < sizeof big; i++){
                 big[i] = (char) (i % 251);              /* NUL bytes included */
@@ -163,23 +219,28 @@ static int test_read(const char *dir)
         tld_strbuf_free(b);
         b = NULL;
 
+        /* a caller's buffer is cleared and reused */
+        RUN(tld_strbuf_alloc(&keep, 8));
+        RUN(tld_strbuf_append(keep, "old"));
+        kept = keep;
+        snprintf(file, sizeof file, "%s/data.bin", dir);
+        RUN(tld_path_read(file, &keep));
+        ASSERT(keep == kept && TLD_STRLEN(keep) == (int) sizeof big, "reused buffer: %d bytes", TLD_STRLEN(keep));
+
         snprintf(file, sizeof file, "%s/missing", dir);
-        keep = (tld_strbuf *) &keep;                    /* any non-NULL marker */
-        b = keep;
-        fprintf(stderr, "regress-misc: expect an error about %s:\n", file);
-        ASSERT(tld_path_read(file, &b) == FAIL, "reading a missing file succeeded");
-        ASSERT(b == keep, "*out changed on failure");
-        b = NULL;
+        fprintf(stderr, "regress-misc: expect errors about %s and about reading %s:\n", file, dir);
+        ASSERT(tld_path_read(file, &keep) == FAIL, "reading a missing file succeeded");
+        ASSERT(keep == kept, "*out changed on failure");
         ASSERT(tld_path_read(dir, &b) == FAIL, "reading a directory succeeded");
         ASSERT(b == NULL, "*out set on failure");
+        tld_strbuf_free(keep);
         return OK;
 ERROR:
         if(f){
                 fclose(f);
         }
-        if(b != keep){
-                tld_strbuf_free(b);
-        }
+        tld_strbuf_free(b);
+        tld_strbuf_free(keep);
         return FAIL;
 }
 
@@ -195,6 +256,11 @@ static int test_dir_create_tmp(void)
         return test_dir_create(tmp_dir);
 }
 
+static int test_predicates_tmp(void)
+{
+        return test_predicates(tmp_dir);
+}
+
 static int test_read_tmp(void)
 {
         return test_read(tmp_dir);
@@ -208,8 +274,9 @@ static const struct {
 } checks[] = {
         {"full-path", test_full_path_tmp, "tld_path_full sets *full and keeps caller buffers"},
         {"dir-create", test_dir_create_tmp, "tld_path_mkdir reports mkdir failures"},
-        {"dirname", test_dirname, "tld_path_dirname on paths with and without a directory"},
-        {"cmd-line", test_cmd_line, "tld_cmdline_capture joins argv"},
+        {"dirname", test_dirname, "tld_path_dirname / tld_path_filename, also into a reused buffer"},
+        {"predicates", test_predicates_tmp, "tld_path_exists / tld_path_is_dir answer 1 or 0"},
+        {"cmd-line", test_cmd_line, "tld_cmdline_capture joins argv, replacing a reused buffer"},
         {"read", test_read_tmp, "tld_path_read reads whole files, NUL bytes included, and fails cleanly"},
 };
 
@@ -223,8 +290,9 @@ int main(int argc, char *argv[])
                   "CHECK names (default: all, in this order):\n"
                   "  full-path   tld_path_full sets *full and keeps caller buffers\n"
                   "  dir-create  tld_path_mkdir reports mkdir failures\n"
-                  "  dirname     tld_path_dirname on paths with and without a directory\n"
-                  "  cmd-line    tld_cmdline_capture joins argv\n"
+                  "  dirname     tld_path_dirname / tld_path_filename, also into a reused buffer\n"
+                  "  predicates  tld_path_exists / tld_path_is_dir answer 1 or 0\n"
+                  "  cmd-line    tld_cmdline_capture joins argv, replacing a reused buffer\n"
                   "  read        tld_path_read reads whole files and fails cleanly\n"
                   "\n"
                   "Example: regress-misc dirname cmd-line");

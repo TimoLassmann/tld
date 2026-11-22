@@ -7,19 +7,19 @@ static int demo(int n, char **args)
 {
         for(int i = 0; i < n; i++){
                 tld_strbuf *full = NULL;
-                char *name = NULL;
-                char *dir = NULL;
+                tld_strbuf *name = NULL;
+                tld_strbuf *dir = NULL;
                 SECTION_MSG("%s", args[i]);
                 fprintf(stdout, "%s\n", args[i]);
-                int exists = tld_path_exists(args[i]) == OK;
+                int exists = tld_path_exists(args[i]);
                 fprintf(stdout, "  exists:      %s\n", exists ? "yes" : "no");
                 if(tld_path_filename(args[i], &name) == OK){
-                        fprintf(stdout, "  filename:    %s\n", name);
-                        MFREE(name);
+                        fprintf(stdout, "  filename:    %s\n", TLD_STR(name));
+                        tld_strbuf_free(name);
                 }
                 if(tld_path_dirname(args[i], &dir) == OK){
-                        fprintf(stdout, "  dirname:     %s\n", dir);
-                        MFREE(dir);
+                        fprintf(stdout, "  dirname:     %s\n", TLD_STR(dir));
+                        tld_strbuf_free(dir);
                 }
                 if(exists && tld_path_full(&full, args[i]) == OK){
                         fprintf(stdout, "  full path:   %s\n", TLD_STR(full));

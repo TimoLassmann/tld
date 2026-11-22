@@ -1888,7 +1888,7 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
  * failure status (AI_EIO, AI_ENOMEM). */
 static int ai__slurp(const char *path, const char *what, int missing_ok, tld_strbuf **out) {
     *out = NULL;
-    if (missing_ok && tld_path_exists(path) != OK) return 1;
+    if (missing_ok && !tld_path_exists(path)) return 1;
     errno = 0;
     if (tld_path_read(path, out) != OK) {
         /* tld's message keeps errno */

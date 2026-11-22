@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
 
         test_init(&argc, argv, "[N]",
                   "Times a loop of N additions (default 10000000) with TLD_START_TIMER and\n"
-                  "TLD_END_TIMER (the timer prints the time on stdout). With N the sum is\n"
+                  "TLD_END_TIMER (the timer prints the time on stderr). With N the sum is\n"
                   "printed too.\n"
                   "Example: unit-timing -v 50000000");
         if(argc > 1){

@@ -301,13 +301,14 @@ static int sc_misc(void)
 {
         char path[] = "/usr/lib/libexample.dylib";
         char *argv[] = {(char *)"prog", (char *)"-x", (char *)"file name", NULL};
-        char *f = NULL, *d = NULL;
-        tld_strbuf *cmd = NULL, *full = NULL;
+        tld_strbuf *f = NULL, *d = NULL, *cmd = NULL, *full = NULL;
         tld_bitfield *b1 = NULL, *b2 = NULL, *b3 = NULL;
         int32_t dist;
         RUN(tld_path_filename(path, &f));
         RUN(tld_path_dirname(path, &d));
         RUN(tld_cmdline_capture(&cmd, 3, argv));
+        RUN(tld_cmdline_capture(&cmd, 2, argv));    /* reused */
+        RUN(tld_path_filename("/a/other", &f));
         RUN(tld_path_read(__FILE__, &full));       /* this source file */
         RUN(tld_bitfield_alloc(&b1, 300));
         RUN(tld_bitfield_alloc(&b2, 300));
@@ -315,11 +316,11 @@ static int sc_misc(void)
         RUN(tld_bitfield_set(b1, 17));
         RUN(tld_bitfield_or(b1, b2, b3));
         RUN(tld_bitfield_hamming(b1, b2, NULL, &dist));
-        MFREE(f); MFREE(d); tld_strbuf_free(cmd); tld_strbuf_free(full);
+        tld_strbuf_free(f); tld_strbuf_free(d); tld_strbuf_free(cmd); tld_strbuf_free(full);
         tld_bitfield_free(b1); tld_bitfield_free(b2); tld_bitfield_free(b3);
         return OK;
 ERROR:
-        MFREE(f); MFREE(d); tld_strbuf_free(cmd); tld_strbuf_free(full);
+        tld_strbuf_free(f); tld_strbuf_free(d); tld_strbuf_free(cmd); tld_strbuf_free(full);
         tld_bitfield_free(b1); tld_bitfield_free(b2); tld_bitfield_free(b3);
         return FAIL;
 }

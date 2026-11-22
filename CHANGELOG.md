@@ -56,6 +56,22 @@ tld.h to this. Old → new:
 - tests: `regress-str append-n`, `regress-misc read`, `regress-json parse-text compact add`, oom
   scenario `json_add`; `fuzz-json` parses the raw bytes with `tld_json_parse_n`.
 
+### Semantics: answers that read the way they are written
+- path: `tld_path_exists` and `tld_path_is_dir` return 1 (yes) or 0 (no) instead of OK (0) /
+  FAIL (1), so `if(tld_path_exists(f))` means what it says; neither prints anything (`tld_path_is_dir`
+  printed an error for "no"). `tld_path_is_dir` uses stat() (was: opendir() succeeds).
+  Migrate `X(..) == OK` to `X(..)` and `X(..) == FAIL` / `!= OK` to `!X(..)`.
+- path: `tld_path_mkdir` is silent when the directory already exists (was a warning).
+- path: `tld_path_filename` and `tld_path_dirname` return a `tld_strbuf` (was a `char *` to
+  MFREE). Every `tld_strbuf **` result of the module (`tld_path_full`, `tld_path_filename`,
+  `tld_path_dirname`, `tld_path_read`, `tld_cmdline_capture`) follows one rule: a non-NULL `*out`
+  is cleared and reused, NULL gets a new buffer; on failure a buffer the call made is freed.
+  `tld_cmdline_capture` therefore replaces a reused buffer's text (it appended).
+- path: path arguments are `const char *`.
+- timing: `TLD_END_TIMER` prints to stderr (was stdout), so it no longer mixes with a
+  program's output.
+- tests: `regress-misc predicates`, filename/dirname and cmdline reuse checks.
+
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,
   OK_MSG, DEBUG_MSG) requires a string-literal format, and the format is checked against the

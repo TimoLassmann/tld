@@ -1,50 +1,50 @@
 #include "tld-path.h"
 
 #include "../core/tld-core.h"
-#include "../alloc/tld-alloc.h"
 #include "../string/tld-string.h"
 
 #include <sys/stat.h>
-#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#define TLD__MAX_CMD_LEN 16384
-
-int tld_path_exists(const char* name)
+/* The output buffer of a path function: the caller's *out, cleared, or a new one
+   (*allocated set, so the error path frees only what the call made). */
+static int tld__path_out(tld_strbuf **out, tld_strbuf **b, int *allocated)
 {
-        struct stat buf;
-        int local_ret = 0;
-        local_ret = stat( name, &buf );
-        /* File found */
-        if ( local_ret == 0 )
-        {
-                return OK;
-        }
-        return FAIL;
-}
-
-int tld_path_is_dir(const char* name)
-{
-        ASSERT(name != NULL,"No directory name");
-        DIR* dir = opendir(name);
-        if (dir) {
-                /* Directory exists. */
-                closedir(dir);
-        } else if (ENOENT == errno) {
-                ERROR_MSG("Directory %s does not exist", name);
-                /* Directory does not exist. */
-        } else {
-                ERROR_MSG("Opening directory %s failed", name);
-                /* opendir() failed for some other reason. */
+        *allocated = 0;
+        if(*out){
+                *b = *out;
+                RUN(tld_strbuf_clear(*b));
+        }else{
+                RUN(tld_strbuf_alloc(b, 128));
+                *allocated = 1;
         }
         return OK;
 ERROR:
         return FAIL;
 }
 
-int tld_path_mkdir(char* dir)
+int tld_path_exists(const char *path)
+{
+        struct stat st;
+        ASSERT(path != NULL, "No path");
+        return stat(path, &st) == 0;
+ERROR:
+        return 0;
+}
+
+int tld_path_is_dir(const char *path)
+{
+        struct stat st;
+        ASSERT(path != NULL, "No path");
+        return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+ERROR:
+        return 0;
+}
+
+int tld_path_mkdir(const char *dir)
 {
         struct stat st;
         ASSERT(dir != NULL, "No directory name");
@@ -54,7 +54,6 @@ int tld_path_mkdir(char* dir)
         }
         if(errno == EEXIST){
                 if(stat(dir, &st) == 0 && S_ISDIR(st.st_mode)){
-                        WARNING_MSG("Directory %s already exists",dir);
                         return OK;
                 }
                 ERROR_MSG("Could not create directory %s: a file of that name exists", dir);
@@ -64,64 +63,43 @@ ERROR:
         return FAIL;
 }
 
-int tld_path_full(tld_strbuf **full, char *filename)
+int tld_path_full(tld_strbuf **full, const char *path)
 {
-        char* full_path = NULL;
+        char *full_path = NULL;
         tld_strbuf *f = NULL;
         int allocated = 0;
-        ASSERT(full != NULL, "tld_path_full: No output buffer pointer");
-        ASSERT(filename != NULL, "tld_path_full: No filename");
-        if(*full){
-                f = *full;
-                RUN(tld_strbuf_clear(f));
-        }else{
-                RUN(tld_strbuf_alloc(&f,512));
-                allocated = 1;
-        }
-        if(tld_path_exists(filename) != OK){
-                ERROR_MSG("File %s does not exist", filename);
-        }
-
-        full_path = realpath(filename, NULL);
-
+        ASSERT(full != NULL, "No output buffer pointer");
+        ASSERT(path != NULL, "No path");
+        full_path = realpath(path, NULL);
         if(!full_path){
-                ERROR_MSG("Could not get full path of %s", filename);
+                ERROR_MSG("Could not get the full path of %s: %s", path, strerror(errno));
         }
-
+        RUN(tld__path_out(full, &f, &allocated));
         RUN(tld_strbuf_append(f, full_path));
         free(full_path);
-        full_path = NULL;
-
         *full = f;
         return OK;
 ERROR:
         free(full_path);
-        /* free only what this call allocated; a caller-supplied buffer stays theirs */
         if(allocated){
                 tld_strbuf_free(f);
         }
         return FAIL;
-
 }
 
 int tld_cmdline_capture(tld_strbuf **cmdline, const int argc, char *const argv[])
 {
-
-        tld_strbuf* cmd = NULL;
+        tld_strbuf *cmd = NULL;
         int allocated = 0;
-
         ASSERT(cmdline != NULL, "No output buffer pointer");
-        if(*cmdline == NULL){
-                RUN(tld_strbuf_alloc(&cmd, 128));
-                allocated = 1;
-        }else{
-                cmd = *cmdline;
-        }
-        for(int i = 0; i < argc;i++){
+        ASSERT(argc >= 0, "Negative argc: %d", argc);
+        ASSERT(argc == 0 || argv != NULL, "No argv");
+        RUN(tld__path_out(cmdline, &cmd, &allocated));
+        for(int i = 0; i < argc; i++){
+                ASSERT(argv[i] != NULL, "argv[%d] is NULL", i);
                 RUN(tld_strbuf_append(cmd, argv[i]));
-                RUN(tld_strbuf_append(cmd, " "));
+                RUN(tld_strbuf_append_char(cmd, ' '));
         }
-
         *cmdline = cmd;
         return OK;
 ERROR:
@@ -131,73 +109,50 @@ ERROR:
         return FAIL;
 }
 
-/* I don't like that both libgen and string have functions to work with
-   directory / filenames. The functions below copy the input path and alloc
-   a new character array to store the output. Needs to be MFREE'd...
- */
-int tld_path_filename(char* path, char** out)
+int tld_path_filename(const char *path, tld_strbuf **out)
 {
-        char* tmp = NULL;
-        int len = 0;
-        int i = 0;
-        int c = 0;
-
-        len = (int) strlen(path);
-        MMALLOC(tmp, sizeof(char) * (len+1));
-        c = 0;
-        for(i = 0;i < len;i++){
-                tmp[c] = path[i];
-                c++;
-                if(path[i] == '/'){
-                        c = 0;
-                }
-        }
-        tmp[c] = 0;
-        if(c == 0){
+        tld_strbuf *b = NULL;
+        const char *slash = NULL;
+        int allocated = 0;
+        ASSERT(path != NULL, "No path");
+        ASSERT(out != NULL, "No output buffer pointer");
+        slash = strrchr(path, '/');
+        slash = slash ? slash + 1 : path;
+        if(*slash == 0){
                 ERROR_MSG("No filename found in: %s", path);
         }
-        *out = tmp;
+        RUN(tld__path_out(out, &b, &allocated));
+        RUN(tld_strbuf_append(b, slash));
+        *out = b;
         return OK;
 ERROR:
-        if(tmp){
-                MFREE(tmp);
+        if(allocated){
+                tld_strbuf_free(b);
         }
         return FAIL;
 }
 
-int tld_path_dirname(char* path, char** out)
+int tld_path_dirname(const char *path, tld_strbuf **out)
 {
-        char* tmp = NULL;
-        int len = 0;
-        int i = 0;
-        int c = 0;
-        int e = 0;
-
-        len = (int) strlen(path);
-        MMALLOC(tmp, sizeof(char) * (len+1));
-        c = 0;
-        e = -1;
-        for(i = 0;i < len;i++){
-
-                tmp[c] = path[i];
-                if(path[i] == '/'){
-                        e = c;
-                }
-                c++;
-        }
-        if(e < 0){
+        tld_strbuf *b = NULL;
+        const char *slash = NULL;
+        size_t len = 0;
+        int allocated = 0;
+        ASSERT(path != NULL, "No path");
+        ASSERT(out != NULL, "No output buffer pointer");
+        slash = strrchr(path, '/');
+        if(slash == NULL){
                 ERROR_MSG("No dirname found in: %s", path);
         }
-        if(e == 0){
-                /* the only slash is the leading one: the directory is the root */
-                e = 1;
-        }
-        tmp[e] = 0;
-        *out = tmp;
+        /* the only slash is the leading one: the directory is the root */
+        len = slash == path ? 1 : (size_t) (slash - path);
+        RUN(tld__path_out(out, &b, &allocated));
+        RUN(tld_strbuf_append_n(b, path, len));
+        *out = b;
         return OK;
 ERROR:
-        if(tmp){
-                MFREE(tmp);
+        if(allocated){
+                tld_strbuf_free(b);
         }
         return FAIL;
 }
@@ -208,13 +163,14 @@ int tld_path_read(const char *path, tld_strbuf **out)
         tld_strbuf *b = NULL;
         char buf[1 << 16];
         size_t got = 0;
+        int allocated = 0;
         ASSERT(path != NULL, "No path");
-        ASSERT(out != NULL, "No output pointer");
+        ASSERT(out != NULL, "No output buffer pointer");
         f = fopen(path, "rb");
         if(f == NULL){
                 ERROR_MSG("Cannot open %s: %s", path, strerror(errno));
         }
-        RUN(tld_strbuf_alloc(&b, sizeof buf));
+        RUN(tld__path_out(out, &b, &allocated));
         while((got = fread(buf, 1, sizeof buf, f)) > 0){
                 if(tld_strbuf_append_n(b, buf, got) != OK){
                         ERROR_MSG("Cannot read %s: too large or out of memory", path);
@@ -230,8 +186,8 @@ ERROR:
         if(f){
                 fclose(f);
         }
-        tld_strbuf_free(b);
+        if(allocated){
+                tld_strbuf_free(b);
+        }
         return FAIL;
 }
-
-#undef TLD__MAX_CMD_LEN
