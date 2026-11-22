@@ -69,6 +69,27 @@ ERROR:
         return FAIL;
 }
 
+/* A value from tld_hash_get written back under its own key was cleared before it
+   was copied: the value silently became "". */
+static int test_hash_self_assign(void)
+{
+        tld_hash *h = NULL;
+        const char *v = NULL;
+        RUN(tld_hash_add(&h, "a", "value of a"));
+        RUN(tld_hash_get(h, "a", &v));
+        RUN(tld_hash_add(&h, "a", v));
+        RUN(tld_hash_get(h, "a", &v));
+        ASSERT(strcmp(v, "value of a") == 0, "self-assign gave '%s'", v);
+        RUN(tld_hash_add(&h, "a", v + 9));              /* a suffix of the old value */
+        RUN(tld_hash_get(h, "a", &v));
+        ASSERT(strcmp(v, "a") == 0, "suffix assign gave '%s'", v);
+        tld_hash_free(h);
+        return OK;
+ERROR:
+        tld_hash_free(h);
+        return FAIL;
+}
+
 static int test_hash_alloc_size(void)
 {
         tld_hash *h = NULL;
@@ -139,6 +160,7 @@ static const struct {
         {"add-errors", test_hash_add_errors, "tld_hash_add checks arguments and frees on failure"},
         {"rename", test_hash_rename, "tld_hash_rename keeps the entry when a step fails"},
         {"alloc-size", test_hash_alloc_size, "tld_hash_alloc above the largest prime"},
+        {"self-assign", test_hash_self_assign, "a value from tld_hash_get added back under its key"},
         {"bitfield-mask", test_bitfield_mask, "tl_bitfield_hamming checks the mask length"},
 };
 
@@ -152,6 +174,7 @@ int main(int argc, char *argv[])
                   "  add-errors     tld_hash_add checks arguments and frees on failure\n"
                   "  rename         tld_hash_rename keeps the entry when a step fails\n"
                   "  alloc-size     tld_hash_alloc above the largest prime\n"
+                  "  self-assign    a value from tld_hash_get added back under its key\n"
                   "  bitfield-mask  tl_bitfield_hamming checks the mask length\n"
                   "\n"
                   "Example: regress-hash rename alloc-size");

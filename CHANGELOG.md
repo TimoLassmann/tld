@@ -72,6 +72,8 @@ changes listed here fix bugs.
 - alloc: MMALLOC, MMALLOC_ALIGNED, MREALLOC and MFREE are single statements; a trailing `;` is required. Size messages use `%zu`. MFREE(NULL) no longer warns, and still sets the pointer to NULL.
 - alloc: 2D galloc computes sizes in `size_t` and fails cleanly on overflow or out-of-memory. A caller variable named `i` no longer breaks the row setup, and gfree(NULL) is a no-op.
 - string: `tld_strmk` no longer writes one byte past its buffer, and `len` excludes the terminating NUL. `tld_strbuf_resize` updates `alloc_len`, so appends grow geometrically.
+- string: `tld_append(b, TLD_STR(b))` and `tld_prepend(b, TLD_STR(b))` (text from the buffer itself, or a suffix of it) work; when the buffer had to grow they read freed memory. `tld_strbuf_copy(b, b)` is a no-op.
+- hash: `tld_hash_add` with a value just read by `tld_hash_get` for the same key keeps it; the value used to be cleared before it was copied and became "".
 - misc: `tld_get_full_path` hands back the buffer it allocates through `*full`, and on error never frees a buffer the caller supplied. `tld_dir_create` returns FAIL when mkdir fails. `tld_get_dirname("/file")` returns "/".
 - hash: add, rename and alloc check every allocation and return code and no longer leak. `tld_hash_rename` keeps the old entry if adding the new key fails. `tld_hash_alloc` fails for sizes above the largest supported prime.
 - bitfield: `tl_bitfield_hamming` returns FAIL when the mask length differs from the bitfields.

@@ -1775,11 +1775,13 @@ int tld__galloc_data(void* ptr,void** d)
 }
 /* ---- src/string/str.c ---- */
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 tld_internal int tld_strbuf_resize(tld_strbuf *b, int new_size);
 tld_internal int tld_strbuf_ensure_size(tld_strbuf *b, size_t size);
+tld_internal ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p);
 
 int tld_strbuf_alloc(tld_strbuf **buffer, int size)
 {
@@ -1906,10 +1908,26 @@ ERROR:
         return FAIL;
 }
 
+/* The offset of p in b's bytes, or -1 when p points elsewhere. Text passed to an
+   append can come from the buffer itself (TLD_STR(b)), and growing the buffer moves
+   it, so callers re-derive the pointer from the offset after growing. */
+ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p)
+{
+        uintptr_t start = (uintptr_t) b->str;
+        uintptr_t q = (uintptr_t) p;
+        if(q >= start && q < start + (uintptr_t) b->alloc_len){
+                return (ptrdiff_t) (q - start);
+        }
+        return -1;
+}
+
 int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s)
 {
-        /* tld_strbuf_ensure_size(t, s->len); */
-        RUN(tld_strbuf_ensure_size(t,(size_t)s->len));
+        if(t == s){
+                return OK;
+        }
+        /* room for s->len bytes in total; t is unchanged if this fails */
+        RUN(tld_strbuf_ensure_size(t, s->len > t->len ? (size_t)(s->len - t->len) : 0));
 
         memcpy(t->str, s->str, s->len);
         t->len = s->len;
@@ -1922,10 +1940,13 @@ ERROR:
 int tld_append(tld_strbuf *b, const char *content)
 {
         size_t size = strlen(content);
+        ptrdiff_t off = tld__strbuf_offset(b, content);
 
         RUN(tld_strbuf_ensure_size(b, size));
-
-        memcpy(b->str+b->len,content, size);
+        if(off >= 0){
+                content = TLD_STR(b) + off;
+        }
+        memmove(b->str + b->len, content, size);
         b->len += (int32_t)size;
         b->str[b->len] = 0;
 
@@ -1936,9 +1957,7 @@ ERROR:
 
 int tld_append_char(tld_strbuf *b, char c)
 {
-        /* int size = 1; */
         RUN(tld_strbuf_ensure_size(b, 1));
-        /* memcpy(b->str+b->len,content, size); */
         b->str[b->len] = c;
         b->len++;
         b->str[b->len] = 0;
@@ -1951,10 +1970,15 @@ ERROR:
 int tld_prepend(tld_strbuf *b, const char *content)
 {
         size_t size = strlen(content);
+        ptrdiff_t off = tld__strbuf_offset(b, content);
 
         RUN(tld_strbuf_ensure_size(b, size));
         memmove(b->str + size, b->str, b->len);
-        memcpy(b->str, content, size);
+        if(off >= 0){
+                /* the text came from b and has just moved size bytes right */
+                content = TLD_STR(b) + off + size;
+        }
+        memmove(b->str, content, size);
         b->len += (int32_t)size;
         b->str[b->len] = 0;
         return OK;
@@ -2634,6 +2658,26 @@ ERROR:
 
 }
 
+/* Replace the stored value v with val. val may point into v itself (a value from
+   tld_hash_get passed back in): then it is moved to the front instead of being cleared
+   away before it is copied. */
+static int tld__hash_set_value(tld_strbuf *v, const char *val)
+{
+        uintptr_t start = (uintptr_t) v->str;
+        uintptr_t p = (uintptr_t) val;
+        if(p >= start && p <= start + (uintptr_t) v->len){
+                size_t n = strlen(val);
+                memmove(v->str, val, n + 1);
+                v->len = (int32_t) n;
+                return OK;
+        }
+        RUN(tld_strbuf_clear(v));
+        RUN(tld_append(v, val));
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 int tld_hash_add(tld_hash **hash, const char *key, const char *val)
 {
         tld_hash* h = NULL;
@@ -2665,9 +2709,7 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
         tld_hash_entry* current = h->table[index];
         while (current) {
                 if (strcmp(TLD_STR(current->key), key) == 0) {
-                        // Key exists, replace the value
-                        RUN(tld_strbuf_clear(current->value));
-                        RUN(tld_append(current->value, val));
+                        RUN(tld__hash_set_value(current->value, val));
                         return OK;
                 }
                 current = current->next;

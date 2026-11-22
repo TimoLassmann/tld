@@ -2,11 +2,13 @@
 
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 tld_internal int tld_strbuf_resize(tld_strbuf *b, int new_size);
 tld_internal int tld_strbuf_ensure_size(tld_strbuf *b, size_t size);
+tld_internal ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p);
 
 int tld_strbuf_alloc(tld_strbuf **buffer, int size)
 {
@@ -133,10 +135,26 @@ ERROR:
         return FAIL;
 }
 
+/* The offset of p in b's bytes, or -1 when p points elsewhere. Text passed to an
+   append can come from the buffer itself (TLD_STR(b)), and growing the buffer moves
+   it, so callers re-derive the pointer from the offset after growing. */
+ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p)
+{
+        uintptr_t start = (uintptr_t) b->str;
+        uintptr_t q = (uintptr_t) p;
+        if(q >= start && q < start + (uintptr_t) b->alloc_len){
+                return (ptrdiff_t) (q - start);
+        }
+        return -1;
+}
+
 int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s)
 {
-        /* tld_strbuf_ensure_size(t, s->len); */
-        RUN(tld_strbuf_ensure_size(t,(size_t)s->len));
+        if(t == s){
+                return OK;
+        }
+        /* room for s->len bytes in total; t is unchanged if this fails */
+        RUN(tld_strbuf_ensure_size(t, s->len > t->len ? (size_t)(s->len - t->len) : 0));
 
         memcpy(t->str, s->str, s->len);
         t->len = s->len;
@@ -149,10 +167,13 @@ ERROR:
 int tld_append(tld_strbuf *b, const char *content)
 {
         size_t size = strlen(content);
+        ptrdiff_t off = tld__strbuf_offset(b, content);
 
         RUN(tld_strbuf_ensure_size(b, size));
-
-        memcpy(b->str+b->len,content, size);
+        if(off >= 0){
+                content = TLD_STR(b) + off;
+        }
+        memmove(b->str + b->len, content, size);
         b->len += (int32_t)size;
         b->str[b->len] = 0;
 
@@ -163,9 +184,7 @@ ERROR:
 
 int tld_append_char(tld_strbuf *b, char c)
 {
-        /* int size = 1; */
         RUN(tld_strbuf_ensure_size(b, 1));
-        /* memcpy(b->str+b->len,content, size); */
         b->str[b->len] = c;
         b->len++;
         b->str[b->len] = 0;
@@ -178,10 +197,15 @@ ERROR:
 int tld_prepend(tld_strbuf *b, const char *content)
 {
         size_t size = strlen(content);
+        ptrdiff_t off = tld__strbuf_offset(b, content);
 
         RUN(tld_strbuf_ensure_size(b, size));
         memmove(b->str + size, b->str, b->len);
-        memcpy(b->str, content, size);
+        if(off >= 0){
+                /* the text came from b and has just moved size bytes right */
+                content = TLD_STR(b) + off + size;
+        }
+        memmove(b->str, content, size);
         b->len += (int32_t)size;
         b->str[b->len] = 0;
         return OK;
