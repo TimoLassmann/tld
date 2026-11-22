@@ -443,6 +443,9 @@ or makes a call read the way it is written.
 - `docs-current` fails when a manual is stale or a public symbol has no doc comment. The
   manual shows declarations without `TLD_API`, and a module comment that starts with an
   identifier (`tld_strbuf, ...`) keeps its spelling.
+- `doc-examples` compiles every code example in the doc comments of `tld.h` and
+  `tld_ai.h` (`tlddoc --examples` writes each as a program; `tests/docs/examples.sh`
+  compiles them), so an example cannot go stale; the examples now declare what they use.
 - unit-alloc allocates 64 MB instead of 4.7 GB, so it runs under the sanitizers;
   tests/ai/compile.sh uses python3 instead of perl.
 - Internal: duplicated code collapsed with no change in results (checked bit for bit

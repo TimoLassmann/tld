@@ -1,6 +1,7 @@
 # tlddoc writes docs/tld.md and docs/tld_ai.md from the comments in tld.h and tld_ai.h.
 #   cmake --build build --target docs     regenerate the manuals
 #   ctest -R docs-current                 fails while they are out of date
+#   ctest -R doc-examples                 fails while a doc-comment example does not compile
 find_package(Threads REQUIRED)
 
 add_executable(tlddoc tlddoc.c)
@@ -14,3 +15,8 @@ add_custom_target(docs
   VERBATIM)
 
 add_test(NAME docs-current COMMAND tlddoc --check ${CMAKE_SOURCE_DIR})
+
+# Every code example in the doc comments compiles against the current headers.
+add_test(NAME doc-examples
+  COMMAND sh ${CMAKE_SOURCE_DIR}/tests/docs/examples.sh $<TARGET_FILE:tlddoc>
+          ${CMAKE_C_COMPILER} ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/doc-examples)
