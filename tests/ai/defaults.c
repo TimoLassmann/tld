@@ -8,6 +8,8 @@
  *   defaults timeout HOST              a 1 s default timeout against a slow mock
  *   defaults stress HOST               8 threads calling while defaults change (TSan)
  *   defaults afterexit                 a call after tld_ai.h's exit cleanup fails cleanly
+ *   defaults longreview                a review directory too long for a path fails with
+ *                                      AI_EARG instead of a shortened path
  *
  * run.sh checks the logged requests (models per endpoint, options, dimensions). */
 #define _POSIX_C_SOURCE 200809L
@@ -171,6 +173,16 @@ static int mode_afterexit(void) {
     return 1; /* after_exit decides the exit code */
 }
 
+static int mode_longreview(void) {
+    static char dir[1300];
+    memset(dir, 'd', sizeof dir - 1);
+    expect(ai_defaults(AI_CONFIG(.db = "off", .reviews = dir)) == 0, "ai_defaults with a long reviews");
+    expect(ai_review("Pick?", "payload") == NULL && ai_status() == AI_EARG &&
+               strstr(ai_error(), "too long") != NULL,
+           "review directory too long: AI_EARG");
+    return bad;
+}
+
 int main(int argc, char **argv) {
     test_init_keep(&argc, argv, "MODE ARGS...",
                    "ai_defaults() checks, driven by tests/ai/run.sh against tests/ai/mock_ollama.py:\n"
@@ -180,6 +192,7 @@ int main(int argc, char **argv) {
                    "  timeout HOST              a 1 s default timeout against a slow mock\n"
                    "  stress HOST               8 threads calling while defaults change\n"
                    "  afterexit                 a call after the exit cleanup fails cleanly\n"
+                   "  longreview                a too-long review directory fails with AI_EARG\n"
                    "HOST must be a local mock (TLD_AI_HOST wins over it).\n"
                    "Example: ai-defaults afterexit");
     if (argc >= 2) SECTION_MSG("ai_defaults: %s", argv[1]);
@@ -188,7 +201,8 @@ int main(int argc, char **argv) {
     if (argc >= 3 && !strcmp(argv[1], "timeout")) return mode_timeout(argv[2]);
     if (argc >= 3 && !strcmp(argv[1], "stress")) return mode_stress(argv[2]);
     if (argc >= 2 && !strcmp(argv[1], "afterexit")) return mode_afterexit();
+    if (argc >= 2 && !strcmp(argv[1], "longreview")) return mode_longreview();
     fprintf(stderr, "usage: defaults set HOST DB REVIEWS SRC | reset HOST | timeout HOST | "
-                    "stress HOST | afterexit\n");
+                    "stress HOST | afterexit | longreview\n");
     return 2;
 }

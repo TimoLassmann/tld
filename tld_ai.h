@@ -941,6 +941,10 @@ static void ai__conf_host(ai__conf *c) {
         c->bad_host = 1;
         return;
     }
+    if (slash && strlen(slash) >= sizeof c->base) {
+        c->bad_host = 1;
+        return;
+    }
     memcpy(c->authority, p, alen);
     c->authority[alen] = 0;
     ai__setstr(c->base, sizeof c->base, slash ? slash : "");
@@ -953,13 +957,25 @@ static void ai__conf_host(ai__conf *c) {
             return;
         }
         hl = (size_t)(e - a - 1);
-        memcpy(c->name, a + 1, TLD_MIN(hl, sizeof c->name - 1));
+        if (hl >= sizeof c->name) {
+            c->bad_host = 1;
+            return;
+        }
+        memcpy(c->name, a + 1, hl);
         if (e[1] == ':') port = e + 2;
     } else {
         const char *col = strrchr(a, ':');
         hl = col ? (size_t)(col - a) : strlen(a);
-        memcpy(c->name, a, TLD_MIN(hl, sizeof c->name - 1));
+        if (hl >= sizeof c->name) {
+            c->bad_host = 1;
+            return;
+        }
+        memcpy(c->name, a, hl);
         if (col) port = col + 1;
+    }
+    if (port && strlen(port) >= sizeof c->port) {
+        c->bad_host = 1;
+        return;
     }
     ai__setstr(c->port, sizeof c->port, port && *port ? port : "11434");
     if (!c->name[0]) c->bad_host = 1;
@@ -1574,13 +1590,16 @@ static int ai__server_up(void) {
 static pthread_mutex_t ai__dig_mu = PTHREAD_MUTEX_INITIALIZER;
 static tld_hash *ai__dig; /* host 0x1f "name:tag" -> digest */
 
-/* "x" and "x:latest" are one model. */
-static void ai__norm(const char *m, char *out, size_t n) {
+/* "x" and "x:latest" are one model. -1 when the name does not fit in out. */
+static int ai__norm(const char *m, char *out, size_t n) {
     const char *slash = strrchr(m, '/');
-    snprintf(out, n, strchr(slash ? slash : m, ':') ? "%s" : "%s:latest", m);
+    int len = snprintf(out, n, strchr(slash ? slash : m, ':') ? "%s" : "%s:latest", m);
+    return len < 0 || (size_t)len >= n ? -1 : 0;
 }
 
-/* Digests are kept per host: key = host, 0x1f, model. */
+/* Digests are kept per host: key = host, 0x1f, model. A valid host (at most ~560
+ * bytes, see ai__conf_host) and a name that passed ai__norm(.., 300) always fit in
+ * 900 bytes. */
 static void ai__hkey(const char *norm, char *out, size_t n) {
     snprintf(out, n, "%s\x1f%s", AI__HOST(ai__c), norm);
 }
@@ -1603,7 +1622,9 @@ static int ai__dig_lookup(const char *norm, char *digest, size_t dn) {
  * model that is not listed, so a later pull is seen. */
 static int ai__model_info(const char *model, char *digest, size_t dn) {
     char norm[300];
-    ai__norm(model, norm, sizeof norm);
+    if (ai__norm(model, norm, sizeof norm))
+        return ai__fail(AI_EARG, "model name too long (%zu bytes, at most %zu)", strlen(model),
+                        sizeof norm - 8);
     if (ai__dig_lookup(norm, digest, dn)) return 0;
     tld_json_obj *r = NULL;
     tld_json_arr *ms = NULL;
@@ -1621,7 +1642,7 @@ static int ai__model_info(const char *model, char *digest, size_t dn) {
         if (!name) name = ai__str(m, "model");
         if (!name) continue;
         char nm[300], key[900];
-        ai__norm(name, nm, sizeof nm);
+        if (ai__norm(name, nm, sizeof nm)) continue; /* longer than any name we can ask for */
         ai__hkey(nm, key, sizeof key);
         if (tld_hash_add(&ai__dig, key, dg ? dg : "") != OK) rc = ai__nomem();
     }
@@ -2227,6 +2248,12 @@ static tld_json_obj *ai__decide(const ai_opts *call, const char *name, const cha
         ai__fail(AI_EARG, "decision: NULL question or state");
         return NULL;
     }
+    char path[300]; /* answers.<name> */
+    if (snprintf(path, sizeof path, "answers.%s", name) >= (int)sizeof path) {
+        ai__drop(criteria);
+        ai__fail(AI_EARG, "decision name too long: %.40s...", name);
+        return NULL;
+    }
     const char *model = o->model ? o->model : ai__c->str[AI__S_DECIDER];
     tld_json_obj *req = NULL, *q = NULL, *qs = NULL, *st = NULL, *r = NULL;
     int rc = ai__put(&req, TLD_JSTR("model", model));
@@ -2253,8 +2280,6 @@ static tld_json_obj *ai__decide(const ai_opts *call, const char *name, const cha
     if (!rc) {
         r = ai__call("/v1/systemone", model, req, o->fresh);
         if (r) {
-            char path[300];
-            snprintf(path, sizeof path, "answers.%s", name);
             ai__t_last.prompt_tokens = ai__long(r, "usage.input_tokens");
             ai__t_last.output_tokens = ai__long(r, "usage.output_tokens");
             if (tld_json_get_obj(r, path, ans) != OK) {
@@ -2551,8 +2576,11 @@ static const char *ai__review_impl(const char *what, const char *payload) {
     }
     char path[1200];
     const char *dir = ai__c->str[AI__S_REVIEWS];
-    snprintf(path, sizeof path, "%s/%016llx.json", dir,
-             (unsigned long long)ai__fnv(ai__fnv(AI__FNV0, what), payload));
+    if (snprintf(path, sizeof path, "%s/%016llx.json", dir,
+                 (unsigned long long)ai__fnv(ai__fnv(AI__FNV0, what), payload)) >= (int)sizeof path) {
+        ai__fail(AI_EARG, "ai_review: review directory name too long (%zu bytes)", strlen(dir));
+        return NULL;
+    }
     const char *ans = NULL;
     pthread_mutex_lock(&ai__review_mu);
     tld_strbuf *b = NULL;
@@ -2576,7 +2604,7 @@ static const char *ai__review_impl(const char *what, const char *payload) {
     } else if (rc == 1) { /* new review */
         tld_json_obj *o = NULL;
         tld_strbuf *txt = NULL;
-        char tmp[1300];
+        char tmp[1300]; /* path (< 1200) + ".tmp" + a pid always fits */
         snprintf(tmp, sizeof tmp, "%s.tmp%ld", path, (long)getpid());
         if (mkdir(dir, 0755) < 0 && errno != EEXIST)
             ai__fail(AI_EIO, "cannot create %s: %s", dir, strerror(errno));

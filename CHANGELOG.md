@@ -147,6 +147,10 @@ tld.h to this. Old → new:
   unnecessary, `if (x)` guards before free functions that accept NULL, and `o && o->`
   tests on options that are never NULL are gone; shutdown takes the cache lock once.
 - json: `tld_json_set_val(obj, path, v)` takes `const char *path`, like the getters.
+- No silent truncation: a host whose name, path or port is longer than its buffer is a
+  bad host (AI_EHTTP, "expected http://host:port") instead of a shortened one; a model
+  name over 291 bytes, a decision name over 291 bytes and a review directory too long
+  for a path fail with AI_EARG instead of using a cut-off name.
 
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,

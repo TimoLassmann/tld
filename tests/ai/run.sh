@@ -160,6 +160,15 @@ $(cat "$T/ns.txt")"
     [ $rc = 1 ] && grep -q 'ignoring TLD_AI_TIMEOUT=5s' "$T/env.txt" &&
         grep -q 'ignoring TLD_AI_NUM_CTX=12x' "$T/env.txt" && grep -q 'ignoring TLD_AI_FRESH=maybe' "$T/env.txt"
     check "environment values that do not parse are ignored with a warning" $? "$(cat "$T/env.txt")"
+    long=$(printf '%0300d' 0)
+    for h in "http://h$long:1" "http://127.0.0.1:1/$long" "http://127.0.0.1:1$long"; do
+        TLD_AI_HOST=$h limit 20 "$B/ai-text" hi 2>"$T/lh.txt"; rc=$?
+        [ $rc = 1 ] && grep -q 'AI_EHTTP.*expected http://host:port' "$T/lh.txt" || break
+    done
+    check "a host name, path or port too long is a bad host, not a shortened one" $? "$(cat "$T/lh.txt")"
+    (unset TLD_AI_REVIEWS; TLD_AI_HOST=http://127.0.0.1:$CLOSED limit 20 "$B/ai-defaults" longreview) \
+        >"$T/lr.txt" 2>&1; rc=$?
+    [ $rc = 0 ]; check "a review directory too long for a path fails with AI_EARG" $? "$(cat "$T/lr.txt")"
 }
 
 group_http() {
@@ -189,6 +198,9 @@ $(cat "$T/https.txt")"
     TLD_AI_HOST=$HOST TLD_AI_LLM=not-installed limit 20 "$B/ai-text" hi 2>"$T/nm.txt"; rc=$?
     [ $rc = 1 ] && grep -q 'AI_ENOMODEL' "$T/nm.txt" && [ "$(reqs nm)" = 0 ]
     check "a model that is not installed gives AI_ENOMODEL" $? "$(cat "$T/nm.txt")"
+    TLD_AI_HOST=$HOST TLD_AI_LLM=m$(printf '%0400d' 0) limit 20 "$B/ai-text" hi 2>"$T/nl.txt"; rc=$?
+    [ $rc = 1 ] && grep -q 'AI_EARG.*model name too long' "$T/nl.txt" && [ "$(reqs nm)" = 0 ]
+    check "a model name too long gives AI_EARG, not a shortened name" $? "$(cat "$T/nl.txt")"
 }
 
 group_json() {
