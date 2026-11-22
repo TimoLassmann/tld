@@ -19,31 +19,13 @@ static int n_check = 0;
 
 static int parse_cstr(const char *s, tld_json_obj **out)
 {
-        tld_strbuf* b = NULL;
-        int r;
-        if(tld_strbuf_alloc(&b, 64) != OK){
-                return FAIL;
-        }
-        tld_strbuf_append(b, (char*)s);
-        r = tld_json_parse(b, out);
-        tld_strbuf_free(b);
-        return r;
+        return tld_json_parse(s, out);
 }
 
 /* parse from an explicit byte range (may contain NUL bytes) */
 static int parse_bytes(const char *s, int len, tld_json_obj **out)
 {
-        tld_strbuf* b = NULL;
-        int r;
-        if(tld_strbuf_alloc(&b, len + 16) != OK){
-                return FAIL;
-        }
-        memcpy(b->str, s, len);
-        b->len = len;
-        b->str[len] = 0;
-        r = tld_json_parse(b, out);
-        tld_strbuf_free(b);
-        return r;
+        return tld_json_parse_n(s, (size_t) len, out);
 }
 
 static tld_json_val* get_val(tld_json_obj *o, const char *key)
@@ -389,7 +371,7 @@ static void test_ollama_embed(void)
         }
         tld_strbuf_append(b, "],\"total_duration\":14143917,\"load_duration\":1019500,\"prompt_eval_count\":8}");
 
-        CHECK(tld_json_parse(b, &o) == OK);
+        CHECK(tld_json_parse(TLD_STR(b), &o) == OK);
         CHECK(tld_json_get_arr(o, "embeddings", &a) == OK && a->n == 4);
         for(int r = 0; r < 4 && o; r++){
                 tld_json_arr* row = NULL;
@@ -414,7 +396,7 @@ static void test_ollama_embed(void)
         CHECK(tld_json_dump(o, b, 0) == OK);
         tld_json_obj_free(o);
         o = NULL;
-        CHECK(tld_json_parse(b, &o) == OK);
+        CHECK(tld_json_parse(TLD_STR(b), &o) == OK);
         ok = 1;
         for(int r = 0; r < 4 && o; r++){
                 for(int c = 0; c < 768; c++){
@@ -696,7 +678,7 @@ static void test_long_strings(void)
                         free(raw);
                 }
                 p = NULL;
-                CHECK(tld_json_parse(b, &p) == OK);
+                CHECK(tld_json_parse(TLD_STR(b), &p) == OK);
                 CHECK(tld_json_get_str(p, "s", &got) == OK && (int)strlen(got) == n);
                 tld_json_obj_free(p);
                 tld_strbuf_free(b);
@@ -717,7 +699,7 @@ static void test_search_many(void)
                 tld_strbuf_append(b, tmp);
         }
         tld_strbuf_append(b, "]}");
-        CHECK(tld_json_parse(b, &o) == OK);
+        CHECK(tld_json_parse(TLD_STR(b), &o) == OK);
         CHECK(tld_json_search(o, "k", &r) == OK);
         CHECK(r != NULL && r->n == 80);
         tld_json_obj_free(r);
@@ -832,7 +814,7 @@ static void test_long_key(void)
         tld_strbuf_append(b, "\":\"short\",\"");
         tld_strbuf_append(b, k300);
         tld_strbuf_append(b, "\":\"long\"}");
-        CHECK(tld_json_parse(b, &o) == OK);
+        CHECK(tld_json_parse(TLD_STR(b), &o) == OK);
         CHECK(tld_json_search(o, k300, &r) == OK);
         CHECK(r != NULL && r->n == 1);
         if(r && r->n == 1){
@@ -973,6 +955,83 @@ static void test_set_path(void)
         tld_json_obj_free(o);
 }
 
+/* tld_json_parse on C text, tld_json_parse_n on a byte range. */
+static void test_parse_text(void)
+{
+        tld_json_obj *o = NULL;
+        const char *s = NULL;
+        const char doc[] = "{\"a\":\"x\"}{\"b\":1}";
+        CHECK(tld_json_parse("{\"a\": \"x\"}", &o) == OK);
+        CHECK(o && tld_json_get_str(o, "a", &s) == OK && strcmp(s, "x") == 0);
+        tld_json_obj_free(o);
+        o = NULL;
+        CHECK(tld_json_parse_n(doc, 9, &o) == OK);              /* the first object only */
+        CHECK(o && tld_json_get_str(o, "a", &s) == OK && strcmp(s, "x") == 0);
+        tld_json_obj_free(o);
+        o = NULL;
+        CHECK(tld_json_parse_n(doc, sizeof doc - 1, &o) == FAIL);    /* two objects */
+        CHECK(tld_json_parse_n("{\"a\":1}\0", 8, &o) == FAIL);      /* NUL after it */
+        CHECK(tld_json_parse_n("{}", 0, &o) == FAIL);                /* empty */
+        CHECK(o == NULL);
+}
+
+/* TLD_JSON_COMPACT writes no whitespace outside strings and reads back the same. */
+static void test_compact(void)
+{
+        tld_json_obj *o = NULL;
+        tld_json_obj *p = NULL;
+        tld_strbuf *a = NULL;
+        tld_strbuf *b = NULL;
+        CHECK(parse_cstr("{ \"k\" : [1, {\"s\": \"a b\\n\"}, [], {}], \"e\": {} }", &o) == OK);
+        tld_strbuf_alloc(&a, 16);
+        tld_strbuf_alloc(&b, 16);
+        CHECK(tld_json_dump(o, a, TLD_JSON_COMPACT) == OK);
+        CHECK(strcmp(TLD_STR(a), "{\"k\":[1,{\"s\":\"a b\\n\"},[],{}],\"e\":{}}") == 0);
+        CHECK(parse_cstr(TLD_STR(a), &p) == OK);
+        CHECK(tld_json_dump(p, b, TLD_JSON_COMPACT) == OK);
+        CHECK(strcmp(TLD_STR(a), TLD_STR(b)) == 0);
+        tld_strbuf_clear(a);
+        tld_strbuf_clear(b);
+        CHECK(tld_json_dump(o, a, 0) == OK);                    /* indented still the same tree */
+        CHECK(tld_json_dump(p, b, 0) == OK);
+        CHECK(strcmp(TLD_STR(a), TLD_STR(b)) == 0);
+        tld_strbuf_free(a);
+        tld_strbuf_free(b);
+        tld_json_obj_free(o);
+        tld_json_obj_free(p);
+}
+
+/* tld_json_obj_add / tld_json_arr_add build containers one entry at a time. */
+static void test_add(void)
+{
+        tld_json_obj *o = NULL;
+        tld_json_arr *a = NULL;
+        tld_strbuf *t = NULL;
+        int64_t i = 0;
+
+        CHECK(tld_json_obj_add(&o, TLD_JSTR("skip", NULL)) == OK);  /* skipped: nothing made */
+        CHECK(o == NULL);
+        CHECK(tld_json_arr_add(&a, TLD_JINT(NULL, 1)) == OK);
+        CHECK(tld_json_arr_add(&a, TLD_JSTR(NULL, "two")) == OK);
+        CHECK(tld_json_obj_add(&o, TLD_JSTR("name", "x")) == OK);
+        CHECK(tld_json_obj_add(&o, TLD_JARR("list", a)) == OK);     /* o owns a now */
+        a = NULL;
+        CHECK(tld_json_obj_add(&o, TLD_JBOOL("on", 1)) == OK);
+        tld_strbuf_alloc(&t, 16);
+        CHECK(tld_json_dump(o, t, TLD_JSON_COMPACT) == OK);
+        CHECK(strcmp(TLD_STR(t), "{\"name\":\"x\",\"list\":[1,\"two\"],\"on\":true}") == 0);
+        CHECK(tld_json_get_int(o, "list[0]", &i) == OK && i == 1);
+
+        /* a NULL child fails; the caller's object keeps what it had */
+        fprintf(stderr, "regress-json: expect two errors about a NULL entry:\n");
+        CHECK(tld_json_obj_add(&o, TLD_JOBJ("bad", NULL)) == FAIL);
+        CHECK(o != NULL && o->n == 3);
+        CHECK(tld_json_arr_add(&a, TLD_JOBJ(NULL, NULL)) == FAIL);  /* new one freed */
+        CHECK(a == NULL);
+        tld_strbuf_free(t);
+        tld_json_obj_free(o);
+}
+
 static const struct {
         const char *name;
         void (*fn)(void);
@@ -1001,6 +1060,9 @@ static const struct {
         {"deep-indent", test_deep_indent, "dump indents every level, also past 31 spaces"},
         {"null-entry", test_null_entry, "a TLD_JOBJ/TLD_JARR entry holding NULL fails the build"},
         {"caller-container", test_caller_container, "a failed add to the caller's container returns NULL"},
+        {"parse-text", test_parse_text, "tld_json_parse on C text, tld_json_parse_n on a byte range"},
+        {"compact", test_compact, "TLD_JSON_COMPACT writes no whitespace and reads back the same"},
+        {"add", test_add, "tld_json_obj_add / tld_json_arr_add, one entry at a time"},
 };
 
 int main(int argc, char *argv[])
@@ -1033,6 +1095,9 @@ int main(int argc, char *argv[])
                   "  deep-indent        dump indents every level, also past 31 spaces\n"
                   "  null-entry         a TLD_JOBJ/TLD_JARR entry holding NULL fails the build\n"
                   "  caller-container   a failed add to the caller's container returns NULL\n"
+                  "  parse-text         tld_json_parse on C text, tld_json_parse_n on a byte range\n"
+                  "  compact            TLD_JSON_COMPACT writes no whitespace and reads back the same\n"
+                  "  add                tld_json_obj_add / tld_json_arr_add, one entry at a time\n"
                   "\n"
                   "Example: regress-json escapes malformed");
         for(int i = 1; i < argc; i++){

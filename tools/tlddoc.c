@@ -135,19 +135,6 @@ static int starts(const char *s, const char *prefix)
         return strncmp(s, prefix, strlen(prefix)) == 0;
 }
 
-/* Append n bytes of s to b. */
-static int append_n(tld_strbuf *b, const char *s, size_t n)
-{
-        char *t = xstrndup(s, n);
-        ASSERT(t != NULL, "Out of memory");
-        RUN(tld_strbuf_append(b, t));
-        MFREE(t);
-        return OK;
-ERROR:
-        MFREE(t);
-        return FAIL;
-}
-
 static int appendf(tld_strbuf *b, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 static int appendf(tld_strbuf *b, const char *fmt, ...)
 {
@@ -289,30 +276,15 @@ static void header_free(header *h)
 /* reading                                                                  */
 /* ------------------------------------------------------------------------ */
 
+/* The file at path, which must not contain NUL bytes. */
 static int read_file(const char *path, tld_strbuf **out)
 {
-        FILE *f = NULL;
         tld_strbuf *b = NULL;
-        char buf[4097];
-        size_t got;
-        f = fopen(path, "rb");
-        if(f == NULL){
-                ERROR_MSG("Cannot open %s: %s", path, strerror(errno));
-        }
-        RUN(tld_strbuf_alloc(&b, 1 << 16));
-        while((got = fread(buf, 1, sizeof buf - 1, f)) > 0){
-                buf[got] = 0;
-                ASSERT(strlen(buf) == got, "%s contains a NUL byte", path);
-                RUN(tld_strbuf_append(b, buf));
-        }
-        ASSERT(!ferror(f), "Cannot read %s", path);
-        fclose(f);
+        RUN(tld_path_read(path, &b));
+        ASSERT(memchr(b->str, 0, (size_t) b->len) == NULL, "%s contains a NUL byte", path);
         *out = b;
         return OK;
 ERROR:
-        if(f){
-                fclose(f);
-        }
         tld_strbuf_free(b);
         return FAIL;
 }
@@ -722,7 +694,7 @@ static int expand_template(const char *tmpl, const char *arg, tld_strbuf *code, 
                         if(n == pn && strncmp(p, param, n) == 0){
                                 RUN(tld_strbuf_append(b, (char *)arg));
                         }else{
-                                RUN(append_n(b, p, n));
+                                RUN(tld_strbuf_append_n(b, p, n));
                         }
                         p += n;
                         continue;
@@ -838,7 +810,7 @@ static int lex_define(header *h, item *it, int first, int last, const char *last
                 if(n && s[n - 1] == '\\'){
                         n--;
                 }
-                RUN(append_n(body, s, n));
+                RUN(tld_strbuf_append_n(body, s, n));
                 RUN(tld_strbuf_append_char(body, ' '));
         }
         if(blank(TLD_STR(body)) && strcmp(name, last_ifndef) == 0){

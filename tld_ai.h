@@ -682,58 +682,30 @@ const char *(ai_fmt)(const char *fmt, ...) {
 
 static void ai__drop(tld_json_decoration d) {
     if (!d.value) return;
-    if (d.type == VAL_OBJ) tld_json_obj_free((tld_json_obj *)d.value);
-    if (d.type == VAL_ARR) tld_json_arr_free((tld_json_arr *)d.value);
+    if (d.type == TLD__JVAL_OBJ) tld_json_obj_free((tld_json_obj *)d.value);
+    if (d.type == TLD__JVAL_ARR) tld_json_arr_free((tld_json_arr *)d.value);
 }
 
-/* Add d to *o (created if NULL). A NULL value is skipped. Ownership of an object or
- * array value passes to *o, also on failure, when tld frees it (*o is then unchanged:
- * NULL, or the caller's object without the child). */
+/* Add d to *o (created if NULL). A NULL value is skipped (also a NULL object or array,
+ * unlike tld_json_obj_add). Ownership of an object or array value passes to *o, also on
+ * failure, when tld frees it (*o is then unchanged: NULL, or the caller's object without
+ * the child). */
 static int ai__put(tld_json_obj **o, tld_json_decoration d) {
     if (!d.value) return 0;
-    tld_json_obj *r = tld__json_obj_build(*o, &d, 1);
-    if (!r) return ai__nomem();
-    *o = r;
-    return 0;
+    return tld_json_obj_add(o, d) == OK ? 0 : ai__nomem();
 }
 
 static int ai__push(tld_json_arr **a, tld_json_decoration d) {
     if (!d.value) return 0;
-    tld_json_arr *r = tld__json_arr_build(*a, &d, 1);
-    if (!r) return ai__nomem();
-    *a = r;
-    return 0;
+    return tld_json_arr_add(a, d) == OK ? 0 : ai__nomem();
 }
 
-/* tld_json_dump writes indented text; drop the whitespace outside strings. */
-static void ai__compact(tld_strbuf *b) {
-    char *s = (char *)b->str;
-    int w = 0, instr = 0, esc = 0;
-    for (int r = 0; r < b->len; r++) {
-        char c = s[r];
-        if (instr) {
-            s[w++] = c;
-            if (esc)
-                esc = 0;
-            else if (c == '\\')
-                esc = 1;
-            else if (c == '"')
-                instr = 0;
-        } else if (c != ' ' && c != '\n' && c != '\t' && c != '\r') {
-            s[w++] = c;
-            if (c == '"') instr = 1;
-        }
-    }
-    b->len = w;
-    s[w] = 0;
-}
-
-/* Compact JSON text of o in a new strbuf. indent >= 0 keeps tld's layout. */
+/* JSON text of o (or {} for NULL) in a new strbuf: compact, or indented when pretty. */
 static int ai__dump(tld_json_obj *o, tld_strbuf **out, int pretty) {
     tld_strbuf *b = NULL;
     if (tld_strbuf_alloc(&b, 1024) != OK) return ai__nomem();
     if (o) {
-        if (tld_json_dump(o, b, 0) != OK) {
+        if (tld_json_dump(o, b, pretty ? 0 : TLD_JSON_COMPACT) != OK) {
             tld_strbuf_free(b);
             return ai__nomem();
         }
@@ -741,37 +713,33 @@ static int ai__dump(tld_json_obj *o, tld_strbuf **out, int pretty) {
         tld_strbuf_free(b);
         return ai__nomem();
     }
-    if (!pretty) ai__compact(b);
     *out = b;
     return 0;
 }
 
-/* Parse NUL-terminated text that must hold a JSON object. */
-static int ai__parse_buf(tld_strbuf *b, tld_json_obj **out) {
-    const char *p = TLD_STR(b);
-    while (*p == ' ' || *p == '\n' || *p == '\r' || *p == '\t') p++;
-    if (*p != '{') return -1;
+/* Parse the n bytes at s, which must hold a JSON object. 0, -1 when it does not, or the
+ * AI_ENOMEM status. */
+static int ai__parse_n(const char *s, size_t n, tld_json_obj **out) {
+    size_t i = 0;
+    while (i < n && (s[i] == ' ' || s[i] == '\n' || s[i] == '\r' || s[i] == '\t')) i++;
+    if (i == n || s[i] != '{') return -1;
     *out = NULL;
     errno = 0;
-    if (tld_json_parse(b, out) == OK && *out) return 0;
+    if (tld_json_parse_n(s, n, out) == OK && *out) return 0;
     /* a failed malloc sets ENOMEM and nothing else in the parser does: out of memory is
        not "not JSON" */
     if (errno == ENOMEM) return ai__nomem();
     return -1;
 }
 
+static int ai__parse_buf(tld_strbuf *b, tld_json_obj **out) {
+    return ai__parse_n(TLD_STR(b), (size_t)b->len, out);
+}
+
 static int ai__parse(const char *s, tld_json_obj **out) {
-    tld_strbuf *b = NULL;
     size_t n = strlen(s);
     if (n > (size_t)AI__MAX_BODY) return -1;
-    if (tld_strbuf_alloc(&b, (int)n + 1) != OK) return ai__nomem();
-    if (tld_strbuf_append(b, (char *)s) != OK) {
-        tld_strbuf_free(b);
-        return ai__nomem();
-    }
-    int rc = ai__parse_buf(b, out);
-    tld_strbuf_free(b);
-    return rc;
+    return ai__parse_n(s, n, out);
 }
 
 static const char *ai__str(tld_json_obj *o, const char *path) {
@@ -1916,59 +1884,38 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
 /* Read the whole file at path into a new NUL-terminated buffer (*data, *len bytes,
  * free with free()). Returns 0, or 1 if the file does not exist and missing_ok is set,
  * or -1 with the error set. what names the file in messages ("image", "review"). */
-static int ai__slurp(const char *path, const char *what, int missing_ok, char **data,
-                     size_t *len) {
-    *data = NULL;
-    *len = 0;
-    FILE *f = fopen(path, "rb");
-    if (!f) {
-        if (missing_ok && errno == ENOENT) return 1;
-        return ai__fail(AI_EIO, "cannot read %s %s: %s", what, path, strerror(errno));
-    }
-    size_t n = 0, cap = 4096;
-    char *d = malloc(cap);
-    for (;;) {
-        if (!d) {
-            fclose(f);
-            return ai__nomem();
-        }
-        n += fread(d + n, 1, cap - n - 1, f);
-        if (n < cap - 1 || ferror(f)) break;
-        if (cap > (size_t)AI__MAX_BODY) {
-            free(d);
-            fclose(f);
-            return ai__fail(AI_EIO, "%s %s is too large", what, path);
-        }
-        char *g = realloc(d, cap * 2);
-        if (!g) free(d);
-        d = g;
-        cap *= 2;
-    }
-    int bad = ferror(f);
-    fclose(f);
-    if (bad) {
-        free(d);
+/* The file at path in a new strbuf: 0, 1 when it does not exist and missing_ok, or a
+ * failure status (AI_EIO, AI_ENOMEM). */
+static int ai__slurp(const char *path, const char *what, int missing_ok, tld_strbuf **out) {
+    *out = NULL;
+    if (missing_ok && tld_path_exists(path) != OK) return 1;
+    errno = 0;
+    if (tld_path_read(path, out) != OK) {
+        /* tld's message keeps errno */
+        if (errno == ENOMEM) return ai__nomem();
         return ai__fail(AI_EIO, "cannot read %s %s", what, path);
     }
-    d[n] = 0;
-    *data = d;
-    *len = n;
+    if ((*out)->len > AI__MAX_BODY) {
+        tld_strbuf_free(*out);
+        *out = NULL;
+        return ai__fail(AI_EIO, "%s %s is too large", what, path);
+    }
     return 0;
 }
 
 static int ai__b64_file(const char *path, char **out) {
     *out = NULL;
-    char *d = NULL;
-    size_t got = 0;
-    if (ai__slurp(path, "image", 0, &d, &got)) return -1;
+    tld_strbuf *d = NULL;
+    if (ai__slurp(path, "image", 0, &d)) return -1;
+    size_t got = (size_t)d->len;
     char *o = malloc(4 * ((got + 2) / 3) + 1);
     if (!o) {
-        free(d);
+        tld_strbuf_free(d);
         return ai__nomem();
     }
     static const char t[] =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    const unsigned char *u = (const unsigned char *)d;
+    const unsigned char *u = (const unsigned char *)d->str;
     char *q = o;
     for (size_t i = 0; i < got; i += 3) {
         uint32_t v = (uint32_t)u[i] << 16 | (i + 1 < got ? (uint32_t)u[i + 1] << 8 : 0) |
@@ -1979,7 +1926,7 @@ static int ai__b64_file(const char *path, char **out) {
         *q++ = i + 2 < got ? t[v & 63] : '=';
     }
     *q = 0;
-    free(d);
+    tld_strbuf_free(d);
     *out = o;
     return 0;
 }
@@ -2029,18 +1976,14 @@ static int ai__add_options(tld_json_obj **req, const ai_opts *o) {
                 rc = -1;
         }
         if (!rc && !op && tld_json_obj_alloc(&op) != OK) rc = ai__nomem();
+        /* a key already present (built-in or earlier) is replaced, a new one appended */
         for (int i = 0; !rc && x && i < x->n; i++) {
-            int j = 0; /* a key already present (built-in or earlier) is replaced */
-            while (j < op->n && strcmp(TLD_STR(op->key[j]), TLD_STR(x->key[i]))) j++;
-            if (j < op->n) {
-                if (tld_json_val_copy(op->v[j], x->v[i]) != OK) rc = ai__nomem();
-            } else if (tld_strbuf_append(op->key[op->n], TLD_STR(x->key[i])) != OK ||
-                       tld_json_val_copy(op->v[op->n], x->v[i]) != OK)
-                rc = ai__nomem();
-            else {
-                op->n++;
-                if (tld__json_obj_chk_space(op) != OK) rc = ai__nomem();
+            const char *k = TLD_STR(x->key[i]);
+            if (!*k || strpbrk(k, ".[")) {
+                rc = ai__fail(AI_EARG, "extra_options: option name \"%.100s\" is empty or contains '.' or '['", k);
+                break;
             }
+            if (tld_json_set_val(op, (char *)k, x->v[i]) != OK) rc = ai__nomem();
         }
         if (x) tld_json_obj_free(x);
     }
@@ -2629,23 +2572,14 @@ static pthread_mutex_t ai__review_mu = PTHREAD_MUTEX_INITIALIZER;
 
 /* A review file as a strbuf: 0, 1 if it does not exist, -1 on error. */
 static int ai__read_file(const char *path, tld_strbuf **out) {
+    tld_strbuf *b = NULL;
     *out = NULL;
-    char *d = NULL;
-    size_t n = 0;
-    int rc = ai__slurp(path, "review", 1, &d, &n);
+    int rc = ai__slurp(path, "review", 1, &b);
     if (rc) return rc;
-    if (memchr(d, 0, n)) {
-        free(d);
+    if (memchr(b->str, 0, (size_t)b->len)) {
+        tld_strbuf_free(b);
         return ai__fail(AI_EPARSE, "review %s contains a NUL byte", path);
     }
-    tld_strbuf *b = NULL;
-    if (n > (size_t)INT_MAX - 1 || tld_strbuf_alloc(&b, (int)n + 1) != OK ||
-        tld_strbuf_append(b, d) != OK) {
-        free(d);
-        tld_strbuf_free(b);
-        return ai__nomem();
-    }
-    free(d);
     *out = b;
     return 0;
 }

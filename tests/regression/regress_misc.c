@@ -130,6 +130,59 @@ ERROR:
         return FAIL;
 }
 
+static int test_read(const char *dir)
+{
+        char file[1024];
+        FILE *f = NULL;
+        tld_strbuf *b = NULL;
+        tld_strbuf *keep = NULL;
+        static char big[200000];
+        for(size_t i = 0; i < sizeof big; i++){
+                big[i] = (char) (i % 251);              /* NUL bytes included */
+        }
+        snprintf(file, sizeof file, "%s/data.bin", dir);
+        f = fopen(file, "wb");
+        ASSERT(f != NULL, "cannot write %s", file);
+        ASSERT(fwrite(big, 1, sizeof big, f) == sizeof big, "short write");
+        fclose(f);
+        f = NULL;
+        RUN(tld_path_read(file, &b));
+        ASSERT(TLD_STRLEN(b) == (int) sizeof big, "read %d bytes", TLD_STRLEN(b));
+        ASSERT(memcmp(TLD_STR(b), big, sizeof big) == 0, "contents differ");
+        ASSERT(TLD_STR(b)[sizeof big] == 0, "not NUL-terminated");
+        tld_strbuf_free(b);
+        b = NULL;
+
+        snprintf(file, sizeof file, "%s/empty", dir);
+        f = fopen(file, "wb");
+        ASSERT(f != NULL, "cannot write %s", file);
+        fclose(f);
+        f = NULL;
+        RUN(tld_path_read(file, &b));
+        ASSERT(TLD_STRLEN(b) == 0 && TLD_STR(b)[0] == 0, "empty file read as %d bytes", TLD_STRLEN(b));
+        tld_strbuf_free(b);
+        b = NULL;
+
+        snprintf(file, sizeof file, "%s/missing", dir);
+        keep = (tld_strbuf *) &keep;                    /* any non-NULL marker */
+        b = keep;
+        fprintf(stderr, "regress-misc: expect an error about %s:\n", file);
+        ASSERT(tld_path_read(file, &b) == FAIL, "reading a missing file succeeded");
+        ASSERT(b == keep, "*out changed on failure");
+        b = NULL;
+        ASSERT(tld_path_read(dir, &b) == FAIL, "reading a directory succeeded");
+        ASSERT(b == NULL, "*out set on failure");
+        return OK;
+ERROR:
+        if(f){
+                fclose(f);
+        }
+        if(b != keep){
+                tld_strbuf_free(b);
+        }
+        return FAIL;
+}
+
 static const char *tmp_dir = NULL;
 
 static int test_full_path_tmp(void)
@@ -142,6 +195,11 @@ static int test_dir_create_tmp(void)
         return test_dir_create(tmp_dir);
 }
 
+static int test_read_tmp(void)
+{
+        return test_read(tmp_dir);
+}
+
 /* The checks, in the order a plain run does them; arguments select by name. */
 static const struct {
         const char *name;
@@ -152,6 +210,7 @@ static const struct {
         {"dir-create", test_dir_create_tmp, "tld_path_mkdir reports mkdir failures"},
         {"dirname", test_dirname, "tld_path_dirname on paths with and without a directory"},
         {"cmd-line", test_cmd_line, "tld_cmdline_capture joins argv"},
+        {"read", test_read_tmp, "tld_path_read reads whole files, NUL bytes included, and fails cleanly"},
 };
 
 int main(int argc, char *argv[])
@@ -166,6 +225,7 @@ int main(int argc, char *argv[])
                   "  dir-create  tld_path_mkdir reports mkdir failures\n"
                   "  dirname     tld_path_dirname on paths with and without a directory\n"
                   "  cmd-line    tld_cmdline_capture joins argv\n"
+                  "  read        tld_path_read reads whole files and fails cleanly\n"
                   "\n"
                   "Example: regress-misc dirname cmd-line");
         for(int i = 1; i < argc; i++){

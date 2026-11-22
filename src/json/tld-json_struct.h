@@ -62,9 +62,9 @@ typedef struct tld_json_arr {
 typedef struct {
         char* key;
         void* value;
-        /* VAL_STRING guesses the type from the text (TLD_JAUTO); the values after
-           VAL_ARR are the typed decorations TLD_JSTR, TLD_JNUM, TLD_JINT, TLD_JBOOL, TLD_JNULL. */
-        enum { VAL_STRING, VAL_OBJ, VAL_ARR, VAL_JSTR, VAL_NUM, VAL_INT, VAL_BOOL, VAL_NULL } type;
+        /* TLD__JVAL_AUTO guesses the type from the text (TLD_JAUTO); the values after
+           TLD__JVAL_ARR are the typed decorations TLD_JSTR, TLD_JNUM, TLD_JINT, TLD_JBOOL, TLD_JNULL. */
+        enum { TLD__JVAL_AUTO, TLD__JVAL_OBJ, TLD__JVAL_ARR, TLD__JVAL_STR, TLD__JVAL_NUM, TLD__JVAL_INT, TLD__JVAL_BOOL, TLD__JVAL_NULL } type;
 } tld_json_decoration;
 
 #endif

@@ -239,21 +239,19 @@ ERROR:
 /* Text up to the next {{ (or the end) as a new text node in *node. */
 int tld__template_parse_text(tld__template_parser *parser, tld__template_node **node)
 {
-        char *text = NULL;
+        tld__template_node *n = NULL;
         const char *start = parser->input + parser->position;
         int length = 0;
         while(start[length] != '\0' && (start[length] != '{' || start[length + 1] != '{')){
                 length++;
         }
-        MMALLOC(text, length + 1);
-        memcpy(text, start, length);
-        text[length] = '\0';
-        RUN(tld__template_node_create(node, TLD__NODE_TEXT, text));
-        MFREE(text);
+        RUN(tld__template_node_create(&n, TLD__NODE_TEXT, ""));
+        RUN(tld_strbuf_append_n(n->content, start, (size_t) length));
         parser->position += length;
+        *node = n;
         return OK;
 ERROR:
-        MFREE(text);
+        tld__template_node_free(n);
         return FAIL;
 }
 

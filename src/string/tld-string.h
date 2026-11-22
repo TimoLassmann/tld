@@ -38,6 +38,10 @@ TLD_API int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
 /* Append the NUL-terminated string content to b; b grows as needed. */
 TLD_API int tld_strbuf_append(tld_strbuf *b, const char *content);
 
+/* Append the n bytes at s to b (they may include NUL bytes; the buffer is still
+ * NUL-terminated after them). s may point into b. */
+TLD_API int tld_strbuf_append_n(tld_strbuf *b, const char *s, size_t n);
+
 /* Append the single character c to b. */
 TLD_API int tld_strbuf_append_char(tld_strbuf *b, char c);
 

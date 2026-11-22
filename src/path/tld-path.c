@@ -7,6 +7,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <stdio.h>
+#include <string.h>
 
 #define TLD__MAX_CMD_LEN 16384
 
@@ -197,6 +199,38 @@ ERROR:
         if(tmp){
                 MFREE(tmp);
         }
+        return FAIL;
+}
+
+int tld_path_read(const char *path, tld_strbuf **out)
+{
+        FILE *f = NULL;
+        tld_strbuf *b = NULL;
+        char buf[1 << 16];
+        size_t got = 0;
+        ASSERT(path != NULL, "No path");
+        ASSERT(out != NULL, "No output pointer");
+        f = fopen(path, "rb");
+        if(f == NULL){
+                ERROR_MSG("Cannot open %s: %s", path, strerror(errno));
+        }
+        RUN(tld_strbuf_alloc(&b, sizeof buf));
+        while((got = fread(buf, 1, sizeof buf, f)) > 0){
+                if(tld_strbuf_append_n(b, buf, got) != OK){
+                        ERROR_MSG("Cannot read %s: too large or out of memory", path);
+                }
+        }
+        if(ferror(f)){
+                ERROR_MSG("Cannot read %s: %s", path, strerror(errno));
+        }
+        fclose(f);
+        *out = b;
+        return OK;
+ERROR:
+        if(f){
+                fclose(f);
+        }
+        tld_strbuf_free(b);
         return FAIL;
 }
 

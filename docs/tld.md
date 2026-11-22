@@ -20,14 +20,14 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [Licence](#sec-licence)
 - [core](#mod-core): 17 symbols (`src/core/tld-core.h`)
 - [alloc](#mod-alloc): 8 symbols (`src/alloc/tld-alloc.h`)
-- [string](#mod-string): 10 symbols (`src/string/tld-string.h`)
-- [path](#mod-path): 7 symbols (`src/path/tld-path.h`)
+- [string](#mod-string): 11 symbols (`src/string/tld-string.h`)
+- [path](#mod-path): 8 symbols (`src/path/tld-path.h`)
 - [timing](#mod-timing): 2 symbols (`src/timing/tld-timing.h`)
 - [bitfield](#mod-bitfield): 10 symbols (`src/bitfield/tld-bitfield.h`)
 - [hash](#mod-hash): 9 symbols (`src/hash/tld-hash.h`)
 - [json types](#mod-json-types): 5 symbols (`src/json/tld-json_struct.h`)
 - [json memory](#mod-json-memory): 9 symbols (`src/json/tld-json_mem.h`)
-- [json](#mod-json): 21 symbols (`src/json/tld-json.h`)
+- [json](#mod-json): 25 symbols (`src/json/tld-json.h`)
 - [template](#mod-template): 2 symbols (`src/template/tld-template.h`)
 - [rng](#mod-rng): 13 symbols (`src/rng/tld-rng.h`)
 - [sort](#mod-sort): 24 symbols (`src/sort/tld-sort.h`)
@@ -493,6 +493,17 @@ TLD_API int tld_strbuf_append(tld_strbuf *b, const char *content);
 
 Append the NUL-terminated string content to b; b grows as needed.
 
+<a id="tld_strbuf_append_n"></a>
+
+### `tld_strbuf_append_n`
+
+```c
+TLD_API int tld_strbuf_append_n(tld_strbuf *b, const char *s, size_t n);
+```
+
+Append the n bytes at s to b (they may include NUL bytes; the buffer is still
+NUL-terminated after them). s may point into b.
+
 <a id="tld_strbuf_append_char"></a>
 
 ### `tld_strbuf_append_char`
@@ -563,6 +574,19 @@ TLD_API int tld_path_full(tld_strbuf **full, char *filename);
 The absolute, symlink-free path of the existing file filename into *full. A non-NULL
 *full is cleared and reused; otherwise a buffer is allocated (free with
 tld_strbuf_free). FAIL when the file does not exist.
+
+<a id="tld_path_read"></a>
+
+### `tld_path_read`
+
+```c
+TLD_API int tld_path_read(const char *path, tld_strbuf **out);
+```
+
+The whole contents of the file at path in a new buffer in *out (free with
+tld_strbuf_free); the bytes may include NUL. FAIL, with an error naming the file and
+the reason, when it cannot be opened or read or is larger than a buffer holds
+(INT32_MAX - 1 bytes); *out is then unchanged.
 
 <a id="tld_cmdline_capture"></a>
 
@@ -908,9 +932,9 @@ tld_json_arr_alloc; freed with tld_json_arr_free.
 typedef struct {
         char* key;
         void* value;
-        /* VAL_STRING guesses the type from the text (TLD_JAUTO); the values after
-           VAL_ARR are the typed decorations TLD_JSTR, TLD_JNUM, TLD_JINT, TLD_JBOOL, TLD_JNULL. */
-        enum { VAL_STRING, VAL_OBJ, VAL_ARR, VAL_JSTR, VAL_NUM, VAL_INT, VAL_BOOL, VAL_NULL } type;
+        /* TLD__JVAL_AUTO guesses the type from the text (TLD_JAUTO); the values after
+           TLD__JVAL_ARR are the typed decorations TLD_JSTR, TLD_JNUM, TLD_JINT, TLD_JBOOL, TLD_JNULL. */
+        enum { TLD__JVAL_AUTO, TLD__JVAL_OBJ, TLD__JVAL_ARR, TLD__JVAL_STR, TLD__JVAL_NUM, TLD__JVAL_INT, TLD__JVAL_BOOL, TLD__JVAL_NULL } type;
 } tld_json_decoration;
 ```
 
@@ -1020,18 +1044,21 @@ live inside t.
 
 `src/json/tld-json.h`: Parse JSON text into a tree (tld_json_parse), build trees with TLD_JSON_OBJECT and TLD_JSON_ARRAY, read values by path (tld_json_get_*), search and update, and write JSON text (tld_json_dump).
 
-<a id="tld_json_parse"></a>
+<a id="tld_json_parse"></a><a id="tld_json_parse_n"></a>
 
-### `tld_json_parse`
+### `tld_json_parse`, `tld_json_parse_n`
 
 ```c
-TLD_API  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
+TLD_API int tld_json_parse(const char *text, tld_json_obj **out);
+TLD_API int tld_json_parse_n(const char *text, size_t len, tld_json_obj **out);
 ```
 
-Parse the JSON text in t (standard JSON, nesting up to 512 levels) into a new object in
-*out; free it with tld_json_obj_free. A top-level array becomes the single entry of
-an object, under the key "Top Level Arr". Invalid JSON prints an error naming the byte
-offset and returns FAIL.
+Parse the NUL-terminated JSON text (standard JSON, nesting up to 512 levels) into a
+new object in *out; free it with tld_json_obj_free. A top-level array becomes the
+single entry of an object, under the key "Top Level Arr". Invalid JSON prints an
+error naming the byte offset and returns FAIL. tld_json_parse_n parses the len bytes
+at text instead (a NUL byte among them is invalid JSON). For a tld_strbuf b:
+tld_json_parse(TLD_STR(b), &o).
 
 <a id="tld_json_search"></a>
 
@@ -1090,9 +1117,9 @@ further past the end, or no memory. Keys containing '.' or '[' cannot be address
 ### `TLD_JAUTO`, `TLD_JOBJ`, `TLD_JARR`
 
 ```c
-#define TLD_JAUTO(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_STRING, .value = (void*)(v)})
-#define TLD_JOBJ(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_OBJ, .value = (void*)(v)})
-#define TLD_JARR(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_ARR, .value = (void*)(v)})
+#define TLD_JAUTO(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_AUTO, .value = (void*)(v)})
+#define TLD_JOBJ(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_OBJ, .value = (void*)(v)})
+#define TLD_JARR(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_ARR, .value = (void*)(v)})
 ```
 
 Entries for TLD_JSON_OBJECT / TLD_JSON_ARRAY. TLD_JAUTO(k, s): the string s, with its type guessed from
@@ -1108,11 +1135,11 @@ returns NULL only when it failed. Arrays ignore the key; pass NULL.
 ### `TLD_JSTR`, `TLD_JNUM`, `TLD_JINT`, `TLD_JBOOL`, `TLD_JNULL`
 
 ```c
-#define TLD_JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_JSTR, .value = (void*)(v)})
-#define TLD_JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_NUM,  .value = (void*)&(double){(v)}})
-#define TLD_JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_INT,  .value = (void*)&(long){(v)}})
-#define TLD_JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_BOOL, .value = (void*)&(int){(v)}})
-#define TLD_JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = VAL_NULL, .value = (void*)""})
+#define TLD_JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_STR, .value = (void*)(v)})
+#define TLD_JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_NUM,  .value = (void*)&(double){(v)}})
+#define TLD_JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_INT,  .value = (void*)&(long){(v)}})
+#define TLD_JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_BOOL, .value = (void*)&(int){(v)}})
+#define TLD_JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_NULL, .value = (void*)""})
 ```
 
 Typed decorations. TLD_JAUTO above guesses the type from the text ("0.2" becomes
@@ -1142,6 +1169,40 @@ tld_json_obj *o = TLD_JSON_OBJECT(TLD_JSTR("name", "x"), TLD_JINT("n", 3),
                            TLD_JARR("v", TLD_JSON_ARRAY(TLD_JNUM(NULL, 0.5), TLD_JNUM(NULL, 2))));
 ```
 
+<a id="tld_json_obj_add"></a><a id="tld_json_arr_add"></a>
+
+### `tld_json_obj_add`, `tld_json_arr_add`
+
+```c
+TLD_API int tld_json_obj_add(tld_json_obj **obj, tld_json_decoration entry);
+TLD_API int tld_json_arr_add(tld_json_arr **arr, tld_json_decoration entry);
+```
+
+Add one entry to *obj / one value to *arr, creating it when *obj / *arr is NULL:
+
+```c
+tld_json_obj *req = NULL;
+RUN(tld_json_obj_add(&req, TLD_JSTR("model", name)));
+RUN(tld_json_obj_add(&req, TLD_JBOOL("stream", 0)));
+```
+
+Entries are those of TLD_JSON_OBJECT: a TLD_JOBJ/TLD_JARR value passes to the container,
+also on failure (it is then freed), and a TLD_JAUTO/TLD_JSTR entry whose string is NULL
+is skipped (nothing is created). FAIL with an error when out of memory or for a
+TLD_JOBJ/TLD_JARR holding NULL; the container keeps what it had (a new one is freed,
+leaving *obj / *arr NULL).
+
+<a id="TLD_JSON_COMPACT"></a>
+
+### `TLD_JSON_COMPACT`
+
+```c
+#define TLD_JSON_COMPACT (-1)
+```
+
+The indent for compact JSON: tld_json_dump(n, b, TLD_JSON_COMPACT) writes no spaces or
+newlines outside strings.
+
 <a id="tld_json_dump"></a><a id="tld_json_dump_arr"></a>
 
 ### `tld_json_dump`, `tld_json_dump_arr`
@@ -1151,9 +1212,10 @@ TLD_API int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
 TLD_API int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
 ```
 
-Append n as JSON text to b (b is not cleared): 4 spaces of indentation per level on
-top of indent (pass 0), strings escaped, doubles with the fewest of 15 to 17 significant
-digits that read back exactly, inf/nan as null. A NULL n appends nothing.
+Append n as JSON text to b (b is not cleared): with indent >= 0, 4 spaces of
+indentation per level on top of indent (pass 0); with TLD_JSON_COMPACT, no whitespace.
+Strings are escaped, doubles written with the fewest of 15 to 17 significant digits
+that read back exactly, inf/nan as null. A NULL n appends nothing.
 
 <a id="mod-template"></a>
 
@@ -1980,12 +2042,14 @@ is ignored.
 | [`TLD_JOBJ`](#TLD_JOBJ) | macro | [json](#mod-json) |
 | [`TLD_JSON_ARR`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`tld_json_arr`](#tld_json_arr) | type | [json types](#mod-json-types) |
+| [`tld_json_arr_add`](#tld_json_arr_add) | function | [json](#mod-json) |
 | [`tld_json_arr_alloc`](#tld_json_arr_alloc) | function | [json memory](#mod-json-memory) |
 | [`tld_json_arr_copy`](#tld_json_arr_copy) | function | [json memory](#mod-json-memory) |
 | [`tld_json_arr_free`](#tld_json_arr_free) | function | [json memory](#mod-json-memory) |
 | [`TLD_JSON_ARRAY`](#TLD_JSON_ARRAY) | macro | [json](#mod-json) |
 | [`TLD_JSON_BOOL_FALSE`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`TLD_JSON_BOOL_TRUE`](#tld_json_type) | constant | [json types](#mod-json-types) |
+| [`TLD_JSON_COMPACT`](#TLD_JSON_COMPACT) | macro | [json](#mod-json) |
 | [`TLD_JSON_DBL`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`tld_json_decoration`](#tld_json_decoration) | type | [json types](#mod-json-types) |
 | [`tld_json_dump`](#tld_json_dump) | function | [json](#mod-json) |
@@ -2000,11 +2064,13 @@ is ignored.
 | [`TLD_JSON_NULL`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`TLD_JSON_OBJ`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`tld_json_obj`](#tld_json_obj) | type | [json types](#mod-json-types) |
+| [`tld_json_obj_add`](#tld_json_obj_add) | function | [json](#mod-json) |
 | [`tld_json_obj_alloc`](#tld_json_obj_alloc) | function | [json memory](#mod-json-memory) |
 | [`tld_json_obj_copy`](#tld_json_obj_copy) | function | [json memory](#mod-json-memory) |
 | [`tld_json_obj_free`](#tld_json_obj_free) | function | [json memory](#mod-json-memory) |
 | [`TLD_JSON_OBJECT`](#TLD_JSON_OBJECT) | macro | [json](#mod-json) |
 | [`tld_json_parse`](#tld_json_parse) | function | [json](#mod-json) |
+| [`tld_json_parse_n`](#tld_json_parse_n) | function | [json](#mod-json) |
 | [`tld_json_search`](#tld_json_search) | function | [json](#mod-json) |
 | [`tld_json_set_val`](#tld_json_set_val) | function | [json](#mod-json) |
 | [`TLD_JSON_STR`](#tld_json_type) | constant | [json types](#mod-json-types) |
@@ -2043,6 +2109,7 @@ is ignored.
 | [`tld_path_full`](#tld_path_full) | function | [path](#mod-path) |
 | [`tld_path_is_dir`](#tld_path_is_dir) | function | [path](#mod-path) |
 | [`tld_path_mkdir`](#tld_path_mkdir) | function | [path](#mod-path) |
+| [`tld_path_read`](#tld_path_read) | function | [path](#mod-path) |
 | [`tld_pearson_corr`](#tld_pearson_corr) | function | [stats](#mod-stats) |
 | [`tld_pop_covariance`](#tld_pop_covariance) | function | [stats](#mod-stats) |
 | [`tld_pop_variance`](#tld_pop_variance) | function | [stats](#mod-stats) |
@@ -2109,6 +2176,7 @@ is ignored.
 | [`tld_strbuf_alloc`](#tld_strbuf_alloc) | function | [string](#mod-string) |
 | [`tld_strbuf_append`](#tld_strbuf_append) | function | [string](#mod-string) |
 | [`tld_strbuf_append_char`](#tld_strbuf_append_char) | function | [string](#mod-string) |
+| [`tld_strbuf_append_n`](#tld_strbuf_append_n) | function | [string](#mod-string) |
 | [`tld_strbuf_clear`](#tld_strbuf_clear) | function | [string](#mod-string) |
 | [`tld_strbuf_copy`](#tld_strbuf_copy) | function | [string](#mod-string) |
 | [`tld_strbuf_free`](#tld_strbuf_free) | function | [string](#mod-string) |

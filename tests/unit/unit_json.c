@@ -44,7 +44,7 @@ int test_parser2(void)
         tld_strbuf_alloc(&buf, 1024);
         tld_strbuf_append(buf, in);
         DEBUG_MSG("%s", TLD_STR(buf));
-        tld_json_parse(buf, &n);
+        tld_json_parse(TLD_STR(buf), &n);
         tld_strbuf_clear(buf);
         tld_json_dump(n, buf, 0);
         DEBUG_MSG("%s", TLD_STR(buf));
@@ -62,7 +62,7 @@ int test_parser2(void)
         tld_strbuf_append(buf, in2);
         KV_MSG("input", "message 2");
         DEBUG_MSG("%s", TLD_STR(buf));
-        tld_json_parse(buf, &n);
+        tld_json_parse(TLD_STR(buf), &n);
         tld_strbuf_clear(buf);
         tld_json_dump(n, buf, 0);
         OK_MSG("message 2 parsed");
@@ -230,7 +230,7 @@ int test_file_parser(char *infile)
         f_ptr = NULL;
         KV_MSG("bytes", "%d", TLD_STRLEN(buf));
 
-        RUN(tld_json_parse(buf, &n));
+        RUN(tld_json_parse(TLD_STR(buf), &n));
         OK_MSG("parsed");
         RUN(tld_strbuf_clear(buf));
         RUN(tld_json_dump(n, buf, 0));
@@ -269,7 +269,7 @@ int test_obj_parser(void)
         tld_strbuf_alloc(&buf, 1024);
         tld_strbuf_append(buf, test);
         fprintf(stdout,"%s", TLD_STR(buf));
-        tld_json_parse(buf, &n);
+        tld_json_parse(TLD_STR(buf), &n);
 
         tld_json_obj_free(n);
         tld_strbuf_free(buf);
@@ -321,7 +321,7 @@ int test_parser(void)
         tld_strbuf_alloc(&buf, 1024);
         tld_strbuf_append(buf, test);
         fprintf(stdout,"%s", TLD_STR(buf));
-        tld_json_parse(buf, &n);
+        tld_json_parse(TLD_STR(buf), &n);
 
         RUN(tld_strbuf_clear(buf));
         RUN(tld_json_dump(n, buf, 0));
@@ -332,7 +332,7 @@ int test_parser(void)
         tld_json_obj_free(n);
         LOG_MSG("%s", TLD_STR(buf));
 
-        tld_json_parse(buf, &n);
+        tld_json_parse(TLD_STR(buf), &n);
         tld_strbuf_clear(buf);
 
         tld_json_dump(n, buf,0);

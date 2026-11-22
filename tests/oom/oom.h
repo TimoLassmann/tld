@@ -139,25 +139,31 @@ struct oom_scenario {
         const char *allowed;    /* see SWALLOWED above; NULL for none */
 };
 
-/* Does the file at fd contain text? */
+/* Does the file at fd contain text? text must be shorter than half the buffer; longer
+   text is never found. The buffer holds the tail of the previous read (shorter than
+   text, for a match across reads) followed by one read of half the buffer. */
 static int oom_file_has(int fd, const char *text)
 {
         static char buf[1 << 16];
-        ssize_t n = 0;
+        const size_t chunk = sizeof buf / 2;
         size_t keep = strlen(text);
         size_t have = 0;
+        ssize_t n = 0;
+        if(keep == 0 || keep >= chunk){
+                return keep == 0;
+        }
         if(lseek(fd, 0, SEEK_SET) < 0){
                 return 0;
         }
-        while((n = read(fd, buf + have, sizeof buf - 1 - have)) > 0){
+        while((n = read(fd, buf + have, chunk - 1)) > 0){
                 have += (size_t) n;
                 buf[have] = 0;
                 if(strstr(buf, text)){
                         return 1;
                 }
-                if(have > keep){        /* keep the tail, for a match across reads */
-                        memmove(buf, buf + have - keep, keep);
-                        have = keep;
+                if(have >= keep){
+                        memmove(buf, buf + have - (keep - 1), keep - 1);
+                        have = keep - 1;
                 }
         }
         return 0;

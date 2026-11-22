@@ -463,6 +463,10 @@ TLD_API int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
 /* Append the NUL-terminated string content to b; b grows as needed. */
 TLD_API int tld_strbuf_append(tld_strbuf *b, const char *content);
 
+/* Append the n bytes at s to b (they may include NUL bytes; the buffer is still
+ * NUL-terminated after them). s may point into b. */
+TLD_API int tld_strbuf_append_n(tld_strbuf *b, const char *s, size_t n);
+
 /* Append the single character c to b. */
 TLD_API int tld_strbuf_append_char(tld_strbuf *b, char c);
 
@@ -493,6 +497,12 @@ TLD_API int tld_path_mkdir(char *dir);
  * *full is cleared and reused; otherwise a buffer is allocated (free with
  * tld_strbuf_free). FAIL when the file does not exist. */
 TLD_API int tld_path_full(tld_strbuf **full, char *filename);
+
+/* The whole contents of the file at path in a new buffer in *out (free with
+ * tld_strbuf_free); the bytes may include NUL. FAIL, with an error naming the file and
+ * the reason, when it cannot be opened or read or is larger than a buffer holds
+ * (INT32_MAX - 1 bytes); *out is then unchanged. */
+TLD_API int tld_path_read(const char *path, tld_strbuf **out);
 
 /* Append argv[0] .. argv[argc - 1], each followed by a space, to *cmdline (allocated when
  * NULL; free with tld_strbuf_free). For recording how a program was run. */
@@ -678,9 +688,9 @@ typedef struct tld_json_arr {
 typedef struct {
         char* key;
         void* value;
-        /* VAL_STRING guesses the type from the text (TLD_JAUTO); the values after
-           VAL_ARR are the typed decorations TLD_JSTR, TLD_JNUM, TLD_JINT, TLD_JBOOL, TLD_JNULL. */
-        enum { VAL_STRING, VAL_OBJ, VAL_ARR, VAL_JSTR, VAL_NUM, VAL_INT, VAL_BOOL, VAL_NULL } type;
+        /* TLD__JVAL_AUTO guesses the type from the text (TLD_JAUTO); the values after
+           TLD__JVAL_ARR are the typed decorations TLD_JSTR, TLD_JNUM, TLD_JINT, TLD_JBOOL, TLD_JNULL. */
+        enum { TLD__JVAL_AUTO, TLD__JVAL_OBJ, TLD__JVAL_ARR, TLD__JVAL_STR, TLD__JVAL_NUM, TLD__JVAL_INT, TLD__JVAL_BOOL, TLD__JVAL_NULL } type;
 } tld_json_decoration;
 
 #endif
@@ -741,11 +751,14 @@ TLD_API   int tld_json_val_copy(tld_json_val *t, tld_json_val *s);
 #include <stdio.h>
 
 
-/* Parse the JSON text in t (standard JSON, nesting up to 512 levels) into a new object in
- * *out; free it with tld_json_obj_free. A top-level array becomes the single entry of
- * an object, under the key "Top Level Arr". Invalid JSON prints an error naming the byte
- * offset and returns FAIL. */
-TLD_API  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
+/* Parse the NUL-terminated JSON text (standard JSON, nesting up to 512 levels) into a
+ * new object in *out; free it with tld_json_obj_free. A top-level array becomes the
+ * single entry of an object, under the key "Top Level Arr". Invalid JSON prints an
+ * error naming the byte offset and returns FAIL. tld_json_parse_n parses the len bytes
+ * at text instead (a NUL byte among them is invalid JSON). For a tld_strbuf b:
+ * tld_json_parse(TLD_STR(b), &o). */
+TLD_API int tld_json_parse(const char *text, tld_json_obj **out);
+TLD_API int tld_json_parse_n(const char *text, size_t len, tld_json_obj **out);
 
 /* Collect deep copies of every value stored under key, at any depth, into a new object
  * in *ret (entries named key, in document order; free with tld_json_obj_free). OK with
@@ -785,20 +798,20 @@ TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
  * when the build fails. A TLD_JAUTO or TLD_JSTR entry whose string is NULL is skipped; a TLD_JOBJ or TLD_JARR
  * entry whose value is NULL makes the build fail, since a nested TLD_JSON_OBJECT / TLD_JSON_ARRAY
  * returns NULL only when it failed. Arrays ignore the key; pass NULL. */
-#define TLD_JAUTO(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_STRING, .value = (void*)(v)})
-#define TLD_JOBJ(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_OBJ, .value = (void*)(v)})
-#define TLD_JARR(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_ARR, .value = (void*)(v)})
+#define TLD_JAUTO(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_AUTO, .value = (void*)(v)})
+#define TLD_JOBJ(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_OBJ, .value = (void*)(v)})
+#define TLD_JARR(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_ARR, .value = (void*)(v)})
 
 /* Typed decorations. TLD_JAUTO above guesses the type from the text ("0.2" becomes
    a number); these do not. TLD_JSTR(k,s) is always a string, TLD_JNUM(k,d) a number
    (non-finite values are written as null), TLD_JINT(k,l) an integer (values
    outside int32_t are stored as double), TLD_JBOOL(k,b) true/false, TLD_JNULL(k) null.
    A NULL string in TLD_JSTR skips the entry, like TLD_JAUTO. */
-#define TLD_JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_JSTR, .value = (void*)(v)})
-#define TLD_JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_NUM,  .value = (void*)&(double){(v)}})
-#define TLD_JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_INT,  .value = (void*)&(long){(v)}})
-#define TLD_JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_BOOL, .value = (void*)&(int){(v)}})
-#define TLD_JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = VAL_NULL, .value = (void*)""})
+#define TLD_JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_STR, .value = (void*)(v)})
+#define TLD_JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_NUM,  .value = (void*)&(double){(v)}})
+#define TLD_JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_INT,  .value = (void*)&(long){(v)}})
+#define TLD_JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_BOOL, .value = (void*)&(int){(v)}})
+#define TLD_JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_NULL, .value = (void*)""})
 
 /* TLD_JSON_OBJECT(entry, ...): a new tld_json_obj * holding the entries in order; TLD_JSON_ARRAY(...)
  * a new tld_json_arr *. NULL (with an error printed) when an entry cannot be added: out
@@ -820,9 +833,28 @@ TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 TLD_API tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, int count);
 TLD_API tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, int count);
 
-/* Append n as JSON text to b (b is not cleared): 4 spaces of indentation per level on
- * top of indent (pass 0), strings escaped, doubles with the fewest of 15 to 17 significant
- * digits that read back exactly, inf/nan as null. A NULL n appends nothing. */
+/* Add one entry to *obj / one value to *arr, creating it when *obj / *arr is NULL:
+ *
+ *   tld_json_obj *req = NULL;
+ *   RUN(tld_json_obj_add(&req, TLD_JSTR("model", name)));
+ *   RUN(tld_json_obj_add(&req, TLD_JBOOL("stream", 0)));
+ *
+ * Entries are those of TLD_JSON_OBJECT: a TLD_JOBJ/TLD_JARR value passes to the container,
+ * also on failure (it is then freed), and a TLD_JAUTO/TLD_JSTR entry whose string is NULL
+ * is skipped (nothing is created). FAIL with an error when out of memory or for a
+ * TLD_JOBJ/TLD_JARR holding NULL; the container keeps what it had (a new one is freed,
+ * leaving *obj / *arr NULL). */
+TLD_API int tld_json_obj_add(tld_json_obj **obj, tld_json_decoration entry);
+TLD_API int tld_json_arr_add(tld_json_arr **arr, tld_json_decoration entry);
+
+/* The indent for compact JSON: tld_json_dump(n, b, TLD_JSON_COMPACT) writes no spaces or
+ * newlines outside strings. */
+#define TLD_JSON_COMPACT (-1)
+
+/* Append n as JSON text to b (b is not cleared): with indent >= 0, 4 spaces of
+ * indentation per level on top of indent (pass 0); with TLD_JSON_COMPACT, no whitespace.
+ * Strings are escaped, doubles written with the fewest of 15 to 17 significant digits
+ * that read back exactly, inf/nan as null. A NULL n appends nothing. */
 TLD_API int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
 TLD_API int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
 
@@ -1762,15 +1794,21 @@ ERROR:
 
 int tld_strbuf_append(tld_strbuf *b, const char *content)
 {
-        size_t size = strlen(content);
-        ptrdiff_t off = tld__strbuf_offset(b, content);
+        return tld_strbuf_append_n(b, content, strlen(content));
+}
 
-        RUN(tld__strbuf_ensure_size(b, size));
+int tld_strbuf_append_n(tld_strbuf *b, const char *s, size_t n)
+{
+        ptrdiff_t off = tld__strbuf_offset(b, s);
+
+        RUN(tld__strbuf_ensure_size(b, n));
         if(off >= 0){
-                content = TLD_STR(b) + off;
+                s = TLD_STR(b) + off;
         }
-        memmove(b->str + b->len, content, size);
-        b->len += (int32_t)size;
+        if(n){
+                memmove(b->str + b->len, s, n);
+        }
+        b->len += (int32_t)n;
         b->str[b->len] = 0;
 
         return OK;
@@ -1814,6 +1852,8 @@ ERROR:
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <stdio.h>
+#include <string.h>
 
 #define TLD__MAX_CMD_LEN 16384
 
@@ -2004,6 +2044,38 @@ ERROR:
         if(tmp){
                 MFREE(tmp);
         }
+        return FAIL;
+}
+
+int tld_path_read(const char *path, tld_strbuf **out)
+{
+        FILE *f = NULL;
+        tld_strbuf *b = NULL;
+        char buf[1 << 16];
+        size_t got = 0;
+        ASSERT(path != NULL, "No path");
+        ASSERT(out != NULL, "No output pointer");
+        f = fopen(path, "rb");
+        if(f == NULL){
+                ERROR_MSG("Cannot open %s: %s", path, strerror(errno));
+        }
+        RUN(tld_strbuf_alloc(&b, sizeof buf));
+        while((got = fread(buf, 1, sizeof buf, f)) > 0){
+                if(tld_strbuf_append_n(b, buf, got) != OK){
+                        ERROR_MSG("Cannot read %s: too large or out of memory", path);
+                }
+        }
+        if(ferror(f)){
+                ERROR_MSG("Cannot read %s: %s", path, strerror(errno));
+        }
+        fclose(f);
+        *out = b;
+        return OK;
+ERROR:
+        if(f){
+                fclose(f);
+        }
+        tld_strbuf_free(b);
         return FAIL;
 }
 
@@ -2919,6 +2991,7 @@ typedef struct tld__json_parser {
 } tld__json_parser;
 
 static int tld__json_dump_val(tld_json_val *val, tld_strbuf *b);
+static int tld__json_dump_any(tld_json_val *v, tld_strbuf *b, int indent);
 static int tld__json_dump_str(tld_strbuf *b, const uint8_t *s, int len);
 static int tld__json_add_indent(tld_strbuf *b, int indent);
 static int tld__json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj *res);
@@ -3423,13 +3496,12 @@ int tld__json_val_set_str(tld_json_val *v, const char *s, int len)
 {
         tld_strbuf* b = NULL;
         RUN(tld_strbuf_alloc(&b, len + 1));
-        memcpy(b->str, s, len);
-        b->len = len;
-        b->str[len] = 0;
+        RUN(tld_strbuf_append_n(b, s, (size_t) len));
         v->type = TLD_JSON_STR;
         v->value.str = b;
         return OK;
 ERROR:
+        tld_strbuf_free(b);
         return FAIL;
 }
 
@@ -3446,7 +3518,15 @@ void tld__json_val_set_int64(tld_json_val *v, long long x)
         }
 }
 
-int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
+int tld_json_parse(const char *text, tld_json_obj **out)
+{
+        ASSERT(text != NULL, "No input");
+        return tld_json_parse_n(text, strlen(text), out);
+ERROR:
+        return FAIL;
+}
+
+int tld_json_parse_n(const char *text, size_t len, tld_json_obj **out)
 {
         tld__json_parser p;
         tld_json_obj* n = NULL;
@@ -3462,10 +3542,11 @@ int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
         p.err = NULL;
 
         ASSERT(out != NULL, "No output pointer");
-        ASSERT(t != NULL && t->str != NULL, "No input");
+        ASSERT(text != NULL, "No input");
+        ASSERT(len <= (size_t) INT32_MAX, "JSON text of %zu bytes is too long", len);
 
-        p.s = t->str;
-        p.len = t->len;
+        p.s = (const uint8_t *) text;
+        p.len = (int) len;
 
         p.b_alloc = 256;
         MMALLOC(p.buf, p.b_alloc);
@@ -3952,9 +4033,9 @@ static void tld__json_free_unattached(tld_json_decoration *kvs, int from, int co
                 if(kvs[k].value == NULL){
                         continue;
                 }
-                if(kvs[k].type == VAL_OBJ){
+                if(kvs[k].type == TLD__JVAL_OBJ){
                         tld_json_obj_free((tld_json_obj*)kvs[k].value);
-                }else if(kvs[k].type == VAL_ARR){
+                }else if(kvs[k].type == TLD__JVAL_ARR){
                         tld_json_arr_free((tld_json_arr*)kvs[k].value);
                 }
         }
@@ -4082,19 +4163,19 @@ ERROR:
 int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
 {
         switch(d->type){
-        case VAL_JSTR:{
+        case TLD__JVAL_STR:{
                 const char* s = (const char*)d->value;
                 RUN(tld__json_val_set_str(v, s, (int)strlen(s)));
                 break;
         }
-        case VAL_NUM:
+        case TLD__JVAL_NUM:
                 v->type = TLD_JSON_DBL;
                 v->value.d_num = *(double*)d->value;
                 break;
-        case VAL_INT:
+        case TLD__JVAL_INT:
                 tld__json_val_set_int64(v, *(long*)d->value);
                 break;
-        case VAL_BOOL:
+        case TLD__JVAL_BOOL:
                 if(*(int*)d->value){
                         v->type = TLD_JSON_BOOL_TRUE;
                         v->value.b_num = 1;
@@ -4103,7 +4184,7 @@ int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
                         v->value.b_num = 0;
                 }
                 break;
-        case VAL_NULL:
+        case TLD__JVAL_NULL:
                 v->type = TLD_JSON_NULL;
                 break;
         default:
@@ -4127,26 +4208,26 @@ tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, i
         for (i = 0; i < count; i++) {
                 int before = obj ? obj->n : 0;
                 if(kvs[i].value == NULL){
-                        if(kvs[i].type == VAL_OBJ || kvs[i].type == VAL_ARR){
+                        if(kvs[i].type == TLD__JVAL_OBJ || kvs[i].type == TLD__JVAL_ARR){
                                 ERROR_MSG("Entry %d holds no object or array (did a nested TLD_JSON_OBJECT / TLD_JSON_ARRAY fail?)", i + 1);
                         }
                         continue;
                 }
                 switch (kvs[i].type) {
-                case VAL_STRING:
+                case TLD__JVAL_AUTO:
                         obj = tld__json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
                         break;
-                case VAL_OBJ:
+                case TLD__JVAL_OBJ:
                         obj = tld__json_obj_add_obj(obj, kvs[i].key, (tld_json_obj*)kvs[i].value);
                         break;
-                case VAL_ARR:
+                case TLD__JVAL_ARR:
                         obj = tld__json_obj_add_arr(obj, kvs[i].key, (tld_json_arr*)kvs[i].value);
                         break;
-                case VAL_JSTR:
-                case VAL_NUM:
-                case VAL_INT:
-                case VAL_BOOL:
-                case VAL_NULL:
+                case TLD__JVAL_STR:
+                case TLD__JVAL_NUM:
+                case TLD__JVAL_INT:
+                case TLD__JVAL_BOOL:
+                case TLD__JVAL_NULL:
                         obj = tld__json_obj_add_typed(obj, kvs[i].key, &kvs[i]);
                         break;
                 }
@@ -4232,26 +4313,26 @@ tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, i
         for (i = 0; i < count; i++) {
                 int before = arr ? arr->n : 0;
                 if(kvs[i].value == NULL){
-                        if(kvs[i].type == VAL_OBJ || kvs[i].type == VAL_ARR){
+                        if(kvs[i].type == TLD__JVAL_OBJ || kvs[i].type == TLD__JVAL_ARR){
                                 ERROR_MSG("Entry %d holds no object or array (did a nested TLD_JSON_OBJECT / TLD_JSON_ARRAY fail?)", i + 1);
                         }
                         continue;
                 }
                 switch (kvs[i].type) {
-                case VAL_STRING:
+                case TLD__JVAL_AUTO:
                         arr = tld__json_arr_add_val(arr,  (char*)kvs[i].value);
                         break;
-                case VAL_OBJ:
+                case TLD__JVAL_OBJ:
                         arr = tld__json_arr_add_obj(arr, (tld_json_obj*)kvs[i].value);
                         break;
-                case VAL_ARR:
+                case TLD__JVAL_ARR:
                         arr = tld__json_arr_add_arr(arr,  (tld_json_arr*)kvs[i].value);
                         break;
-                case VAL_JSTR:
-                case VAL_NUM:
-                case VAL_INT:
-                case VAL_BOOL:
-                case VAL_NULL:
+                case TLD__JVAL_STR:
+                case TLD__JVAL_NUM:
+                case TLD__JVAL_INT:
+                case TLD__JVAL_BOOL:
+                case TLD__JVAL_NULL:
                         arr = tld__json_arr_add_typed(arr, &kvs[i]);
                         break;
                 }
@@ -4371,35 +4452,47 @@ ERROR:
 /* Writer                                                              */
 /* ------------------------------------------------------------------ */
 
+/* One value of an object or array: nested containers recurse with the deeper indent
+   (or stay compact), NULL containers are written as null. */
+static int tld__json_dump_any(tld_json_val *v, tld_strbuf *b, int indent)
+{
+        if(v->type == TLD_JSON_ARR){
+                if(v->value.arr){
+                        RUN(tld_json_dump_arr(v->value.arr, b, indent));
+                }else{
+                        RUN(tld_strbuf_append(b, "null"));
+                }
+        }else if(v->type == TLD_JSON_OBJ){
+                if(v->value.obj){
+                        RUN(tld_json_dump(v->value.obj, b, indent));
+                }else{
+                        RUN(tld_strbuf_append(b, "null"));
+                }
+        }else{
+                RUN(tld__json_dump_val(v, b));
+        }
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
 {
+        const int compact = indent < 0;
+        const int inner = compact ? TLD_JSON_COMPACT : indent + 4;
         if(n){
-                RUN(tld_strbuf_append(b, "{\n"));
-
+                RUN(tld_strbuf_append(b, compact ? "{" : "{\n"));
                 for(int i = 0; i < n->n;i++){
-                        RUN(tld__json_add_indent(b, indent + 4));
+                        RUN(tld__json_add_indent(b, inner));
                         RUN(tld__json_dump_str(b, n->key[i]->str, n->key[i]->len));
-                        RUN(tld_strbuf_append(b, ": "));
-
-                        if(n->v[i]->type == TLD_JSON_ARR){
-                                if(n->v[i]->value.arr){
-                                        RUN(tld_json_dump_arr(n->v[i]->value.arr, b,indent + 4));
-                                }else{
-                                        RUN(tld_strbuf_append(b, "null"));
-                                }
-                        }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                if(n->v[i]->value.obj){
-                                        RUN(tld_json_dump(n->v[i]->value.obj, b,indent + 4));
-                                }else{
-                                        RUN(tld_strbuf_append(b, "null"));
-                                }
-                        }else{
-                                RUN(tld__json_dump_val(n->v[i], b));
-                        }
+                        RUN(tld_strbuf_append(b, compact ? ":" : ": "));
+                        RUN(tld__json_dump_any(n->v[i], b, inner));
                         if (i < n->n - 1) {
                                 RUN(tld_strbuf_append(b, ","));
                         }
-                        RUN(tld_strbuf_append(b, "\n"));
+                        if(!compact){
+                                RUN(tld_strbuf_append(b, "\n"));
+                        }
                 }
                 RUN(tld__json_add_indent(b, indent));
                 RUN(tld_strbuf_append(b, "}"));
@@ -4411,35 +4504,57 @@ ERROR:
 
 int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
 {
-
+        const int compact = indent < 0;
+        const int inner = compact ? TLD_JSON_COMPACT : indent + 4;
         if(n){
-                RUN(tld_strbuf_append(b, "[\n"));
-
+                RUN(tld_strbuf_append(b, compact ? "[" : "[\n"));
                 for (int i = 0; i < n->n; i++) {
-                        RUN(tld__json_add_indent(b, indent + 4));
-                        if (n->v[i]->type == TLD_JSON_ARR) {
-                                if(n->v[i]->value.arr){
-                                        RUN(tld_json_dump_arr(n->v[i]->value.arr, b,indent + 4));
-                                }else{
-                                        RUN(tld_strbuf_append(b, "null"));
-                                }
-                        } else if (n->v[i]->type == TLD_JSON_OBJ) {
-                                if(n->v[i]->value.obj){
-                                        RUN(tld_json_dump(n->v[i]->value.obj, b,indent + 4));
-                                }else{
-                                        RUN(tld_strbuf_append(b, "null"));
-                                }
-                        } else {
-                                RUN(tld__json_dump_val(n->v[i], b));
-                        }
+                        RUN(tld__json_add_indent(b, inner));
+                        RUN(tld__json_dump_any(n->v[i], b, inner));
                         if (i < n->n - 1) {
                                 RUN(tld_strbuf_append(b, ","));
                         }
-                        RUN(tld_strbuf_append(b, "\n"));
+                        if(!compact){
+                                RUN(tld_strbuf_append(b, "\n"));
+                        }
                 }
                 RUN(tld__json_add_indent(b, indent));
                 RUN(tld_strbuf_append(b, "]"));
         }
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_json_obj_add(tld_json_obj **obj, tld_json_decoration entry)
+{
+        tld_json_obj *r = NULL;
+        ASSERT(obj != NULL, "No object pointer");
+        if(entry.value == NULL && (entry.type == TLD__JVAL_AUTO || entry.type == TLD__JVAL_STR)){
+                return OK;      /* skipped, as in a build */
+        }
+        r = tld__json_obj_build(*obj, &entry, 1);
+        if(r == NULL){
+                ERROR_MSG("Could not add an entry to the object");
+        }
+        *obj = r;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_json_arr_add(tld_json_arr **arr, tld_json_decoration entry)
+{
+        tld_json_arr *r = NULL;
+        ASSERT(arr != NULL, "No array pointer");
+        if(entry.value == NULL && (entry.type == TLD__JVAL_AUTO || entry.type == TLD__JVAL_STR)){
+                return OK;      /* skipped, as in a build */
+        }
+        r = tld__json_arr_build(*arr, &entry, 1);
+        if(r == NULL){
+                ERROR_MSG("Could not add a value to the array");
+        }
+        *arr = r;
         return OK;
 ERROR:
         return FAIL;
@@ -4758,21 +4873,19 @@ ERROR:
 /* Text up to the next {{ (or the end) as a new text node in *node. */
 int tld__template_parse_text(tld__template_parser *parser, tld__template_node **node)
 {
-        char *text = NULL;
+        tld__template_node *n = NULL;
         const char *start = parser->input + parser->position;
         int length = 0;
         while(start[length] != '\0' && (start[length] != '{' || start[length + 1] != '{')){
                 length++;
         }
-        MMALLOC(text, length + 1);
-        memcpy(text, start, length);
-        text[length] = '\0';
-        RUN(tld__template_node_create(node, TLD__NODE_TEXT, text));
-        MFREE(text);
+        RUN(tld__template_node_create(&n, TLD__NODE_TEXT, ""));
+        RUN(tld_strbuf_append_n(n->content, start, (size_t) length));
         parser->position += length;
+        *node = n;
         return OK;
 ERROR:
-        MFREE(text);
+        tld__template_node_free(n);
         return FAIL;
 }
 

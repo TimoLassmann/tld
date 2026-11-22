@@ -98,6 +98,26 @@ ERROR:
         return FAIL;
 }
 
+static int test_append_n(void)
+{
+        tld_strbuf *b = NULL;
+        RUN(tld_strbuf_alloc(&b, 2));
+        RUN(tld_strbuf_append_n(b, "a\0b", 3));               /* NUL bytes kept */
+        ASSERT(TLD_STRLEN(b) == 3 && memcmp(TLD_STR(b), "a\0b", 4) == 0, "NUL append: length %d", TLD_STRLEN(b));
+        RUN(tld_strbuf_append_n(b, "xyz", 0));
+        ASSERT(TLD_STRLEN(b) == 3, "empty append changed the length to %d", TLD_STRLEN(b));
+        RUN(tld_strbuf_append_n(b, NULL, 0));                  /* nothing to read */
+        RUN(tld_strbuf_clear(b));
+        RUN(tld_strbuf_append(b, "abcdef"));
+        RUN(tld_strbuf_append_n(b, TLD_STR(b) + 1, 3));        /* from itself, growing */
+        ASSERT(strcmp(TLD_STR(b), "abcdefbcd") == 0, "self append_n gave '%s'", TLD_STR(b));
+        tld_strbuf_free(b);
+        return OK;
+ERROR:
+        tld_strbuf_free(b);
+        return FAIL;
+}
+
 /* The checks, in the order a plain run does them; arguments select by name. */
 static const struct {
         const char *name;
@@ -107,6 +127,7 @@ static const struct {
         {"growth", test_strbuf_growth, "tld_strbuf grows geometrically (alloc_len updated)"},
         {"limit", test_strbuf_limit, "an append past INT32_MAX fails instead of overflowing"},
         {"self", test_self_append, "append, prepend and copy of a buffer's own text"},
+        {"append-n", test_append_n, "tld_strbuf_append_n with NUL bytes, zero length and its own text"},
 };
 
 int main(int argc, char *argv[])
@@ -119,6 +140,7 @@ int main(int argc, char *argv[])
                   "  growth  tld_strbuf grows geometrically (alloc_len updated)\n"
                   "  limit   an append past INT32_MAX fails instead of overflowing\n"
                   "  self    append, prepend and copy of a buffer's own text\n"
+                  "  append-n  tld_strbuf_append_n with NUL bytes, zero length and its own text\n"
                   "\n"
                   "Example: regress-str growth");
         for(int i = 1; i < argc; i++){

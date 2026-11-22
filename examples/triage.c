@@ -32,18 +32,6 @@ AI_SCALE(urgency, "How urgent is this ticket?", URGENCY)
     X(bool, needs_db_change, "Whether the database schema changes")
 AI_STRUCT(fix, FIX)
 
-static char *slurp(const char *path) {
-    FILE *f = fopen(path, "rb");
-    if (!f) { perror(path); return NULL; }
-    char *s = NULL;
-    long n = -1;
-    if (fseek(f, 0, SEEK_END) == 0) n = ftell(f);
-    if (n >= 0 && fseek(f, 0, SEEK_SET) == 0 && (s = malloc((size_t)n + 1)))
-        s[fread(s, 1, (size_t)n, f)] = 0;
-    fclose(f);
-    return s;
-}
-
 static int handle(const char *ticket) {
     struct team_answer t = ai_choose(team, ticket);
     if (!t.ok) { fprintf(stderr, "triage: %s\n", ai_error()); return 1; }
@@ -95,9 +83,9 @@ static int handle(const char *ticket) {
 
 int main(int argc, char **argv) {
     if (argc < 2) { fprintf(stderr, "usage: triage ticket.txt\n"); return 2; }
-    char *ticket = slurp(argv[1]);
-    if (!ticket) return 1;
-    int rc = handle(ticket);
-    free(ticket);
+    tld_strbuf *ticket = NULL;
+    if (tld_path_read(argv[1], &ticket) != OK) return 1;   /* prints why */
+    int rc = handle(TLD_STR(ticket));
+    tld_strbuf_free(ticket);
     return rc;
 }

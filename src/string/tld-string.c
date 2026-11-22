@@ -126,15 +126,21 @@ ERROR:
 
 int tld_strbuf_append(tld_strbuf *b, const char *content)
 {
-        size_t size = strlen(content);
-        ptrdiff_t off = tld__strbuf_offset(b, content);
+        return tld_strbuf_append_n(b, content, strlen(content));
+}
 
-        RUN(tld__strbuf_ensure_size(b, size));
+int tld_strbuf_append_n(tld_strbuf *b, const char *s, size_t n)
+{
+        ptrdiff_t off = tld__strbuf_offset(b, s);
+
+        RUN(tld__strbuf_ensure_size(b, n));
         if(off >= 0){
-                content = TLD_STR(b) + off;
+                s = TLD_STR(b) + off;
         }
-        memmove(b->str + b->len, content, size);
-        b->len += (int32_t)size;
+        if(n){
+                memmove(b->str + b->len, s, n);
+        }
+        b->len += (int32_t)n;
         b->str[b->len] = 0;
 
         return OK;

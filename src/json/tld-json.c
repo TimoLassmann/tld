@@ -31,6 +31,7 @@ typedef struct tld__json_parser {
 } tld__json_parser;
 
 static int tld__json_dump_val(tld_json_val *val, tld_strbuf *b);
+static int tld__json_dump_any(tld_json_val *v, tld_strbuf *b, int indent);
 static int tld__json_dump_str(tld_strbuf *b, const uint8_t *s, int len);
 static int tld__json_add_indent(tld_strbuf *b, int indent);
 static int tld__json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj *res);
@@ -535,13 +536,12 @@ int tld__json_val_set_str(tld_json_val *v, const char *s, int len)
 {
         tld_strbuf* b = NULL;
         RUN(tld_strbuf_alloc(&b, len + 1));
-        memcpy(b->str, s, len);
-        b->len = len;
-        b->str[len] = 0;
+        RUN(tld_strbuf_append_n(b, s, (size_t) len));
         v->type = TLD_JSON_STR;
         v->value.str = b;
         return OK;
 ERROR:
+        tld_strbuf_free(b);
         return FAIL;
 }
 
@@ -558,7 +558,15 @@ void tld__json_val_set_int64(tld_json_val *v, long long x)
         }
 }
 
-int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
+int tld_json_parse(const char *text, tld_json_obj **out)
+{
+        ASSERT(text != NULL, "No input");
+        return tld_json_parse_n(text, strlen(text), out);
+ERROR:
+        return FAIL;
+}
+
+int tld_json_parse_n(const char *text, size_t len, tld_json_obj **out)
 {
         tld__json_parser p;
         tld_json_obj* n = NULL;
@@ -574,10 +582,11 @@ int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
         p.err = NULL;
 
         ASSERT(out != NULL, "No output pointer");
-        ASSERT(t != NULL && t->str != NULL, "No input");
+        ASSERT(text != NULL, "No input");
+        ASSERT(len <= (size_t) INT32_MAX, "JSON text of %zu bytes is too long", len);
 
-        p.s = t->str;
-        p.len = t->len;
+        p.s = (const uint8_t *) text;
+        p.len = (int) len;
 
         p.b_alloc = 256;
         MMALLOC(p.buf, p.b_alloc);
@@ -1064,9 +1073,9 @@ static void tld__json_free_unattached(tld_json_decoration *kvs, int from, int co
                 if(kvs[k].value == NULL){
                         continue;
                 }
-                if(kvs[k].type == VAL_OBJ){
+                if(kvs[k].type == TLD__JVAL_OBJ){
                         tld_json_obj_free((tld_json_obj*)kvs[k].value);
-                }else if(kvs[k].type == VAL_ARR){
+                }else if(kvs[k].type == TLD__JVAL_ARR){
                         tld_json_arr_free((tld_json_arr*)kvs[k].value);
                 }
         }
@@ -1194,19 +1203,19 @@ ERROR:
 int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
 {
         switch(d->type){
-        case VAL_JSTR:{
+        case TLD__JVAL_STR:{
                 const char* s = (const char*)d->value;
                 RUN(tld__json_val_set_str(v, s, (int)strlen(s)));
                 break;
         }
-        case VAL_NUM:
+        case TLD__JVAL_NUM:
                 v->type = TLD_JSON_DBL;
                 v->value.d_num = *(double*)d->value;
                 break;
-        case VAL_INT:
+        case TLD__JVAL_INT:
                 tld__json_val_set_int64(v, *(long*)d->value);
                 break;
-        case VAL_BOOL:
+        case TLD__JVAL_BOOL:
                 if(*(int*)d->value){
                         v->type = TLD_JSON_BOOL_TRUE;
                         v->value.b_num = 1;
@@ -1215,7 +1224,7 @@ int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
                         v->value.b_num = 0;
                 }
                 break;
-        case VAL_NULL:
+        case TLD__JVAL_NULL:
                 v->type = TLD_JSON_NULL;
                 break;
         default:
@@ -1239,26 +1248,26 @@ tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, i
         for (i = 0; i < count; i++) {
                 int before = obj ? obj->n : 0;
                 if(kvs[i].value == NULL){
-                        if(kvs[i].type == VAL_OBJ || kvs[i].type == VAL_ARR){
+                        if(kvs[i].type == TLD__JVAL_OBJ || kvs[i].type == TLD__JVAL_ARR){
                                 ERROR_MSG("Entry %d holds no object or array (did a nested TLD_JSON_OBJECT / TLD_JSON_ARRAY fail?)", i + 1);
                         }
                         continue;
                 }
                 switch (kvs[i].type) {
-                case VAL_STRING:
+                case TLD__JVAL_AUTO:
                         obj = tld__json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
                         break;
-                case VAL_OBJ:
+                case TLD__JVAL_OBJ:
                         obj = tld__json_obj_add_obj(obj, kvs[i].key, (tld_json_obj*)kvs[i].value);
                         break;
-                case VAL_ARR:
+                case TLD__JVAL_ARR:
                         obj = tld__json_obj_add_arr(obj, kvs[i].key, (tld_json_arr*)kvs[i].value);
                         break;
-                case VAL_JSTR:
-                case VAL_NUM:
-                case VAL_INT:
-                case VAL_BOOL:
-                case VAL_NULL:
+                case TLD__JVAL_STR:
+                case TLD__JVAL_NUM:
+                case TLD__JVAL_INT:
+                case TLD__JVAL_BOOL:
+                case TLD__JVAL_NULL:
                         obj = tld__json_obj_add_typed(obj, kvs[i].key, &kvs[i]);
                         break;
                 }
@@ -1344,26 +1353,26 @@ tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, i
         for (i = 0; i < count; i++) {
                 int before = arr ? arr->n : 0;
                 if(kvs[i].value == NULL){
-                        if(kvs[i].type == VAL_OBJ || kvs[i].type == VAL_ARR){
+                        if(kvs[i].type == TLD__JVAL_OBJ || kvs[i].type == TLD__JVAL_ARR){
                                 ERROR_MSG("Entry %d holds no object or array (did a nested TLD_JSON_OBJECT / TLD_JSON_ARRAY fail?)", i + 1);
                         }
                         continue;
                 }
                 switch (kvs[i].type) {
-                case VAL_STRING:
+                case TLD__JVAL_AUTO:
                         arr = tld__json_arr_add_val(arr,  (char*)kvs[i].value);
                         break;
-                case VAL_OBJ:
+                case TLD__JVAL_OBJ:
                         arr = tld__json_arr_add_obj(arr, (tld_json_obj*)kvs[i].value);
                         break;
-                case VAL_ARR:
+                case TLD__JVAL_ARR:
                         arr = tld__json_arr_add_arr(arr,  (tld_json_arr*)kvs[i].value);
                         break;
-                case VAL_JSTR:
-                case VAL_NUM:
-                case VAL_INT:
-                case VAL_BOOL:
-                case VAL_NULL:
+                case TLD__JVAL_STR:
+                case TLD__JVAL_NUM:
+                case TLD__JVAL_INT:
+                case TLD__JVAL_BOOL:
+                case TLD__JVAL_NULL:
                         arr = tld__json_arr_add_typed(arr, &kvs[i]);
                         break;
                 }
@@ -1483,35 +1492,47 @@ ERROR:
 /* Writer                                                              */
 /* ------------------------------------------------------------------ */
 
+/* One value of an object or array: nested containers recurse with the deeper indent
+   (or stay compact), NULL containers are written as null. */
+static int tld__json_dump_any(tld_json_val *v, tld_strbuf *b, int indent)
+{
+        if(v->type == TLD_JSON_ARR){
+                if(v->value.arr){
+                        RUN(tld_json_dump_arr(v->value.arr, b, indent));
+                }else{
+                        RUN(tld_strbuf_append(b, "null"));
+                }
+        }else if(v->type == TLD_JSON_OBJ){
+                if(v->value.obj){
+                        RUN(tld_json_dump(v->value.obj, b, indent));
+                }else{
+                        RUN(tld_strbuf_append(b, "null"));
+                }
+        }else{
+                RUN(tld__json_dump_val(v, b));
+        }
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
 {
+        const int compact = indent < 0;
+        const int inner = compact ? TLD_JSON_COMPACT : indent + 4;
         if(n){
-                RUN(tld_strbuf_append(b, "{\n"));
-
+                RUN(tld_strbuf_append(b, compact ? "{" : "{\n"));
                 for(int i = 0; i < n->n;i++){
-                        RUN(tld__json_add_indent(b, indent + 4));
+                        RUN(tld__json_add_indent(b, inner));
                         RUN(tld__json_dump_str(b, n->key[i]->str, n->key[i]->len));
-                        RUN(tld_strbuf_append(b, ": "));
-
-                        if(n->v[i]->type == TLD_JSON_ARR){
-                                if(n->v[i]->value.arr){
-                                        RUN(tld_json_dump_arr(n->v[i]->value.arr, b,indent + 4));
-                                }else{
-                                        RUN(tld_strbuf_append(b, "null"));
-                                }
-                        }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                if(n->v[i]->value.obj){
-                                        RUN(tld_json_dump(n->v[i]->value.obj, b,indent + 4));
-                                }else{
-                                        RUN(tld_strbuf_append(b, "null"));
-                                }
-                        }else{
-                                RUN(tld__json_dump_val(n->v[i], b));
-                        }
+                        RUN(tld_strbuf_append(b, compact ? ":" : ": "));
+                        RUN(tld__json_dump_any(n->v[i], b, inner));
                         if (i < n->n - 1) {
                                 RUN(tld_strbuf_append(b, ","));
                         }
-                        RUN(tld_strbuf_append(b, "\n"));
+                        if(!compact){
+                                RUN(tld_strbuf_append(b, "\n"));
+                        }
                 }
                 RUN(tld__json_add_indent(b, indent));
                 RUN(tld_strbuf_append(b, "}"));
@@ -1523,35 +1544,57 @@ ERROR:
 
 int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
 {
-
+        const int compact = indent < 0;
+        const int inner = compact ? TLD_JSON_COMPACT : indent + 4;
         if(n){
-                RUN(tld_strbuf_append(b, "[\n"));
-
+                RUN(tld_strbuf_append(b, compact ? "[" : "[\n"));
                 for (int i = 0; i < n->n; i++) {
-                        RUN(tld__json_add_indent(b, indent + 4));
-                        if (n->v[i]->type == TLD_JSON_ARR) {
-                                if(n->v[i]->value.arr){
-                                        RUN(tld_json_dump_arr(n->v[i]->value.arr, b,indent + 4));
-                                }else{
-                                        RUN(tld_strbuf_append(b, "null"));
-                                }
-                        } else if (n->v[i]->type == TLD_JSON_OBJ) {
-                                if(n->v[i]->value.obj){
-                                        RUN(tld_json_dump(n->v[i]->value.obj, b,indent + 4));
-                                }else{
-                                        RUN(tld_strbuf_append(b, "null"));
-                                }
-                        } else {
-                                RUN(tld__json_dump_val(n->v[i], b));
-                        }
+                        RUN(tld__json_add_indent(b, inner));
+                        RUN(tld__json_dump_any(n->v[i], b, inner));
                         if (i < n->n - 1) {
                                 RUN(tld_strbuf_append(b, ","));
                         }
-                        RUN(tld_strbuf_append(b, "\n"));
+                        if(!compact){
+                                RUN(tld_strbuf_append(b, "\n"));
+                        }
                 }
                 RUN(tld__json_add_indent(b, indent));
                 RUN(tld_strbuf_append(b, "]"));
         }
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_json_obj_add(tld_json_obj **obj, tld_json_decoration entry)
+{
+        tld_json_obj *r = NULL;
+        ASSERT(obj != NULL, "No object pointer");
+        if(entry.value == NULL && (entry.type == TLD__JVAL_AUTO || entry.type == TLD__JVAL_STR)){
+                return OK;      /* skipped, as in a build */
+        }
+        r = tld__json_obj_build(*obj, &entry, 1);
+        if(r == NULL){
+                ERROR_MSG("Could not add an entry to the object");
+        }
+        *obj = r;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_json_arr_add(tld_json_arr **arr, tld_json_decoration entry)
+{
+        tld_json_arr *r = NULL;
+        ASSERT(arr != NULL, "No array pointer");
+        if(entry.value == NULL && (entry.type == TLD__JVAL_AUTO || entry.type == TLD__JVAL_STR)){
+                return OK;      /* skipped, as in a build */
+        }
+        r = tld__json_arr_build(*arr, &entry, 1);
+        if(r == NULL){
+                ERROR_MSG("Could not add a value to the array");
+        }
+        *arr = r;
         return OK;
 ERROR:
         return FAIL;

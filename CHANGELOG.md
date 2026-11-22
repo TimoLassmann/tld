@@ -36,6 +36,26 @@ tld.h to this. Old → new:
   the rules, and a program may reuse common names); `regress-alloc galloc-any`; misuse
   `err_galloc_align.c`.
 
+### Helpers: what every caller wrote by hand
+- json: `tld_json_parse` takes the NUL-terminated text (`const char *`) instead of a
+  `tld_strbuf *`; for a buffer b pass `TLD_STR(b)`. `tld_json_parse_n(text, len, &obj)` parses a
+  byte range.
+- json: `tld_json_obj_add(&obj, entry)` and `tld_json_arr_add(&arr, entry)` add one entry,
+  creating the container when it is NULL (a NULL `TLD_JSTR`/`TLD_JAUTO` string is skipped), so
+  code no longer calls the `tld__json_*_build` back ends.
+- json: `tld_json_dump(n, b, TLD_JSON_COMPACT)` writes JSON with no whitespace outside strings.
+- json: the entry kinds of `tld_json_decoration` are `TLD__JVAL_*` (were `VAL_STRING`, `VAL_OBJ`, ...),
+  so a program may define its own `VAL_*` names.
+- string: `tld_strbuf_append_n(b, s, n)` appends n bytes (NUL bytes included, s may point into b).
+- path: `tld_path_read(path, &buf)` reads a whole file into a new `tld_strbuf`, with an error
+  naming the file and the reason when it fails.
+- tld_ai.h uses these instead of its own copies (compact dump, parse copy, file reader, entry
+  adders) and no `tld__` internals. `extra_options` names that are empty or contain `.` or `[`
+  are rejected with `AI_EARG`. tools/tlddoc and examples/triage.c read files with
+  `tld_path_read`.
+- tests: `regress-str append-n`, `regress-misc read`, `regress-json parse-text compact add`, oom
+  scenario `json_add`; `fuzz-json` parses the raw bytes with `tld_json_parse_n`.
+
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,
   OK_MSG, DEBUG_MSG) requires a string-literal format, and the format is checked against the

@@ -16,6 +16,7 @@ static int sc_str(void)
         RUN(tld_strbuf_alloc(&b, 4));
         RUN(tld_strbuf_copy(b, a));
         RUN(tld_strbuf_append(b, TLD_STR(b)));
+        RUN(tld_strbuf_append_n(b, "a\0b", 3));
         tld_strbuf_free(a); tld_strbuf_free(b);
         return OK;
 ERROR:
@@ -76,7 +77,7 @@ static int sc_json_parse(void)
         double d; int64_t i64; int bo;
         RUN(tld_strbuf_alloc(&b, 64));
         RUN(tld_strbuf_append(b, DOC));
-        RUN(tld_json_parse(b, &j));
+        RUN(tld_json_parse(TLD_STR(b), &j));
         RUN(tld_json_get_str(j, "name", &s));
         RUN(tld_json_get_num(j, "f", &d));
         RUN(tld_json_get_int(j, "big", &i64));
@@ -107,7 +108,7 @@ static int sc_json_toparr(void)
         tld_json_obj *j = NULL;
         RUN(tld_strbuf_alloc(&b, 64));
         RUN(tld_strbuf_append(b, "[{\"a\": [1, 2, 3]}, \"x\", [[\"y\"]]]"));
-        RUN(tld_json_parse(b, &j));
+        RUN(tld_json_parse(TLD_STR(b), &j));
         RUN(tld_strbuf_alloc(&out, 16));
         RUN(tld_json_dump(j, out, 0));
         tld_json_obj_free(j); tld_strbuf_free(b); tld_strbuf_free(out);
@@ -135,6 +136,28 @@ static int sc_json_build(void)          /* the documented way: TLD_JSON_OBJECT r
         return OK;
 ERROR:
         tld_json_obj_free(o); tld_strbuf_free(out);
+        return FAIL;
+}
+
+static int sc_json_add(void)            /* one entry at a time, then compact text parsed back */
+{
+        tld_json_obj *o = NULL, *p = NULL;
+        tld_json_arr *a = NULL;
+        tld_strbuf *out = NULL;
+        RUN(tld_json_obj_add(&o, TLD_JSTR("model", "m")));
+        for(int i = 0; i < 20; i++){
+                RUN(tld_json_arr_add(&a, TLD_JINT(NULL, i)));
+        }
+        RUN(tld_json_obj_add(&o, TLD_JARR("v", a)));
+        a = NULL;
+        RUN(tld_json_obj_add(&o, TLD_JOBJ("opt", TLD_JSON_OBJECT(TLD_JNUM("t", 0.5)))));
+        RUN(tld_strbuf_alloc(&out, 16));
+        RUN(tld_json_dump(o, out, TLD_JSON_COMPACT));
+        RUN(tld_json_parse_n(TLD_STR(out), (size_t) TLD_STRLEN(out), &p));
+        tld_json_obj_free(o); tld_json_obj_free(p); tld_strbuf_free(out);
+        return OK;
+ERROR:
+        tld_json_obj_free(o); tld_json_obj_free(p); tld_json_arr_free(a); tld_strbuf_free(out);
         return FAIL;
 }
 
@@ -285,6 +308,7 @@ static int sc_misc(void)
         RUN(tld_path_filename(path, &f));
         RUN(tld_path_dirname(path, &d));
         RUN(tld_cmdline_capture(&cmd, 3, argv));
+        RUN(tld_path_read(__FILE__, &full));       /* this source file */
         RUN(tld_bitfield_alloc(&b1, 300));
         RUN(tld_bitfield_alloc(&b2, 300));
         RUN(tld_bitfield_alloc(&b3, 300));
@@ -329,13 +353,14 @@ static const struct oom_scenario scenarios[] = {
         {"json_parse", sc_json_parse, "parse, getters, search, set_val, copy, dump", NULL},
         {"json_toparr", sc_json_toparr, "a top-level array parsed and dumped", NULL},
         {"json_build", sc_json_build, "TLD_JSON_OBJECT / TLD_JSON_ARRAY with nested containers", NULL},
+        {"json_add", sc_json_add, "tld_json_obj_add / arr_add, compact dump, parse_n", NULL},
         {"template", sc_template, "extract variables and apply nested IF/ELSE", NULL},
         {"kdtree", sc_kdtree, "inserts with rebalancing, reset, build, search", NULL},
         {"kdtree_reuse", sc_kdtree_reuse, "inserts that fail, then the tree is searched and freed", NULL},
         {"kdtree_grow", sc_kdtree_grow, "growing past the initial 1024 nodes; nn agrees with bf", NULL},
         {"rng", sc_rng, "generators and a sampling distribution", NULL},
         {"stats", sc_stats, "kde, quantile normalisation, auc", NULL},
-        {"misc", sc_misc, "file names, command line, bitfields", NULL},
+        {"misc", sc_misc, "file names, command line, reading a file, bitfields", NULL},
         {"tpool", sc_tpool, "thread pool with 40 jobs", NULL},
 };
 

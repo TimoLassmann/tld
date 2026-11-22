@@ -110,3 +110,12 @@ sort_asc_float tld_sort_asc_float
 sort_desc_float tld_sort_desc_float
 sort_asc_double tld_sort_asc_double
 sort_desc_double tld_sort_desc_double
+# json entry kinds (internal; seen only if code built tld_json_decoration by hand)
+VAL_STRING TLD__JVAL_AUTO
+VAL_OBJ TLD__JVAL_OBJ
+VAL_ARR TLD__JVAL_ARR
+VAL_JSTR TLD__JVAL_STR
+VAL_NUM TLD__JVAL_NUM
+VAL_INT TLD__JVAL_INT
+VAL_BOOL TLD__JVAL_BOOL
+VAL_NULL TLD__JVAL_NULL

@@ -23,6 +23,12 @@ TLD_API int tld_path_mkdir(char *dir);
  * tld_strbuf_free). FAIL when the file does not exist. */
 TLD_API int tld_path_full(tld_strbuf **full, char *filename);
 
+/* The whole contents of the file at path in a new buffer in *out (free with
+ * tld_strbuf_free); the bytes may include NUL. FAIL, with an error naming the file and
+ * the reason, when it cannot be opened or read or is larger than a buffer holds
+ * (INT32_MAX - 1 bytes); *out is then unchanged. */
+TLD_API int tld_path_read(const char *path, tld_strbuf **out);
+
 /* Append argv[0] .. argv[argc - 1], each followed by a space, to *cmdline (allocated when
  * NULL; free with tld_strbuf_free). For recording how a program was run. */
 TLD_API int tld_cmdline_capture(tld_strbuf **cmdline, const int argc, char *const argv[]);

@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
         RUN(tld_json_dump(o, b, 0));
         SECTION_MSG("dump and parse round trip");
         KV_MSG("dump", "%d bytes", TLD_STRLEN(b));
-        RUN(tld_json_parse(b, &p));
+        RUN(tld_json_parse(TLD_STR(b), &p));
         RUN(tld_json_get_int(p, "k4999", &v));
         if (v != 4999) ERROR_MSG("k4999 = %lld", (long long)v);
         RUN(tld_json_get_str(p, "list[4999]", &s));

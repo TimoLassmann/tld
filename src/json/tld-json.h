@@ -9,11 +9,14 @@
 
 #include "tld-json_struct.h"
 
-/* Parse the JSON text in t (standard JSON, nesting up to 512 levels) into a new object in
- * *out; free it with tld_json_obj_free. A top-level array becomes the single entry of
- * an object, under the key "Top Level Arr". Invalid JSON prints an error naming the byte
- * offset and returns FAIL. */
-TLD_API  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
+/* Parse the NUL-terminated JSON text (standard JSON, nesting up to 512 levels) into a
+ * new object in *out; free it with tld_json_obj_free. A top-level array becomes the
+ * single entry of an object, under the key "Top Level Arr". Invalid JSON prints an
+ * error naming the byte offset and returns FAIL. tld_json_parse_n parses the len bytes
+ * at text instead (a NUL byte among them is invalid JSON). For a tld_strbuf b:
+ * tld_json_parse(TLD_STR(b), &o). */
+TLD_API int tld_json_parse(const char *text, tld_json_obj **out);
+TLD_API int tld_json_parse_n(const char *text, size_t len, tld_json_obj **out);
 
 /* Collect deep copies of every value stored under key, at any depth, into a new object
  * in *ret (entries named key, in document order; free with tld_json_obj_free). OK with
@@ -53,20 +56,20 @@ TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
  * when the build fails. A TLD_JAUTO or TLD_JSTR entry whose string is NULL is skipped; a TLD_JOBJ or TLD_JARR
  * entry whose value is NULL makes the build fail, since a nested TLD_JSON_OBJECT / TLD_JSON_ARRAY
  * returns NULL only when it failed. Arrays ignore the key; pass NULL. */
-#define TLD_JAUTO(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_STRING, .value = (void*)(v)})
-#define TLD_JOBJ(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_OBJ, .value = (void*)(v)})
-#define TLD_JARR(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_ARR, .value = (void*)(v)})
+#define TLD_JAUTO(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_AUTO, .value = (void*)(v)})
+#define TLD_JOBJ(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_OBJ, .value = (void*)(v)})
+#define TLD_JARR(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_ARR, .value = (void*)(v)})
 
 /* Typed decorations. TLD_JAUTO above guesses the type from the text ("0.2" becomes
    a number); these do not. TLD_JSTR(k,s) is always a string, TLD_JNUM(k,d) a number
    (non-finite values are written as null), TLD_JINT(k,l) an integer (values
    outside int32_t are stored as double), TLD_JBOOL(k,b) true/false, TLD_JNULL(k) null.
    A NULL string in TLD_JSTR skips the entry, like TLD_JAUTO. */
-#define TLD_JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_JSTR, .value = (void*)(v)})
-#define TLD_JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_NUM,  .value = (void*)&(double){(v)}})
-#define TLD_JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_INT,  .value = (void*)&(long){(v)}})
-#define TLD_JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_BOOL, .value = (void*)&(int){(v)}})
-#define TLD_JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = VAL_NULL, .value = (void*)""})
+#define TLD_JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_STR, .value = (void*)(v)})
+#define TLD_JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_NUM,  .value = (void*)&(double){(v)}})
+#define TLD_JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_INT,  .value = (void*)&(long){(v)}})
+#define TLD_JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_BOOL, .value = (void*)&(int){(v)}})
+#define TLD_JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = TLD__JVAL_NULL, .value = (void*)""})
 
 /* TLD_JSON_OBJECT(entry, ...): a new tld_json_obj * holding the entries in order; TLD_JSON_ARRAY(...)
  * a new tld_json_arr *. NULL (with an error printed) when an entry cannot be added: out
@@ -88,9 +91,28 @@ TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 TLD_API tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, int count);
 TLD_API tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, int count);
 
-/* Append n as JSON text to b (b is not cleared): 4 spaces of indentation per level on
- * top of indent (pass 0), strings escaped, doubles with the fewest of 15 to 17 significant
- * digits that read back exactly, inf/nan as null. A NULL n appends nothing. */
+/* Add one entry to *obj / one value to *arr, creating it when *obj / *arr is NULL:
+ *
+ *   tld_json_obj *req = NULL;
+ *   RUN(tld_json_obj_add(&req, TLD_JSTR("model", name)));
+ *   RUN(tld_json_obj_add(&req, TLD_JBOOL("stream", 0)));
+ *
+ * Entries are those of TLD_JSON_OBJECT: a TLD_JOBJ/TLD_JARR value passes to the container,
+ * also on failure (it is then freed), and a TLD_JAUTO/TLD_JSTR entry whose string is NULL
+ * is skipped (nothing is created). FAIL with an error when out of memory or for a
+ * TLD_JOBJ/TLD_JARR holding NULL; the container keeps what it had (a new one is freed,
+ * leaving *obj / *arr NULL). */
+TLD_API int tld_json_obj_add(tld_json_obj **obj, tld_json_decoration entry);
+TLD_API int tld_json_arr_add(tld_json_arr **arr, tld_json_decoration entry);
+
+/* The indent for compact JSON: tld_json_dump(n, b, TLD_JSON_COMPACT) writes no spaces or
+ * newlines outside strings. */
+#define TLD_JSON_COMPACT (-1)
+
+/* Append n as JSON text to b (b is not cleared): with indent >= 0, 4 spaces of
+ * indentation per level on top of indent (pass 0); with TLD_JSON_COMPACT, no whitespace.
+ * Strings are escaped, doubles written with the fewest of 15 to 17 significant digits
+ * that read back exactly, inf/nan as null. A NULL n appends nothing. */
 TLD_API int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
 TLD_API int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
 

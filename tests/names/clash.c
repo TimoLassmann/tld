@@ -25,6 +25,7 @@ typedef struct { int k; } kdtree;
 typedef struct { int r; } rng_state;
 struct work_queue { int w; };
 enum { NODE_ROOT, NODE_TEXT, NODE_IF };
+enum { VAL_STRING, VAL_OBJ, VAL_ARR, VAL_NUM, VAL_INT, VAL_BOOL, VAL_NULL };
 
 static int next(int x) { return x + 1; }
 static int search(int x) { return x; }
@@ -41,7 +42,7 @@ static int process_tree(int x) { return x; }
 
 int main(void)
 {
-        Parser p = {NODE_TEXT};
+        Parser p = {NODE_TEXT + VAL_STRING};
         template_node t = {NODE_IF};
         json_parser j = {0};
         kdtree k = {0};
