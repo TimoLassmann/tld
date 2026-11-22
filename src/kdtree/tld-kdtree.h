@@ -16,7 +16,7 @@ typedef struct kd_node {
         int n;
 } kd_node;
 
-struct kdyard;
+struct tld__kdyard;
 
 /* A k-d tree; create with kdtree_alloc, free with kdtree_free. Fields a caller may set:
  * fptr_cmp (distance, default kddist_euclidian) with the matching fptr_plane (default
@@ -24,7 +24,7 @@ struct kdyard;
  * 10000). The rest is internal. */
 typedef struct kdtree {
         kd_node* root;
-        struct kdyard* yard;
+        struct tld__kdyard* yard;
         int(*fptr_cmp)(double*, double*, int, double*);
         int(*fptr_plane)(double*, double*, int, double);
         int rebalance_at;
@@ -37,42 +37,42 @@ typedef struct kdtree {
 
 /* Allocate in *tree an empty tree for points of size (> 0) dimensions, using squared
  * Euclidean distance. Storage grows as points are added. Free with kdtree_free. */
-tld_external  int kdtree_alloc(kdtree **tree, int size);
+TLD_API  int kdtree_alloc(kdtree **tree, int size);
 
 /* Free the tree and all its points; NULL is ignored. */
-tld_external void kdtree_free(kdtree *t);
+TLD_API void kdtree_free(kdtree *t);
 
 /* Remove every point and keep the memory for reuse. */
-tld_external  int kdtree_reset(kdtree *t);
+TLD_API  int kdtree_reset(kdtree *t);
 
 /* Add n points x[i] of size doubles (size <= the length given to kdtree_alloc) with
  * ids[i] and rebuild the tree balanced. The points are copied; x and ids are not
  * changed. On failure (no memory) the tree is unchanged. */
-tld_external  int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size);
+TLD_API  int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size);
 
 /* Insert one point x of size doubles with id (copied). Every rebalance_at insertions
  * the tree is rebuilt if its depth is more than 10 levels off the balanced depth. On
  * failure (no memory) the tree is unchanged. */
-tld_external  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
+TLD_API  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
 
 /* Rebuild the tree balanced from the points it holds (allocates nothing). */
-tld_external  int kdtree_rebalance(kdtree *t);
+TLD_API  int kdtree_rebalance(kdtree *t);
 
 /* The id of the stored point nearest to x (a vector of the tree's length) into *id.
  * FAIL (with an error) when the tree is empty. */
-tld_external  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
+TLD_API  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
 
 /* Brute force: the id of the stored point nearest to x, comparing every point; FAIL
  * (with an error) when the tree is empty. For checking kdtree_nn_search. */
-tld_external  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
+TLD_API  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
 
 /* Squared Euclidean distance between a and b (vec_len doubles) into *dist. The default
  * fptr_cmp. */
-tld_external  int kddist_euclidian(double *a, double *b, int vec_len, double *dist);
+TLD_API  int kddist_euclidian(double *a, double *b, int vec_len, double *dist);
 
 /* OK when the squared distance between a and b along dimension cd is below min_dist
  * (the far side of the splitting plane may hold a nearer point), FAIL otherwise. The
  * default fptr_plane. */
-tld_external  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
+TLD_API  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
 
 #endif

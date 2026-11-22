@@ -71,6 +71,18 @@ changes listed here fix bugs.
 
 ### Changed
 - Licence: MIT (was BSD-style).
+- Internal names no longer use the program's namespace. Every static function, type, enum
+  constant and macro of the implementation is `tld__`/`TLD__`, and implementation-only macros are
+  `#undef`'d after use, so a file with `TLD_IMPLEMENTATION` may define `next`, `search`, `jump`,
+  `Parser`, `NODE_ROOT`, `AT`, `SCALE`, `EXTERN`, `NARG3` and the like (each clashed before). The
+  helpers the public macros call are `tld__` too: `tld__message`, `tld__message_at`, `tld__section`,
+  `tld__kv`, `tld__ok`, `tld__debug`, `tld__gfree`, `tld__timer` (was `set_exec_time`),
+  `tld__json_obj_build`/`tld__json_arr_build` (were `json_obj_add_multiple`/`json_arr_add_multiple`),
+  `TLD__MSG_*` (were `MESSAGE_TYPE_*`), `TLD__FAILED` (was `ADDFAILED`), `TLD__STRINGIFY`/`TLD__TOSTRING`
+  and the galloc argument counters; none is for direct use.
+- One linkage macro, `TLD_API` (`extern`, `extern "C"` in C++), replaces `tld_external`, `tld_internal`
+  and the per-module `EXTERN`/`*_IMPORT` pairs. Include guards are `TLD_<MODULE>_H`. `detect_type` and
+  the thread pool's work queue are private; the unused `work_queue_expand` is gone.
 
 ### Fixed: behaviour changes (bugs; no interface change)
 - Duplicated code removed: one prime-size table in hash (growing past the largest prime now refuses instead of overflowing int), one parse step shared by the two template functions, the dead `error()`/`verror()` in core; in tld_ai.h `strcasecmp`/`strncasecmp` replace two hand-written compares, and image and review files are read by one reader (a review file containing a NUL byte is now an error instead of being cut short).

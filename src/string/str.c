@@ -6,9 +6,9 @@
 #include <stdint.h>
 #include <string.h>
 
-tld_internal int tld_strbuf_resize(tld_strbuf *b, int new_size);
-tld_internal int tld_strbuf_ensure_size(tld_strbuf *b, size_t size);
-tld_internal ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p);
+static int tld__strbuf_resize(tld_strbuf *b, int new_size);
+static int tld__strbuf_ensure_size(tld_strbuf *b, size_t size);
+static ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p);
 
 int tld_strbuf_alloc(tld_strbuf **buffer, int size)
 {
@@ -52,7 +52,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_strbuf_resize(tld_strbuf *b, int new_size)
+int tld__strbuf_resize(tld_strbuf *b, int new_size)
 {
         uint8_t* tmp = NULL;
         if (new_size > b->alloc_len){
@@ -75,7 +75,7 @@ ERROR:
 
 /* Make room for size more bytes and the NUL. Sizes are size_t so nothing wraps; a
    buffer cannot grow past INT32_MAX bytes (len and alloc_len are int32_t). */
-int tld_strbuf_ensure_size(tld_strbuf *b, size_t size)
+int tld__strbuf_ensure_size(tld_strbuf *b, size_t size)
 {
         ASSERT(b->len >= 0 && size <= (size_t)INT32_MAX - (size_t)b->len - 1,
                "String buffer would exceed %d bytes", INT32_MAX);
@@ -88,7 +88,7 @@ int tld_strbuf_ensure_size(tld_strbuf *b, size_t size)
                 if(grow > (size_t)INT32_MAX){
                         grow = (size_t)INT32_MAX;
                 }
-                RUN(tld_strbuf_resize(b, (int)grow));
+                RUN(tld__strbuf_resize(b, (int)grow));
         }
         return OK;
 ERROR:
@@ -114,7 +114,7 @@ int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s)
                 return OK;
         }
         /* room for s->len bytes in total; t is unchanged if this fails */
-        RUN(tld_strbuf_ensure_size(t, s->len > t->len ? (size_t)(s->len - t->len) : 0));
+        RUN(tld__strbuf_ensure_size(t, s->len > t->len ? (size_t)(s->len - t->len) : 0));
 
         memcpy(t->str, s->str, s->len);
         t->len = s->len;
@@ -129,7 +129,7 @@ int tld_append(tld_strbuf *b, const char *content)
         size_t size = strlen(content);
         ptrdiff_t off = tld__strbuf_offset(b, content);
 
-        RUN(tld_strbuf_ensure_size(b, size));
+        RUN(tld__strbuf_ensure_size(b, size));
         if(off >= 0){
                 content = TLD_STR(b) + off;
         }
@@ -144,7 +144,7 @@ ERROR:
 
 int tld_append_char(tld_strbuf *b, char c)
 {
-        RUN(tld_strbuf_ensure_size(b, 1));
+        RUN(tld__strbuf_ensure_size(b, 1));
         b->str[b->len] = c;
         b->len++;
         b->str[b->len] = 0;
@@ -159,7 +159,7 @@ int tld_prepend(tld_strbuf *b, const char *content)
         size_t size = strlen(content);
         ptrdiff_t off = tld__strbuf_offset(b, content);
 
-        RUN(tld_strbuf_ensure_size(b, size));
+        RUN(tld__strbuf_ensure_size(b, size));
         memmove(b->str + size, b->str, b->len);
         if(off >= 0){
                 /* the text came from b and has just moved size bytes right */

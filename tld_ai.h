@@ -691,7 +691,7 @@ static void ai__drop(tld_json_decoration d) {
  * NULL, or the caller's object without the child). */
 static int ai__put(tld_json_obj **o, tld_json_decoration d) {
     if (!d.value) return 0;
-    tld_json_obj *r = json_obj_add_multiple(*o, &d, 1);
+    tld_json_obj *r = tld__json_obj_build(*o, &d, 1);
     if (!r) return ai__nomem();
     *o = r;
     return 0;
@@ -699,7 +699,7 @@ static int ai__put(tld_json_obj **o, tld_json_decoration d) {
 
 static int ai__push(tld_json_arr **a, tld_json_decoration d) {
     if (!d.value) return 0;
-    tld_json_arr *r = json_arr_add_multiple(*a, &d, 1);
+    tld_json_arr *r = tld__json_arr_build(*a, &d, 1);
     if (!r) return ai__nomem();
     *a = r;
     return 0;

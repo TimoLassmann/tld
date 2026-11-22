@@ -79,8 +79,8 @@ TOP = """\
  *
  * THREADS
  *   Objects have no locks: use each one from one thread at a time. The tld_thread_pool_*
- *   calls and init_logsum are thread-safe; tld_progress and set_exec_time keep global
- *   state.
+ *   calls and init_logsum are thread-safe; tld_progress and the TLD_START_TIMER timer keep
+ *   global state.
  *
  * ENVIRONMENT
  *   TLD_VERBOSE  0 errors only, 1 normal (default), 2 also DEBUG_MSG lines

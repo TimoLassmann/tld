@@ -12,7 +12,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#define M_2PI ((2.0)*(M_PI))
+#define TLD__2PI ((2.0)*(M_PI))
 
 /* code here was adopted from:  */
 
@@ -80,15 +80,15 @@ struct rng_dist{
 
 #undef ALIGN32
 
-static inline uint64_t rotl(uint64_t x,  uint64_t k);
-static uint64_t next(struct rng_state* s);
-void jump(struct rng_state* s);
+static inline uint64_t tld__rng_rotl(uint64_t x,  uint64_t k);
+static uint64_t tld__rng_next(struct rng_state* s);
+static void tld__rng_jump(struct rng_state* s);
 
-static uint64_t choose_arbitrary_seed(void);
+static uint64_t tld__rng_entropy_seed(void);
 
-static double tl_standard_gamma(struct rng_state* rng, double shape);
-static double tl_standard_exponential(struct rng_state* rng);
-static double tl_gauss(struct rng_state* rng);
+static double tld__rng_standard_gamma(struct rng_state* rng, double shape);
+static double tld__rng_standard_exponential(struct rng_state* rng);
+static double tld__rng_gauss(struct rng_state* rng);
 
 int init_rng(struct rng_state** rng,uint64_t seed)
 {
@@ -101,7 +101,7 @@ int init_rng(struct rng_state** rng,uint64_t seed)
         s->has_gauss = 0;
 
         if(!seed){
-                seed = choose_arbitrary_seed();
+                seed = tld__rng_entropy_seed();
         }
 
         tld_rng_set_seed(s, seed);
@@ -112,7 +112,7 @@ ERROR:
         return FAIL;
 }
 
-static inline uint64_t rotl(const uint64_t x,  uint64_t k) {
+static inline uint64_t tld__rng_rotl(const uint64_t x,  uint64_t k) {
         return (x << k) | (x >> (64U - k));
 }
 
@@ -127,9 +127,9 @@ static inline uint64_t rotl(const uint64_t x,  uint64_t k) {
    a 64-bit seed, we suggest to seed a splitmix64 generator and use its
    output to fill s. */
 
-uint64_t next(struct rng_state* s)
+uint64_t tld__rng_next(struct rng_state* s)
 {
-        const uint64_t result_starstar = rotl(s->s[1] * 5, 7) * 9;
+        const uint64_t result_starstar = tld__rng_rotl(s->s[1] * 5, 7) * 9;
         const uint64_t t = s->s[1] << 17U;
 
         s->s[2] ^= s->s[0];
@@ -139,16 +139,16 @@ uint64_t next(struct rng_state* s)
 
         s->s[2] ^= t;
 
-        s->s[3] = rotl(s->s[3], 45);
+        s->s[3] = tld__rng_rotl(s->s[3], 45);
 
         return result_starstar;
 }
 
 /* This is the jump function for the generator. It is equivalent
-   to 2^128 calls to next(); it can be used to generate 2^128
+   to 2^128 calls to tld__rng_next(); it can be used to generate 2^128
    non-overlapping subsequences for parallel computations. */
 
-void jump(struct rng_state* s)
+void tld__rng_jump(struct rng_state* s)
 {
         static const uint64_t JUMP[] = { 0x180ec6d33cfd0aba,
                                          0xd5a61266f0c9392c,
@@ -167,7 +167,7 @@ void jump(struct rng_state* s)
                                 s2 ^= s->s[2];
                                 s3 ^= s->s[3];
                         }
-                        next(s);
+                        tld__rng_next(s);
                 }
         }
 
@@ -192,7 +192,7 @@ int init_rng_from_rng(struct rng_state** target, struct rng_state* rng)
         s->z1 = 0.0;
         s->gauss = 0.0;
         s->has_gauss = 0;
-        jump(rng);
+        tld__rng_jump(rng);
         *target = s;
         return OK;
 ERROR:
@@ -256,7 +256,7 @@ void free_rng(struct rng_state* rng)
         }
 }
 /* The splitmix64 output function: spreads the bits of z over all 64 bits. */
-static uint64_t mix64(uint64_t z)
+static uint64_t tld__rng_mix64(uint64_t z)
 {
         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9ULL;
         z = (z ^ (z >> 27U)) * 0x94d049bb133111ebULL;
@@ -267,7 +267,7 @@ static uint64_t mix64(uint64_t z)
  * nanoseconds, the process id and a count of the seeds made so far. Generators made
  * in one loop, or by jobs started at the same moment, therefore get different seeds,
  * even if /dev/urandom cannot be read. */
-static uint64_t choose_arbitrary_seed(void)
+static uint64_t tld__rng_entropy_seed(void)
 {
         static _Atomic uint64_t n_made = 0;
         struct timespec now = {0};
@@ -283,9 +283,9 @@ static uint64_t choose_arbitrary_seed(void)
         if(timespec_get(&now, TIME_UTC) != TIME_UTC){
                 now.tv_sec = time(NULL);
         }
-        seed ^= mix64((uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec);
-        seed ^= mix64(((uint64_t) getpid() << 32U) ^ atomic_fetch_add(&n_made, 1));
-        return mix64(seed);
+        seed ^= tld__rng_mix64((uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec);
+        seed ^= tld__rng_mix64(((uint64_t) getpid() << 32U) ^ atomic_fetch_add(&n_made, 1));
+        return tld__rng_mix64(seed);
 }
 
 /* Uniform on the open interval (0,1): the top 53 bits of a draw give a
@@ -294,7 +294,7 @@ double tl_random_double(struct rng_state* rng)
 {
         uint64_t x = 0U;
         do{
-                x = next(rng) >> 11U;
+                x = tld__rng_next(rng) >> 11U;
         }while (x == 0U);
         return (double) x * 0x1.0p-53;
 }
@@ -318,13 +318,13 @@ double tl_random_gaussian(struct rng_state* rng, double mu, double sigma)
                 u2 = tl_random_double(rng);
         } while (u1 <= DBL_EPSILON);
 
-        z0 = sqrt(n2 * log(u1)) * cos(M_2PI * u2);
-        rng->z1 = sqrt(n2 * log(u1)) * sin(M_2PI * u2);
+        z0 = sqrt(n2 * log(u1)) * cos(TLD__2PI * u2);
+        rng->z1 = sqrt(n2 * log(u1)) * sin(TLD__2PI * u2);
 
         return z0 * sigma + mu;
 }
 
-double tl_standard_gamma(struct rng_state* rng, double shape)
+double tld__rng_standard_gamma(struct rng_state* rng, double shape)
 {
         double b = 0.0;
         double c = 0.0;
@@ -334,11 +334,11 @@ double tl_standard_gamma(struct rng_state* rng, double shape)
         double Y = 0.0;
         double r = 0.0;
         if (shape == 1.0){
-                r = tl_standard_exponential(rng);
+                r = tld__rng_standard_exponential(rng);
         }else if (shape < 1.0){
                 for (;;){
                         U = tl_random_double(rng);
-                        V = tl_standard_exponential(rng);
+                        V = tld__rng_standard_exponential(rng);
                         if (U <= 1.0 - shape){
                                 X = pow(U, 1./shape);
                                 if (X <= V){
@@ -360,7 +360,7 @@ double tl_standard_gamma(struct rng_state* rng, double shape)
                 for (;;){
                         do
                         {
-                                X = tl_gauss(rng);
+                                X = tld__rng_gauss(rng);
                                 V = 1.0 + c*X;
                         } while (V <= 0.0);
 
@@ -379,13 +379,13 @@ double tl_standard_gamma(struct rng_state* rng, double shape)
         return r;
 }
 
-double tl_standard_exponential(struct rng_state* rng)
+double tld__rng_standard_exponential(struct rng_state* rng)
 {
     /* We use -log(1-U) since U is [0, 1) */
         return -log(1.0 - tl_random_double(rng));
 }
 
-double tl_gauss(struct rng_state* rng)
+double tld__rng_gauss(struct rng_state* rng)
 {
         double r = 0.0;
         if (rng->has_gauss) {
@@ -418,7 +418,7 @@ double tl_gauss(struct rng_state* rng)
 
 double tl_random_gamma(struct rng_state* rng, double shape, double scale)
 {
-        return scale * tl_standard_gamma(rng, shape);
+        return scale * tld__rng_standard_gamma(rng, shape);
 }
 
 /* Uniform integer in [0, a). Unbiased: draws below 2^64 mod a are
@@ -434,7 +434,7 @@ int tl_random_int(struct rng_state* rng,int a)
         n = (uint64_t) a;
         threshold = ((uint64_t) 0 - n) % n;
         do{
-                x = next(rng);
+                x = tld__rng_next(rng);
         }while(x < threshold);
         return (int) (x % n);
 }
@@ -561,3 +561,5 @@ void tl_random_sdist_free(struct rng_dist* d)
                 MFREE(d);
         }
 }
+
+#undef TLD__2PI

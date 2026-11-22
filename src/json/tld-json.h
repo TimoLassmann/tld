@@ -9,22 +9,16 @@
 
 #include "tld-json_struct.h"
 
-#ifdef TLD_JSON_IMPORT
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
-
 /* Parse the JSON text in t (standard JSON, nesting up to 512 levels) into a new object in
  * *out; free it with tld_json_obj_free. A top-level array becomes the single entry of
  * an object, under the key "Top Level Arr". Invalid JSON prints an error naming the byte
  * offset and returns FAIL. */
-EXTERN  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
+TLD_API  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
 
 /* Collect deep copies of every value stored under key, at any depth, into a new object
  * in *ret (entries named key, in document order; free with tld_json_obj_free). OK with
  * an empty result when nothing matches. */
-EXTERN int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
+TLD_API int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
 
 /* Path getters. A path is dot-separated keys with [i] for array elements,
    e.g. "message.content", "embeddings[0]", "models[2].name". tld_json_parse
@@ -36,12 +30,12 @@ EXTERN int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
    integral doubles inside the int64_t range. JSON null has type
    TLD_JSON_UNDEF and fails every getter. An empty path in get_obj returns
    obj itself. out may be NULL to test whether the path exists. */
-EXTERN int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out);
-EXTERN int tld_json_get_num(tld_json_obj *obj, const char *path, double *out);
-EXTERN int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out);
-EXTERN int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out);
-EXTERN int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out);
-EXTERN int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out);
+TLD_API int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out);
+TLD_API int tld_json_get_num(tld_json_obj *obj, const char *path, double *out);
+TLD_API int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out);
+TLD_API int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out);
+TLD_API int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out);
+TLD_API int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out);
 
 /* Set the value at a path to a deep copy of v. key is a path in the syntax of the
  * tld_json_get_* getters ("name", "a.b", "list[2].id", "[0]" for a parsed top-level
@@ -50,7 +44,7 @@ EXTERN int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **
  * end of an array (v is appended). An existing value is replaced, even by one of
  * another type, and v may be part of n. Returns FAIL for a missing parent, an index
  * further past the end, or no memory. Keys containing '.' or '[' cannot be addressed. */
-EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
+TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 
 /* Entries for JSON_OBJ / JSON_ARR. JS(k, s): the string s, with its type guessed from
  * the text: "12" becomes an integer, "0.2" a number, true/false (also True, TRUE, ...) a
@@ -82,25 +76,22 @@ EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
  *   tld_json_obj *o = JSON_OBJ(JSTR("name", "x"), JINT("n", 3),
  *                              JA("v", JSON_ARR(JNUM(NULL, 0.5), JNUM(NULL, 2))));
  */
-#define JSON_OBJ(...) json_obj_add_multiple(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
+#define JSON_OBJ(...) tld__json_obj_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))
-#define JSON_ARR(...) json_arr_add_multiple(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
+#define JSON_ARR(...) tld__json_arr_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))
 
 /* Back ends of JSON_OBJ / JSON_ARR: add count entries to obj / arr (allocated when NULL)
  * and return it. They stop at the first entry that cannot be added and return NULL: the
  * JO/JA children not yet attached are freed, as is a container created by the call; a
  * caller-supplied container keeps the entries added so far and stays the caller's. */
-EXTERN tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs, int count);
-EXTERN tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs, int count);
+TLD_API tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, int count);
+TLD_API tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, int count);
 
 /* Append n as JSON text to b (b is not cleared): 4 spaces of indentation per level on
  * top of indent (pass 0), strings escaped, doubles with the fewest of 15 to 17 significant
  * digits that read back exactly, inf/nan as null. A NULL n appends nothing. */
-EXTERN int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
-EXTERN int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
-
-#undef TLD_JSON_IMPORT
-#undef EXTERN
+TLD_API int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
+TLD_API int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
 
 #endif

@@ -10,14 +10,14 @@
 
 #include "hash_struct.h"
 
-tld_internal  int tld_hash_entry_alloc(tld_hash_entry **entry);
-tld_internal void tld_hash_entry_free(tld_hash_entry *n);
+static  int tld__hash_entry_alloc(tld_hash_entry **entry);
+static void tld__hash_entry_free(tld_hash_entry *n);
 
-tld_internal unsigned int fnv1a_hash(const char *str, int table_size);
-tld_internal int tld_hash_resize(tld_hash *h);
+static unsigned int tld__hash_fnv1a(const char *str, int table_size);
+static int tld__hash_resize(tld_hash *h);
 
 /* The smallest table size in the prime list that is larger than size; 0 if none is. */
-static int hash_next_size(int size)
+static int tld__hash_next_size(int size)
 {
         static const int prime_sizes[] = {
                 53, 97, 193, 389, 769, 1543, 3079, 6151,
@@ -40,7 +40,7 @@ int tld_hash_alloc(tld_hash **hash, int size)
         int new_size = 0;
         MMALLOC(h, sizeof(tld_hash));
 
-        new_size = hash_next_size(size);
+        new_size = tld__hash_next_size(size);
         ASSERT(new_size > 0, "Requested hash size %d is too large", size);
 
         /* table_size stays 0 until the table exists, so tld_hash_free on the
@@ -67,7 +67,7 @@ ERROR:
         return FAIL;
 }
 
-void tld_hash_entry_free(tld_hash_entry *n)
+void tld__hash_entry_free(tld_hash_entry *n)
 {
         if(n){
                 tld_strbuf_free(n->key);
@@ -83,7 +83,7 @@ void tld_hash_free(tld_hash *h)
                         tld_hash_entry* entry = h->table[i];
                         while(entry){
                                 tld_hash_entry* next = entry->next;
-                                tld_hash_entry_free(entry);
+                                tld__hash_entry_free(entry);
                                 entry = next;
                         }
                 }
@@ -93,7 +93,7 @@ void tld_hash_free(tld_hash *h)
         }
 }
 
-static unsigned int fnv1a_hash(const char *str, int table_size)
+static unsigned int tld__hash_fnv1a(const char *str, int table_size)
 {
         unsigned int hash = 2166136261u;
         int c;
@@ -104,7 +104,7 @@ static unsigned int fnv1a_hash(const char *str, int table_size)
         return hash % table_size;
 }
 
-int tld_hash_entry_alloc(tld_hash_entry **entry)
+int tld__hash_entry_alloc(tld_hash_entry **entry)
 {
         tld_hash_entry* e = NULL;
         MMALLOC(e, sizeof(tld_hash_entry));
@@ -116,15 +116,15 @@ int tld_hash_entry_alloc(tld_hash_entry **entry)
         *entry = e;
         return OK;
 ERROR:
-        tld_hash_entry_free(e);
+        tld__hash_entry_free(e);
         return FAIL;
 }
 
-int tld_hash_resize(tld_hash *h)
+int tld__hash_resize(tld_hash *h)
 {
         tld_hash_entry **new_table = NULL;
 
-        int new_size = hash_next_size(h->table_size);
+        int new_size = tld__hash_next_size(h->table_size);
         if (new_size == 0) {
                 /* past the prime list: double the size, if that still fits in an int */
                 ASSERT(h->table_size <= (INT_MAX - 1) / 2, "Hash table is too large to grow");
@@ -144,7 +144,7 @@ int tld_hash_resize(tld_hash *h)
                 tld_hash_entry *entry = h->table[i];
                 while (entry) {
                         tld_hash_entry *next = entry->next;
-                        unsigned int new_index = fnv1a_hash(TLD_STR(entry->key), new_size);
+                        unsigned int new_index = tld__hash_fnv1a(TLD_STR(entry->key), new_size);
                         entry->next = new_table[new_index];
                         new_table[new_index] = entry;
                         entry = next;
@@ -197,16 +197,15 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
                 allocated = 1;
         }
 
-
         ASSERT(h != NULL, "No Map");
 
         double load_factor = (double)h->n / (double)h->table_size;
 
         if (load_factor > LOAD_FACTOR_THRESHOLD) {
-                RUN(tld_hash_resize(h));
+                RUN(tld__hash_resize(h));
         }
 
-        unsigned int index = fnv1a_hash(key, h->table_size);
+        unsigned int index = tld__hash_fnv1a(key, h->table_size);
 
         /* Check if key already exists */
         tld_hash_entry* current = h->table[index];
@@ -219,7 +218,7 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
         }
 
         /* Key does not exist, create a new entry */
-        RUN(tld_hash_entry_alloc(&new_entry));
+        RUN(tld__hash_entry_alloc(&new_entry));
 
         RUN(tld_append(new_entry->key, key));
         RUN(tld_append(new_entry->value, val));
@@ -230,7 +229,7 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
         *hash = h;
         return OK;
 ERROR:
-        tld_hash_entry_free(new_entry);
+        tld__hash_entry_free(new_entry);
         /* a table allocated by this call is not handed back on failure */
         if(allocated){
                 tld_hash_free(h);
@@ -243,7 +242,7 @@ int tld_hash_get(tld_hash *h, const char *key, const char **val)
         ASSERT(h != NULL, "No hash");
         ASSERT(key != NULL, "No key");
 
-        unsigned int index = fnv1a_hash(key, h->table_size);
+        unsigned int index = tld__hash_fnv1a(key, h->table_size);
         tld_hash_entry* entry = h->table[index];
 
         while (entry) {
@@ -265,7 +264,7 @@ int tld_hash_del(tld_hash *h, const char *key)
         ASSERT(h != NULL, "No hash");
         ASSERT(key != NULL, "No key");
 
-        unsigned int index = fnv1a_hash(key, h->table_size);
+        unsigned int index = tld__hash_fnv1a(key, h->table_size);
         tld_hash_entry* entry = h->table[index];
         tld_hash_entry* prev = NULL;
 
@@ -276,7 +275,7 @@ int tld_hash_del(tld_hash *h, const char *key)
                         }else{
                                 h->table[index] = entry->next;
                         }
-                        tld_hash_entry_free(entry);
+                        tld__hash_entry_free(entry);
                         h->n--;
                         return OK;
                 }
@@ -295,7 +294,7 @@ int tld_hash_rename(tld_hash *h, const char *key, const char *new_key) {
         ASSERT(key != NULL, "No key");
         ASSERT(new_key != NULL, "No new key");
 
-        unsigned int index = fnv1a_hash(key, h->table_size);
+        unsigned int index = tld__hash_fnv1a(key, h->table_size);
         tld_hash_entry* entry = h->table[index];
 
         while (entry) {
@@ -355,7 +354,6 @@ int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value)
 
         /* Move to the next entry in the current linked list. */
         h->cur_entry = h->cur_entry->next;
-
 
         /* If the current entry is NULL, move to the next index in the table. */
         while(h->cur_entry == NULL && h->cur_index + 1 < h->table_size){

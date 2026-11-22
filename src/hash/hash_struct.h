@@ -1,5 +1,5 @@
-#ifndef HASH_STRUCT_H
-#define HASH_STRUCT_H
+#ifndef TLD_HASH_STRUCT_H
+#define TLD_HASH_STRUCT_H
 #include "../string/str.h"
 
 typedef struct tld_hash_entry {

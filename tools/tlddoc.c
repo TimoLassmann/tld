@@ -34,9 +34,9 @@
  *   AI_IMPLEMENTATION, split into sections at its own "---- name ----" comment lines.
  *   Skipped: anything inside #if/#ifdef ..._IMPLEMENTATION, static declarations, names
  *   that start with '_' or contain "__", include guards, macros #undef'd in the same
- *   module (EXTERN) and forward declarations without a doc comment (the full definition
+ *   module and forward declarations without a doc comment (the full definition
  *   is documented instead). A function-like macro whose body pastes its argument into
- *   prototypes (SORT_HEADER) is expanded where it is invoked, so sort_asc_int32_t and
+ *   prototypes (TLD__SORT_HEADER) is expanded where it is invoked, so sort_asc_int32_t and
  *   the like are documented and indexed.
  *
  * Parsing is line-based and assumes the style of these headers.

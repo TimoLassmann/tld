@@ -5,7 +5,7 @@
 #define BIT_SHIFT 6
 #define BIT_MASK 0x3F
 
-static inline int _tl_bitfield_popcount_branchless(uint64_t x);
+static inline int tld__bitfield_popcount(uint64_t x);
 /* Here is a piece of code to calculate the hamming distance
         between two bitfields using the popcount instruction
         available on most modern CPUs
@@ -103,7 +103,7 @@ ERROR:
 }
 
 /* here is an alternative implementation of popcountll using branchless code*/
-int _tl_bitfield_popcount_branchless(uint64_t x)
+int tld__bitfield_popcount(uint64_t x)
 {
         x = x - ((x >> 1) & 0x5555555555555555ULL);
         x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
@@ -124,14 +124,14 @@ int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int3
         int32_t count = 0;
         if(mask == NULL){
                 for(int i = 0; i <  len; i++){
-                        count += _tl_bitfield_popcount_branchless(b1->m[i] ^ b2->m[i]);
+                        count += tld__bitfield_popcount(b1->m[i] ^ b2->m[i]);
                 }
         }else{
                 if(mask->len != b1->len || mask->alloc_len < len){
                         ERROR_MSG("mask and bitfields have different lengths");
                 }
                 for(int i = 0; i <  len; i++){
-                        count += _tl_bitfield_popcount_branchless((b1->m[i] ^ b2->m[i]) & mask->m[i]);
+                        count += tld__bitfield_popcount((b1->m[i] ^ b2->m[i]) & mask->m[i]);
                 }
         }
         *dist = count;

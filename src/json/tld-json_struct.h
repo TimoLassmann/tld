@@ -6,12 +6,6 @@
 
 #include <stdint.h>
 
-#ifdef TLD_JSON_STRUCT_IMPORT
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
-
 typedef struct tld_string_buffer tld_strbuf;
 typedef struct tld_json_obj tld_json_obj;
 typedef struct tld_json_arr tld_json_arr;
@@ -72,9 +66,5 @@ typedef struct {
            VAL_ARR are the typed decorations JSTR, JNUM, JINT, JBOOL, JNULL. */
         enum { VAL_STRING, VAL_OBJ, VAL_ARR, VAL_JSTR, VAL_NUM, VAL_INT, VAL_BOOL, VAL_NULL } type;
 } tld_json_decoration;
-
-#undef TLD_JSON_STRUCT_IMPORT
-#undef EXTERN
-
 
 #endif

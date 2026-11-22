@@ -8,7 +8,7 @@
 #include <dirent.h>
 #include <errno.h>
 
-#define MAX_CMD_LEN 16384
+#define TLD__MAX_CMD_LEN 16384
 
 int tld_file_exists(const char* name)
 {
@@ -200,3 +200,4 @@ ERROR:
         return FAIL;
 }
 
+#undef TLD__MAX_CMD_LEN

@@ -9,10 +9,9 @@
 
   https://metacpan.org/release/JANERT/Statistics-KernelEstimation-0.05/source/lib/Statistics/KernelEstimation.pm
 */
-static int copy_steps(double *data, int data_len, double ***ret);
-static int create_steps(double *data, int data_len, int n_steps, double band, double*** ret);
-static int default_bandwidth(double *x,double* cnt, int len, double* band);
-
+static int tld__kde_copy_steps(double *data, int data_len, double ***ret);
+static int tld__kde_create_steps(double *data, int data_len, int n_steps, double band, double*** ret);
+static int tld__kde_default_bandwidth(double *x,double* cnt, int len, double* band);
 
 int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
 {
@@ -25,9 +24,9 @@ int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
         ASSERT(data_len > 0,"No data len?");
         ASSERT(n_steps > 0,"Number of steps must be positive");
 
-        RUN(default_bandwidth(data,NULL,data_len,&band));
+        RUN(tld__kde_default_bandwidth(data,NULL,data_len,&band));
 
-        RUN(create_steps(data,data_len, n_steps, band, &ladder));
+        RUN(tld__kde_create_steps(data,data_len, n_steps, band, &ladder));
 
         total_cnt = data_len;
 
@@ -71,9 +70,9 @@ int tld_kde_count_pdf(double *data,double* cnt, int data_len, double*** out)
         }
         ASSERT(total_cnt > 0.0, "Total count is zero");
 
-        RUN(copy_steps(data,data_len, &ladder ));
+        RUN(tld__kde_copy_steps(data,data_len, &ladder ));
 
-        RUN(default_bandwidth(data,cnt,data_len,&band));
+        RUN(tld__kde_default_bandwidth(data,cnt,data_len,&band));
 
         for(int i = 0; i < data_len;i++){
                 double d = 0.0;
@@ -98,7 +97,7 @@ ERROR:
         return FAIL;
 }
 
-int copy_steps(double *data, int data_len, double ***ret)
+int tld__kde_copy_steps(double *data, int data_len, double ***ret)
 {
         double** x = NULL;
         galloc(&x, data_len,2);
@@ -118,7 +117,7 @@ ERROR:
 
 /* Evaluation points: n_steps bin centres spanning [min, max]. When all
    data are equal the range is empty, so span mean +/- 4 bandwidths. */
-int create_steps(double *data, int data_len, int n_steps, double band, double*** ret)
+int tld__kde_create_steps(double *data, int data_len, int n_steps, double band, double*** ret)
 {
         double** x = NULL;
         double min = DBL_MAX;
@@ -158,7 +157,7 @@ ERROR:
    the cancellation of E[x^2] - E[x]^2 for data with a large offset. For
    constant data the bandwidth falls back to 1e-3 * |mean|, or 1.0 when
    the mean is zero. */
-int default_bandwidth(double *x,double* cnt, int len, double* band)
+int tld__kde_default_bandwidth(double *x,double* cnt, int len, double* band)
 {
         double sum_x = 0.0;
         double sum_dd = 0.0;

@@ -4,23 +4,23 @@
 #include <math.h>
 #include <float.h>
 
-#define SCALE 1000.0F
-#define LOGSUM_SIZE 16000
+#define TLD__LOGSUM_SCALE 1000.0F
+#define TLD__LOGSUM_SIZE 16000
 
-static float logsum_lookup[LOGSUM_SIZE];
-static pthread_once_t logsum_once = PTHREAD_ONCE_INIT;
+static float tld__logsum_lookup[TLD__LOGSUM_SIZE];
+static pthread_once_t tld__logsum_once = PTHREAD_ONCE_INIT;
 
-static void logsum_fill_table(void)
+static void tld__logsum_fill_table(void)
 {
-        for(int i = 0; i < LOGSUM_SIZE;i++){
-                logsum_lookup[i] = logf(1.0F + expf((float) -i / SCALE));
+        for(int i = 0; i < TLD__LOGSUM_SIZE;i++){
+                tld__logsum_lookup[i] = logf(1.0F + expf((float) -i / TLD__LOGSUM_SCALE));
         }
 }
 
 /* Thread-safe; calling it is optional, logsum() initialises the table on first use. */
 void init_logsum(void)
 {
-        pthread_once(&logsum_once, logsum_fill_table);
+        pthread_once(&tld__logsum_once, tld__logsum_fill_table);
 }
 
 float logsum(const float a,const float b)
@@ -39,7 +39,7 @@ float logsum(const float a,const float b)
                 return max;
         }
         init_logsum();
-        return  max+ logsum_lookup[(int)((max-min)*SCALE)];
+        return  max+ tld__logsum_lookup[(int)((max-min)*TLD__LOGSUM_SCALE)];
 }
 
 int nearly_equal_float(float a, float b)
@@ -75,3 +75,6 @@ int nearly_equal_double(double a, double b)
         }
         return ret;
 }
+
+#undef TLD__LOGSUM_SCALE
+#undef TLD__LOGSUM_SIZE

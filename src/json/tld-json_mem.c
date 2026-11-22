@@ -3,7 +3,6 @@
 
 #include "tld-json.h"
 
-#define TLD_JSON_MEM_IMPORT
 #include "tld-json_mem.h"
 
 int tld_json_obj_alloc(tld_json_obj **node)
@@ -230,7 +229,7 @@ void tld_json_val_free(tld_json_val* n)
 }
 
 /* Release whatever v owns and mark it empty. */
-static void tld_json_val_clear(tld_json_val *v)
+static void tld__json_val_clear(tld_json_val *v)
 {
         switch (v->type) {
         case TLD_JSON_STR:
@@ -293,7 +292,7 @@ int tld_json_val_copy(tld_json_val *t, tld_json_val *s)
         case TLD_JSON_UNDEF:
                 break;
         }
-        tld_json_val_clear(t);
+        tld__json_val_clear(t);
         *t = tmp;
         return OK;
 ERROR:

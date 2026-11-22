@@ -1,7 +1,6 @@
 #include "tld-sort.h"
 
-
-#define DESC_FUNC(type)                                             \
+#define TLD__SORT_DESC_FUNC(type)                                             \
         static int cmp_desc_##type (const void *a, const void *b);  \
                                                                     \
         int sort_desc_##type(type *a, int len)                      \
@@ -32,18 +31,16 @@
                 return (*ia > *ib) - (*ia < *ib);                   \
         }
 
+TLD__SORT_DESC_FUNC(char)
+TLD__SORT_DESC_FUNC(int8_t)
+TLD__SORT_DESC_FUNC(uint8_t)
+TLD__SORT_DESC_FUNC(int16_t)
+TLD__SORT_DESC_FUNC(uint16_t)
+TLD__SORT_DESC_FUNC(int32_t)
+TLD__SORT_DESC_FUNC(uint32_t)
+TLD__SORT_DESC_FUNC(int64_t)
+TLD__SORT_DESC_FUNC(uint64_t)
+TLD__SORT_DESC_FUNC(float)
+TLD__SORT_DESC_FUNC(double)
 
-
-
-
-DESC_FUNC(char)
-DESC_FUNC(int8_t)
-DESC_FUNC(uint8_t)
-DESC_FUNC(int16_t)
-DESC_FUNC(uint16_t)
-DESC_FUNC(int32_t)
-DESC_FUNC(uint32_t)
-DESC_FUNC(int64_t)
-DESC_FUNC(uint64_t)
-DESC_FUNC(float)
-DESC_FUNC(double)
+#undef TLD__SORT_DESC_FUNC

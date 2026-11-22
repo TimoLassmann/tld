@@ -7,7 +7,6 @@
 
 #include <unistd.h>
 
-#define TPOOL_IMPORT
 #include "tpool.h"
 
 /* The library does not install signal handlers. A program that wants to
@@ -18,39 +17,39 @@ atomic_int tld_global_stop_run;
 pthread_mutex_t tld_global_cond_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t tld_global_cond = PTHREAD_COND_INITIALIZER;
 
-static void *pool_worker(void *data);
-static int pool_get_tid(tld_thread_pool *p);
-static void pool_set_stop_locked(tld_thread_pool *p);
-static void pool_shutdown(tld_thread_pool *p, int n_started);
+static void *tld__pool_worker(void *data);
+static int tld__pool_get_tid(tld_thread_pool *p);
+static void tld__pool_set_stop_locked(tld_thread_pool *p);
+static void tld__pool_shutdown(tld_thread_pool *p, int n_started);
 
-static int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run);
+static int tld__pool_test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run);
 
 /* Must be called with p->lock held. Marks the pool as stopped and wakes
    every thread: idle workers (work_cond) so they can exit and waiters
    (working_cond) so they can re-check their condition. */
-static void pool_set_stop_locked(tld_thread_pool *p)
+static void tld__pool_set_stop_locked(tld_thread_pool *p)
 {
         p->stop = 1;
         pthread_cond_broadcast(&p->work_cond);
         pthread_cond_broadcast(&p->working_cond);
 }
 
-void *pool_worker(void *data)
+void *tld__pool_worker(void *data)
 {
         tld_thread_pool*  p = (tld_thread_pool*) data;
         void (*func_ptr)(tld_thread_pool*, void *,int64_t, int64_t, int ) = NULL;
         void* fun_data = NULL;
-        const int thread_id = pool_get_tid(p);
+        const int thread_id = tld__pool_get_tid(p);
         int64_t start;
         int64_t end;
 
         pthread_mutex_lock(&p->lock);
         while(1){
-                while(!work_queue_haswork(p->work) && !p->stop){
+                while(!tld__work_queue_haswork(p->work) && !p->stop){
                         pthread_cond_wait(&p->work_cond, &p->lock);
                 }
                 if(tld_global_stop_run == 1 && !p->stop){
-                        pool_set_stop_locked(p);
+                        tld__pool_set_stop_locked(p);
                 }
                 /* stop means abandon queued work (time limit or global
                    stop flag); tld_thread_pool_free drains the queue
@@ -61,7 +60,7 @@ void *pool_worker(void *data)
 
                 start = 0 ;
                 end = 0;
-                work_queue_pop(p->work,  &func_ptr, &fun_data, &start, &end);
+                tld__work_queue_pop(p->work,  &func_ptr, &fun_data, &start, &end);
                 p->n_working++;
                 pthread_mutex_unlock(&p->lock);
 
@@ -72,12 +71,12 @@ void *pool_worker(void *data)
                 p->n_working--;
                 if(p->maxtime && !p->stop){
                         int timeout = 0;
-                        test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &timeout);
+                        tld__pool_test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &timeout);
                         if(timeout){
-                                pool_set_stop_locked(p);
+                                tld__pool_set_stop_locked(p);
                         }
                 }
-                if(p->n_working == 0 && !work_queue_haswork(p->work)){
+                if(p->n_working == 0 && !tld__work_queue_haswork(p->work)){
                         pthread_cond_broadcast(&p->working_cond);
                 }
         }
@@ -89,10 +88,10 @@ void *pool_worker(void *data)
 
 /* Stops the workers and joins the first n_started threads, then frees the
    pool. Does not drain the queue. */
-static void pool_shutdown(tld_thread_pool *p, int n_started)
+static void tld__pool_shutdown(tld_thread_pool *p, int n_started)
 {
         pthread_mutex_lock(&p->lock);
-        pool_set_stop_locked(p);
+        tld__pool_set_stop_locked(p);
         pthread_mutex_unlock(&p->lock);
 
         for(int t = 0; t < n_started; t++) {
@@ -104,7 +103,7 @@ static void pool_shutdown(tld_thread_pool *p, int n_started)
 
         MFREE(p->threads);
         gfree(p->thread_id_map);
-        work_queue_free(p->work);
+        tld__work_queue_free(p->work);
         pthread_attr_destroy(&p->attr);
         pthread_mutex_destroy(&p->lock);
         pthread_cond_destroy(&p->work_cond);
@@ -112,7 +111,7 @@ static void pool_shutdown(tld_thread_pool *p, int n_started)
         MFREE(p);
 }
 
-int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run)
+int tld__pool_test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run)
 {
         double diff_t = 0.0;
         time_t cur_time;
@@ -131,7 +130,7 @@ int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run
         return OK;
 }
 
-int pool_get_tid(tld_thread_pool *p)
+int tld__pool_get_tid(tld_thread_pool *p)
 {
         int i;
         int64_t tid = (int64_t) pthread_self();
@@ -178,7 +177,7 @@ int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_thread
         galloc(&p->thread_id_map,p->n_threads);
         p->thread_id_idx = 0;
         MMALLOC(p->threads, sizeof(pthread_t) * p->n_threads);
-        RUN(work_queue_alloc(&p->work, 1024));
+        RUN(tld__work_queue_alloc(&p->work, 1024));
 
         pthread_mutex_init(&p->lock, NULL);
         pthread_cond_init(&p->work_cond, NULL);
@@ -195,7 +194,7 @@ int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_thread
                 pthread_mutex_lock(&p->lock);
                 p->n_active_threads++;
                 pthread_mutex_unlock(&p->lock);
-                rc = pthread_create(&p->threads[t], &p->attr, pool_worker,  (void *)p);
+                rc = pthread_create(&p->threads[t], &p->attr, tld__pool_worker,  (void *)p);
                 if(rc){
                         pthread_mutex_lock(&p->lock);
                         p->n_active_threads--;
@@ -210,7 +209,7 @@ int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_thread
 ERROR:
         if(p){
                 if(sync_init){
-                        pool_shutdown(p, n_started);
+                        tld__pool_shutdown(p, n_started);
                 }else{
                         if(p->threads){
                                 MFREE(p->threads);
@@ -218,7 +217,7 @@ ERROR:
                         if(p->thread_id_map){
                                 gfree(p->thread_id_map);
                         }
-                        work_queue_free(p->work);
+                        tld__work_queue_free(p->work);
                         MFREE(p);
                 }
         }
@@ -231,7 +230,7 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
         ASSERT(p != NULL, "No thread pool");
         pthread_mutex_lock(&p->lock);
         if(tld_global_stop_run == 1 && !p->stop){
-                pool_set_stop_locked(p);
+                tld__pool_set_stop_locked(p);
         }
         if(p->stop){
                 /* refused: the job will not run, so data is still the caller's */
@@ -239,7 +238,7 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
                 pthread_mutex_unlock(&p->lock);
                 return FAIL;
         }
-        status = work_queue_push(p->work, func_ptr, data, start, end);
+        status = tld__work_queue_push(p->work, func_ptr, data, start, end);
         if(status == OK){
                 pthread_cond_broadcast(&p->work_cond);
         }
@@ -262,18 +261,18 @@ int tld_thread_pool_wait(tld_thread_pool *p)
                                 if(p->n_active_threads == 0){
                                         break;
                                 }
-                        }else if(p->n_working == 0 && !work_queue_haswork(p->work)){
+                        }else if(p->n_working == 0 && !tld__work_queue_haswork(p->work)){
                                 break;
                         }
                         pthread_cond_wait(&p->working_cond, &p->lock);
                 }
                 /* Count (and discard) the jobs a stop left in the queue. */
-                while(p->stop && work_queue_haswork(p->work)){
+                while(p->stop && tld__work_queue_haswork(p->work)){
                         void (*fn)(tld_thread_pool*, void *,int64_t, int64_t, int) = NULL;
                         void* data = NULL;
                         int64_t s = 0;
                         int64_t e = 0;
-                        work_queue_pop(p->work, &fn, &data, &s, &e);
+                        tld__work_queue_pop(p->work, &fn, &data, &s, &e);
                         p->n_dropped++;
                 }
                 dropped = p->n_dropped;
@@ -287,6 +286,10 @@ void tld_thread_pool_free(tld_thread_pool *p)
         if(p){
                 /* Run everything already queued before stopping. */
                 (void)tld_thread_pool_wait(p);
-                pool_shutdown(p, p->n_threads);
+                tld__pool_shutdown(p, p->n_threads);
         }
 }
+
+#undef TLD__WORK_DONE
+#undef TLD__WORK_EMPTY
+#undef TLD__WORK_TODO

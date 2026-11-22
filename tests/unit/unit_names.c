@@ -8,9 +8,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifndef ADDFAILED
-#error "tld public macro ADDFAILED is missing"
-#endif
 #ifndef ASSERT
 #error "tld public macro ASSERT is missing"
 #endif
@@ -22,9 +19,6 @@
 #endif
 #ifndef galloc
 #error "tld public macro galloc is missing"
-#endif
-#ifndef GALLOC_ARGS
-#error "tld public macro GALLOC_ARGS is missing"
 #endif
 #ifndef gfree
 #error "tld public macro gfree is missing"
@@ -53,15 +47,6 @@
 #ifndef MACRO_MIN
 #error "tld public macro MACRO_MIN is missing"
 #endif
-#ifndef MESSAGE_TYPE_ERROR
-#error "tld public macro MESSAGE_TYPE_ERROR is missing"
-#endif
-#ifndef MESSAGE_TYPE_MSG
-#error "tld public macro MESSAGE_TYPE_MSG is missing"
-#endif
-#ifndef MESSAGE_TYPE_WARNING
-#error "tld public macro MESSAGE_TYPE_WARNING is missing"
-#endif
 #ifndef MFREE
 #error "tld public macro MFREE is missing"
 #endif
@@ -74,29 +59,17 @@
 #ifndef MREALLOC
 #error "tld public macro MREALLOC is missing"
 #endif
-#ifndef NARG3
-#error "tld public macro NARG3 is missing"
-#endif
 #ifndef OK
 #error "tld public macro OK is missing"
 #endif
 #ifndef RUN
 #error "tld public macro RUN is missing"
 #endif
-#ifndef SHUFFLE_HEADER
-#error "tld public macro SHUFFLE_HEADER is missing"
-#endif
-#ifndef SORT_HEADER
-#error "tld public macro SORT_HEADER is missing"
-#endif
 #ifndef TLD_END_TIMER
 #error "tld public macro TLD_END_TIMER is missing"
 #endif
-#ifndef tld_external
-#error "tld public macro tld_external is missing"
-#endif
-#ifndef tld_internal
-#error "tld public macro tld_internal is missing"
+#ifndef TLD_API
+#error "tld public macro TLD_API is missing"
 #endif
 #ifndef TLD_SHUFFLE
 #error "tld public macro TLD_SHUFFLE is missing"
@@ -113,14 +86,8 @@
 #ifndef TLD_STR
 #error "tld public macro TLD_STR is missing"
 #endif
-#ifndef tld_stringify
-#error "tld public macro tld_stringify is missing"
-#endif
 #ifndef TLD_STRLEN
 #error "tld public macro TLD_STRLEN is missing"
-#endif
-#ifndef tld_tostring
-#error "tld public macro tld_tostring is missing"
 #endif
 #ifndef tld_valid_1D
 #error "tld public macro tld_valid_1D is missing"
@@ -134,24 +101,6 @@
 #ifndef WARNING_MSG
 #error "tld public macro WARNING_MSG is missing"
 #endif
-#ifndef XARG3
-#error "tld public macro XARG3 is missing"
-#endif
-#ifndef XGALLOC_ARGS
-#error "tld public macro XGALLOC_ARGS is missing"
-#endif
-#ifndef XGALLOC_ARGS_1
-#error "tld public macro XGALLOC_ARGS_1 is missing"
-#endif
-#ifndef XGALLOC_ARGS_2
-#error "tld public macro XGALLOC_ARGS_2 is missing"
-#endif
-#ifndef XGALLOC_ARGS_3
-#error "tld public macro XGALLOC_ARGS_3 is missing"
-#endif
-#ifndef XXGALLOC_ARGS
-#error "tld public macro XXGALLOC_ARGS is missing"
-#endif
 
 /* public global variables */
 static const void *const vars[] = { &tld_global_cond, &tld_global_cond_mutex, &tld_global_stop_run };
@@ -161,15 +110,12 @@ typedef void (*tld_any_fn)(void);
 struct name_fn { const char *name; tld_any_fn fn; };
 #define F(x) { #x, (tld_any_fn)x }
 static const struct name_fn fns[] = {
-        F(detect_type),
         F(free_rng),
         F(get_dim1),
         F(get_dim2),
         F(init_logsum),
         F(init_rng),
         F(init_rng_from_rng),
-        F(json_arr_add_multiple),
-        F(json_obj_add_multiple),
         F(kddist_euclidian),
         F(kdplane_check_euclidian),
         F(kdtree_alloc),
@@ -184,7 +130,6 @@ static const struct name_fn fns[] = {
         F(nearly_equal_double),
         F(nearly_equal_float),
         F(norm_quantile),
-        F(set_exec_time),
         F(sort_asc_char),
         F(sort_asc_double),
         F(sort_asc_float),
@@ -232,7 +177,6 @@ static const struct name_fn fns[] = {
         F(tld_dir_create),
         F(tld_dir_exists),
         F(tld_file_exists),
-        F(tld_free),
         F(tld_get_dirname),
         F(tld_get_filename),
         F(tld_get_full_path),
@@ -265,7 +209,6 @@ static const struct name_fn fns[] = {
         F(tld_kde_count_pdf),
         F(tld_kde_pdf),
         F(tld_mean),
-        F(tld_message),
         F(tld_normal_pdf),
         F(tld_pearson_corr),
         F(tld_pop_covariance),
@@ -307,7 +250,7 @@ int main(int argc, char *argv[])
         const size_t nf = sizeof fns / sizeof fns[0];
         (void)vars;
         test_init(&argc, argv, "[PATTERN ...]",
-                  "With no arguments: checks that all 138 public functions and 48 public macros\n"
+                  "With no arguments: checks that all 132 public functions and 31 public macros\n"
                   "of tld exist (a lost or renamed one fails the compile or the link).\n"
                   "With PATTERNs: lists the public functions whose name contains any PATTERN.\n"
                   "Example: unit-names hash json_parse");
@@ -331,11 +274,11 @@ int main(int argc, char *argv[])
                 DEBUG_MSG("%s", fns[i].name);
         }
         KV_MSG("functions", "%d", n);
-        KV_MSG("macros", "48");
-        if (n != 138) {
-                fprintf(stderr, "unit-names: %d functions, expected 138\n", n);
+        KV_MSG("macros", "31");
+        if (n != 132) {
+                fprintf(stderr, "unit-names: %d functions, expected 132\n", n);
                 return EXIT_FAILURE;
         }
-        OK_MSG("%d functions and 48 macros present", n);
+        OK_MSG("%d functions and 31 macros present", n);
         return EXIT_SUCCESS;
 }

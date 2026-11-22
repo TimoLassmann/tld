@@ -10,27 +10,27 @@
    slots up to n_alloc are allocated and free for later points. Building and
    rebalancing only re-link these nodes, so they never allocate and never move a
    point between nodes. */
-struct kdyard {
+struct tld__kdyard {
         kd_node** nodes;
         int n_alloc;
         int n_node;
         int vec_len;
 };
 
-static int nn_search(const kdtree *t, const kd_node* n, const double *x, int depth, double* min_d, uint32_t *id);
+static int tld__kdtree_nn(const kdtree *t, const kd_node* n, const double *x, int depth, double* min_d, uint32_t *id);
 
-static int kdyard_alloc(struct kdyard ** yard, int size, int len);
-static int kdyard_reserve(struct kdyard *y, int n);
-static void kdyard_free(struct kdyard *n);
+static int tld__kdyard_alloc(struct tld__kdyard ** yard, int size, int len);
+static int tld__kdyard_reserve(struct tld__kdyard *y, int n);
+static void tld__kdyard_free(struct tld__kdyard *n);
 
-static void kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int size);
-static void kdtree_relink(kdtree *t);
-static kd_node* link_balanced(kd_node **v, int n, int depth, int dim, int *max_depth);
-static void select_nth(kd_node **v, int n, int k, int cd);
-static int kdtree_node_alloc(kd_node **node, int size);
-static void kdtree_node_free(kd_node *n);
+static void tld__kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int size);
+static void tld__kdtree_relink(kdtree *t);
+static kd_node* tld__kdtree_link_balanced(kd_node **v, int n, int depth, int dim, int *max_depth);
+static void tld__kdtree_select_nth(kd_node **v, int n, int k, int cd);
+static int tld__kdtree_node_alloc(kd_node **node, int size);
+static void tld__kdtree_node_free(kd_node *n);
 
-int kdtree_node_alloc(kd_node **node, int size)
+int tld__kdtree_node_alloc(kd_node **node, int size)
 {
         kd_node* n = NULL;
         MMALLOC(n, sizeof(kd_node));
@@ -39,11 +39,11 @@ int kdtree_node_alloc(kd_node **node, int size)
         *node = n;
         return OK;
 ERROR:
-        kdtree_node_free(n);
+        tld__kdtree_node_free(n);
         return FAIL;
 }
 
-void kdtree_node_free(kd_node *n)
+void tld__kdtree_node_free(kd_node *n)
 {
         if(n){
                 gfree(n->p);
@@ -51,22 +51,22 @@ void kdtree_node_free(kd_node *n)
         }
 }
 
-int kdyard_alloc(struct kdyard ** yard, int size, int len)
+int tld__kdyard_alloc(struct tld__kdyard ** yard, int size, int len)
 {
-        struct kdyard* n = NULL;
-        MMALLOC(n, sizeof(struct kdyard));
+        struct tld__kdyard* n = NULL;
+        MMALLOC(n, sizeof(struct tld__kdyard));
         n->vec_len = len;
-        RUN(kdyard_reserve(n, size));
+        RUN(tld__kdyard_reserve(n, size));
         *yard = n;
         return OK;
 ERROR:
-        kdyard_free(n);
+        tld__kdyard_free(n);
         return FAIL;
 }
 
 /* Room for n more nodes after the ones in the tree, growing by at least half. On
    failure the yard is unchanged apart from extra free slots, so the tree is intact. */
-int kdyard_reserve(struct kdyard *y, int n)
+int tld__kdyard_reserve(struct tld__kdyard *y, int n)
 {
         int need = 0;
         int new_size = 0;
@@ -82,7 +82,7 @@ int kdyard_reserve(struct kdyard *y, int n)
         MREALLOC(y->nodes, sizeof(kd_node*) * (size_t) new_size);
         while(y->n_alloc < new_size){
                 y->nodes[y->n_alloc] = NULL;
-                RUN(kdtree_node_alloc(&y->nodes[y->n_alloc], y->vec_len));
+                RUN(tld__kdtree_node_alloc(&y->nodes[y->n_alloc], y->vec_len));
                 y->n_alloc++;
         }
         return OK;
@@ -90,11 +90,11 @@ ERROR:
         return FAIL;
 }
 
-void kdyard_free(struct kdyard *n)
+void tld__kdyard_free(struct tld__kdyard *n)
 {
         if(n){
                 for(int i = 0; i < n->n_alloc; i++){
-                        kdtree_node_free(n->nodes[i]);
+                        tld__kdtree_node_free(n->nodes[i]);
                 }
                 MFREE(n->nodes);
                 MFREE(n);
@@ -109,7 +109,7 @@ int kdtree_alloc(kdtree **tree, int size)
         t->fptr_cmp = kddist_euclidian;
         t->fptr_plane = kdplane_check_euclidian;
         t->rebalance_at = 10000;
-        RUN(kdyard_alloc(&t->yard, 1024, size));
+        RUN(tld__kdyard_alloc(&t->yard, 1024, size));
         *tree = t;
         return OK;
 ERROR:
@@ -120,7 +120,7 @@ ERROR:
 void kdtree_free(kdtree *t)
 {
         if(t){
-                kdyard_free(t->yard);
+                tld__kdyard_free(t->yard);
                 MFREE(t);
         }
 }
@@ -140,7 +140,7 @@ ERROR:
 
 /* Put point x (size doubles, zero-padded to the yard's length) and id into the free
    node n. */
-void kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int size)
+void tld__kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int size)
 {
         n->left = NULL;
         n->right = NULL;
@@ -155,7 +155,7 @@ void kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int si
 
 /* Reorder v[0..n) so that v[k] holds the node whose coordinate cd would be k-th in
    sorted order, with no larger value before it and no smaller one after it. */
-void select_nth(kd_node **v, int n, int k, int cd)
+void tld__kdtree_select_nth(kd_node **v, int n, int k, int cd)
 {
         int lo = 0;
         int hi = n - 1;
@@ -190,29 +190,29 @@ void select_nth(kd_node **v, int n, int k, int cd)
 
 /* Link v[0..n) into a balanced subtree splitting on coordinate depth % dim; returns
    its root. */
-kd_node* link_balanced(kd_node **v, int n, int depth, int dim, int *max_depth)
+kd_node* tld__kdtree_link_balanced(kd_node **v, int n, int depth, int dim, int *max_depth)
 {
         kd_node* r = NULL;
         int mid = n / 2;
         if(n <= 0){
                 return NULL;
         }
-        select_nth(v, n, mid, depth % dim);
+        tld__kdtree_select_nth(v, n, mid, depth % dim);
         r = v[mid];
         if(depth > *max_depth){
                 *max_depth = depth;
         }
-        r->left = link_balanced(v, mid, depth + 1, dim, max_depth);
-        r->right = link_balanced(v + mid + 1, n - mid - 1, depth + 1, dim, max_depth);
+        r->left = tld__kdtree_link_balanced(v, mid, depth + 1, dim, max_depth);
+        r->right = tld__kdtree_link_balanced(v + mid + 1, n - mid - 1, depth + 1, dim, max_depth);
         return r;
 }
 
 /* Rebuild the tree balanced from the nodes it holds. */
-void kdtree_relink(kdtree *t)
+void tld__kdtree_relink(kdtree *t)
 {
         t->max_depth = 0;
         t->min_depth = 0;
-        t->root = link_balanced(t->yard->nodes, t->yard->n_node, 0, t->vec_len, &t->max_depth);
+        t->root = tld__kdtree_link_balanced(t->yard->nodes, t->yard->n_node, 0, t->vec_len, &t->max_depth);
 }
 
 int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size)
@@ -221,15 +221,15 @@ int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size)
         ASSERT(n >= 0, "Negative number of points (%d)", n);
         ASSERT(n == 0 || (x != NULL && ids != NULL), "No points or ids");
         ASSERT(size > 0 && size <= t->yard->vec_len, "Point length %d is not in 1..%d", size, t->yard->vec_len);
-        RUN(kdyard_reserve(t->yard, n));
+        RUN(tld__kdyard_reserve(t->yard, n));
         for(int i = 0; i < n; i++){
-                kdtree_node_set(t, t->yard->nodes[t->yard->n_node + i], x[i], ids[i], size);
+                tld__kdtree_node_set(t, t->yard->nodes[t->yard->n_node + i], x[i], ids[i], size);
         }
         t->yard->n_node += n;
         if(size > t->vec_len){
                 t->vec_len = size;
         }
-        kdtree_relink(t);
+        tld__kdtree_relink(t);
         return OK;
 ERROR:
         return FAIL;
@@ -244,15 +244,15 @@ int kdtree_insert(kdtree* t, double *x,uint32_t id, int size)
         ASSERT(x != NULL, "No point");
         ASSERT(size > 0 && size <= t->yard->vec_len, "Point length %d is not in 1..%d", size, t->yard->vec_len);
 
-        RUN(kdyard_reserve(t->yard, 1));
+        RUN(tld__kdyard_reserve(t->yard, 1));
         n = t->yard->nodes[t->yard->n_node];
-        kdtree_node_set(t, n, x, id, size);
+        tld__kdtree_node_set(t, n, x, id, size);
         t->yard->n_node++;
 
         if(size > t->vec_len){
                 /* the split coordinates depend on the length: re-link all */
                 t->vec_len = size;
-                kdtree_relink(t);
+                tld__kdtree_relink(t);
                 t->n_step = 0;
                 return OK;
         }
@@ -279,7 +279,7 @@ int kdtree_insert(kdtree* t, double *x,uint32_t id, int size)
                 }
                 t->n_step = 0;
                 if(abs(t->max_depth - opt_d) > 10){
-                        kdtree_relink(t);
+                        tld__kdtree_relink(t);
                 }
         }
         return OK;
@@ -290,7 +290,7 @@ ERROR:
 int kdtree_rebalance(kdtree *t)
 {
         ASSERT(t != NULL, "No tree");
-        kdtree_relink(t);
+        tld__kdtree_relink(t);
         return OK;
 ERROR:
         return FAIL;
@@ -298,7 +298,7 @@ ERROR:
 
 /* Depth-first nearest-neighbour search below n (at depth). The tree is only read, so
    searches of one tree may run at the same time. */
-int nn_search(const kdtree *t, const kd_node* n, const double *x, int depth, double* min_d, uint32_t *id)
+int tld__kdtree_nn(const kdtree *t, const kd_node* n, const double *x, int depth, double* min_d, uint32_t *id)
 {
         double d = 0.0;
         int cd = 0;
@@ -314,11 +314,11 @@ int nn_search(const kdtree *t, const kd_node* n, const double *x, int depth, dou
         }
         cd = depth % t->vec_len;
         near_left = x[cd] < n->p[cd];
-        nn_search(t, near_left ? n->left : n->right, x, depth + 1, min_d, id);
+        tld__kdtree_nn(t, near_left ? n->left : n->right, x, depth + 1, min_d, id);
         /* the far side can hold a nearer point only if the splitting plane is closer
            than the best distance so far */
         if(t->fptr_plane(n->p, (double*) x, cd, *min_d) == OK){
-                nn_search(t, near_left ? n->right : n->left, x, depth + 1, min_d, id);
+                tld__kdtree_nn(t, near_left ? n->right : n->left, x, depth + 1, min_d, id);
         }
         return OK;
 }
@@ -331,7 +331,7 @@ int kdtree_nn_search(kdtree *t, double *x, uint32_t *id)
         ASSERT(x != NULL, "No point");
         ASSERT(id != NULL, "No id");
         ASSERT(t->root != NULL, "The tree is empty");
-        RUN(nn_search(t, t->root, x, 0, &min_d, &best));
+        RUN(tld__kdtree_nn(t, t->root, x, 0, &min_d, &best));
         *id = best;
         return OK;
 ERROR:

@@ -83,25 +83,25 @@
  * double. The pointer should be NULL (an existing block is not freed or resized). On
  * failure an error is printed and goto ERROR. Free with gfree; get_dim1/get_dim2 give
  * the dimensions back. */
-#define galloc(...) GALLOC_ARGS(__VA_ARGS__)
+#define galloc(...) TLD__GALLOC_ARGS(__VA_ARGS__)
 
 /* gfree(p): free memory from galloc (1D or 2D) and set p to NULL, like MFREE, so a
  * second gfree(p) on an error path is harmless. p must be an lvalue (a variable, field
  * or element); a NULL p is fine. Never pass galloc memory to free() or MFREE. */
 #define gfree(a)                                                        \
         do {                                                            \
-                tld_free(a);                                            \
+                tld__gfree(a);                                            \
                 (a) = NULL;                                             \
         } while (0)
 
 /* Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
  * into *d. FAIL if ptr is NULL. Only valid for memory from galloc. */
-tld_external int get_dim1(void *ptr, uint32_t *d);
-tld_external int get_dim2(void *ptr, uint32_t *d);
+TLD_API int get_dim1(void *ptr, uint32_t *d);
+TLD_API int get_dim2(void *ptr, uint32_t *d);
 
 /* The function behind gfree: frees a galloc block and its 2D data block. NULL is
  * ignored. */
-tld_external void tld_free(void *p);
+TLD_API void tld__gfree(void *p);
 
 /* tld_valid_1D(x) is 1 if x is a T ** and tld_valid_2D(x) is 1 if x is a T ***, where T
  * is a type galloc supports (char, int8_t..int64_t, uint8_t..uint64_t, float, double);
@@ -116,13 +116,13 @@ tld_external void tld_free(void *p);
                  uint32_t *** : 1, int64_t *** : 1, uint64_t *** : 1, float *** : 1, \
                  double *** : 1, default : 0)
 
-/* Argument counting for galloc: NARG3(...) is the number of its 1 to 3 arguments. */
-#define XARG3(_0, _1, _2, _3, ...) _3
-#define NARG3(...) XARG3(__VA_ARGS__, 3, 2, 1, 0)
+/* Argument counting for galloc: TLD__NARG3(...) is the number of its 1 to 3 arguments. */
+#define TLD__XARG3(_0, _1, _2, _3, ...) _3
+#define TLD__NARG3(...) TLD__XARG3(__VA_ARGS__, 3, 2, 1, 0)
 
 /* galloc with 1 argument (an error: too few) and with 2 (a 1D array). Use galloc. */
-#define XGALLOC_ARGS_1(a) tld__galloc_too_few()
-#define XGALLOC_ARGS_2(a, b)                                            \
+#define TLD__XGALLOC_ARGS_1(a) tld__galloc_too_few()
+#define TLD__XGALLOC_ARGS_2(a, b)                                            \
         do {                                                            \
                 if (!tld_valid_1D((a))) {                               \
                         ERROR_MSG("Wrong pointer type for 1D alloc");   \
@@ -139,7 +139,7 @@ tld_external void tld_free(void *p);
  * header. Row offsets are computed in size_t.
  * The local names are chosen so they cannot capture an identifier used in the caller's
  * (b) or (c). */
-#define XGALLOC_ARGS_3(a, b, c)                                         \
+#define TLD__XGALLOC_ARGS_3(a, b, c)                                         \
         do {                                                            \
                 if (!tld_valid_2D((a))) {                               \
                         ERROR_MSG("Wrong pointer type for 2D alloc");   \
@@ -155,7 +155,7 @@ tld_external void tld_free(void *p);
                 }                                                       \
                 if (tld__galloc_data(tld_galloc_rows_, &tld_galloc_data_) != OK || \
                     tld_galloc_data_ == NULL) {                         \
-                        tld_free(tld_galloc_rows_);                     \
+                        tld__gfree(tld_galloc_rows_);                     \
                         ERROR_MSG("Could not alloc 2D");                \
                 }                                                       \
                 tld_galloc_rows_[0] = (__typeof__(**(a)))tld_galloc_data_; \
@@ -166,22 +166,22 @@ tld_external void tld_free(void *p);
                 *(a) = tld_galloc_rows_;                                \
         } while (0)
 
-/* Dispatch from galloc to XGALLOC_ARGS_<number of arguments>. Use galloc. */
-#define XXGALLOC_ARGS(N, ...) XGALLOC_ARGS_##N(__VA_ARGS__)
-#define XGALLOC_ARGS(N, ...) XXGALLOC_ARGS(N, __VA_ARGS__)
-#define GALLOC_ARGS(...) XGALLOC_ARGS(NARG3(__VA_ARGS__), __VA_ARGS__)
+/* Dispatch from galloc to TLD__XGALLOC_ARGS_<number of arguments>. Use galloc. */
+#define TLD__XXGALLOC_ARGS(N, ...) TLD__XGALLOC_ARGS_##N(__VA_ARGS__)
+#define TLD__XGALLOC_ARGS(N, ...) TLD__XXGALLOC_ARGS(N, __VA_ARGS__)
+#define TLD__GALLOC_ARGS(...) TLD__XGALLOC_ARGS(TLD__NARG3(__VA_ARGS__), __VA_ARGS__)
 
 /* Internal: called by galloc with a single argument; prints an error, returns FAIL. */
-tld_external int tld__galloc_too_few(void);
+TLD_API int tld__galloc_too_few(void);
 
 /* Internal back end of galloc: a zeroed block of dim1 entries of rsize bytes behind a
  * hidden header that records dim1 and dim2; with dim2 > 0 also a zeroed dim1 x dim2
  * data block of tsize-byte elements. NULL on failure (dim1 < 1, dim2 < 0, overflow, no
  * memory). */
-tld_external void *tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2);
+TLD_API void *tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2);
 
 /* Internal: the data block of a 2D galloc block into *d (NULL for a 1D array); FAIL
  * if ptr is NULL. Used by galloc. */
-tld_external int tld__galloc_data(void *ptr, void **d);
+TLD_API int tld__galloc_data(void *ptr, void **d);
 
 #endif

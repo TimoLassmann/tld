@@ -135,11 +135,19 @@ ERROR:
         return FAIL;
 }
 
+static int emit_error(void)
+{
+        ERROR_MSG("an error");
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 static void emit_messages(void)
 {
         LOG_MSG("a log message");
         WARNING_MSG("a warning");
-        tld_message(MESSAGE_TYPE_ERROR, "an error");
+        (void) emit_error();
 }
 
 static void free_null(void)

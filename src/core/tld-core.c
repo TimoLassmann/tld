@@ -6,44 +6,44 @@
 #include <time.h>
 #include <unistd.h>
 
-#define TYPE_MARGIN 8
-#define MESSAGE_MARGIN 22
+#define TLD__TYPE_MARGIN 8
+#define TLD__MESSAGE_MARGIN 22
 
-#define AT __FILE__ " line " tld_tostring(__LINE__)
+#define TLD__AT __FILE__ " line " TLD__TOSTRING(__LINE__)
 
-tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *file, int line,const char *format,  va_list argp);
+static void tld__vlog(uint8_t type,FILE* f_ptr,const char *file, int line,const char *format,  va_list argp);
 
-tld_internal int get_time(char* time_ptr, int size);
+static int tld__get_time(char* time_ptr, int size);
 
-void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
+void tld__vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
 {
         int saved_errno = errno;
         char time_string[BUFSIZ];
         int col = (f_ptr == stderr) && tld_term_color();
-        if(type != MESSAGE_TYPE_ERROR && tld_verbosity() < 1){
+        if(type != TLD__MSG_ERROR && tld_verbosity() < 1){
                 errno = saved_errno;
                 return;
         }
 
-        if(get_time(time_string,BUFSIZ) != OK){
+        if(tld__get_time(time_string,BUFSIZ) != OK){
                 fprintf(stderr,"notime");
         }
-        fprintf(f_ptr,"%*s: ",MESSAGE_MARGIN,time_string);
+        fprintf(f_ptr,"%*s: ",TLD__MESSAGE_MARGIN,time_string);
         switch (type) {
-        case MESSAGE_TYPE_MSG: {
-                fprintf(f_ptr,"%*s: ",TYPE_MARGIN,"LOG ");
+        case TLD__MSG_LOG: {
+                fprintf(f_ptr,"%*s: ",TLD__TYPE_MARGIN,"LOG ");
                 vfprintf(f_ptr, format, argp);
                 fprintf(f_ptr,"\n");
                 break;
         }
-        case MESSAGE_TYPE_WARNING: {
-                fprintf(f_ptr,col ? "\033[1;33m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"WARNING ");
+        case TLD__MSG_WARNING: {
+                fprintf(f_ptr,col ? "\033[1;33m%*s\033[0m: " : "%*s: ",TLD__TYPE_MARGIN,"WARNING ");
                 vfprintf(f_ptr, format, argp);
                 fprintf(f_ptr,"\n");
                 break;
         }
-        case MESSAGE_TYPE_ERROR: {
-                fprintf(f_ptr,col ? "\033[1;31m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"ERROR ");
+        case TLD__MSG_ERROR: {
+                fprintf(f_ptr,col ? "\033[1;31m%*s\033[0m: " : "%*s: ",TLD__TYPE_MARGIN,"ERROR ");
                 vfprintf(f_ptr, format, argp);
                 if(file){
                         fprintf(f_ptr," (%s line %d)\n",file,line);
@@ -61,7 +61,7 @@ void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *form
         errno = saved_errno;
 }
 
-int get_time(char* time_ptr, int size)
+int tld__get_time(char* time_ptr, int size)
 {
 
         struct tm newtime;
@@ -71,9 +71,9 @@ int get_time(char* time_ptr, int size)
         localtime_r(&ltime, &newtime);
 
         if(!strftime(time_ptr, size, "[%F %H:%M:%S] ", &newtime)){
-                fprintf(stderr,"%*s: ",TYPE_MARGIN,"ERROR ");
+                fprintf(stderr,"%*s: ",TLD__TYPE_MARGIN,"ERROR ");
                 fprintf(stderr, "Could not get the time");
-                fprintf(stderr," (%s)\n",AT);
+                fprintf(stderr," (%s)\n",TLD__AT);
                 goto ERROR;
         }
         return OK;
@@ -81,19 +81,19 @@ ERROR:
         return FAIL;
 }
 
-void tld_message(uint8_t type, const char *format, ...)
+void tld__message(uint8_t type, const char *format, ...)
 {
         va_list argp;
         va_start(argp, format);
-        vlog(type,stderr,NULL,0,format, argp);
+        tld__vlog(type,stderr,NULL,0,format, argp);
         va_end(argp);
 }
 
-void tld_message_at(uint8_t type, const char *file, int line, const char *format, ...)
+void tld__message_at(uint8_t type, const char *file, int line, const char *format, ...)
 {
         va_list argp;
         va_start(argp, format);
-        vlog(type,stderr,file,line,format, argp);
+        tld__vlog(type,stderr,file,line,format, argp);
         va_end(argp);
 }
 
@@ -119,7 +119,7 @@ int tld_term_color(void)
         return isatty(fileno(stderr));
 }
 
-void tld_section(const char *format, ...)
+void tld__section(const char *format, ...)
 {
         int saved_errno = errno;
         char title[256];
@@ -153,7 +153,7 @@ void tld_section(const char *format, ...)
         errno = saved_errno;
 }
 
-void tld_kv(const char *key, const char *format, ...)
+void tld__kv(const char *key, const char *format, ...)
 {
         int saved_errno = errno;
         va_list argp;
@@ -174,7 +174,7 @@ void tld_kv(const char *key, const char *format, ...)
         errno = saved_errno;
 }
 
-void tld_ok(const char *format, ...)
+void tld__ok(const char *format, ...)
 {
         int saved_errno = errno;
         va_list argp;
@@ -191,7 +191,7 @@ void tld_ok(const char *format, ...)
         errno = saved_errno;
 }
 
-void tld_debug(const char *format, ...)
+void tld__debug(const char *format, ...)
 {
         int saved_errno = errno;
         va_list argp;
@@ -251,3 +251,7 @@ void tld_progress(long done, long total, const char *label)
         fflush(stderr);
         errno = saved_errno;
 }
+
+#undef TLD__AT
+#undef TLD__MESSAGE_MARGIN
+#undef TLD__TYPE_MARGIN

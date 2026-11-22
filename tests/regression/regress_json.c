@@ -902,14 +902,14 @@ static void test_caller_container(void)
         if(o == NULL || a == NULL){
                 return;
         }
-        r = json_obj_add_multiple(o, (tld_json_decoration[]){JINT("m", 2), JA("bad", NULL),
+        r = tld__json_obj_build(o, (tld_json_decoration[]){JINT("m", 2), JA("bad", NULL),
                                                              JA("later", JSON_ARR(JINT(NULL, 3)))}, 3);
         CHECK(r == NULL);
         CHECK(o->n == 2);                       /* n and m */
-        ra = json_arr_add_multiple(a, (tld_json_decoration[]){JO(NULL, NULL)}, 1);
+        ra = tld__json_arr_build(a, (tld_json_decoration[]){JO(NULL, NULL)}, 1);
         CHECK(ra == NULL);
         CHECK(a->n == 1);
-        r = json_obj_add_multiple(o, (tld_json_decoration[]){JINT("k", 4)}, 1);
+        r = tld__json_obj_build(o, (tld_json_decoration[]){JINT("k", 4)}, 1);
         CHECK(r == o && o->n == 3);
         tld_json_obj_free(o);
         tld_json_arr_free(a);

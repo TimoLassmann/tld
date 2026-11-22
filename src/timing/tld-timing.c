@@ -1,9 +1,9 @@
 #include <sys/time.h>
 #include "stdio.h"
 
-static int timeval_subtract(struct timeval *result, struct timeval end, struct timeval start);
+static int tld__timeval_subtract(struct timeval *result, struct timeval end, struct timeval start);
 
-int timeval_subtract(struct timeval *result, struct timeval end, struct timeval start)
+int tld__timeval_subtract(struct timeval *result, struct timeval end, struct timeval start)
 {
         if (start.tv_usec < end.tv_usec) {
                 int nsec = (end.tv_usec - start.tv_usec) / 1000000 + 1;
@@ -22,7 +22,7 @@ int timeval_subtract(struct timeval *result, struct timeval end, struct timeval 
         return end.tv_sec < start.tv_sec;
 }
 
-void set_exec_time(int end)
+void tld__timer(int end)
 {
         static struct timeval time_start;
         struct timeval time_end;
@@ -30,7 +30,7 @@ void set_exec_time(int end)
 
         if (end) {
                 gettimeofday(&time_end, NULL);
-                if (timeval_subtract(&time_diff, time_end, time_start) == 0) {
+                if (tld__timeval_subtract(&time_diff, time_end, time_start) == 0) {
                         if (end == 1)
                                 fprintf(stdout,"\nexec time: %1.2fs\n",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
                         else if (end == 2)

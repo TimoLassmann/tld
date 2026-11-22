@@ -10,16 +10,15 @@
 #include "tld-json_mem.h"
 #include "tld-json_misc.h"
 
-#define TLD_JSON_IMPORT
 #include "tld-json.h"
 
 /* Maximum nesting depth of objects / arrays accepted by the parser. */
-#define TLD_JSON_MAX_DEPTH 512
+#define TLD__JSON_MAX_DEPTH 512
 
 /* Key under which tld_json_parse stores a top-level array. */
-#define TLD_JSON_TOP_LEVEL_ARR "Top Level Arr"
+#define TLD__JSON_TOP_LEVEL_ARR "Top Level Arr"
 
-typedef struct json_parser {
+typedef struct tld__json_parser {
         const uint8_t* s;
         int len;
         int pos;
@@ -29,50 +28,50 @@ typedef struct json_parser {
         int b_len;
         int b_alloc;
         const char* err;
-} json_parser;
+} tld__json_parser;
 
-static int tld_json_dump_val(tld_json_val *val, tld_strbuf *b);
-static int tld_json_dump_str(tld_strbuf *b, const uint8_t *s, int len);
-static int tld_json_add_indent(tld_strbuf *b, int indent);
-static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj *res);
+static int tld__json_dump_val(tld_json_val *val, tld_strbuf *b);
+static int tld__json_dump_str(tld_strbuf *b, const uint8_t *s, int len);
+static int tld__json_add_indent(tld_strbuf *b, int indent);
+static int tld__json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj *res);
 
-static int add_val(char *buf, int len, tld_json_val *val);
-static int json_val_set_str(tld_json_val *v, const char *s, int len);
-static void json_val_set_int64(tld_json_val *v, long long x);
-static int json_val_from_decoration(tld_json_val *v, tld_json_decoration *d);
+static int tld__json_add_val(char *buf, int len, tld_json_val *val);
+static int tld__json_val_set_str(tld_json_val *v, const char *s, int len);
+static void tld__json_val_set_int64(tld_json_val *v, long long x);
+static int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d);
 
-static int search(tld_json_obj *n, char *key, tld_json_obj* r);
+static int tld__json_search(tld_json_obj *n, char *key, tld_json_obj* r);
 
 /* parser */
-static int jp_fail(json_parser *p, const char *msg);
-static void jp_ws(json_parser *p);
-static int jp_push(json_parser *p, uint8_t c);
-static int jp_push_utf8(json_parser *p, uint32_t cp);
-static int jp_hex4(json_parser *p, uint32_t *cp);
-static int jp_string(json_parser *p);
-static int jp_number(json_parser *p, tld_json_val *v);
-static int jp_literal(json_parser *p, const char *lit);
-static int jp_value(json_parser *p, tld_json_val *v);
-static int jp_obj(json_parser *p, tld_json_obj **out);
-static int jp_arr(json_parser *p, tld_json_arr **out);
+static int tld__jp_fail(tld__json_parser *p, const char *msg);
+static void tld__jp_ws(tld__json_parser *p);
+static int tld__jp_push(tld__json_parser *p, uint8_t c);
+static int tld__jp_push_utf8(tld__json_parser *p, uint32_t cp);
+static int tld__jp_hex4(tld__json_parser *p, uint32_t *cp);
+static int tld__jp_string(tld__json_parser *p);
+static int tld__jp_number(tld__json_parser *p, tld_json_val *v);
+static int tld__jp_literal(tld__json_parser *p, const char *lit);
+static int tld__jp_value(tld__json_parser *p, tld_json_val *v);
+static int tld__jp_obj(tld__json_parser *p, tld_json_obj **out);
+static int tld__jp_arr(tld__json_parser *p, tld_json_arr **out);
 
 /* path getters */
-static int json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out);
+static int tld__json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out);
 
-static tld_json_obj* tld_json_obj_add_val(tld_json_obj *obj, char* key, char* val);
-static tld_json_obj* tld_json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val);
-static tld_json_obj *tld_json_obj_add_arr(tld_json_obj *obj, char *key, tld_json_arr *val);
-static tld_json_obj *tld_json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d);
-static tld_json_arr* tld_json_arr_add_val(tld_json_arr *arr, char* val);
-static tld_json_arr* tld_json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val);
-static tld_json_arr *tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj *val);
-static tld_json_arr *tld_json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d);
+static tld_json_obj* tld__json_obj_add_val(tld_json_obj *obj, char* key, char* val);
+static tld_json_obj* tld__json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val);
+static tld_json_obj *tld__json_obj_add_arr(tld_json_obj *obj, char *key, tld_json_arr *val);
+static tld_json_obj *tld__json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d);
+static tld_json_arr* tld__json_arr_add_val(tld_json_arr *arr, char* val);
+static tld_json_arr* tld__json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val);
+static tld_json_arr *tld__json_arr_add_obj(tld_json_arr *arr, tld_json_obj *val);
+static tld_json_arr *tld__json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d);
 
 /* ------------------------------------------------------------------ */
 /* Parser: recursive descent directly over the input text.             */
 /* ------------------------------------------------------------------ */
 
-int jp_fail(json_parser *p, const char *msg)
+int tld__jp_fail(tld__json_parser *p, const char *msg)
 {
         if(p->err == NULL){
                 p->err = msg;
@@ -80,7 +79,7 @@ int jp_fail(json_parser *p, const char *msg)
         return FAIL;
 }
 
-void jp_ws(json_parser *p)
+void tld__jp_ws(tld__json_parser *p)
 {
         while(p->pos < p->len){
                 uint8_t c = p->s[p->pos];
@@ -94,7 +93,7 @@ void jp_ws(json_parser *p)
 
 /* Append one byte to the scratch buffer, always leaving room for a
    terminating 0. */
-int jp_push(json_parser *p, uint8_t c)
+int tld__jp_push(tld__json_parser *p, uint8_t c)
 {
         if(p->b_len + 1 >= p->b_alloc){
                 int new_alloc = p->b_alloc + p->b_alloc / 2 + 16;
@@ -108,33 +107,33 @@ ERROR:
         return FAIL;
 }
 
-int jp_push_utf8(json_parser *p, uint32_t cp)
+int tld__jp_push_utf8(tld__json_parser *p, uint32_t cp)
 {
         if(cp < 0x80){
-                RUN(jp_push(p, (uint8_t)cp));
+                RUN(tld__jp_push(p, (uint8_t)cp));
         }else if(cp < 0x800){
-                RUN(jp_push(p, (uint8_t)(0xC0 | (cp >> 6))));
-                RUN(jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0xC0 | (cp >> 6))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
         }else if(cp < 0x10000){
-                RUN(jp_push(p, (uint8_t)(0xE0 | (cp >> 12))));
-                RUN(jp_push(p, (uint8_t)(0x80 | ((cp >> 6) & 0x3F))));
-                RUN(jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0xE0 | (cp >> 12))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | ((cp >> 6) & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
         }else{
-                RUN(jp_push(p, (uint8_t)(0xF0 | (cp >> 18))));
-                RUN(jp_push(p, (uint8_t)(0x80 | ((cp >> 12) & 0x3F))));
-                RUN(jp_push(p, (uint8_t)(0x80 | ((cp >> 6) & 0x3F))));
-                RUN(jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0xF0 | (cp >> 18))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | ((cp >> 12) & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | ((cp >> 6) & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
         }
         return OK;
 ERROR:
         return FAIL;
 }
 
-int jp_hex4(json_parser *p, uint32_t *cp)
+int tld__jp_hex4(tld__json_parser *p, uint32_t *cp)
 {
         uint32_t v = 0;
         if(p->pos + 4 > p->len){
-                return jp_fail(p, "truncated \\u escape");
+                return tld__jp_fail(p, "truncated \\u escape");
         }
         for(int i = 0; i < 4; i++){
                 uint8_t c = p->s[p->pos + i];
@@ -146,7 +145,7 @@ int jp_hex4(json_parser *p, uint32_t *cp)
                 }else if(c >= 'A' && c <= 'F'){
                         v |= (uint32_t)(c - 'A' + 10);
                 }else{
-                        return jp_fail(p, "invalid hex digit in \\u escape");
+                        return tld__jp_fail(p, "invalid hex digit in \\u escape");
                 }
         }
         p->pos += 4;
@@ -156,14 +155,14 @@ int jp_hex4(json_parser *p, uint32_t *cp)
 
 /* Parse a quoted string starting at p->s[p->pos] == '"'. The decoded UTF-8
    bytes end up in p->buf (p->b_len bytes, 0-terminated). */
-int jp_string(json_parser *p)
+int tld__jp_string(tld__json_parser *p)
 {
         p->pos++;               /* opening quote */
         p->b_len = 0;
         while(1){
                 uint8_t c;
                 if(p->pos >= p->len){
-                        return jp_fail(p, "unterminated string");
+                        return tld__jp_fail(p, "unterminated string");
                 }
                 c = p->s[p->pos];
                 p->pos++;
@@ -172,22 +171,22 @@ int jp_string(json_parser *p)
                 }else if(c == '\\'){
                         uint8_t e;
                         if(p->pos >= p->len){
-                                return jp_fail(p, "unterminated string");
+                                return tld__jp_fail(p, "unterminated string");
                         }
                         e = p->s[p->pos];
                         p->pos++;
                         switch(e){
-                        case '"':  if(jp_push(p, '"'))  return FAIL; break;
-                        case '\\': if(jp_push(p, '\\')) return FAIL; break;
-                        case '/':  if(jp_push(p, '/'))  return FAIL; break;
-                        case 'b':  if(jp_push(p, '\b')) return FAIL; break;
-                        case 'f':  if(jp_push(p, '\f')) return FAIL; break;
-                        case 'n':  if(jp_push(p, '\n')) return FAIL; break;
-                        case 'r':  if(jp_push(p, '\r')) return FAIL; break;
-                        case 't':  if(jp_push(p, '\t')) return FAIL; break;
+                        case '"':  if(tld__jp_push(p, '"'))  return FAIL; break;
+                        case '\\': if(tld__jp_push(p, '\\')) return FAIL; break;
+                        case '/':  if(tld__jp_push(p, '/'))  return FAIL; break;
+                        case 'b':  if(tld__jp_push(p, '\b')) return FAIL; break;
+                        case 'f':  if(tld__jp_push(p, '\f')) return FAIL; break;
+                        case 'n':  if(tld__jp_push(p, '\n')) return FAIL; break;
+                        case 'r':  if(tld__jp_push(p, '\r')) return FAIL; break;
+                        case 't':  if(tld__jp_push(p, '\t')) return FAIL; break;
                         case 'u':{
                                 uint32_t cp = 0;
-                                if(jp_hex4(p, &cp) != OK){
+                                if(tld__jp_hex4(p, &cp) != OK){
                                         return FAIL;
                                 }
                                 if(cp >= 0xD800 && cp <= 0xDBFF){
@@ -198,7 +197,7 @@ int jp_string(json_parser *p)
                                            p->s[p->pos+1] == 'u'){
                                                 int save = p->pos;
                                                 p->pos += 2;
-                                                if(jp_hex4(p, &lo) != OK){
+                                                if(tld__jp_hex4(p, &lo) != OK){
                                                         return FAIL;
                                                 }
                                                 if(lo >= 0xDC00 && lo <= 0xDFFF){
@@ -216,22 +215,22 @@ int jp_string(json_parser *p)
                                         cp = 0xFFFD;
                                 }
                                 if(cp == 0){
-                                        return jp_fail(p, "\\u0000 is not supported in strings");
+                                        return tld__jp_fail(p, "\\u0000 is not supported in strings");
                                 }
-                                if(jp_push_utf8(p, cp) != OK){
+                                if(tld__jp_push_utf8(p, cp) != OK){
                                         return FAIL;
                                 }
                                 break;
                         }
                         default:
-                                return jp_fail(p, "invalid escape sequence");
+                                return tld__jp_fail(p, "invalid escape sequence");
                         }
                 }else if(c == 0){
-                        return jp_fail(p, "NUL byte in string");
+                        return tld__jp_fail(p, "NUL byte in string");
                 }else{
                         /* Raw bytes, including (leniently) unescaped control
                            characters, are copied through. */
-                        if(jp_push(p, c) != OK){
+                        if(tld__jp_push(p, c) != OK){
                                 return FAIL;
                         }
                 }
@@ -240,7 +239,7 @@ int jp_string(json_parser *p)
         return OK;
 }
 
-int jp_number(json_parser *p, tld_json_val *v)
+int tld__jp_number(tld__json_parser *p, tld_json_val *v)
 {
         char tmp[64];
         char* num = tmp;
@@ -259,7 +258,7 @@ int jp_number(json_parser *p, tld_json_val *v)
                         p->pos++;
                 }
         }else{
-                return jp_fail(p, "invalid number");
+                return tld__jp_fail(p, "invalid number");
         }
         if(p->pos < p->len && p->s[p->pos] == '.'){
                 int d = 0;
@@ -270,7 +269,7 @@ int jp_number(json_parser *p, tld_json_val *v)
                         d++;
                 }
                 if(!d){
-                        return jp_fail(p, "invalid number: no digits after '.'");
+                        return tld__jp_fail(p, "invalid number: no digits after '.'");
                 }
         }
         if(p->pos < p->len && (p->s[p->pos] == 'e' || p->s[p->pos] == 'E')){
@@ -285,7 +284,7 @@ int jp_number(json_parser *p, tld_json_val *v)
                         d++;
                 }
                 if(!d){
-                        return jp_fail(p, "invalid number: no digits in exponent");
+                        return tld__jp_fail(p, "invalid number: no digits in exponent");
                 }
         }
 
@@ -305,7 +304,7 @@ int jp_number(json_parser *p, tld_json_val *v)
                         v->type = TLD_JSON_DBL;
                         v->value.d_num = strtod(num, NULL);
                 }else{
-                        json_val_set_int64(v, x);
+                        tld__json_val_set_int64(v, x);
                 }
         }else{
                 v->type = TLD_JSON_DBL;
@@ -316,14 +315,14 @@ int jp_number(json_parser *p, tld_json_val *v)
         }
         return OK;
 ERROR:
-        return jp_fail(p, "out of memory");
+        return tld__jp_fail(p, "out of memory");
 }
 
-int jp_literal(json_parser *p, const char *lit)
+int tld__jp_literal(tld__json_parser *p, const char *lit)
 {
         int l = (int)strlen(lit);
         if(p->pos + l > p->len || memcmp(p->s + p->pos, lit, l) != 0){
-                return jp_fail(p, "invalid literal");
+                return tld__jp_fail(p, "invalid literal");
         }
         p->pos += l;
         return OK;
@@ -331,18 +330,18 @@ int jp_literal(json_parser *p, const char *lit)
 
 /* Parse one value into the empty slot v. On failure v is left untouched
    (TLD_JSON_UNDEF) and anything allocated on the way is freed. */
-int jp_value(json_parser *p, tld_json_val *v)
+int tld__jp_value(tld__json_parser *p, tld_json_val *v)
 {
         uint8_t c;
-        jp_ws(p);
+        tld__jp_ws(p);
         if(p->pos >= p->len){
-                return jp_fail(p, "unexpected end of input");
+                return tld__jp_fail(p, "unexpected end of input");
         }
         c = p->s[p->pos];
         switch(c){
         case '{':{
                 tld_json_obj* o = NULL;
-                if(jp_obj(p, &o) != OK){
+                if(tld__jp_obj(p, &o) != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_OBJ;
@@ -351,7 +350,7 @@ int jp_value(json_parser *p, tld_json_val *v)
         }
         case '[':{
                 tld_json_arr* a = NULL;
-                if(jp_arr(p, &a) != OK){
+                if(tld__jp_arr(p, &a) != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_ARR;
@@ -359,95 +358,95 @@ int jp_value(json_parser *p, tld_json_val *v)
                 break;
         }
         case '"':
-                if(jp_string(p) != OK){
+                if(tld__jp_string(p) != OK){
                         return FAIL;
                 }
-                if(json_val_set_str(v, p->buf, p->b_len) != OK){
-                        return jp_fail(p, "out of memory");
+                if(tld__json_val_set_str(v, p->buf, p->b_len) != OK){
+                        return tld__jp_fail(p, "out of memory");
                 }
                 break;
         case 't':
-                if(jp_literal(p, "true") != OK){
+                if(tld__jp_literal(p, "true") != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_BOOL_TRUE;
                 v->value.b_num = 1;
                 break;
         case 'f':
-                if(jp_literal(p, "false") != OK){
+                if(tld__jp_literal(p, "false") != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_BOOL_FALSE;
                 v->value.b_num = 0;
                 break;
         case 'n':
-                if(jp_literal(p, "null") != OK){
+                if(tld__jp_literal(p, "null") != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_UNDEF;
                 break;
         default:
                 if(c == '-' || (c >= '0' && c <= '9')){
-                        return jp_number(p, v);
+                        return tld__jp_number(p, v);
                 }
-                return jp_fail(p, "unexpected character");
+                return tld__jp_fail(p, "unexpected character");
         }
         return OK;
 }
 
-int jp_obj(json_parser *p, tld_json_obj **out)
+int tld__jp_obj(tld__json_parser *p, tld_json_obj **out)
 {
         tld_json_obj* n = NULL;
 
-        if(p->depth >= TLD_JSON_MAX_DEPTH){
-                return jp_fail(p, "nesting too deep");
+        if(p->depth >= TLD__JSON_MAX_DEPTH){
+                return tld__jp_fail(p, "nesting too deep");
         }
         p->depth++;
         p->pos++;               /* '{' */
 
         if(tld_json_obj_alloc(&n) != OK){
-                jp_fail(p, "out of memory");
+                tld__jp_fail(p, "out of memory");
                 goto FAIL_OBJ;
         }
-        jp_ws(p);
+        tld__jp_ws(p);
         if(p->pos < p->len && p->s[p->pos] == '}'){
                 p->pos++;
                 goto DONE;
         }
         while(1){
-                jp_ws(p);
+                tld__jp_ws(p);
                 if(p->pos >= p->len){
-                        jp_fail(p, "unexpected end of input in object");
+                        tld__jp_fail(p, "unexpected end of input in object");
                         goto FAIL_OBJ;
                 }
                 if(p->s[p->pos] != '"'){
-                        jp_fail(p, "expected string as object key");
+                        tld__jp_fail(p, "expected string as object key");
                         goto FAIL_OBJ;
                 }
-                if(jp_string(p) != OK){
+                if(tld__jp_string(p) != OK){
                         goto FAIL_OBJ;
                 }
                 if(tld_append(n->key[n->n], p->buf) != OK){
-                        jp_fail(p, "out of memory");
+                        tld__jp_fail(p, "out of memory");
                         goto FAIL_OBJ;
                 }
-                jp_ws(p);
+                tld__jp_ws(p);
                 if(p->pos >= p->len || p->s[p->pos] != ':'){
-                        jp_fail(p, "expected ':'");
+                        tld__jp_fail(p, "expected ':'");
                         goto FAIL_OBJ;
                 }
                 p->pos++;
-                if(jp_value(p, n->v[n->n]) != OK){
+                if(tld__jp_value(p, n->v[n->n]) != OK){
                         goto FAIL_OBJ;
                 }
                 n->n++;
                 if(tld_json_obj_chk_space(n) != OK){
-                        jp_fail(p, "out of memory");
+                        tld__jp_fail(p, "out of memory");
                         goto FAIL_OBJ;
                 }
-                jp_ws(p);
+                tld__jp_ws(p);
                 if(p->pos >= p->len){
-                        jp_fail(p, "unexpected end of input in object");
+                        tld__jp_fail(p, "unexpected end of input in object");
                         goto FAIL_OBJ;
                 }
                 if(p->s[p->pos] == ','){
@@ -456,7 +455,7 @@ int jp_obj(json_parser *p, tld_json_obj **out)
                         p->pos++;
                         break;
                 }else{
-                        jp_fail(p, "expected ',' or '}'");
+                        tld__jp_fail(p, "expected ',' or '}'");
                         goto FAIL_OBJ;
                 }
         }
@@ -472,37 +471,37 @@ FAIL_OBJ:
         return FAIL;
 }
 
-int jp_arr(json_parser *p, tld_json_arr **out)
+int tld__jp_arr(tld__json_parser *p, tld_json_arr **out)
 {
         tld_json_arr* n = NULL;
 
-        if(p->depth >= TLD_JSON_MAX_DEPTH){
-                return jp_fail(p, "nesting too deep");
+        if(p->depth >= TLD__JSON_MAX_DEPTH){
+                return tld__jp_fail(p, "nesting too deep");
         }
         p->depth++;
         p->pos++;               /* '[' */
 
         if(tld_json_arr_alloc(&n) != OK){
-                jp_fail(p, "out of memory");
+                tld__jp_fail(p, "out of memory");
                 goto FAIL_ARR;
         }
-        jp_ws(p);
+        tld__jp_ws(p);
         if(p->pos < p->len && p->s[p->pos] == ']'){
                 p->pos++;
                 goto DONE;
         }
         while(1){
-                if(jp_value(p, n->v[n->n]) != OK){
+                if(tld__jp_value(p, n->v[n->n]) != OK){
                         goto FAIL_ARR;
                 }
                 n->n++;
                 if(tld_json_arr_chk_space(n) != OK){
-                        jp_fail(p, "out of memory");
+                        tld__jp_fail(p, "out of memory");
                         goto FAIL_ARR;
                 }
-                jp_ws(p);
+                tld__jp_ws(p);
                 if(p->pos >= p->len){
-                        jp_fail(p, "unexpected end of input in array");
+                        tld__jp_fail(p, "unexpected end of input in array");
                         goto FAIL_ARR;
                 }
                 if(p->s[p->pos] == ','){
@@ -511,7 +510,7 @@ int jp_arr(json_parser *p, tld_json_arr **out)
                         p->pos++;
                         break;
                 }else{
-                        jp_fail(p, "expected ',' or ']'");
+                        tld__jp_fail(p, "expected ',' or ']'");
                         goto FAIL_ARR;
                 }
         }
@@ -532,7 +531,7 @@ FAIL_ARR:
 /* ------------------------------------------------------------------ */
 
 /* Store len bytes of s as a string in the empty slot v. */
-int json_val_set_str(tld_json_val *v, const char *s, int len)
+int tld__json_val_set_str(tld_json_val *v, const char *s, int len)
 {
         tld_strbuf* b = NULL;
         RUN(tld_strbuf_alloc(&b, len + 1));
@@ -548,7 +547,7 @@ ERROR:
 
 /* Integers that fit in int32_t are stored as TLD_JSON_INT, larger ones as
    TLD_JSON_DBL (the value layout only has an int32_t). */
-void json_val_set_int64(tld_json_val *v, long long x)
+void tld__json_val_set_int64(tld_json_val *v, long long x)
 {
         if(x >= INT32_MIN && x <= INT32_MAX){
                 v->type = TLD_JSON_INT;
@@ -561,7 +560,7 @@ void json_val_set_int64(tld_json_val *v, long long x)
 
 int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
 {
-        json_parser p;
+        tld__json_parser p;
         tld_json_obj* n = NULL;
         tld_json_arr* a = NULL;
 
@@ -583,33 +582,33 @@ int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
         p.b_alloc = 256;
         MMALLOC(p.buf, p.b_alloc);
 
-        jp_ws(&p);
+        tld__jp_ws(&p);
         if(p.pos >= p.len){
-                jp_fail(&p, "empty input");
+                tld__jp_fail(&p, "empty input");
                 goto PARSE_ERROR;
         }
         if(p.s[p.pos] == '{'){
-                if(jp_obj(&p, &n) != OK){
+                if(tld__jp_obj(&p, &n) != OK){
                         goto PARSE_ERROR;
                 }
         }else if(p.s[p.pos] == '['){
-                if(jp_arr(&p, &a) != OK){
+                if(tld__jp_arr(&p, &a) != OK){
                         goto PARSE_ERROR;
                 }
                 RUN(tld_json_obj_alloc(&n));
-                RUN(tld_append(n->key[0], TLD_JSON_TOP_LEVEL_ARR));
+                RUN(tld_append(n->key[0], TLD__JSON_TOP_LEVEL_ARR));
                 n->v[0]->type = TLD_JSON_ARR;
                 n->v[0]->value.arr = a;
                 a = NULL;
                 n->n++;
                 RUN(tld_json_obj_chk_space(n));
         }else{
-                jp_fail(&p, "text does not start with { or [");
+                tld__jp_fail(&p, "text does not start with { or [");
                 goto PARSE_ERROR;
         }
-        jp_ws(&p);
+        tld__jp_ws(&p);
         if(p.pos < p.len){
-                jp_fail(&p, "trailing characters after JSON value");
+                tld__jp_fail(&p, "trailing characters after JSON value");
                 goto PARSE_ERROR;
         }
 
@@ -631,7 +630,7 @@ ERROR:
         return FAIL;
 }
 
-int search(tld_json_obj *n, char *key, tld_json_obj* r)
+int tld__json_search(tld_json_obj *n, char *key, tld_json_obj* r)
 {
         if(n){
                 for(int i = 0; i < n->n;i++){
@@ -646,9 +645,9 @@ int search(tld_json_obj *n, char *key, tld_json_obj* r)
                         }
 
                         if(n->v[i]->type == TLD_JSON_ARR){
-                                RUN(tld_json_get_arr_str(n->v[i]->value.arr,key,r));
+                                RUN(tld__json_get_arr_str(n->v[i]->value.arr,key,r));
                         }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                RUN(search(n->v[i]->value.obj, key,r));
+                                RUN(tld__json_search(n->v[i]->value.obj, key,r));
                         }
                 }
         }
@@ -658,14 +657,14 @@ ERROR:
         return FAIL;
 }
 
-int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj* res)
+int tld__json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj* res)
 {
         if(n){
                 for(int i = 0; i < n->n;i++){
                         if(n->v[i]->type == TLD_JSON_ARR){
-                                RUN(tld_json_get_arr_str(n->v[i]->value.arr,key,res));
+                                RUN(tld__json_get_arr_str(n->v[i]->value.arr,key,res));
                         }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                RUN(search(n->v[i]->value.obj, key,res));
+                                RUN(tld__json_search(n->v[i]->value.obj, key,res));
                         }
                 }
         }
@@ -678,7 +677,7 @@ int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret)
 {
         tld_json_obj* r = NULL;
         RUN(tld_json_obj_alloc(&r));
-        RUN(search(n, key, r));
+        RUN(tld__json_search(n, key, r));
         *ret = r;
         return OK;
 ERROR:
@@ -695,7 +694,7 @@ ERROR:
 /* Resolve "a.b[2].c". *out is NULL when the path is empty (the root
    object itself). A path starting with '[' indexes the array that
    tld_json_parse wraps under "Top Level Arr". */
-int json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out)
+int tld__json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out)
 {
         tld_json_val* v = NULL;
         tld_json_obj* o = root;
@@ -711,7 +710,7 @@ int json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out)
                 /* address the wrapped top-level array */
                 v = NULL;
                 for(int i = 0; i < root->n; i++){
-                        if(strcmp(TLD_STR(root->key[i]), TLD_JSON_TOP_LEVEL_ARR) == 0){
+                        if(strcmp(TLD_STR(root->key[i]), TLD__JSON_TOP_LEVEL_ARR) == 0){
                                 v = root->v[i];
                                 break;
                         }
@@ -791,7 +790,7 @@ int json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out)
 int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type != TLD_JSON_STR || v->value.str == NULL){
@@ -806,7 +805,7 @@ int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out)
 int tld_json_get_num(tld_json_obj *obj, const char *path, double *out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type == TLD_JSON_DBL){
@@ -826,7 +825,7 @@ int tld_json_get_num(tld_json_obj *obj, const char *path, double *out)
 int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type == TLD_JSON_INT){
@@ -852,7 +851,7 @@ int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out)
 int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type == TLD_JSON_BOOL_TRUE){
@@ -872,7 +871,7 @@ int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out)
 int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK){
+        if(tld__json_path_resolve(obj, path, &v) != OK){
                 return FAIL;
         }
         if(v == NULL){
@@ -894,7 +893,7 @@ int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out)
 int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type != TLD_JSON_ARR || v->value.arr == NULL){
@@ -908,7 +907,7 @@ int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out)
 
 /* Make sure obj (allocated here when NULL) has a free slot at index n BEFORE anything is
  * written to it. On failure an object allocated here is freed. */
-static int json_obj_slot(tld_json_obj *obj, tld_json_obj **np)
+static int tld__json_obj_slot(tld_json_obj *obj, tld_json_obj **np)
 {
         tld_json_obj *n = obj;
         if(n == NULL){
@@ -927,7 +926,7 @@ ERROR:
         return FAIL;
 }
 
-static int json_arr_slot(tld_json_arr *arr, tld_json_arr **np)
+static int tld__json_arr_slot(tld_json_arr *arr, tld_json_arr **np)
 {
         tld_json_arr *n = arr;
         if(n == NULL){
@@ -977,7 +976,7 @@ int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
         if(plen == 0 && *last == '['){
                 /* "[i]": the array that tld_json_parse wraps under "Top Level Arr" */
                 for(int i = 0; i < n->n; i++){
-                        if(strcmp(TLD_STR(n->key[i]), TLD_JSON_TOP_LEVEL_ARR) == 0){
+                        if(strcmp(TLD_STR(n->key[i]), TLD__JSON_TOP_LEVEL_ARR) == 0){
                                 pv = n->v[i];
                                 break;
                         }
@@ -992,7 +991,7 @@ int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
                 MMALLOC(prefix, plen + 1);
                 memcpy(prefix, path, plen);
                 prefix[plen] = 0;
-                if(json_path_resolve(n, prefix, &pv) != OK || pv == NULL){
+                if(tld__json_path_resolve(n, prefix, &pv) != OK || pv == NULL){
                         ERROR_MSG("Path %s: %s does not exist", path, prefix);
                 }
                 if(pv->type == TLD_JSON_OBJ){
@@ -1022,7 +1021,7 @@ int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
                         RUN(tld_json_val_copy(pa->v[idx], v));
                 }else if(idx == pa->n){
                         tld_json_arr* r = NULL;
-                        RUN(json_arr_slot(pa, &r));
+                        RUN(tld__json_arr_slot(pa, &r));
                         RUN(tld_json_val_copy(pa->v[pa->n], v));
                         pa->n++;
                 }else{
@@ -1047,7 +1046,7 @@ int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
                                 return OK;
                         }
                 }
-                RUN(json_obj_slot(po, &r));
+                RUN(tld__json_obj_slot(po, &r));
                 tld_strbuf_clear(po->key[po->n]);
                 RUN(tld_append(po->key[po->n], (char*)k));
                 RUN(tld_json_val_copy(po->v[po->n], v));
@@ -1059,7 +1058,7 @@ ERROR:
         return FAIL;
 }
 
-static void json_free_unattached(tld_json_decoration *kvs, int from, int count)
+static void tld__json_free_unattached(tld_json_decoration *kvs, int from, int count)
 {
         for(int k = from; k < count; k++){
                 if(kvs[k].value == NULL){
@@ -1075,13 +1074,13 @@ static void json_free_unattached(tld_json_decoration *kvs, int from, int count)
 
 /* The add helpers return the (possibly new) container. When an entry cannot be added it
  * is dropped; a container allocated by the call is freed and NULL returned. */
-tld_json_obj* tld_json_obj_add_val(tld_json_obj *obj, char* key, char* val)
+tld_json_obj* tld__json_obj_add_val(tld_json_obj *obj, char* key, char* val)
 {
         tld_json_obj* n = NULL;
-        RUN(json_obj_slot(obj, &n));
+        RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
         RUN(tld_append(n->key[n->n], key ? key : ""));
-        RUN(add_val(val, (int)strlen(val), n->v[n->n]));
+        RUN(tld__json_add_val(val, (int)strlen(val), n->v[n->n]));
         n->n++;
         return n;
 ERROR:
@@ -1092,10 +1091,10 @@ ERROR:
         return obj;
 }
 
-tld_json_obj* tld_json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val)
+tld_json_obj* tld__json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val)
 {
         tld_json_obj* n = NULL;
-        RUN(json_obj_slot(obj, &n));
+        RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
         RUN(tld_append(n->key[n->n], key ? key : ""));
         n->v[n->n]->type = TLD_JSON_OBJ;
@@ -1110,10 +1109,10 @@ ERROR:
         return obj;
 }
 
-tld_json_obj* tld_json_obj_add_arr(tld_json_obj *obj, char* key, tld_json_arr*val)
+tld_json_obj* tld__json_obj_add_arr(tld_json_obj *obj, char* key, tld_json_arr*val)
 {
         tld_json_obj* n = NULL;
-        RUN(json_obj_slot(obj, &n));
+        RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
         RUN(tld_append(n->key[n->n], key ? key : ""));
         n->v[n->n]->type = TLD_JSON_ARR;
@@ -1128,13 +1127,13 @@ ERROR:
         return obj;
 }
 
-tld_json_obj *tld_json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d)
+tld_json_obj *tld__json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d)
 {
         tld_json_obj* n = NULL;
-        RUN(json_obj_slot(obj, &n));
+        RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
         RUN(tld_append(n->key[n->n], key ? key : ""));
-        RUN(json_val_from_decoration(n->v[n->n], d));
+        RUN(tld__json_val_from_decoration(n->v[n->n], d));
         n->n++;
         return n;
 ERROR:
@@ -1147,10 +1146,10 @@ ERROR:
 
 /* Used by JS(): the type is guessed from the text (callers rely on
    JS("k","0.2") producing a number). */
-int add_val(char *buf, int len, tld_json_val *val)
+int tld__json_add_val(char *buf, int len, tld_json_val *val)
 {
         tld_json_type type = TLD_JSON_STR;
-        detect_type(buf,len, &type);
+        tld__json_detect_type(buf,len, &type);
 
         switch (type) {
         case TLD_JSON_DBL:
@@ -1165,7 +1164,7 @@ int add_val(char *buf, int len, tld_json_val *val)
                         val->type = TLD_JSON_DBL;
                         val->value.d_num = strtod(buf, NULL);
                 }else{
-                        json_val_set_int64(val, x);
+                        tld__json_val_set_int64(val, x);
                 }
                 break;
         }
@@ -1178,7 +1177,7 @@ int add_val(char *buf, int len, tld_json_val *val)
                 val->value.b_num = 0;
                 break;
         case TLD_JSON_STR:
-                RUN(json_val_set_str(val, buf, len));
+                RUN(tld__json_val_set_str(val, buf, len));
                 break;
         case TLD_JSON_ARR:
         case TLD_JSON_OBJ:
@@ -1192,12 +1191,12 @@ ERROR:
 }
 
 /* Fill an empty (TLD_JSON_UNDEF) slot from one of the typed decorations. */
-int json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
+int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
 {
         switch(d->type){
         case VAL_JSTR:{
                 const char* s = (const char*)d->value;
-                RUN(json_val_set_str(v, s, (int)strlen(s)));
+                RUN(tld__json_val_set_str(v, s, (int)strlen(s)));
                 break;
         }
         case VAL_NUM:
@@ -1205,7 +1204,7 @@ int json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
                 v->value.d_num = *(double*)d->value;
                 break;
         case VAL_INT:
-                json_val_set_int64(v, *(long*)d->value);
+                tld__json_val_set_int64(v, *(long*)d->value);
                 break;
         case VAL_BOOL:
                 if(*(int*)d->value){
@@ -1233,7 +1232,7 @@ ERROR:
  * container created by the call; a caller-supplied container keeps the entries added
  * so far and stays the caller's. A JO/JA entry with a NULL value is such a failure
  * (a nested JSON_OBJ / JSON_ARR returns NULL only when it failed). */
-tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs, int count)
+tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, int count)
 {
         tld_json_obj *in = obj;
         int i = 0;
@@ -1247,20 +1246,20 @@ tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs,
                 }
                 switch (kvs[i].type) {
                 case VAL_STRING:
-                        obj = tld_json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
+                        obj = tld__json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
                         break;
                 case VAL_OBJ:
-                        obj = tld_json_obj_add_obj(obj, kvs[i].key, (tld_json_obj*)kvs[i].value);
+                        obj = tld__json_obj_add_obj(obj, kvs[i].key, (tld_json_obj*)kvs[i].value);
                         break;
                 case VAL_ARR:
-                        obj = tld_json_obj_add_arr(obj, kvs[i].key, (tld_json_arr*)kvs[i].value);
+                        obj = tld__json_obj_add_arr(obj, kvs[i].key, (tld_json_arr*)kvs[i].value);
                         break;
                 case VAL_JSTR:
                 case VAL_NUM:
                 case VAL_INT:
                 case VAL_BOOL:
                 case VAL_NULL:
-                        obj = tld_json_obj_add_typed(obj, kvs[i].key, &kvs[i]);
+                        obj = tld__json_obj_add_typed(obj, kvs[i].key, &kvs[i]);
                         break;
                 }
                 if(obj == NULL || obj->n != before + 1){
@@ -1269,18 +1268,18 @@ tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs,
         }
         return obj;
 ERROR:
-        json_free_unattached(kvs, i, count);
+        tld__json_free_unattached(kvs, i, count);
         if(in == NULL){
                 tld_json_obj_free(obj);
         }
         return NULL;
 }
 
-tld_json_arr* tld_json_arr_add_val(tld_json_arr *arr, char* val)
+tld_json_arr* tld__json_arr_add_val(tld_json_arr *arr, char* val)
 {
         tld_json_arr* n = NULL;
-        RUN(json_arr_slot(arr, &n));
-        RUN(add_val(val, (int)strlen(val), n->v[n->n]));
+        RUN(tld__json_arr_slot(arr, &n));
+        RUN(tld__json_add_val(val, (int)strlen(val), n->v[n->n]));
         n->n++;
         return n;
 ERROR:
@@ -1291,10 +1290,10 @@ ERROR:
         return arr;
 }
 
-tld_json_arr* tld_json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val)
+tld_json_arr* tld__json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val)
 {
         tld_json_arr* n = NULL;
-        RUN(json_arr_slot(arr, &n));
+        RUN(tld__json_arr_slot(arr, &n));
         n->v[n->n]->type = TLD_JSON_ARR;
         n->v[n->n]->value.arr = val;
         n->n++;
@@ -1307,10 +1306,10 @@ ERROR:
         return arr;
 }
 
-tld_json_arr* tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj*val)
+tld_json_arr* tld__json_arr_add_obj(tld_json_arr *arr, tld_json_obj*val)
 {
         tld_json_arr* n = NULL;
-        RUN(json_arr_slot(arr, &n));
+        RUN(tld__json_arr_slot(arr, &n));
         n->v[n->n]->type = TLD_JSON_OBJ;
         n->v[n->n]->value.obj = val;
         n->n++;
@@ -1323,11 +1322,11 @@ ERROR:
         return arr;
 }
 
-tld_json_arr *tld_json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d)
+tld_json_arr *tld__json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d)
 {
         tld_json_arr* n = NULL;
-        RUN(json_arr_slot(arr, &n));
-        RUN(json_val_from_decoration(n->v[n->n], d));
+        RUN(tld__json_arr_slot(arr, &n));
+        RUN(tld__json_val_from_decoration(n->v[n->n], d));
         n->n++;
         return n;
 ERROR:
@@ -1338,7 +1337,7 @@ ERROR:
         return arr;
 }
 
-tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs, int count)
+tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, int count)
 {
         tld_json_arr *in = arr;
         int i = 0;
@@ -1352,20 +1351,20 @@ tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs,
                 }
                 switch (kvs[i].type) {
                 case VAL_STRING:
-                        arr = tld_json_arr_add_val(arr,  (char*)kvs[i].value);
+                        arr = tld__json_arr_add_val(arr,  (char*)kvs[i].value);
                         break;
                 case VAL_OBJ:
-                        arr = tld_json_arr_add_obj(arr, (tld_json_obj*)kvs[i].value);
+                        arr = tld__json_arr_add_obj(arr, (tld_json_obj*)kvs[i].value);
                         break;
                 case VAL_ARR:
-                        arr = tld_json_arr_add_arr(arr,  (tld_json_arr*)kvs[i].value);
+                        arr = tld__json_arr_add_arr(arr,  (tld_json_arr*)kvs[i].value);
                         break;
                 case VAL_JSTR:
                 case VAL_NUM:
                 case VAL_INT:
                 case VAL_BOOL:
                 case VAL_NULL:
-                        arr = tld_json_arr_add_typed(arr, &kvs[i]);
+                        arr = tld__json_arr_add_typed(arr, &kvs[i]);
                         break;
                 }
                 if(arr == NULL || arr->n != before + 1){
@@ -1374,7 +1373,7 @@ tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs,
         }
         return arr;
 ERROR:
-        json_free_unattached(kvs, i, count);
+        tld__json_free_unattached(kvs, i, count);
         if(in == NULL){
                 tld_json_arr_free(arr);
         }
@@ -1383,7 +1382,7 @@ ERROR:
 
 /* Write s as a quoted JSON string, escaping '"', '\\' and control
    characters. Bytes >= 0x80 (UTF-8) are written unchanged. */
-int tld_json_dump_str(tld_strbuf *b, const uint8_t *s, int len)
+int tld__json_dump_str(tld_strbuf *b, const uint8_t *s, int len)
 {
         static const char hex[] = "0123456789abcdef";
         char* out = NULL;
@@ -1427,12 +1426,12 @@ ERROR:
         return FAIL;
 }
 
-int tld_json_dump_val(tld_json_val *val, tld_strbuf *b)
+int tld__json_dump_val(tld_json_val *val, tld_strbuf *b)
 {
         char buf[40];
         if(val->type == TLD_JSON_STR){
                 if(val->value.str){
-                        RUN(tld_json_dump_str(b, val->value.str->str, val->value.str->len));
+                        RUN(tld__json_dump_str(b, val->value.str->str, val->value.str->len));
                 }else{
                         RUN(tld_append(b, "null"));
                 }
@@ -1466,7 +1465,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_json_add_indent(tld_strbuf *b, int indent)
+int tld__json_add_indent(tld_strbuf *b, int indent)
 {
         static const char spaces[] = "                                ";   /* 32 */
         const int n_spaces = (int) sizeof spaces - 1;
@@ -1490,8 +1489,8 @@ int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
                 RUN(tld_append(b, "{\n"));
 
                 for(int i = 0; i < n->n;i++){
-                        RUN(tld_json_add_indent(b, indent + 4));
-                        RUN(tld_json_dump_str(b, n->key[i]->str, n->key[i]->len));
+                        RUN(tld__json_add_indent(b, indent + 4));
+                        RUN(tld__json_dump_str(b, n->key[i]->str, n->key[i]->len));
                         RUN(tld_append(b, ": "));
 
                         if(n->v[i]->type == TLD_JSON_ARR){
@@ -1507,14 +1506,14 @@ int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
                                         RUN(tld_append(b, "null"));
                                 }
                         }else{
-                                RUN(tld_json_dump_val(n->v[i], b));
+                                RUN(tld__json_dump_val(n->v[i], b));
                         }
                         if (i < n->n - 1) {
                                 RUN(tld_append(b, ","));
                         }
                         RUN(tld_append(b, "\n"));
                 }
-                RUN(tld_json_add_indent(b, indent));
+                RUN(tld__json_add_indent(b, indent));
                 RUN(tld_append(b, "}"));
         }
         return OK;
@@ -1529,7 +1528,7 @@ int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
                 RUN(tld_append(b, "[\n"));
 
                 for (int i = 0; i < n->n; i++) {
-                        RUN(tld_json_add_indent(b, indent + 4));
+                        RUN(tld__json_add_indent(b, indent + 4));
                         if (n->v[i]->type == TLD_JSON_ARR) {
                                 if(n->v[i]->value.arr){
                                         RUN(tld_json_dump_arr(n->v[i]->value.arr, b,indent + 4));
@@ -1543,17 +1542,20 @@ int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
                                         RUN(tld_append(b, "null"));
                                 }
                         } else {
-                                RUN(tld_json_dump_val(n->v[i], b));
+                                RUN(tld__json_dump_val(n->v[i], b));
                         }
                         if (i < n->n - 1) {
                                 RUN(tld_append(b, ","));
                         }
                         RUN(tld_append(b, "\n"));
                 }
-                RUN(tld_json_add_indent(b, indent));
+                RUN(tld__json_add_indent(b, indent));
                 RUN(tld_append(b, "]"));
         }
         return OK;
 ERROR:
         return FAIL;
 }
+
+#undef TLD__JSON_MAX_DEPTH
+#undef TLD__JSON_TOP_LEVEL_ARR

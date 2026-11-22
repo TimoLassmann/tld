@@ -3,7 +3,6 @@
 #include <string.h>
 #include "../string/str.h"
 
-#define  TLD_JSON_MISC_IMPORT
 #include "tld-json_misc.h"
 
 /* Guess the JSON type of an unquoted token (used by JS()).
@@ -11,7 +10,7 @@
    INT when there is no fraction or exponent) or one of
    true/True/TRUE/false/False/FALSE. Everything else, including the empty
    string, is a string. */
-int detect_type(char*s, int len, tld_json_type* type)
+int tld__json_detect_type(char*s, int len, tld_json_type* type)
 {
         int i = 0;
         int mant = 0;

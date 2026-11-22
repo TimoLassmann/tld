@@ -6,17 +6,17 @@
 #include <math.h>
 
 /* Unified Struct Definition */
-struct auc_pt {
+struct tld__auc_pt {
         double Y;
         double Y_hat;
 };
 
-static int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out);
+static int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out);
 
 /* Comparator function for qsort to sort in ascending order */
-static int auc_pt_sort(const void *a, const void *b) {
-        struct auc_pt * const *one = a;
-        struct auc_pt * const *two = b;
+static int tld__auc_pt_sort(const void *a, const void *b) {
+        struct tld__auc_pt * const *one = a;
+        struct tld__auc_pt * const *two = b;
 
         if ((*one)->Y_hat < (*two)->Y_hat) {
                 return -1;
@@ -30,9 +30,9 @@ static int auc_pt_sort(const void *a, const void *b) {
 /* Sorts the scores, sweeps the ROC curve from the highest score down,
    accumulates the area with the trapezoidal rule (tied scores form one
    step) and records the score nearest to the (0,1) corner. */
-int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out)
+int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out)
 {
-        struct auc_pt** l = NULL;
+        struct tld__auc_pt** l = NULL;
         double thres = 0.0;
         double auc = 0.0;
         double tpr = 0.0;
@@ -49,7 +49,7 @@ int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_ou
         ASSERT(Y != NULL, "No labels");
         ASSERT(Y_hat != NULL, "No predictions");
 
-        MMALLOC(l, sizeof(struct auc_pt*) * n);
+        MMALLOC(l, sizeof(struct tld__auc_pt*) * n);
         for(int i = 0; i < n; i++) {
                 l[i] = NULL;
         }
@@ -61,7 +61,7 @@ int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_ou
                 if(isnan(Y_hat[i])) {
                         ERROR_MSG("prediction %d is NaN", i);
                 }
-                MMALLOC(l[i], sizeof(struct auc_pt));
+                MMALLOC(l[i], sizeof(struct tld__auc_pt));
                 l[i]->Y = Y[i];
                 l[i]->Y_hat = Y_hat[i];
                 if (Y[i] == 1.0) {
@@ -75,7 +75,7 @@ int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_ou
                 ERROR_MSG("AUC needs both classes (%d positive, %d negative)", total_positive, total_negative);
         }
 
-        qsort(l, n, sizeof(struct auc_pt*), auc_pt_sort);
+        qsort(l, n, sizeof(struct tld__auc_pt*), tld__auc_pt_sort);
 
         for (int i = n - 1; i >= 0; i--) {
                 if(l[i]->Y == 1.0){
@@ -126,7 +126,7 @@ int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret)
 {
         double thres = 0.0;
         double auc = 0.0;
-        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *t = thres;
         *ret = auc;
         return OK;
@@ -138,7 +138,7 @@ int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
 {
         double thres = 0.0;
         double auc = 0.0;
-        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *ret = auc;
         return OK;
 ERROR:
@@ -151,7 +151,7 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
 {
         double thres = 0.0;
         double auc = 0.0;
-        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *best_threshold = thres;
         return OK;
 ERROR:

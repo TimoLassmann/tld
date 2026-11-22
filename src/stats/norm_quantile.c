@@ -6,9 +6,9 @@
 typedef struct {
         double v;
         int idx;
-} n_itm;
+} tld__qnorm_item;
 
-static int cmp_n_itm (const void *a, const void *b);
+static int tld__qnorm_item_cmp (const void *a, const void *b);
 
 /* Quantile normalisation of the m columns of an n x m matrix (in place).
    The reference distribution is the mean over columns of the sorted
@@ -17,7 +17,7 @@ static int cmp_n_itm (const void *a, const void *b);
 int norm_quantile(double **data, int n, int m)
 {
         double** data_rank = NULL;
-        n_itm** l = NULL;
+        tld__qnorm_item** l = NULL;
 
         double sum = 0.0;
 
@@ -32,12 +32,12 @@ int norm_quantile(double **data, int n, int m)
         }
 
         galloc(&data_rank,n,m);
-        MMALLOC(l, sizeof(n_itm*) * n );
+        MMALLOC(l, sizeof(tld__qnorm_item*) * n );
         for(int i = 0; i < n;i++){
                 l[i] = NULL;
         }
         for(int i = 0; i < n;i++){
-                MMALLOC(l[i], sizeof(n_itm));
+                MMALLOC(l[i], sizeof(tld__qnorm_item));
                 l[i]->v = 0.0;
                 l[i]->idx = 0;
         }
@@ -48,7 +48,7 @@ int norm_quantile(double **data, int n, int m)
                         l[i]->idx = i;
                         l[i]->v = data[i][column];
                 }
-                qsort(l,n,  sizeof(n_itm*), cmp_n_itm);
+                qsort(l,n,  sizeof(tld__qnorm_item*), tld__qnorm_item_cmp);
 
                 for(int i = 0;i < n;i++){
                         data_rank[i][column] = l[i]->v;
@@ -70,7 +70,7 @@ int norm_quantile(double **data, int n, int m)
                         l[i]->idx = i;
                         l[i]->v = data[i][column];
                 }
-                qsort(l,n,  sizeof(n_itm*), cmp_n_itm);
+                qsort(l,n,  sizeof(tld__qnorm_item*), tld__qnorm_item_cmp);
 
                 int start = 0;
                 while(start < n){
@@ -111,11 +111,10 @@ ERROR:
         return FAIL;
 }
 
-
-int cmp_n_itm (const void *a, const void *b)
+int tld__qnorm_item_cmp (const void *a, const void *b)
 {
-        n_itm * const *one = a;
-        n_itm * const *two = b;
+        tld__qnorm_item * const *one = a;
+        tld__qnorm_item * const *two = b;
         if((*one)->v > (*two)->v){
                 return 1;
         }else if((*one)->v < (*two)->v){

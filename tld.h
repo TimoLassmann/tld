@@ -60,8 +60,8 @@
  *
  * THREADS
  *   Objects have no locks: use each one from one thread at a time. The tld_thread_pool_*
- *   calls and init_logsum are thread-safe; tld_progress and set_exec_time keep global
- *   state.
+ *   calls and init_logsum are thread-safe; tld_progress and the TLD_START_TIMER timer keep
+ *   global state.
  *
  * ENVIRONMENT
  *   TLD_VERBOSE  0 errors only, 1 normal (default), 2 also DEBUG_MSG lines
@@ -120,28 +120,20 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-/* Linkage of every public tld function: extern, or extern "C" in C++. Define it before
- * including tld.h to override. */
-#ifndef tld_external
+/* TLD_API: the linkage of every public tld function and variable, extern (extern "C" in
+ * C++). Define it before including tld.h to add attributes (visibility, dllexport). */
+#ifndef TLD_API
 #ifdef __cplusplus
-#define tld_external extern "C"
+#define TLD_API extern "C"
 #else
-#define tld_external extern
+#define TLD_API extern
 #endif
 #endif
 
-/* Marks functions private to one implementation file (static). Define it before
- * including tld.h to override. */
-#ifndef tld_internal
-#define tld_internal static
-#endif
-
-/* Define generally useful macros  */
-
-/* tld_stringify(x) turns the token x into a string literal without expanding it;
- * tld_tostring(x) expands x first, so tld_tostring(__LINE__) gives "42". */
-#define tld_stringify(x) #x
-#define tld_tostring(x) tld_stringify(x)
+/* TLD__STRINGIFY(x) turns the token x into a string literal without expanding it;
+ * TLD__TOSTRING(x) expands x first, so TLD__TOSTRING(__LINE__) gives "42". */
+#define TLD__STRINGIFY(x) #x
+#define TLD__TOSTRING(x) TLD__STRINGIFY(x)
 
 /* Return codes of every tld function that can fail: OK (0) on success, FAIL (1) on
  * failure. Compare with == OK; do not use the result as a boolean. */
@@ -170,41 +162,41 @@
 #define TLD__LITERAL_FIRST(f, ...) f
 #define TLD__LITERAL(...) ((void)sizeof("" TLD__LITERAL_FIRST(__VA_ARGS__, ~)))
 
-/* Message types for tld_message and tld_message_at. */
-#define MESSAGE_TYPE_MSG 0
-#define MESSAGE_TYPE_WARNING 1
-#define MESSAGE_TYPE_ERROR 2
+/* Message types for tld__message and tld__message_at. */
+#define TLD__MSG_LOG 0
+#define TLD__MSG_WARNING 1
+#define TLD__MSG_ERROR 2
 
 /* Print a timestamped message of type MESSAGE_TYPE_* (printf-style, newline added) to
  * stderr. LOG and WARNING lines are dropped when TLD_VERBOSE=0; errors never are. */
-tld_external void tld_message(uint8_t type, const char *format, ...)
+TLD_API void tld__message(uint8_t type, const char *format, ...)
         __attribute__((format(printf, 2, 3)));
 
-/* Like tld_message; an ERROR line also names file and line. Used by the macros. */
-tld_external void tld_message_at(uint8_t type, const char *file, int line, const char *format, ...)
+/* Like tld__message; an ERROR line also names file and line. Used by the macros. */
+TLD_API void tld__message_at(uint8_t type, const char *file, int line, const char *format, ...)
         __attribute__((format(printf, 4, 5)));
 
 /* LOG_MSG(fmt, ...) / WARNING_MSG(fmt, ...): print a timestamped LOG or WARNING line
  * (printf-style, newline added) to stderr and continue. Silent when TLD_VERBOSE=0. */
-#define LOG_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_message(MESSAGE_TYPE_MSG, __VA_ARGS__))
-#define WARNING_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_message(MESSAGE_TYPE_WARNING, __VA_ARGS__))
+#define LOG_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld__message(TLD__MSG_LOG, __VA_ARGS__))
+#define WARNING_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld__message(TLD__MSG_WARNING, __VA_ARGS__))
 
 /* ERROR_MSG(fmt, ...): print a timestamped ERROR line with file and line to stderr
  * (always, whatever TLD_VERBOSE says) and goto ERROR. */
 #define ERROR_MSG(...) do {                                     \
                 TLD__LITERAL(__VA_ARGS__);                      \
-                tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
+                tld__message_at(TLD__MSG_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
                 goto ERROR;                                     \
         }while (0)
 
 /* The string literal "Function \"x\" failed." with x macro-expanded; used by RUN. */
-#define ADDFAILED(x)  "Function \"" tld_tostring(x) "\" failed."
+#define TLD__FAILED(x)  "Function \"" TLD__TOSTRING(x) "\" failed."
 
 /* RUN(EXP): evaluate EXP (a call returning OK/FAIL); if it is not OK, print
  * Function "EXP" failed. as an ERROR line with file and line and goto ERROR. */
 #define RUN(EXP) do {                                           \
                 if((EXP) != OK){                                \
-                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, "%s", ADDFAILED(EXP)); \
+                        tld__message_at(TLD__MSG_ERROR, __FILE__, __LINE__, "%s", TLD__FAILED(EXP)); \
                         goto ERROR;                             \
                 }                                               \
         } while (0)
@@ -215,19 +207,19 @@ tld_external void tld_message_at(uint8_t type, const char *file, int line, const
 #define ASSERT(TEST,...) do {                                   \
                 TLD__LITERAL(__VA_ARGS__);                      \
                 if(!(TEST)) {                                   \
-                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, "Assertion failed: %s", #TEST); \
-                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
+                        tld__message_at(TLD__MSG_ERROR, __FILE__, __LINE__, "Assertion failed: %s", #TEST); \
+                        tld__message_at(TLD__MSG_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
                         goto ERROR;                             \
                 }                                               \
         } while (0)
 
 /* The TLD_VERBOSE level: 0, 1 (the default, also for unset or unparsable values) or 2.
  * A single digit is accepted; the variable is read on every call. */
-tld_external int tld_verbosity(void);
+TLD_API int tld_verbosity(void);
 
 /* 1 if stderr gets colour: it is a terminal, NO_COLOR is unset or empty and TERM is
  * not "dumb"; 0 otherwise. */
-tld_external int tld_term_color(void);
+TLD_API int tld_term_color(void);
 
 /* Rich terminal output. Everything goes to stderr, so stdout keeps only a program's
  * results. Colour and symbols are used only when stderr is a terminal and NO_COLOR is
@@ -240,23 +232,23 @@ tld_external int tld_term_color(void);
  *   DEBUG_MSG("seed %u", seed);                 · seed 42          (TLD_VERBOSE=2)
  *   tld_progress(i + 1, n, "aligning");        aligning [#######.....]  58% 23/40
  */
-#define SECTION_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_section(__VA_ARGS__))
-#define KV_MSG(KEY, ...) (TLD__LITERAL(__VA_ARGS__), tld_kv(KEY, __VA_ARGS__))
-#define OK_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_ok(__VA_ARGS__))
-#define DEBUG_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_debug(__VA_ARGS__))
+#define SECTION_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld__section(__VA_ARGS__))
+#define KV_MSG(KEY, ...) (TLD__LITERAL(__VA_ARGS__), tld__kv(KEY, __VA_ARGS__))
+#define OK_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld__ok(__VA_ARGS__))
+#define DEBUG_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld__debug(__VA_ARGS__))
 
 /* The functions behind SECTION_MSG, KV_MSG, OK_MSG and DEBUG_MSG (printf-style, a
  * newline is added). Use the macros. */
-tld_external void tld_section(const char *format, ...) __attribute__((format(printf, 1, 2)));
-tld_external void tld_kv(const char *key, const char *format, ...)
+TLD_API void tld__section(const char *format, ...) __attribute__((format(printf, 1, 2)));
+TLD_API void tld__kv(const char *key, const char *format, ...)
         __attribute__((format(printf, 2, 3)));
-tld_external void tld_ok(const char *format, ...) __attribute__((format(printf, 1, 2)));
-tld_external void tld_debug(const char *format, ...) __attribute__((format(printf, 1, 2)));
+TLD_API void tld__ok(const char *format, ...) __attribute__((format(printf, 1, 2)));
+TLD_API void tld__debug(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
 /* Progress of a loop: call with done = 1..total. On a terminal one line is redrawn
  * (only when the percentage changes); otherwise only the final line is printed. Not
  * meant to be called from several threads at once. */
-tld_external void tld_progress(long done, long total, const char *label);
+TLD_API void tld_progress(long done, long total, const char *label);
 
 #endif
 /* ---- src/alloc/tld-alloc.h ---- */
@@ -344,25 +336,25 @@ tld_external void tld_progress(long done, long total, const char *label);
  * double. The pointer should be NULL (an existing block is not freed or resized). On
  * failure an error is printed and goto ERROR. Free with gfree; get_dim1/get_dim2 give
  * the dimensions back. */
-#define galloc(...) GALLOC_ARGS(__VA_ARGS__)
+#define galloc(...) TLD__GALLOC_ARGS(__VA_ARGS__)
 
 /* gfree(p): free memory from galloc (1D or 2D) and set p to NULL, like MFREE, so a
  * second gfree(p) on an error path is harmless. p must be an lvalue (a variable, field
  * or element); a NULL p is fine. Never pass galloc memory to free() or MFREE. */
 #define gfree(a)                                                        \
         do {                                                            \
-                tld_free(a);                                            \
+                tld__gfree(a);                                            \
                 (a) = NULL;                                             \
         } while (0)
 
 /* Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
  * into *d. FAIL if ptr is NULL. Only valid for memory from galloc. */
-tld_external int get_dim1(void *ptr, uint32_t *d);
-tld_external int get_dim2(void *ptr, uint32_t *d);
+TLD_API int get_dim1(void *ptr, uint32_t *d);
+TLD_API int get_dim2(void *ptr, uint32_t *d);
 
 /* The function behind gfree: frees a galloc block and its 2D data block. NULL is
  * ignored. */
-tld_external void tld_free(void *p);
+TLD_API void tld__gfree(void *p);
 
 /* tld_valid_1D(x) is 1 if x is a T ** and tld_valid_2D(x) is 1 if x is a T ***, where T
  * is a type galloc supports (char, int8_t..int64_t, uint8_t..uint64_t, float, double);
@@ -377,13 +369,13 @@ tld_external void tld_free(void *p);
                  uint32_t *** : 1, int64_t *** : 1, uint64_t *** : 1, float *** : 1, \
                  double *** : 1, default : 0)
 
-/* Argument counting for galloc: NARG3(...) is the number of its 1 to 3 arguments. */
-#define XARG3(_0, _1, _2, _3, ...) _3
-#define NARG3(...) XARG3(__VA_ARGS__, 3, 2, 1, 0)
+/* Argument counting for galloc: TLD__NARG3(...) is the number of its 1 to 3 arguments. */
+#define TLD__XARG3(_0, _1, _2, _3, ...) _3
+#define TLD__NARG3(...) TLD__XARG3(__VA_ARGS__, 3, 2, 1, 0)
 
 /* galloc with 1 argument (an error: too few) and with 2 (a 1D array). Use galloc. */
-#define XGALLOC_ARGS_1(a) tld__galloc_too_few()
-#define XGALLOC_ARGS_2(a, b)                                            \
+#define TLD__XGALLOC_ARGS_1(a) tld__galloc_too_few()
+#define TLD__XGALLOC_ARGS_2(a, b)                                            \
         do {                                                            \
                 if (!tld_valid_1D((a))) {                               \
                         ERROR_MSG("Wrong pointer type for 1D alloc");   \
@@ -400,7 +392,7 @@ tld_external void tld_free(void *p);
  * header. Row offsets are computed in size_t.
  * The local names are chosen so they cannot capture an identifier used in the caller's
  * (b) or (c). */
-#define XGALLOC_ARGS_3(a, b, c)                                         \
+#define TLD__XGALLOC_ARGS_3(a, b, c)                                         \
         do {                                                            \
                 if (!tld_valid_2D((a))) {                               \
                         ERROR_MSG("Wrong pointer type for 2D alloc");   \
@@ -416,7 +408,7 @@ tld_external void tld_free(void *p);
                 }                                                       \
                 if (tld__galloc_data(tld_galloc_rows_, &tld_galloc_data_) != OK || \
                     tld_galloc_data_ == NULL) {                         \
-                        tld_free(tld_galloc_rows_);                     \
+                        tld__gfree(tld_galloc_rows_);                     \
                         ERROR_MSG("Could not alloc 2D");                \
                 }                                                       \
                 tld_galloc_rows_[0] = (__typeof__(**(a)))tld_galloc_data_; \
@@ -427,30 +419,30 @@ tld_external void tld_free(void *p);
                 *(a) = tld_galloc_rows_;                                \
         } while (0)
 
-/* Dispatch from galloc to XGALLOC_ARGS_<number of arguments>. Use galloc. */
-#define XXGALLOC_ARGS(N, ...) XGALLOC_ARGS_##N(__VA_ARGS__)
-#define XGALLOC_ARGS(N, ...) XXGALLOC_ARGS(N, __VA_ARGS__)
-#define GALLOC_ARGS(...) XGALLOC_ARGS(NARG3(__VA_ARGS__), __VA_ARGS__)
+/* Dispatch from galloc to TLD__XGALLOC_ARGS_<number of arguments>. Use galloc. */
+#define TLD__XXGALLOC_ARGS(N, ...) TLD__XGALLOC_ARGS_##N(__VA_ARGS__)
+#define TLD__XGALLOC_ARGS(N, ...) TLD__XXGALLOC_ARGS(N, __VA_ARGS__)
+#define TLD__GALLOC_ARGS(...) TLD__XGALLOC_ARGS(TLD__NARG3(__VA_ARGS__), __VA_ARGS__)
 
 /* Internal: called by galloc with a single argument; prints an error, returns FAIL. */
-tld_external int tld__galloc_too_few(void);
+TLD_API int tld__galloc_too_few(void);
 
 /* Internal back end of galloc: a zeroed block of dim1 entries of rsize bytes behind a
  * hidden header that records dim1 and dim2; with dim2 > 0 also a zeroed dim1 x dim2
  * data block of tsize-byte elements. NULL on failure (dim1 < 1, dim2 < 0, overflow, no
  * memory). */
-tld_external void *tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2);
+TLD_API void *tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2);
 
 /* Internal: the data block of a 2D galloc block into *d (NULL for a 1D array); FAIL
  * if ptr is NULL. Used by galloc. */
-tld_external int tld__galloc_data(void *ptr, void **d);
+TLD_API int tld__galloc_data(void *ptr, void **d);
 
 #endif
 /* ---- src/string/str.h ---- */
 /* string: tld_strbuf, a growable NUL-terminated byte buffer (append, prepend, copy).
  * Inspired by the rayfork str code by Sas Luca. */
-#ifndef STR_H
-#define STR_H
+#ifndef TLD_STRING_H
+#define TLD_STRING_H
 
 #include <stdint.h>
 
@@ -472,62 +464,62 @@ typedef struct tld_string_buffer {
 
 /* A new empty buffer in *buffer with size bytes reserved (0 means 1024; size < 0 is an
  * error). It grows as needed. Free with tld_strbuf_free. */
-tld_external int tld_strbuf_alloc(tld_strbuf **buffer, int size);
+TLD_API int tld_strbuf_alloc(tld_strbuf **buffer, int size);
 
 /* Free a buffer; NULL is ignored. */
-tld_external void tld_strbuf_free(tld_strbuf *b);
+TLD_API void tld_strbuf_free(tld_strbuf *b);
 
 /* Empty the buffer (len 0); the memory is kept. */
-tld_external int tld_strbuf_clear(tld_strbuf *b);
+TLD_API int tld_strbuf_clear(tld_strbuf *b);
 
 /* Replace the contents of t with a copy of s; t grows as needed. */
-tld_external int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
+TLD_API int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
 
 /* Append the NUL-terminated string content to b; b grows as needed. */
-tld_external int tld_append(tld_strbuf *b, const char *content);
+TLD_API int tld_append(tld_strbuf *b, const char *content);
 
 /* Append the single character c to b. */
-tld_external int tld_append_char(tld_strbuf *b, char c);
+TLD_API int tld_append_char(tld_strbuf *b, char c);
 
 /* Insert the NUL-terminated string content at the start of b. */
-tld_external int tld_prepend(tld_strbuf *b, const char *content);
+TLD_API int tld_prepend(tld_strbuf *b, const char *content);
 
 #endif
 /* ---- src/misc/misc.h ---- */
 /* misc: file and directory checks, absolute paths, file and directory names of a
  * path, and capturing the command line. */
-#ifndef MISC_H
-#define MISC_H
+#ifndef TLD_MISC_H
+#define TLD_MISC_H
 
 
 /* OK if name exists (a file, directory or anything else stat() sees), FAIL otherwise,
  * without a message. Test with == OK. */
-tld_external int tld_file_exists(const char* name);
+TLD_API int tld_file_exists(const char* name);
 
 /* OK if name is a directory that can be opened; otherwise prints an error and returns
  * FAIL. */
-tld_external int tld_dir_exists(const char *name);
+TLD_API int tld_dir_exists(const char *name);
 
 /* Create the directory dir (mode 0700; its parent must exist). OK when it was created
  * or already exists as a directory (with a warning); FAIL otherwise. */
-tld_external int tld_dir_create(char *dir);
+TLD_API int tld_dir_create(char *dir);
 
 /* The absolute, symlink-free path of the existing file filename into *full. A non-NULL
  * *full is cleared and reused; otherwise a buffer is allocated (free with
  * tld_strbuf_free). FAIL when the file does not exist. */
-tld_external int tld_get_full_path(tld_strbuf **full, char *filename);
+TLD_API int tld_get_full_path(tld_strbuf **full, char *filename);
 
 /* Append argv[0] .. argv[argc - 1], each followed by a space, to *cmdline (allocated when
  * NULL; free with tld_strbuf_free). For recording how a program was run. */
-tld_external int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[]);
+TLD_API int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[]);
 
 /* A new string in *out (free with MFREE or free) with the part of path after the last
  * '/'. FAIL when that part is empty (path is empty or ends in '/'). */
-tld_external int tld_get_filename(char* path, char** out);
+TLD_API int tld_get_filename(char* path, char** out);
 
 /* A new string in *out (free with MFREE or free) with the part of path before the last
  * '/' ("/" for "/name"). FAIL when path contains no '/'. */
-tld_external int tld_get_dirname(char* path, char** out);
+TLD_API int tld_get_dirname(char* path, char** out);
 
 #endif
 /* ---- src/timing/tld-timing.h ---- */
@@ -537,21 +529,19 @@ tld_external int tld_get_dirname(char* path, char** out);
 
 /* end 0 starts the stopwatch; 1 prints "\nexec time: 1.23s\n" and 2 prints "1.23s" to
  * stdout. One global timer (static state, not thread-safe). */
-tld_external void set_exec_time(int end);
+TLD_API void tld__timer(int end);
 
 /* Complete statements (they include the semicolon): TLD_START_TIMER starts the
- * stopwatch, TLD_END_TIMER prints the elapsed time (set_exec_time(0) / (1)). */
-#define TLD_START_TIMER set_exec_time(0);
-#define TLD_END_TIMER set_exec_time(1);
-
-
+ * stopwatch, TLD_END_TIMER prints the elapsed time (tld__timer(0) / (1)). */
+#define TLD_START_TIMER tld__timer(0);
+#define TLD_END_TIMER tld__timer(1);
 
 #endif
 /* ---- src/data/bitfield.h ---- */
 /* bitfield: fixed-length bit sets with set, get and clear, OR, copy and (masked)
  * Hamming distance. */
-#ifndef BITFIELD_H
-#define BITFIELD_H
+#ifndef TLD_BITFIELD_H
+#define TLD_BITFIELD_H
 
 
 #include <stdint.h>
@@ -565,37 +555,37 @@ typedef struct {
 } tl_bitfield;
 
 /* A new bitfield of size bits, all 0, in *bit_f. Free with tl_bitfield_free. */
-tld_external  int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size);
+TLD_API  int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size);
 
 /* Free a bitfield; NULL is ignored. */
-tld_external void tl_bitfield_free(tl_bitfield *b);
+TLD_API void tl_bitfield_free(tl_bitfield *b);
 
 /* Clear every bit. */
-tld_external  int tl_bitfield_reset(tl_bitfield *b);
+TLD_API  int tl_bitfield_reset(tl_bitfield *b);
 
 /* Set bit index to 1, read it into *bit (0 or 1), or clear it to 0. FAIL, without a
  * message, when index is outside [0, len). */
-tld_external  int tl_bitfield_set(tl_bitfield *b, int32_t index);
-tld_external  int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit);
-tld_external  int tl_bitfield_clear(tl_bitfield *b, int32_t index);
+TLD_API  int tl_bitfield_set(tl_bitfield *b, int32_t index);
+TLD_API  int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit);
+TLD_API  int tl_bitfield_clear(tl_bitfield *b, int32_t index);
 
 /* Copy the bits of src into dst; both must have the same length. */
-tld_external  int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src);
+TLD_API  int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src);
 
 /* ret = b1 | b2, bit by bit; all three must have the same length. */
-tld_external  int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret);
+TLD_API  int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret);
 
 /* The number of positions at which b1 and b2 differ into *dist, counting only positions
  * set in mask (NULL: all). The bitfields (and mask) must have the same length. */
-tld_external  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield *mask, int32_t *dist);
+TLD_API  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield *mask, int32_t *dist);
 
 #endif
 /* ---- src/hash/hash.h ---- */
 /* hash: a string-to-string hash map (FNV-1a, chaining, grows automatically). Keys and
  * values are copied in; pointers handed out are borrowed from the map. Not locked: one
  * thread at a time per map. */
-#ifndef HASH_H
-#define HASH_H
+#ifndef TLD_HASH_H
+#define TLD_HASH_H
 
 
 /* Opaque string-to-string map. Create with tld_hash_alloc (or let tld_hash_add create
@@ -604,29 +594,29 @@ typedef struct tld_hash tld_hash;
 
 /* Allocate an empty map in *hash with more than size buckets (a prime); it grows when
  * the entries outnumber 3/4 of the buckets. Free with tld_hash_free. */
-tld_external  int tld_hash_alloc(tld_hash **hash, int size);
+TLD_API  int tld_hash_alloc(tld_hash **hash, int size);
 
 /* Free the map and every key and value; NULL is ignored. */
-tld_external void tld_hash_free(tld_hash *h);
+TLD_API void tld_hash_free(tld_hash *h);
 
 /* Insert key -> val (both copied), replacing the value if key exists. When *hash is NULL
  * a map is allocated first and stored in *hash. */
-tld_external  int tld_hash_add(tld_hash **hash, const char *key, const char *val);
+TLD_API  int tld_hash_add(tld_hash **hash, const char *key, const char *val);
 
 /* Look up key: *val points to the stored value (borrowed and read-only: do not write
  * to it or free it; valid until the entry changes or the map is freed). Returns FAIL, without a message, and sets *val to NULL when key
  * is absent. */
-tld_external  int tld_hash_get(tld_hash *h, const char *key, const char **val);
+TLD_API  int tld_hash_get(tld_hash *h, const char *key, const char **val);
 
 /* Remove key. Returns FAIL, without a message, when key is absent. */
-tld_external  int tld_hash_del(tld_hash *h, const char *key);
+TLD_API  int tld_hash_del(tld_hash *h, const char *key);
 
 /* Move the value stored under key to new_key (replacing any value there). Returns FAIL
  * when key is absent. */
-tld_external  int tld_hash_rename(tld_hash *h, const char *key, const char *new_key);
+TLD_API  int tld_hash_rename(tld_hash *h, const char *key, const char *new_key);
 
 /* Start iterating over the map (entries come in no particular order). */
-tld_external  int tld_hash_iter_init(tld_hash *h);
+TLD_API  int tld_hash_iter_init(tld_hash *h);
 
 /* Next entry: *key and *value point into the map (borrowed and read-only). Returns FAIL, without a
  * message, when there are no more entries. Do not add or delete while iterating.
@@ -635,7 +625,7 @@ tld_external  int tld_hash_iter_init(tld_hash *h);
  *   RUN(tld_hash_iter_init(h));
  *   while(tld_hash_iterator_next(h, &k, &v) == OK){ ... }
  */
-tld_external  int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value);
+TLD_API  int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value);
 
 #endif
 /* ---- src/json/tld-json_struct.h ---- */
@@ -646,12 +636,6 @@ tld_external  int tld_hash_iterator_next(tld_hash* h, const char **key, const ch
 #define TLD_JSON_STRUCT_H
 
 #include <stdint.h>
-
-#ifdef TLD_JSON_STRUCT_IMPORT
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
 
 typedef struct tld_string_buffer tld_strbuf;
 typedef struct tld_json_obj tld_json_obj;
@@ -714,10 +698,6 @@ typedef struct {
         enum { VAL_STRING, VAL_OBJ, VAL_ARR, VAL_JSTR, VAL_NUM, VAL_INT, VAL_BOOL, VAL_NULL } type;
 } tld_json_decoration;
 
-#undef TLD_JSON_STRUCT_IMPORT
-#undef EXTERN
-
-
 #endif
 /* ---- src/json/tld-json_mem.h ---- */
 /* json memory: allocate, deep-copy and free JSON objects, arrays and values. */
@@ -725,53 +705,44 @@ typedef struct {
 #define TLD_JSON_MEM_H
 
 
-#ifdef TLD_JSON_MEM_IMPORT
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
-
 /* A new empty object in *obj. Free with tld_json_obj_free. */
-EXTERN  int tld_json_obj_alloc(tld_json_obj **obj);
+TLD_API  int tld_json_obj_alloc(tld_json_obj **obj);
 
 /* Free an object with all its keys and values; NULL is ignored. */
-EXTERN void tld_json_obj_free(tld_json_obj *n);
+TLD_API void tld_json_obj_free(tld_json_obj *n);
 
 /* Deep copy of the object s into a new object in *target (free with tld_json_obj_free). */
-EXTERN  int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s);
+TLD_API  int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s);
 
 /* Make room for more entries: chk_space grows n when every slot is used (n == n_alloc),
  * realloc always grows it by half. Only needed by code that fills key[n] / v[n]
  * directly; JSON_OBJ and the parser do this themselves. */
-EXTERN  int tld_json_obj_chk_space(tld_json_obj *n);
-EXTERN  int tld_json_obj_realloc(tld_json_obj *n);
+TLD_API  int tld_json_obj_chk_space(tld_json_obj *n);
+TLD_API  int tld_json_obj_realloc(tld_json_obj *n);
 
 /* A new empty array in *arr. Free with tld_json_arr_free. */
-EXTERN  int tld_json_arr_alloc(tld_json_arr **arr);
+TLD_API  int tld_json_arr_alloc(tld_json_arr **arr);
 
 /* Free an array with all its values; NULL is ignored. */
-EXTERN void tld_json_arr_free(tld_json_arr *n);
+TLD_API void tld_json_arr_free(tld_json_arr *n);
 
 /* Deep copy of the array s into a new array in *t (free with tld_json_arr_free). */
-EXTERN  int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s);
+TLD_API  int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s);
 
 /* Make room for more values: chk_space grows n when every slot is used, realloc always
  * grows it by half. Only needed by code that fills v[n] directly. */
-EXTERN  int tld_json_arr_chk_space(tld_json_arr *n);
-EXTERN  int tld_json_arr_realloc(tld_json_arr *n);
+TLD_API  int tld_json_arr_chk_space(tld_json_arr *n);
+TLD_API  int tld_json_arr_realloc(tld_json_arr *n);
 
 /* A new value of type TLD_JSON_UNDEF (null) in *node. Free with tld_json_val_free. */
-EXTERN   int tld_json_val_alloc(tld_json_val **node);
+TLD_API   int tld_json_val_alloc(tld_json_val **node);
 
 /* Free a value and everything it owns; NULL is ignored. */
-EXTERN  void tld_json_val_free(tld_json_val *n);
+TLD_API  void tld_json_val_free(tld_json_val *n);
 
 /* Deep copy s into t. Whatever t held is released first, so t may change type; s may
  * live inside t. */
-EXTERN   int tld_json_val_copy(tld_json_val *t, tld_json_val *s);
-
-#undef TLD_JSON_MEM_IMPORT
-#undef EXTERN
+TLD_API   int tld_json_val_copy(tld_json_val *t, tld_json_val *s);
 
 #endif
 /* ---- src/json/tld-json.h ---- */
@@ -785,22 +756,16 @@ EXTERN   int tld_json_val_copy(tld_json_val *t, tld_json_val *s);
 #include <stdio.h>
 
 
-#ifdef TLD_JSON_IMPORT
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
-
 /* Parse the JSON text in t (standard JSON, nesting up to 512 levels) into a new object in
  * *out; free it with tld_json_obj_free. A top-level array becomes the single entry of
  * an object, under the key "Top Level Arr". Invalid JSON prints an error naming the byte
  * offset and returns FAIL. */
-EXTERN  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
+TLD_API  int tld_json_parse(tld_strbuf *t, tld_json_obj **out);
 
 /* Collect deep copies of every value stored under key, at any depth, into a new object
  * in *ret (entries named key, in document order; free with tld_json_obj_free). OK with
  * an empty result when nothing matches. */
-EXTERN int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
+TLD_API int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
 
 /* Path getters. A path is dot-separated keys with [i] for array elements,
    e.g. "message.content", "embeddings[0]", "models[2].name". tld_json_parse
@@ -812,12 +777,12 @@ EXTERN int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
    integral doubles inside the int64_t range. JSON null has type
    TLD_JSON_UNDEF and fails every getter. An empty path in get_obj returns
    obj itself. out may be NULL to test whether the path exists. */
-EXTERN int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out);
-EXTERN int tld_json_get_num(tld_json_obj *obj, const char *path, double *out);
-EXTERN int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out);
-EXTERN int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out);
-EXTERN int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out);
-EXTERN int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out);
+TLD_API int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out);
+TLD_API int tld_json_get_num(tld_json_obj *obj, const char *path, double *out);
+TLD_API int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out);
+TLD_API int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out);
+TLD_API int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out);
+TLD_API int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out);
 
 /* Set the value at a path to a deep copy of v. key is a path in the syntax of the
  * tld_json_get_* getters ("name", "a.b", "list[2].id", "[0]" for a parsed top-level
@@ -826,7 +791,7 @@ EXTERN int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **
  * end of an array (v is appended). An existing value is replaced, even by one of
  * another type, and v may be part of n. Returns FAIL for a missing parent, an index
  * further past the end, or no memory. Keys containing '.' or '[' cannot be addressed. */
-EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
+TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 
 /* Entries for JSON_OBJ / JSON_ARR. JS(k, s): the string s, with its type guessed from
  * the text: "12" becomes an integer, "0.2" a number, true/false (also True, TRUE, ...) a
@@ -858,56 +823,30 @@ EXTERN int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
  *   tld_json_obj *o = JSON_OBJ(JSTR("name", "x"), JINT("n", 3),
  *                              JA("v", JSON_ARR(JNUM(NULL, 0.5), JNUM(NULL, 2))));
  */
-#define JSON_OBJ(...) json_obj_add_multiple(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
+#define JSON_OBJ(...) tld__json_obj_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))
-#define JSON_ARR(...) json_arr_add_multiple(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
+#define JSON_ARR(...) tld__json_arr_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))
 
 /* Back ends of JSON_OBJ / JSON_ARR: add count entries to obj / arr (allocated when NULL)
  * and return it. They stop at the first entry that cannot be added and return NULL: the
  * JO/JA children not yet attached are freed, as is a container created by the call; a
  * caller-supplied container keeps the entries added so far and stays the caller's. */
-EXTERN tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs, int count);
-EXTERN tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs, int count);
+TLD_API tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, int count);
+TLD_API tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, int count);
 
 /* Append n as JSON text to b (b is not cleared): 4 spaces of indentation per level on
  * top of indent (pass 0), strings escaped, doubles with the fewest of 15 to 17 significant
  * digits that read back exactly, inf/nan as null. A NULL n appends nothing. */
-EXTERN int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
-EXTERN int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
-
-#undef TLD_JSON_IMPORT
-#undef EXTERN
-
-#endif
-/* ---- src/json/tld-json_misc.h ---- */
-/* json misc: type guessing for unquoted text (used by JS). */
-#ifndef TLD_JSON_MISC_H
-#define TLD_JSON_MISC_H
-
-
-#ifdef TLD_JSON_MISC_IMPORT
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
-
-/* The JSON type the len characters at s would get from JS, into *type: TLD_JSON_INT or
- * TLD_JSON_DBL when the whole text is a number ([+-]digits[.digits][e[+-]digits]),
- * TLD_JSON_BOOL_TRUE / _FALSE for true, True, TRUE / false, False, FALSE, otherwise
- * TLD_JSON_STR (also for empty text). Always OK. */
-EXTERN int detect_type(char*s, int len, tld_json_type* type);
-
-#undef TLD_JSON_MISC_IMPORT
-#undef EXTERN
-
+TLD_API int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
+TLD_API int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
 
 #endif
 /* ---- src/template/template.h ---- */
 /* template: fill {{name}} placeholders and {{IF name}}...{{ELSE}}...{{ENDIF}} blocks in
  * text from a tld_hash of names to values. */
-#ifndef TEMPLATE_H
-#define TEMPLATE_H
+#ifndef TLD_TEMPLATE_H
+#define TLD_TEMPLATE_H
 
 
 typedef struct tld_hash tld_hash;
@@ -924,11 +863,11 @@ typedef struct tld_hash tld_hash;
  *   RUN(tld_append(txt, "Hello {{who}}{{IF excl}}!{{ENDIF}}"));
  *   RUN(tld_template_apply(txt, m));        // txt is now "Hello world"
  */
-tld_external int tld_template_apply(tld_strbuf *txt, tld_hash *map);
+TLD_API int tld_template_apply(tld_strbuf *txt, tld_hash *map);
 
 /* A new map in *hash (free with tld_hash_free) whose keys are the variable names used
  * in txt, from {{name}} and {{IF name}}, each mapped to itself. */
-tld_external int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash);
+TLD_API int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash);
 #endif
 /* ---- src/rng/tld-rng.h ---- */
 /* rng: the xoshiro256** random number generator (seedable, and splittable for threads)
@@ -949,73 +888,71 @@ struct rng_dist;
  * seed 0 picks a seed from /dev/urandom, mixed with the time, the process id and a
  * counter, so every generator made with seed 0 has its own stream, also across jobs
  * started at the same moment. Free with free_rng. */
-tld_external int init_rng(struct rng_state **rng, uint64_t seed);
+TLD_API int init_rng(struct rng_state **rng, uint64_t seed);
 
 /* Allocate a generator for another thread in *target: it continues rng's current
  * stream, and rng itself jumps 2^128 draws ahead, so the two streams never overlap.
  * Free with free_rng. */
-tld_external int init_rng_from_rng(struct rng_state** target, struct rng_state* rng);
+TLD_API int init_rng_from_rng(struct rng_state** target, struct rng_state* rng);
 
 /* Reseed an existing generator (seed is used as given, 0 included) and drop any cached
  * Gaussian deviate. */
-tld_external int tld_rng_set_seed(struct rng_state *s, uint64_t seed);
+TLD_API int tld_rng_set_seed(struct rng_state *s, uint64_t seed);
 
 /* Free a generator; NULL is ignored. */
-tld_external void free_rng(struct rng_state* rng);
+TLD_API void free_rng(struct rng_state* rng);
 
 /* Uniform double on the open interval (0, 1): never exactly 0 or 1. */
-tld_external double tl_random_double(struct rng_state* rng);
+TLD_API double tl_random_double(struct rng_state* rng);
 
 /* Normal deviate with mean mu and standard deviation sigma (Box-Muller; values are made
  * in pairs and every other call returns the cached second one). */
-tld_external double tl_random_gaussian(struct rng_state* rng, double mu, double sigma);
+TLD_API double tl_random_gaussian(struct rng_state* rng, double mu, double sigma);
 
 /* Gamma deviate with the given shape (> 0, not checked) and scale; mean shape * scale. */
-tld_external double tl_random_gamma(struct rng_state* rng, double shape, double scale);
+TLD_API double tl_random_gamma(struct rng_state* rng, double shape, double scale);
 
 /* Uniform integer in [0, a), without modulo bias; 0 when a <= 1. */
-tld_external int tl_random_int(struct rng_state* rng,int a);
+TLD_API int tl_random_int(struct rng_state* rng,int a);
 
 /* Build in *rng_dist an alias table that samples index i in [0, n) with probability
  * w[i] / sum(w). Weights must be >= 0 with a finite, positive sum. The table owns its
  * own generator seeded with seed (0 = arbitrary). Free with tl_random_sdist_free. */
-tld_external int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed);
+TLD_API int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed);
 
 /* One sample from the table: an index in [0, n). */
-tld_external int tl_random_sdist_smpl(struct rng_dist* d);
+TLD_API int tl_random_sdist_smpl(struct rng_dist* d);
 
 /* Free an alias table and its generator; NULL is ignored. */
-tld_external void tl_random_sdist_free(struct rng_dist* d);
+TLD_API void tl_random_sdist_free(struct rng_dist* d);
 
 #endif
 /* ---- src/sort/tld-sort.h ---- */
 /* sort: in-place sorting of arrays of char, int8_t..int64_t, uint8_t..uint64_t, float
  * and double, ascending or descending; TLD_SORT_ASC and TLD_SORT_DESC pick the function
  * from the array's type. */
-#ifndef SORT_H
-#define SORT_H
+#ifndef TLD_SORT_H
+#define TLD_SORT_H
 
 
-
-/* SORT_HEADER(type) declares sort_desc_<type> and sort_asc_<type>. */
-#define SORT_HEADER(type)                       \
+/* TLD__SORT_HEADER(type) declares sort_desc_<type> and sort_asc_<type>. */
+#define TLD__SORT_HEADER(type)                       \
         int sort_desc_##type(type *a, int len); \
         int sort_asc_##type (type* a, int len);
 
 /* Sort len elements of a in place, descending (sort_desc_*) or ascending (sort_asc_*),
  * with qsort (not stable). Always OK. Arrays holding NaN have no defined order. */
-SORT_HEADER(char)
-        SORT_HEADER(int8_t)
-        SORT_HEADER(uint8_t)
-        SORT_HEADER(int16_t)
-        SORT_HEADER(uint16_t)
-        SORT_HEADER(int32_t)
-        SORT_HEADER(uint32_t)
-        SORT_HEADER(int64_t)
-        SORT_HEADER(uint64_t)
-        SORT_HEADER(float)
-        SORT_HEADER(double)
-
+TLD__SORT_HEADER(char)
+        TLD__SORT_HEADER(int8_t)
+        TLD__SORT_HEADER(uint8_t)
+        TLD__SORT_HEADER(int16_t)
+        TLD__SORT_HEADER(uint16_t)
+        TLD__SORT_HEADER(int32_t)
+        TLD__SORT_HEADER(uint32_t)
+        TLD__SORT_HEADER(int64_t)
+        TLD__SORT_HEADER(uint64_t)
+        TLD__SORT_HEADER(float)
+        TLD__SORT_HEADER(double)
 
 /* TLD_SORT_DESC(a, len): sort_desc_<type>(a, len) for a's element type. */
 #define TLD_SORT_DESC(A,N) _Generic((A),                                \
@@ -1031,7 +968,6 @@ SORT_HEADER(char)
                                     float* : sort_desc_float,           \
                                     double* : sort_desc_double)(A,N)
 
-
 /* TLD_SORT_ASC(a, len): sort_asc_<type>(a, len) for a's element type. */
 #define TLD_SORT_ASC(A,N) _Generic((A),                             \
                                    char* : sort_asc_char,           \
@@ -1046,34 +982,33 @@ SORT_HEADER(char)
                                    float* : sort_asc_float,         \
                                    double* : sort_asc_double)(A,N)
 
+#undef TLD__SORT_HEADER
+
 #endif
 /* ---- src/shuffle/tld-shuffle.h ---- */
 /* shuffle: uniform random permutation (Fisher-Yates) in place of arrays of char,
  * int8_t..int64_t, uint8_t..uint64_t, float and double; TLD_SHUFFLE picks the function
  * from the array's type. */
-#ifndef SHUFFLE_H
-#define SHUFFLE_H
+#ifndef TLD_SHUFFLE_H
+#define TLD_SHUFFLE_H
 
 
-
-
-/* SHUFFLE_HEADER(type) declares tld_shuffle_<type>. */
-#define SHUFFLE_HEADER(type)                        \
+/* TLD__SHUFFLE_HEADER(type) declares tld_shuffle_<type>. */
+#define TLD__SHUFFLE_HEADER(type)                        \
         int tld_shuffle_##type(type *a, int len, struct rng_state* rng);
 
 /* Shuffle len elements of a in place, drawing from rng (see init_rng). Always OK. */
-SHUFFLE_HEADER(char)
-        SHUFFLE_HEADER(int8_t)
-        SHUFFLE_HEADER(uint8_t)
-        SHUFFLE_HEADER(int16_t)
-        SHUFFLE_HEADER(uint16_t)
-        SHUFFLE_HEADER(int32_t)
-        SHUFFLE_HEADER(uint32_t)
-        SHUFFLE_HEADER(int64_t)
-        SHUFFLE_HEADER(uint64_t)
-        SHUFFLE_HEADER(float)
-        SHUFFLE_HEADER(double)
-
+TLD__SHUFFLE_HEADER(char)
+        TLD__SHUFFLE_HEADER(int8_t)
+        TLD__SHUFFLE_HEADER(uint8_t)
+        TLD__SHUFFLE_HEADER(int16_t)
+        TLD__SHUFFLE_HEADER(uint16_t)
+        TLD__SHUFFLE_HEADER(int32_t)
+        TLD__SHUFFLE_HEADER(uint32_t)
+        TLD__SHUFFLE_HEADER(int64_t)
+        TLD__SHUFFLE_HEADER(uint64_t)
+        TLD__SHUFFLE_HEADER(float)
+        TLD__SHUFFLE_HEADER(double)
 
 /* TLD_SHUFFLE(a, len, rng): tld_shuffle_<type>(a, len, rng) for a's element type. */
 #define TLD_SHUFFLE(A,N,R) _Generic((A),                                 \
@@ -1089,104 +1024,91 @@ SHUFFLE_HEADER(char)
                                     float* : tld_shuffle_float,           \
                                     double* : tld_shuffle_double)(A,N,R)
 
+#undef TLD__SHUFFLE_HEADER
 
 #endif
 /* ---- src/stats/basic.h ---- */
 /* stats: descriptive statistics of double arrays (mean, variance, covariance, Pearson
  * correlation, Shannon entropy, standardising), the sigmoid, the normal density and
  * Gaussian kernel density estimates. Results come back through the last argument. */
-#ifndef BASIC_H
-#define BASIC_H
-
-#ifdef BASIC_IMPORT
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
+#ifndef TLD_STATS_BASIC_H
+#define TLD_STATS_BASIC_H
 
 /* Shannon entropy in bits of the distribution vec[i] / sum(vec) (n >= 1, every
  * vec[i] >= 0); 0 when all values are 0. */
-EXTERN int tld_shannon(double *vec, int n, double *entropy);
+TLD_API int tld_shannon(double *vec, int n, double *entropy);
 
 /* Arithmetic mean of n >= 1 values. */
-EXTERN int tld_mean(double *vec, int n, double *mean);
+TLD_API int tld_mean(double *vec, int n, double *mean);
 
 /* Variance dividing by n (population, n >= 1) or by n - 1 (sample, n >= 2). */
-EXTERN int tld_pop_variance(double *vec, int n, double *variance);
-EXTERN int tld_sample_variance(double *vec, int n, double *variance);
+TLD_API int tld_pop_variance(double *vec, int n, double *variance);
+TLD_API int tld_sample_variance(double *vec, int n, double *variance);
 
 /* Standardise vec in place to (x - mean) / sd, with the sample standard deviation;
  * the mean and sd used come back in *mean and *stdev. FAIL when sd is 0 or n < 2. */
-EXTERN int tld_standardise(double *vec, int n, double *mean, double *stdev);
-
-
+TLD_API int tld_standardise(double *vec, int n, double *mean, double *stdev);
 
 /* Covariance of two arrays of n values, dividing by n - 1 (sample, n >= 2) or by n
  * (population). */
-EXTERN int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov);
-EXTERN int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov);
+TLD_API int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov);
+TLD_API int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov);
 
 /* Pearson correlation of two arrays of n values, in [-1, 1]; 0 when either array is
  * constant. */
-EXTERN int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr);
+TLD_API int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr);
 
 /* 1 / (1 + exp(-x)), computed without overflow. tld_sigmoid fails (FAIL) for an
  * infinite or NaN x; tld_sigmoid_safe never fails: NaN gives NaN, +inf 1, -inf 0. */
-EXTERN int tld_sigmoid(double x, double *out);
-EXTERN int tld_sigmoid_safe(double x, double *out);
+TLD_API int tld_sigmoid(double x, double *out);
+TLD_API int tld_sigmoid_safe(double x, double *out);
 
 /* Density at x of the normal distribution with mean mu and standard deviation
  * sigma (> 0). */
-EXTERN int tld_normal_pdf(double x, double mu, double sigma, double* p);
-
+TLD_API int tld_normal_pdf(double x, double mu, double sigma, double* p);
 
 /* Gaussian kernel density estimate of data[0..data_len-1], bandwidth sd * (3n/4)^(-1/5),
  * evaluated at the centres of n_steps equal bins spanning [min, max] of the data. *out
  * is a new n_steps x 2 galloc matrix, out[i][0] = x and out[i][1] = density; free with
  * gfree. */
-EXTERN int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out);
+TLD_API int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out);
 
 /* Weighted kernel density estimate: value data[i] seen cnt[i] (>= 0) times. The density
  * is evaluated at each data[i]: *out is a new data_len x 2 galloc matrix, out[i][0] =
  * data[i] and out[i][1] = density; free with gfree. */
-EXTERN int tld_kde_count_pdf(double *data,double* cnt, int data_len, double*** out);
-#undef BASIC_IMPORT
-#undef EXTERN
-
+TLD_API int tld_kde_count_pdf(double *data,double* cnt, int data_len, double*** out);
 
 #endif
 /* ---- src/stats/norm_quantile.h ---- */
 /* norm_quantile: quantile normalisation of the columns of a matrix. */
-#ifndef NORM_QUANTILE_H
-#define NORM_QUANTILE_H
+#ifndef TLD_STATS_NORM_QUANTILE_H
+#define TLD_STATS_NORM_QUANTILE_H
 
 
 /* Quantile-normalise, in place, the m columns of the n x m matrix data (data[i][j] is
  * row i, column j; e.g. from galloc(&data, n, m)). Afterwards every column has the same
  * distribution: the mean over columns of the sorted values. Tied values in a column
  * share the mean of their positions. NaN is an error. */
-tld_external int norm_quantile(double** data, int n, int m);
+TLD_API int norm_quantile(double** data, int n, int m);
 
 #endif
 /* ---- src/stats/auc.h ---- */
 /* auc: area under the ROC curve, and the best score threshold, for 0/1 labels and
  * real-valued scores. */
-#ifndef AUC_H
-#define AUC_H
-
+#ifndef TLD_STATS_AUC_H
+#define TLD_STATS_AUC_H
 
 
 /* ROC analysis of n samples: Y[i] is the label (1.0 positive; any other value in [0, 1]
  * negative), Y_hat[i] the score (higher means more likely positive; no NaN). Both
  * classes must occur. *ret is the AUC (trapezoids, tied scores form one step) and *t
  * the score nearest the (0, 1) corner of the curve: call Y_hat >= *t positive. */
-tld_external int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret);
-
+TLD_API int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret);
 
 /* tld_auc giving only the AUC (tld_auc_calculate) or only the threshold
  * (tld_auc_best_threshold). */
-tld_external int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret);
-tld_external int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold);
+TLD_API int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret);
+TLD_API int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold);
 #endif
 /* ---- src/logsum/tld-logsum.h ---- */
 /* logsum: arithmetic on probabilities stored as logarithms (log-sum-exp via a lookup
@@ -1196,17 +1118,17 @@ tld_external int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double 
 
 
 /* Fill logsum's lookup table. Optional (logsum does it on first use); thread-safe. */
-tld_external void init_logsum(void);
+TLD_API void init_logsum(void);
 
 /* log(exp(a) + exp(b)) for log-space values, from a table with steps of 0.001. NaN if
  * either is NaN; -INFINITY acts as log(0); returns max(a, b) when they differ by 15.7 or
  * more. */
-tld_external float logsum(const float a,const float b);
+TLD_API float logsum(const float a,const float b);
 
 /* 1 if a and b are equal up to a relative difference of FLT_EPSILON / DBL_EPSILON (an
  * absolute one when either is 0 or both are tiny), else 0. */
-tld_external int nearly_equal_float(float a, float b);
-tld_external int nearly_equal_double(double a, double b);
+TLD_API int nearly_equal_float(float a, float b);
+TLD_API int nearly_equal_double(double a, double b);
 
 /* TLSAFE_EQ(X, Y): nearly_equal_float or nearly_equal_double, chosen by the type of X
  * (float or double only). */
@@ -1234,7 +1156,7 @@ typedef struct kd_node {
         int n;
 } kd_node;
 
-struct kdyard;
+struct tld__kdyard;
 
 /* A k-d tree; create with kdtree_alloc, free with kdtree_free. Fields a caller may set:
  * fptr_cmp (distance, default kddist_euclidian) with the matching fptr_plane (default
@@ -1242,7 +1164,7 @@ struct kdyard;
  * 10000). The rest is internal. */
 typedef struct kdtree {
         kd_node* root;
-        struct kdyard* yard;
+        struct tld__kdyard* yard;
         int(*fptr_cmp)(double*, double*, int, double*);
         int(*fptr_plane)(double*, double*, int, double);
         int rebalance_at;
@@ -1255,68 +1177,68 @@ typedef struct kdtree {
 
 /* Allocate in *tree an empty tree for points of size (> 0) dimensions, using squared
  * Euclidean distance. Storage grows as points are added. Free with kdtree_free. */
-tld_external  int kdtree_alloc(kdtree **tree, int size);
+TLD_API  int kdtree_alloc(kdtree **tree, int size);
 
 /* Free the tree and all its points; NULL is ignored. */
-tld_external void kdtree_free(kdtree *t);
+TLD_API void kdtree_free(kdtree *t);
 
 /* Remove every point and keep the memory for reuse. */
-tld_external  int kdtree_reset(kdtree *t);
+TLD_API  int kdtree_reset(kdtree *t);
 
 /* Add n points x[i] of size doubles (size <= the length given to kdtree_alloc) with
  * ids[i] and rebuild the tree balanced. The points are copied; x and ids are not
  * changed. On failure (no memory) the tree is unchanged. */
-tld_external  int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size);
+TLD_API  int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size);
 
 /* Insert one point x of size doubles with id (copied). Every rebalance_at insertions
  * the tree is rebuilt if its depth is more than 10 levels off the balanced depth. On
  * failure (no memory) the tree is unchanged. */
-tld_external  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
+TLD_API  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
 
 /* Rebuild the tree balanced from the points it holds (allocates nothing). */
-tld_external  int kdtree_rebalance(kdtree *t);
+TLD_API  int kdtree_rebalance(kdtree *t);
 
 /* The id of the stored point nearest to x (a vector of the tree's length) into *id.
  * FAIL (with an error) when the tree is empty. */
-tld_external  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
+TLD_API  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
 
 /* Brute force: the id of the stored point nearest to x, comparing every point; FAIL
  * (with an error) when the tree is empty. For checking kdtree_nn_search. */
-tld_external  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
+TLD_API  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
 
 /* Squared Euclidean distance between a and b (vec_len doubles) into *dist. The default
  * fptr_cmp. */
-tld_external  int kddist_euclidian(double *a, double *b, int vec_len, double *dist);
+TLD_API  int kddist_euclidian(double *a, double *b, int vec_len, double *dist);
 
 /* OK when the squared distance between a and b along dimension cd is below min_dist
  * (the far side of the splitting plane may hold a nearer point), FAIL otherwise. The
  * default fptr_plane. */
-tld_external  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
+TLD_API  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
 
 #endif
 /* ---- src/tpool/tpool.h ---- */
 /* tpool: a pthread pool. Jobs func(pool, data, start, end, thread_id) are queued with
  * tld_thread_pool_add and run in FIFO order by a fixed set of worker threads; optional
  * time limit and a global stop flag. */
-#ifndef TPOOL_H
-#define TPOOL_H
+#ifndef TLD_TPOOL_H
+#define TLD_TPOOL_H
 #include <pthread.h>
 #include <stdint.h>
 #include <stdatomic.h>
-struct work_queue;
+struct tld__work_queue;
 
 /* Global stop flag. The library installs no signal handlers: a program that wants to
  * stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself; workers
  * check it between jobs and stop, dropping queued jobs. The mutex and condition are not
  * used by tld; they are there for programs that want to sleep until the flag is set. */
-tld_external atomic_int tld_global_stop_run;
-tld_external pthread_mutex_t tld_global_cond_mutex;
-tld_external  pthread_cond_t tld_global_cond;
+TLD_API atomic_int tld_global_stop_run;
+TLD_API pthread_mutex_t tld_global_cond_mutex;
+TLD_API  pthread_cond_t tld_global_cond;
 
 /* A thread pool; create with tld_thread_pool_create, free with tld_thread_pool_free.
  * The fields are internal (n_threads may be read). */
 typedef struct tld_thread_pool {
-        struct work_queue* work;
+        struct tld__work_queue* work;
         int n_threads;
         int n_active_threads;
         int n_jobs_processed;
@@ -1342,25 +1264,25 @@ typedef struct tld_thread_pool {
 /* Start a pool of n_threads workers (at least 2) in *pool. max_time is a limit in
  * minutes since creation, checked after each job: once passed, the pool stops and
  * queued jobs are dropped. 0 means no limit. */
-tld_external int  tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads);
+TLD_API int  tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads);
 
 /* Queue a job: a worker calls func_ptr(p, data, start, end, thread_id), thread_id in
  * [0, n_threads). start and end are passed through (e.g. a slice of an index range).
  * Thread-safe; may be called from inside a job. Once the pool has stopped (time limit
  * or tld_global_stop_run) the job is refused: FAIL without a message, and data is still
  * the caller's to free. */
-tld_external int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
+TLD_API int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
 
 /* Block until the queue is empty and no job is running (after a stop: until every
  * worker has exited). OK when every job added to the pool has run; FAIL, without a
  * message, when a stop refused or abandoned jobs (they did not run, so whatever they
  * would have done or freed did not happen). A running pool can take more jobs
  * afterwards. NULL is ignored (OK). */
-tld_external int tld_thread_pool_wait(tld_thread_pool *p);
+TLD_API int tld_thread_pool_wait(tld_thread_pool *p);
 
 /* Run every job still queued, then stop and join the workers and free the pool. NULL
  * is ignored. */
-tld_external void tld_thread_pool_free(tld_thread_pool *p);
+TLD_API void tld_thread_pool_free(tld_thread_pool *p);
 
 #endif
 
@@ -1379,44 +1301,44 @@ tld_external void tld_thread_pool_free(tld_thread_pool *p);
 #include <time.h>
 #include <unistd.h>
 
-#define TYPE_MARGIN 8
-#define MESSAGE_MARGIN 22
+#define TLD__TYPE_MARGIN 8
+#define TLD__MESSAGE_MARGIN 22
 
-#define AT __FILE__ " line " tld_tostring(__LINE__)
+#define TLD__AT __FILE__ " line " TLD__TOSTRING(__LINE__)
 
-tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *file, int line,const char *format,  va_list argp);
+static void tld__vlog(uint8_t type,FILE* f_ptr,const char *file, int line,const char *format,  va_list argp);
 
-tld_internal int get_time(char* time_ptr, int size);
+static int tld__get_time(char* time_ptr, int size);
 
-void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
+void tld__vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *format,  va_list argp)
 {
         int saved_errno = errno;
         char time_string[BUFSIZ];
         int col = (f_ptr == stderr) && tld_term_color();
-        if(type != MESSAGE_TYPE_ERROR && tld_verbosity() < 1){
+        if(type != TLD__MSG_ERROR && tld_verbosity() < 1){
                 errno = saved_errno;
                 return;
         }
 
-        if(get_time(time_string,BUFSIZ) != OK){
+        if(tld__get_time(time_string,BUFSIZ) != OK){
                 fprintf(stderr,"notime");
         }
-        fprintf(f_ptr,"%*s: ",MESSAGE_MARGIN,time_string);
+        fprintf(f_ptr,"%*s: ",TLD__MESSAGE_MARGIN,time_string);
         switch (type) {
-        case MESSAGE_TYPE_MSG: {
-                fprintf(f_ptr,"%*s: ",TYPE_MARGIN,"LOG ");
+        case TLD__MSG_LOG: {
+                fprintf(f_ptr,"%*s: ",TLD__TYPE_MARGIN,"LOG ");
                 vfprintf(f_ptr, format, argp);
                 fprintf(f_ptr,"\n");
                 break;
         }
-        case MESSAGE_TYPE_WARNING: {
-                fprintf(f_ptr,col ? "\033[1;33m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"WARNING ");
+        case TLD__MSG_WARNING: {
+                fprintf(f_ptr,col ? "\033[1;33m%*s\033[0m: " : "%*s: ",TLD__TYPE_MARGIN,"WARNING ");
                 vfprintf(f_ptr, format, argp);
                 fprintf(f_ptr,"\n");
                 break;
         }
-        case MESSAGE_TYPE_ERROR: {
-                fprintf(f_ptr,col ? "\033[1;31m%*s\033[0m: " : "%*s: ",TYPE_MARGIN,"ERROR ");
+        case TLD__MSG_ERROR: {
+                fprintf(f_ptr,col ? "\033[1;31m%*s\033[0m: " : "%*s: ",TLD__TYPE_MARGIN,"ERROR ");
                 vfprintf(f_ptr, format, argp);
                 if(file){
                         fprintf(f_ptr," (%s line %d)\n",file,line);
@@ -1434,7 +1356,7 @@ void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *form
         errno = saved_errno;
 }
 
-int get_time(char* time_ptr, int size)
+int tld__get_time(char* time_ptr, int size)
 {
 
         struct tm newtime;
@@ -1444,9 +1366,9 @@ int get_time(char* time_ptr, int size)
         localtime_r(&ltime, &newtime);
 
         if(!strftime(time_ptr, size, "[%F %H:%M:%S] ", &newtime)){
-                fprintf(stderr,"%*s: ",TYPE_MARGIN,"ERROR ");
+                fprintf(stderr,"%*s: ",TLD__TYPE_MARGIN,"ERROR ");
                 fprintf(stderr, "Could not get the time");
-                fprintf(stderr," (%s)\n",AT);
+                fprintf(stderr," (%s)\n",TLD__AT);
                 goto ERROR;
         }
         return OK;
@@ -1454,19 +1376,19 @@ ERROR:
         return FAIL;
 }
 
-void tld_message(uint8_t type, const char *format, ...)
+void tld__message(uint8_t type, const char *format, ...)
 {
         va_list argp;
         va_start(argp, format);
-        vlog(type,stderr,NULL,0,format, argp);
+        tld__vlog(type,stderr,NULL,0,format, argp);
         va_end(argp);
 }
 
-void tld_message_at(uint8_t type, const char *file, int line, const char *format, ...)
+void tld__message_at(uint8_t type, const char *file, int line, const char *format, ...)
 {
         va_list argp;
         va_start(argp, format);
-        vlog(type,stderr,file,line,format, argp);
+        tld__vlog(type,stderr,file,line,format, argp);
         va_end(argp);
 }
 
@@ -1492,7 +1414,7 @@ int tld_term_color(void)
         return isatty(fileno(stderr));
 }
 
-void tld_section(const char *format, ...)
+void tld__section(const char *format, ...)
 {
         int saved_errno = errno;
         char title[256];
@@ -1526,7 +1448,7 @@ void tld_section(const char *format, ...)
         errno = saved_errno;
 }
 
-void tld_kv(const char *key, const char *format, ...)
+void tld__kv(const char *key, const char *format, ...)
 {
         int saved_errno = errno;
         va_list argp;
@@ -1547,7 +1469,7 @@ void tld_kv(const char *key, const char *format, ...)
         errno = saved_errno;
 }
 
-void tld_ok(const char *format, ...)
+void tld__ok(const char *format, ...)
 {
         int saved_errno = errno;
         va_list argp;
@@ -1564,7 +1486,7 @@ void tld_ok(const char *format, ...)
         errno = saved_errno;
 }
 
-void tld_debug(const char *format, ...)
+void tld__debug(const char *format, ...)
 {
         int saved_errno = errno;
         va_list argp;
@@ -1624,6 +1546,10 @@ void tld_progress(long done, long total, const char *label)
         fflush(stderr);
         errno = saved_errno;
 }
+
+#undef TLD__AT
+#undef TLD__MESSAGE_MARGIN
+#undef TLD__TYPE_MARGIN
 /* ---- src/alloc/tld-alloc.c ---- */
 #include <stdlib.h>
 
@@ -1633,16 +1559,16 @@ typedef struct {
         uint32_t dim1 : 31;
         uint32_t dim2;
         void* ptr;
-} __attribute__((aligned(ALIGN16))) mem_i;
+} __attribute__((aligned(ALIGN16))) tld__mem_info;
 #undef ALIGN16
 
-#define tld_mem_shift sizeof(mem_i)
+#define TLD__MEM_SHIFT sizeof(tld__mem_info)
 
 int get_dim1(void* ptr,uint32_t* d)
 {
         if(ptr){
-                mem_i* h = NULL;
-                h = (mem_i*) ( (size_t)ptr - tld_mem_shift);
+                tld__mem_info* h = NULL;
+                h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
                 *d = h->dim1;
                 return OK;
         }
@@ -1652,21 +1578,21 @@ int get_dim1(void* ptr,uint32_t* d)
 int get_dim2(void* ptr,uint32_t* d)
 {
         if(ptr){
-                mem_i* h = NULL;
-                h = (mem_i*) ( (size_t)ptr - tld_mem_shift);
+                tld__mem_info* h = NULL;
+                h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
                 *d = h->dim2;
                 return OK;
         }
         return FAIL;
 }
 
-void tld_free(void* p)
+void tld__gfree(void* p)
 {
-        mem_i* h = NULL;
+        tld__mem_info* h = NULL;
         if(p == NULL){
                 return;
         }
-        h = (mem_i*) ( (size_t)p - tld_mem_shift);
+        h = (tld__mem_info*) ( (size_t)p - TLD__MEM_SHIFT);
         if(h->ptr){
                 MFREE(h->ptr);
         }
@@ -1683,23 +1609,23 @@ ERROR:
 
 void* tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2)
 {
-        mem_i* h = NULL;
+        tld__mem_info* h = NULL;
         void* tmp = NULL;
 
         ASSERT(dim1 >= 1,"DIM1 is too small: %d",dim1);
         ASSERT(dim2 >= 0,"DIM2 is negative: %d",dim2);
         ASSERT(tsize > 0 && rsize > 0,"Element size is 0");
         /* All sizes in size_t; refuse requests whose byte count does not fit. */
-        ASSERT((size_t)dim1 <= (SIZE_MAX - tld_mem_shift) / rsize,
+        ASSERT((size_t)dim1 <= (SIZE_MAX - TLD__MEM_SHIFT) / rsize,
                "Allocation of %d x %zu bytes is too large", dim1, rsize);
         if(dim2){
                 ASSERT((size_t)dim1 <= SIZE_MAX / (size_t)dim2 / tsize,
                        "Allocation of %d x %d x %zu bytes is too large", dim1, dim2, tsize);
         }
 
-        MMALLOC(tmp, (size_t)dim1 * rsize + tld_mem_shift);
+        MMALLOC(tmp, (size_t)dim1 * rsize + TLD__MEM_SHIFT);
 
-        h = (mem_i*)(tmp);
+        h = (tld__mem_info*)(tmp);
         h->aligned = 0u;
         h->dim1  = dim1;
         h->dim2  = dim2;
@@ -1707,7 +1633,7 @@ void* tld__galloc(size_t rsize, size_t tsize, int dim1, int dim2)
         if(dim2){
                 MMALLOC(h->ptr, (size_t)dim1 * (size_t)dim2 * tsize);
         }
-        return (void *)((size_t)tmp + tld_mem_shift);
+        return (void *)((size_t)tmp + TLD__MEM_SHIFT);
 ERROR:
         MFREE(tmp);
         return NULL;
@@ -1716,22 +1642,24 @@ ERROR:
 int tld__galloc_data(void* ptr,void** d)
 {
         if(ptr){
-                mem_i* h = NULL;
-                h = (mem_i*) ( (size_t)ptr - tld_mem_shift);
+                tld__mem_info* h = NULL;
+                h = (tld__mem_info*) ( (size_t)ptr - TLD__MEM_SHIFT);
                 *d = h->ptr;
                 return OK;
         }
         return FAIL;
 }
+
+#undef TLD__MEM_SHIFT
 /* ---- src/string/str.c ---- */
 
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
-tld_internal int tld_strbuf_resize(tld_strbuf *b, int new_size);
-tld_internal int tld_strbuf_ensure_size(tld_strbuf *b, size_t size);
-tld_internal ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p);
+static int tld__strbuf_resize(tld_strbuf *b, int new_size);
+static int tld__strbuf_ensure_size(tld_strbuf *b, size_t size);
+static ptrdiff_t tld__strbuf_offset(const tld_strbuf *b, const char *p);
 
 int tld_strbuf_alloc(tld_strbuf **buffer, int size)
 {
@@ -1775,7 +1703,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_strbuf_resize(tld_strbuf *b, int new_size)
+int tld__strbuf_resize(tld_strbuf *b, int new_size)
 {
         uint8_t* tmp = NULL;
         if (new_size > b->alloc_len){
@@ -1798,7 +1726,7 @@ ERROR:
 
 /* Make room for size more bytes and the NUL. Sizes are size_t so nothing wraps; a
    buffer cannot grow past INT32_MAX bytes (len and alloc_len are int32_t). */
-int tld_strbuf_ensure_size(tld_strbuf *b, size_t size)
+int tld__strbuf_ensure_size(tld_strbuf *b, size_t size)
 {
         ASSERT(b->len >= 0 && size <= (size_t)INT32_MAX - (size_t)b->len - 1,
                "String buffer would exceed %d bytes", INT32_MAX);
@@ -1811,7 +1739,7 @@ int tld_strbuf_ensure_size(tld_strbuf *b, size_t size)
                 if(grow > (size_t)INT32_MAX){
                         grow = (size_t)INT32_MAX;
                 }
-                RUN(tld_strbuf_resize(b, (int)grow));
+                RUN(tld__strbuf_resize(b, (int)grow));
         }
         return OK;
 ERROR:
@@ -1837,7 +1765,7 @@ int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s)
                 return OK;
         }
         /* room for s->len bytes in total; t is unchanged if this fails */
-        RUN(tld_strbuf_ensure_size(t, s->len > t->len ? (size_t)(s->len - t->len) : 0));
+        RUN(tld__strbuf_ensure_size(t, s->len > t->len ? (size_t)(s->len - t->len) : 0));
 
         memcpy(t->str, s->str, s->len);
         t->len = s->len;
@@ -1852,7 +1780,7 @@ int tld_append(tld_strbuf *b, const char *content)
         size_t size = strlen(content);
         ptrdiff_t off = tld__strbuf_offset(b, content);
 
-        RUN(tld_strbuf_ensure_size(b, size));
+        RUN(tld__strbuf_ensure_size(b, size));
         if(off >= 0){
                 content = TLD_STR(b) + off;
         }
@@ -1867,7 +1795,7 @@ ERROR:
 
 int tld_append_char(tld_strbuf *b, char c)
 {
-        RUN(tld_strbuf_ensure_size(b, 1));
+        RUN(tld__strbuf_ensure_size(b, 1));
         b->str[b->len] = c;
         b->len++;
         b->str[b->len] = 0;
@@ -1882,7 +1810,7 @@ int tld_prepend(tld_strbuf *b, const char *content)
         size_t size = strlen(content);
         ptrdiff_t off = tld__strbuf_offset(b, content);
 
-        RUN(tld_strbuf_ensure_size(b, size));
+        RUN(tld__strbuf_ensure_size(b, size));
         memmove(b->str + size, b->str, b->len);
         if(off >= 0){
                 /* the text came from b and has just moved size bytes right */
@@ -1902,7 +1830,7 @@ ERROR:
 #include <dirent.h>
 #include <errno.h>
 
-#define MAX_CMD_LEN 16384
+#define TLD__MAX_CMD_LEN 16384
 
 int tld_file_exists(const char* name)
 {
@@ -2094,13 +2022,14 @@ ERROR:
         return FAIL;
 }
 
+#undef TLD__MAX_CMD_LEN
 /* ---- src/timing/tld-timing.c ---- */
 #include <sys/time.h>
 #include <stdio.h>
 
-static int timeval_subtract(struct timeval *result, struct timeval end, struct timeval start);
+static int tld__timeval_subtract(struct timeval *result, struct timeval end, struct timeval start);
 
-int timeval_subtract(struct timeval *result, struct timeval end, struct timeval start)
+int tld__timeval_subtract(struct timeval *result, struct timeval end, struct timeval start)
 {
         if (start.tv_usec < end.tv_usec) {
                 int nsec = (end.tv_usec - start.tv_usec) / 1000000 + 1;
@@ -2119,7 +2048,7 @@ int timeval_subtract(struct timeval *result, struct timeval end, struct timeval 
         return end.tv_sec < start.tv_sec;
 }
 
-void set_exec_time(int end)
+void tld__timer(int end)
 {
         static struct timeval time_start;
         struct timeval time_end;
@@ -2127,7 +2056,7 @@ void set_exec_time(int end)
 
         if (end) {
                 gettimeofday(&time_end, NULL);
-                if (timeval_subtract(&time_diff, time_end, time_start) == 0) {
+                if (tld__timeval_subtract(&time_diff, time_end, time_start) == 0) {
                         if (end == 1)
                                 fprintf(stdout,"\nexec time: %1.2fs\n",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
                         else if (end == 2)
@@ -2143,7 +2072,7 @@ void set_exec_time(int end)
 #define BIT_SHIFT 6
 #define BIT_MASK 0x3F
 
-static inline int _tl_bitfield_popcount_branchless(uint64_t x);
+static inline int tld__bitfield_popcount(uint64_t x);
 /* Here is a piece of code to calculate the hamming distance
         between two bitfields using the popcount instruction
         available on most modern CPUs
@@ -2241,7 +2170,7 @@ ERROR:
 }
 
 /* here is an alternative implementation of popcountll using branchless code*/
-int _tl_bitfield_popcount_branchless(uint64_t x)
+int tld__bitfield_popcount(uint64_t x)
 {
         x = x - ((x >> 1) & 0x5555555555555555ULL);
         x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);
@@ -2262,14 +2191,14 @@ int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int3
         int32_t count = 0;
         if(mask == NULL){
                 for(int i = 0; i <  len; i++){
-                        count += _tl_bitfield_popcount_branchless(b1->m[i] ^ b2->m[i]);
+                        count += tld__bitfield_popcount(b1->m[i] ^ b2->m[i]);
                 }
         }else{
                 if(mask->len != b1->len || mask->alloc_len < len){
                         ERROR_MSG("mask and bitfields have different lengths");
                 }
                 for(int i = 0; i <  len; i++){
-                        count += _tl_bitfield_popcount_branchless((b1->m[i] ^ b2->m[i]) & mask->m[i]);
+                        count += tld__bitfield_popcount((b1->m[i] ^ b2->m[i]) & mask->m[i]);
                 }
         }
         *dist = count;
@@ -2289,8 +2218,8 @@ ERROR:
 #define LOAD_FACTOR_THRESHOLD 0.75
 
 /* ---- src/hash/hash_struct.h ---- */
-#ifndef HASH_STRUCT_H
-#define HASH_STRUCT_H
+#ifndef TLD_HASH_STRUCT_H
+#define TLD_HASH_STRUCT_H
 
 typedef struct tld_hash_entry {
         tld_strbuf* key;
@@ -2310,14 +2239,14 @@ typedef struct tld_hash {
 
 #endif
 
-tld_internal  int tld_hash_entry_alloc(tld_hash_entry **entry);
-tld_internal void tld_hash_entry_free(tld_hash_entry *n);
+static  int tld__hash_entry_alloc(tld_hash_entry **entry);
+static void tld__hash_entry_free(tld_hash_entry *n);
 
-tld_internal unsigned int fnv1a_hash(const char *str, int table_size);
-tld_internal int tld_hash_resize(tld_hash *h);
+static unsigned int tld__hash_fnv1a(const char *str, int table_size);
+static int tld__hash_resize(tld_hash *h);
 
 /* The smallest table size in the prime list that is larger than size; 0 if none is. */
-static int hash_next_size(int size)
+static int tld__hash_next_size(int size)
 {
         static const int prime_sizes[] = {
                 53, 97, 193, 389, 769, 1543, 3079, 6151,
@@ -2340,7 +2269,7 @@ int tld_hash_alloc(tld_hash **hash, int size)
         int new_size = 0;
         MMALLOC(h, sizeof(tld_hash));
 
-        new_size = hash_next_size(size);
+        new_size = tld__hash_next_size(size);
         ASSERT(new_size > 0, "Requested hash size %d is too large", size);
 
         /* table_size stays 0 until the table exists, so tld_hash_free on the
@@ -2367,7 +2296,7 @@ ERROR:
         return FAIL;
 }
 
-void tld_hash_entry_free(tld_hash_entry *n)
+void tld__hash_entry_free(tld_hash_entry *n)
 {
         if(n){
                 tld_strbuf_free(n->key);
@@ -2383,7 +2312,7 @@ void tld_hash_free(tld_hash *h)
                         tld_hash_entry* entry = h->table[i];
                         while(entry){
                                 tld_hash_entry* next = entry->next;
-                                tld_hash_entry_free(entry);
+                                tld__hash_entry_free(entry);
                                 entry = next;
                         }
                 }
@@ -2393,7 +2322,7 @@ void tld_hash_free(tld_hash *h)
         }
 }
 
-static unsigned int fnv1a_hash(const char *str, int table_size)
+static unsigned int tld__hash_fnv1a(const char *str, int table_size)
 {
         unsigned int hash = 2166136261u;
         int c;
@@ -2404,7 +2333,7 @@ static unsigned int fnv1a_hash(const char *str, int table_size)
         return hash % table_size;
 }
 
-int tld_hash_entry_alloc(tld_hash_entry **entry)
+int tld__hash_entry_alloc(tld_hash_entry **entry)
 {
         tld_hash_entry* e = NULL;
         MMALLOC(e, sizeof(tld_hash_entry));
@@ -2416,15 +2345,15 @@ int tld_hash_entry_alloc(tld_hash_entry **entry)
         *entry = e;
         return OK;
 ERROR:
-        tld_hash_entry_free(e);
+        tld__hash_entry_free(e);
         return FAIL;
 }
 
-int tld_hash_resize(tld_hash *h)
+int tld__hash_resize(tld_hash *h)
 {
         tld_hash_entry **new_table = NULL;
 
-        int new_size = hash_next_size(h->table_size);
+        int new_size = tld__hash_next_size(h->table_size);
         if (new_size == 0) {
                 /* past the prime list: double the size, if that still fits in an int */
                 ASSERT(h->table_size <= (INT_MAX - 1) / 2, "Hash table is too large to grow");
@@ -2444,7 +2373,7 @@ int tld_hash_resize(tld_hash *h)
                 tld_hash_entry *entry = h->table[i];
                 while (entry) {
                         tld_hash_entry *next = entry->next;
-                        unsigned int new_index = fnv1a_hash(TLD_STR(entry->key), new_size);
+                        unsigned int new_index = tld__hash_fnv1a(TLD_STR(entry->key), new_size);
                         entry->next = new_table[new_index];
                         new_table[new_index] = entry;
                         entry = next;
@@ -2497,16 +2426,15 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
                 allocated = 1;
         }
 
-
         ASSERT(h != NULL, "No Map");
 
         double load_factor = (double)h->n / (double)h->table_size;
 
         if (load_factor > LOAD_FACTOR_THRESHOLD) {
-                RUN(tld_hash_resize(h));
+                RUN(tld__hash_resize(h));
         }
 
-        unsigned int index = fnv1a_hash(key, h->table_size);
+        unsigned int index = tld__hash_fnv1a(key, h->table_size);
 
         /* Check if key already exists */
         tld_hash_entry* current = h->table[index];
@@ -2519,7 +2447,7 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
         }
 
         /* Key does not exist, create a new entry */
-        RUN(tld_hash_entry_alloc(&new_entry));
+        RUN(tld__hash_entry_alloc(&new_entry));
 
         RUN(tld_append(new_entry->key, key));
         RUN(tld_append(new_entry->value, val));
@@ -2530,7 +2458,7 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
         *hash = h;
         return OK;
 ERROR:
-        tld_hash_entry_free(new_entry);
+        tld__hash_entry_free(new_entry);
         /* a table allocated by this call is not handed back on failure */
         if(allocated){
                 tld_hash_free(h);
@@ -2543,7 +2471,7 @@ int tld_hash_get(tld_hash *h, const char *key, const char **val)
         ASSERT(h != NULL, "No hash");
         ASSERT(key != NULL, "No key");
 
-        unsigned int index = fnv1a_hash(key, h->table_size);
+        unsigned int index = tld__hash_fnv1a(key, h->table_size);
         tld_hash_entry* entry = h->table[index];
 
         while (entry) {
@@ -2565,7 +2493,7 @@ int tld_hash_del(tld_hash *h, const char *key)
         ASSERT(h != NULL, "No hash");
         ASSERT(key != NULL, "No key");
 
-        unsigned int index = fnv1a_hash(key, h->table_size);
+        unsigned int index = tld__hash_fnv1a(key, h->table_size);
         tld_hash_entry* entry = h->table[index];
         tld_hash_entry* prev = NULL;
 
@@ -2576,7 +2504,7 @@ int tld_hash_del(tld_hash *h, const char *key)
                         }else{
                                 h->table[index] = entry->next;
                         }
-                        tld_hash_entry_free(entry);
+                        tld__hash_entry_free(entry);
                         h->n--;
                         return OK;
                 }
@@ -2595,7 +2523,7 @@ int tld_hash_rename(tld_hash *h, const char *key, const char *new_key) {
         ASSERT(key != NULL, "No key");
         ASSERT(new_key != NULL, "No new key");
 
-        unsigned int index = fnv1a_hash(key, h->table_size);
+        unsigned int index = tld__hash_fnv1a(key, h->table_size);
         tld_hash_entry* entry = h->table[index];
 
         while (entry) {
@@ -2656,7 +2584,6 @@ int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value)
         /* Move to the next entry in the current linked list. */
         h->cur_entry = h->cur_entry->next;
 
-
         /* If the current entry is NULL, move to the next index in the table. */
         while(h->cur_entry == NULL && h->cur_index + 1 < h->table_size){
                 h->cur_index++;
@@ -2672,7 +2599,6 @@ ERROR:
 /* ---- src/json/tld-json_mem.c ---- */
 
 
-#define TLD_JSON_MEM_IMPORT
 
 int tld_json_obj_alloc(tld_json_obj **node)
 {
@@ -2898,7 +2824,7 @@ void tld_json_val_free(tld_json_val* n)
 }
 
 /* Release whatever v owns and mark it empty. */
-static void tld_json_val_clear(tld_json_val *v)
+static void tld__json_val_clear(tld_json_val *v)
 {
         switch (v->type) {
         case TLD_JSON_STR:
@@ -2961,7 +2887,7 @@ int tld_json_val_copy(tld_json_val *t, tld_json_val *s)
         case TLD_JSON_UNDEF:
                 break;
         }
-        tld_json_val_clear(t);
+        tld__json_val_clear(t);
         *t = tmp;
         return OK;
 ERROR:
@@ -2974,16 +2900,28 @@ ERROR:
 #include <stdlib.h>
 #include <string.h>
 
+/* ---- src/json/tld-json_misc.h ---- */
+/* json misc: type guessing for unquoted text (used by JS). */
+#ifndef TLD_JSON_MISC_H
+#define TLD_JSON_MISC_H
 
-#define TLD_JSON_IMPORT
+
+/* The JSON type the len characters at s would get from JS, into *type: TLD_JSON_INT or
+ * TLD_JSON_DBL when the whole text is a number ([+-]digits[.digits][e[+-]digits]),
+ * TLD_JSON_BOOL_TRUE / _FALSE for true, True, TRUE / false, False, FALSE, otherwise
+ * TLD_JSON_STR (also for empty text). Always OK. */
+static int tld__json_detect_type(char*s, int len, tld_json_type* type);
+
+#endif
+
 
 /* Maximum nesting depth of objects / arrays accepted by the parser. */
-#define TLD_JSON_MAX_DEPTH 512
+#define TLD__JSON_MAX_DEPTH 512
 
 /* Key under which tld_json_parse stores a top-level array. */
-#define TLD_JSON_TOP_LEVEL_ARR "Top Level Arr"
+#define TLD__JSON_TOP_LEVEL_ARR "Top Level Arr"
 
-typedef struct json_parser {
+typedef struct tld__json_parser {
         const uint8_t* s;
         int len;
         int pos;
@@ -2993,50 +2931,50 @@ typedef struct json_parser {
         int b_len;
         int b_alloc;
         const char* err;
-} json_parser;
+} tld__json_parser;
 
-static int tld_json_dump_val(tld_json_val *val, tld_strbuf *b);
-static int tld_json_dump_str(tld_strbuf *b, const uint8_t *s, int len);
-static int tld_json_add_indent(tld_strbuf *b, int indent);
-static int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj *res);
+static int tld__json_dump_val(tld_json_val *val, tld_strbuf *b);
+static int tld__json_dump_str(tld_strbuf *b, const uint8_t *s, int len);
+static int tld__json_add_indent(tld_strbuf *b, int indent);
+static int tld__json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj *res);
 
-static int add_val(char *buf, int len, tld_json_val *val);
-static int json_val_set_str(tld_json_val *v, const char *s, int len);
-static void json_val_set_int64(tld_json_val *v, long long x);
-static int json_val_from_decoration(tld_json_val *v, tld_json_decoration *d);
+static int tld__json_add_val(char *buf, int len, tld_json_val *val);
+static int tld__json_val_set_str(tld_json_val *v, const char *s, int len);
+static void tld__json_val_set_int64(tld_json_val *v, long long x);
+static int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d);
 
-static int search(tld_json_obj *n, char *key, tld_json_obj* r);
+static int tld__json_search(tld_json_obj *n, char *key, tld_json_obj* r);
 
 /* parser */
-static int jp_fail(json_parser *p, const char *msg);
-static void jp_ws(json_parser *p);
-static int jp_push(json_parser *p, uint8_t c);
-static int jp_push_utf8(json_parser *p, uint32_t cp);
-static int jp_hex4(json_parser *p, uint32_t *cp);
-static int jp_string(json_parser *p);
-static int jp_number(json_parser *p, tld_json_val *v);
-static int jp_literal(json_parser *p, const char *lit);
-static int jp_value(json_parser *p, tld_json_val *v);
-static int jp_obj(json_parser *p, tld_json_obj **out);
-static int jp_arr(json_parser *p, tld_json_arr **out);
+static int tld__jp_fail(tld__json_parser *p, const char *msg);
+static void tld__jp_ws(tld__json_parser *p);
+static int tld__jp_push(tld__json_parser *p, uint8_t c);
+static int tld__jp_push_utf8(tld__json_parser *p, uint32_t cp);
+static int tld__jp_hex4(tld__json_parser *p, uint32_t *cp);
+static int tld__jp_string(tld__json_parser *p);
+static int tld__jp_number(tld__json_parser *p, tld_json_val *v);
+static int tld__jp_literal(tld__json_parser *p, const char *lit);
+static int tld__jp_value(tld__json_parser *p, tld_json_val *v);
+static int tld__jp_obj(tld__json_parser *p, tld_json_obj **out);
+static int tld__jp_arr(tld__json_parser *p, tld_json_arr **out);
 
 /* path getters */
-static int json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out);
+static int tld__json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out);
 
-static tld_json_obj* tld_json_obj_add_val(tld_json_obj *obj, char* key, char* val);
-static tld_json_obj* tld_json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val);
-static tld_json_obj *tld_json_obj_add_arr(tld_json_obj *obj, char *key, tld_json_arr *val);
-static tld_json_obj *tld_json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d);
-static tld_json_arr* tld_json_arr_add_val(tld_json_arr *arr, char* val);
-static tld_json_arr* tld_json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val);
-static tld_json_arr *tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj *val);
-static tld_json_arr *tld_json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d);
+static tld_json_obj* tld__json_obj_add_val(tld_json_obj *obj, char* key, char* val);
+static tld_json_obj* tld__json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val);
+static tld_json_obj *tld__json_obj_add_arr(tld_json_obj *obj, char *key, tld_json_arr *val);
+static tld_json_obj *tld__json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d);
+static tld_json_arr* tld__json_arr_add_val(tld_json_arr *arr, char* val);
+static tld_json_arr* tld__json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val);
+static tld_json_arr *tld__json_arr_add_obj(tld_json_arr *arr, tld_json_obj *val);
+static tld_json_arr *tld__json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d);
 
 /* ------------------------------------------------------------------ */
 /* Parser: recursive descent directly over the input text.             */
 /* ------------------------------------------------------------------ */
 
-int jp_fail(json_parser *p, const char *msg)
+int tld__jp_fail(tld__json_parser *p, const char *msg)
 {
         if(p->err == NULL){
                 p->err = msg;
@@ -3044,7 +2982,7 @@ int jp_fail(json_parser *p, const char *msg)
         return FAIL;
 }
 
-void jp_ws(json_parser *p)
+void tld__jp_ws(tld__json_parser *p)
 {
         while(p->pos < p->len){
                 uint8_t c = p->s[p->pos];
@@ -3058,7 +2996,7 @@ void jp_ws(json_parser *p)
 
 /* Append one byte to the scratch buffer, always leaving room for a
    terminating 0. */
-int jp_push(json_parser *p, uint8_t c)
+int tld__jp_push(tld__json_parser *p, uint8_t c)
 {
         if(p->b_len + 1 >= p->b_alloc){
                 int new_alloc = p->b_alloc + p->b_alloc / 2 + 16;
@@ -3072,33 +3010,33 @@ ERROR:
         return FAIL;
 }
 
-int jp_push_utf8(json_parser *p, uint32_t cp)
+int tld__jp_push_utf8(tld__json_parser *p, uint32_t cp)
 {
         if(cp < 0x80){
-                RUN(jp_push(p, (uint8_t)cp));
+                RUN(tld__jp_push(p, (uint8_t)cp));
         }else if(cp < 0x800){
-                RUN(jp_push(p, (uint8_t)(0xC0 | (cp >> 6))));
-                RUN(jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0xC0 | (cp >> 6))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
         }else if(cp < 0x10000){
-                RUN(jp_push(p, (uint8_t)(0xE0 | (cp >> 12))));
-                RUN(jp_push(p, (uint8_t)(0x80 | ((cp >> 6) & 0x3F))));
-                RUN(jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0xE0 | (cp >> 12))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | ((cp >> 6) & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
         }else{
-                RUN(jp_push(p, (uint8_t)(0xF0 | (cp >> 18))));
-                RUN(jp_push(p, (uint8_t)(0x80 | ((cp >> 12) & 0x3F))));
-                RUN(jp_push(p, (uint8_t)(0x80 | ((cp >> 6) & 0x3F))));
-                RUN(jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0xF0 | (cp >> 18))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | ((cp >> 12) & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | ((cp >> 6) & 0x3F))));
+                RUN(tld__jp_push(p, (uint8_t)(0x80 | (cp & 0x3F))));
         }
         return OK;
 ERROR:
         return FAIL;
 }
 
-int jp_hex4(json_parser *p, uint32_t *cp)
+int tld__jp_hex4(tld__json_parser *p, uint32_t *cp)
 {
         uint32_t v = 0;
         if(p->pos + 4 > p->len){
-                return jp_fail(p, "truncated \\u escape");
+                return tld__jp_fail(p, "truncated \\u escape");
         }
         for(int i = 0; i < 4; i++){
                 uint8_t c = p->s[p->pos + i];
@@ -3110,7 +3048,7 @@ int jp_hex4(json_parser *p, uint32_t *cp)
                 }else if(c >= 'A' && c <= 'F'){
                         v |= (uint32_t)(c - 'A' + 10);
                 }else{
-                        return jp_fail(p, "invalid hex digit in \\u escape");
+                        return tld__jp_fail(p, "invalid hex digit in \\u escape");
                 }
         }
         p->pos += 4;
@@ -3120,14 +3058,14 @@ int jp_hex4(json_parser *p, uint32_t *cp)
 
 /* Parse a quoted string starting at p->s[p->pos] == '"'. The decoded UTF-8
    bytes end up in p->buf (p->b_len bytes, 0-terminated). */
-int jp_string(json_parser *p)
+int tld__jp_string(tld__json_parser *p)
 {
         p->pos++;               /* opening quote */
         p->b_len = 0;
         while(1){
                 uint8_t c;
                 if(p->pos >= p->len){
-                        return jp_fail(p, "unterminated string");
+                        return tld__jp_fail(p, "unterminated string");
                 }
                 c = p->s[p->pos];
                 p->pos++;
@@ -3136,22 +3074,22 @@ int jp_string(json_parser *p)
                 }else if(c == '\\'){
                         uint8_t e;
                         if(p->pos >= p->len){
-                                return jp_fail(p, "unterminated string");
+                                return tld__jp_fail(p, "unterminated string");
                         }
                         e = p->s[p->pos];
                         p->pos++;
                         switch(e){
-                        case '"':  if(jp_push(p, '"'))  return FAIL; break;
-                        case '\\': if(jp_push(p, '\\')) return FAIL; break;
-                        case '/':  if(jp_push(p, '/'))  return FAIL; break;
-                        case 'b':  if(jp_push(p, '\b')) return FAIL; break;
-                        case 'f':  if(jp_push(p, '\f')) return FAIL; break;
-                        case 'n':  if(jp_push(p, '\n')) return FAIL; break;
-                        case 'r':  if(jp_push(p, '\r')) return FAIL; break;
-                        case 't':  if(jp_push(p, '\t')) return FAIL; break;
+                        case '"':  if(tld__jp_push(p, '"'))  return FAIL; break;
+                        case '\\': if(tld__jp_push(p, '\\')) return FAIL; break;
+                        case '/':  if(tld__jp_push(p, '/'))  return FAIL; break;
+                        case 'b':  if(tld__jp_push(p, '\b')) return FAIL; break;
+                        case 'f':  if(tld__jp_push(p, '\f')) return FAIL; break;
+                        case 'n':  if(tld__jp_push(p, '\n')) return FAIL; break;
+                        case 'r':  if(tld__jp_push(p, '\r')) return FAIL; break;
+                        case 't':  if(tld__jp_push(p, '\t')) return FAIL; break;
                         case 'u':{
                                 uint32_t cp = 0;
-                                if(jp_hex4(p, &cp) != OK){
+                                if(tld__jp_hex4(p, &cp) != OK){
                                         return FAIL;
                                 }
                                 if(cp >= 0xD800 && cp <= 0xDBFF){
@@ -3162,7 +3100,7 @@ int jp_string(json_parser *p)
                                            p->s[p->pos+1] == 'u'){
                                                 int save = p->pos;
                                                 p->pos += 2;
-                                                if(jp_hex4(p, &lo) != OK){
+                                                if(tld__jp_hex4(p, &lo) != OK){
                                                         return FAIL;
                                                 }
                                                 if(lo >= 0xDC00 && lo <= 0xDFFF){
@@ -3180,22 +3118,22 @@ int jp_string(json_parser *p)
                                         cp = 0xFFFD;
                                 }
                                 if(cp == 0){
-                                        return jp_fail(p, "\\u0000 is not supported in strings");
+                                        return tld__jp_fail(p, "\\u0000 is not supported in strings");
                                 }
-                                if(jp_push_utf8(p, cp) != OK){
+                                if(tld__jp_push_utf8(p, cp) != OK){
                                         return FAIL;
                                 }
                                 break;
                         }
                         default:
-                                return jp_fail(p, "invalid escape sequence");
+                                return tld__jp_fail(p, "invalid escape sequence");
                         }
                 }else if(c == 0){
-                        return jp_fail(p, "NUL byte in string");
+                        return tld__jp_fail(p, "NUL byte in string");
                 }else{
                         /* Raw bytes, including (leniently) unescaped control
                            characters, are copied through. */
-                        if(jp_push(p, c) != OK){
+                        if(tld__jp_push(p, c) != OK){
                                 return FAIL;
                         }
                 }
@@ -3204,7 +3142,7 @@ int jp_string(json_parser *p)
         return OK;
 }
 
-int jp_number(json_parser *p, tld_json_val *v)
+int tld__jp_number(tld__json_parser *p, tld_json_val *v)
 {
         char tmp[64];
         char* num = tmp;
@@ -3223,7 +3161,7 @@ int jp_number(json_parser *p, tld_json_val *v)
                         p->pos++;
                 }
         }else{
-                return jp_fail(p, "invalid number");
+                return tld__jp_fail(p, "invalid number");
         }
         if(p->pos < p->len && p->s[p->pos] == '.'){
                 int d = 0;
@@ -3234,7 +3172,7 @@ int jp_number(json_parser *p, tld_json_val *v)
                         d++;
                 }
                 if(!d){
-                        return jp_fail(p, "invalid number: no digits after '.'");
+                        return tld__jp_fail(p, "invalid number: no digits after '.'");
                 }
         }
         if(p->pos < p->len && (p->s[p->pos] == 'e' || p->s[p->pos] == 'E')){
@@ -3249,7 +3187,7 @@ int jp_number(json_parser *p, tld_json_val *v)
                         d++;
                 }
                 if(!d){
-                        return jp_fail(p, "invalid number: no digits in exponent");
+                        return tld__jp_fail(p, "invalid number: no digits in exponent");
                 }
         }
 
@@ -3269,7 +3207,7 @@ int jp_number(json_parser *p, tld_json_val *v)
                         v->type = TLD_JSON_DBL;
                         v->value.d_num = strtod(num, NULL);
                 }else{
-                        json_val_set_int64(v, x);
+                        tld__json_val_set_int64(v, x);
                 }
         }else{
                 v->type = TLD_JSON_DBL;
@@ -3280,14 +3218,14 @@ int jp_number(json_parser *p, tld_json_val *v)
         }
         return OK;
 ERROR:
-        return jp_fail(p, "out of memory");
+        return tld__jp_fail(p, "out of memory");
 }
 
-int jp_literal(json_parser *p, const char *lit)
+int tld__jp_literal(tld__json_parser *p, const char *lit)
 {
         int l = (int)strlen(lit);
         if(p->pos + l > p->len || memcmp(p->s + p->pos, lit, l) != 0){
-                return jp_fail(p, "invalid literal");
+                return tld__jp_fail(p, "invalid literal");
         }
         p->pos += l;
         return OK;
@@ -3295,18 +3233,18 @@ int jp_literal(json_parser *p, const char *lit)
 
 /* Parse one value into the empty slot v. On failure v is left untouched
    (TLD_JSON_UNDEF) and anything allocated on the way is freed. */
-int jp_value(json_parser *p, tld_json_val *v)
+int tld__jp_value(tld__json_parser *p, tld_json_val *v)
 {
         uint8_t c;
-        jp_ws(p);
+        tld__jp_ws(p);
         if(p->pos >= p->len){
-                return jp_fail(p, "unexpected end of input");
+                return tld__jp_fail(p, "unexpected end of input");
         }
         c = p->s[p->pos];
         switch(c){
         case '{':{
                 tld_json_obj* o = NULL;
-                if(jp_obj(p, &o) != OK){
+                if(tld__jp_obj(p, &o) != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_OBJ;
@@ -3315,7 +3253,7 @@ int jp_value(json_parser *p, tld_json_val *v)
         }
         case '[':{
                 tld_json_arr* a = NULL;
-                if(jp_arr(p, &a) != OK){
+                if(tld__jp_arr(p, &a) != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_ARR;
@@ -3323,95 +3261,95 @@ int jp_value(json_parser *p, tld_json_val *v)
                 break;
         }
         case '"':
-                if(jp_string(p) != OK){
+                if(tld__jp_string(p) != OK){
                         return FAIL;
                 }
-                if(json_val_set_str(v, p->buf, p->b_len) != OK){
-                        return jp_fail(p, "out of memory");
+                if(tld__json_val_set_str(v, p->buf, p->b_len) != OK){
+                        return tld__jp_fail(p, "out of memory");
                 }
                 break;
         case 't':
-                if(jp_literal(p, "true") != OK){
+                if(tld__jp_literal(p, "true") != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_BOOL_TRUE;
                 v->value.b_num = 1;
                 break;
         case 'f':
-                if(jp_literal(p, "false") != OK){
+                if(tld__jp_literal(p, "false") != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_BOOL_FALSE;
                 v->value.b_num = 0;
                 break;
         case 'n':
-                if(jp_literal(p, "null") != OK){
+                if(tld__jp_literal(p, "null") != OK){
                         return FAIL;
                 }
                 v->type = TLD_JSON_UNDEF;
                 break;
         default:
                 if(c == '-' || (c >= '0' && c <= '9')){
-                        return jp_number(p, v);
+                        return tld__jp_number(p, v);
                 }
-                return jp_fail(p, "unexpected character");
+                return tld__jp_fail(p, "unexpected character");
         }
         return OK;
 }
 
-int jp_obj(json_parser *p, tld_json_obj **out)
+int tld__jp_obj(tld__json_parser *p, tld_json_obj **out)
 {
         tld_json_obj* n = NULL;
 
-        if(p->depth >= TLD_JSON_MAX_DEPTH){
-                return jp_fail(p, "nesting too deep");
+        if(p->depth >= TLD__JSON_MAX_DEPTH){
+                return tld__jp_fail(p, "nesting too deep");
         }
         p->depth++;
         p->pos++;               /* '{' */
 
         if(tld_json_obj_alloc(&n) != OK){
-                jp_fail(p, "out of memory");
+                tld__jp_fail(p, "out of memory");
                 goto FAIL_OBJ;
         }
-        jp_ws(p);
+        tld__jp_ws(p);
         if(p->pos < p->len && p->s[p->pos] == '}'){
                 p->pos++;
                 goto DONE;
         }
         while(1){
-                jp_ws(p);
+                tld__jp_ws(p);
                 if(p->pos >= p->len){
-                        jp_fail(p, "unexpected end of input in object");
+                        tld__jp_fail(p, "unexpected end of input in object");
                         goto FAIL_OBJ;
                 }
                 if(p->s[p->pos] != '"'){
-                        jp_fail(p, "expected string as object key");
+                        tld__jp_fail(p, "expected string as object key");
                         goto FAIL_OBJ;
                 }
-                if(jp_string(p) != OK){
+                if(tld__jp_string(p) != OK){
                         goto FAIL_OBJ;
                 }
                 if(tld_append(n->key[n->n], p->buf) != OK){
-                        jp_fail(p, "out of memory");
+                        tld__jp_fail(p, "out of memory");
                         goto FAIL_OBJ;
                 }
-                jp_ws(p);
+                tld__jp_ws(p);
                 if(p->pos >= p->len || p->s[p->pos] != ':'){
-                        jp_fail(p, "expected ':'");
+                        tld__jp_fail(p, "expected ':'");
                         goto FAIL_OBJ;
                 }
                 p->pos++;
-                if(jp_value(p, n->v[n->n]) != OK){
+                if(tld__jp_value(p, n->v[n->n]) != OK){
                         goto FAIL_OBJ;
                 }
                 n->n++;
                 if(tld_json_obj_chk_space(n) != OK){
-                        jp_fail(p, "out of memory");
+                        tld__jp_fail(p, "out of memory");
                         goto FAIL_OBJ;
                 }
-                jp_ws(p);
+                tld__jp_ws(p);
                 if(p->pos >= p->len){
-                        jp_fail(p, "unexpected end of input in object");
+                        tld__jp_fail(p, "unexpected end of input in object");
                         goto FAIL_OBJ;
                 }
                 if(p->s[p->pos] == ','){
@@ -3420,7 +3358,7 @@ int jp_obj(json_parser *p, tld_json_obj **out)
                         p->pos++;
                         break;
                 }else{
-                        jp_fail(p, "expected ',' or '}'");
+                        tld__jp_fail(p, "expected ',' or '}'");
                         goto FAIL_OBJ;
                 }
         }
@@ -3436,37 +3374,37 @@ FAIL_OBJ:
         return FAIL;
 }
 
-int jp_arr(json_parser *p, tld_json_arr **out)
+int tld__jp_arr(tld__json_parser *p, tld_json_arr **out)
 {
         tld_json_arr* n = NULL;
 
-        if(p->depth >= TLD_JSON_MAX_DEPTH){
-                return jp_fail(p, "nesting too deep");
+        if(p->depth >= TLD__JSON_MAX_DEPTH){
+                return tld__jp_fail(p, "nesting too deep");
         }
         p->depth++;
         p->pos++;               /* '[' */
 
         if(tld_json_arr_alloc(&n) != OK){
-                jp_fail(p, "out of memory");
+                tld__jp_fail(p, "out of memory");
                 goto FAIL_ARR;
         }
-        jp_ws(p);
+        tld__jp_ws(p);
         if(p->pos < p->len && p->s[p->pos] == ']'){
                 p->pos++;
                 goto DONE;
         }
         while(1){
-                if(jp_value(p, n->v[n->n]) != OK){
+                if(tld__jp_value(p, n->v[n->n]) != OK){
                         goto FAIL_ARR;
                 }
                 n->n++;
                 if(tld_json_arr_chk_space(n) != OK){
-                        jp_fail(p, "out of memory");
+                        tld__jp_fail(p, "out of memory");
                         goto FAIL_ARR;
                 }
-                jp_ws(p);
+                tld__jp_ws(p);
                 if(p->pos >= p->len){
-                        jp_fail(p, "unexpected end of input in array");
+                        tld__jp_fail(p, "unexpected end of input in array");
                         goto FAIL_ARR;
                 }
                 if(p->s[p->pos] == ','){
@@ -3475,7 +3413,7 @@ int jp_arr(json_parser *p, tld_json_arr **out)
                         p->pos++;
                         break;
                 }else{
-                        jp_fail(p, "expected ',' or ']'");
+                        tld__jp_fail(p, "expected ',' or ']'");
                         goto FAIL_ARR;
                 }
         }
@@ -3496,7 +3434,7 @@ FAIL_ARR:
 /* ------------------------------------------------------------------ */
 
 /* Store len bytes of s as a string in the empty slot v. */
-int json_val_set_str(tld_json_val *v, const char *s, int len)
+int tld__json_val_set_str(tld_json_val *v, const char *s, int len)
 {
         tld_strbuf* b = NULL;
         RUN(tld_strbuf_alloc(&b, len + 1));
@@ -3512,7 +3450,7 @@ ERROR:
 
 /* Integers that fit in int32_t are stored as TLD_JSON_INT, larger ones as
    TLD_JSON_DBL (the value layout only has an int32_t). */
-void json_val_set_int64(tld_json_val *v, long long x)
+void tld__json_val_set_int64(tld_json_val *v, long long x)
 {
         if(x >= INT32_MIN && x <= INT32_MAX){
                 v->type = TLD_JSON_INT;
@@ -3525,7 +3463,7 @@ void json_val_set_int64(tld_json_val *v, long long x)
 
 int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
 {
-        json_parser p;
+        tld__json_parser p;
         tld_json_obj* n = NULL;
         tld_json_arr* a = NULL;
 
@@ -3547,33 +3485,33 @@ int tld_json_parse(tld_strbuf *t, tld_json_obj **out)
         p.b_alloc = 256;
         MMALLOC(p.buf, p.b_alloc);
 
-        jp_ws(&p);
+        tld__jp_ws(&p);
         if(p.pos >= p.len){
-                jp_fail(&p, "empty input");
+                tld__jp_fail(&p, "empty input");
                 goto PARSE_ERROR;
         }
         if(p.s[p.pos] == '{'){
-                if(jp_obj(&p, &n) != OK){
+                if(tld__jp_obj(&p, &n) != OK){
                         goto PARSE_ERROR;
                 }
         }else if(p.s[p.pos] == '['){
-                if(jp_arr(&p, &a) != OK){
+                if(tld__jp_arr(&p, &a) != OK){
                         goto PARSE_ERROR;
                 }
                 RUN(tld_json_obj_alloc(&n));
-                RUN(tld_append(n->key[0], TLD_JSON_TOP_LEVEL_ARR));
+                RUN(tld_append(n->key[0], TLD__JSON_TOP_LEVEL_ARR));
                 n->v[0]->type = TLD_JSON_ARR;
                 n->v[0]->value.arr = a;
                 a = NULL;
                 n->n++;
                 RUN(tld_json_obj_chk_space(n));
         }else{
-                jp_fail(&p, "text does not start with { or [");
+                tld__jp_fail(&p, "text does not start with { or [");
                 goto PARSE_ERROR;
         }
-        jp_ws(&p);
+        tld__jp_ws(&p);
         if(p.pos < p.len){
-                jp_fail(&p, "trailing characters after JSON value");
+                tld__jp_fail(&p, "trailing characters after JSON value");
                 goto PARSE_ERROR;
         }
 
@@ -3595,7 +3533,7 @@ ERROR:
         return FAIL;
 }
 
-int search(tld_json_obj *n, char *key, tld_json_obj* r)
+int tld__json_search(tld_json_obj *n, char *key, tld_json_obj* r)
 {
         if(n){
                 for(int i = 0; i < n->n;i++){
@@ -3610,9 +3548,9 @@ int search(tld_json_obj *n, char *key, tld_json_obj* r)
                         }
 
                         if(n->v[i]->type == TLD_JSON_ARR){
-                                RUN(tld_json_get_arr_str(n->v[i]->value.arr,key,r));
+                                RUN(tld__json_get_arr_str(n->v[i]->value.arr,key,r));
                         }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                RUN(search(n->v[i]->value.obj, key,r));
+                                RUN(tld__json_search(n->v[i]->value.obj, key,r));
                         }
                 }
         }
@@ -3622,14 +3560,14 @@ ERROR:
         return FAIL;
 }
 
-int tld_json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj* res)
+int tld__json_get_arr_str(tld_json_arr *n, char *key, tld_json_obj* res)
 {
         if(n){
                 for(int i = 0; i < n->n;i++){
                         if(n->v[i]->type == TLD_JSON_ARR){
-                                RUN(tld_json_get_arr_str(n->v[i]->value.arr,key,res));
+                                RUN(tld__json_get_arr_str(n->v[i]->value.arr,key,res));
                         }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                RUN(search(n->v[i]->value.obj, key,res));
+                                RUN(tld__json_search(n->v[i]->value.obj, key,res));
                         }
                 }
         }
@@ -3642,7 +3580,7 @@ int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret)
 {
         tld_json_obj* r = NULL;
         RUN(tld_json_obj_alloc(&r));
-        RUN(search(n, key, r));
+        RUN(tld__json_search(n, key, r));
         *ret = r;
         return OK;
 ERROR:
@@ -3659,7 +3597,7 @@ ERROR:
 /* Resolve "a.b[2].c". *out is NULL when the path is empty (the root
    object itself). A path starting with '[' indexes the array that
    tld_json_parse wraps under "Top Level Arr". */
-int json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out)
+int tld__json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out)
 {
         tld_json_val* v = NULL;
         tld_json_obj* o = root;
@@ -3675,7 +3613,7 @@ int json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out)
                 /* address the wrapped top-level array */
                 v = NULL;
                 for(int i = 0; i < root->n; i++){
-                        if(strcmp(TLD_STR(root->key[i]), TLD_JSON_TOP_LEVEL_ARR) == 0){
+                        if(strcmp(TLD_STR(root->key[i]), TLD__JSON_TOP_LEVEL_ARR) == 0){
                                 v = root->v[i];
                                 break;
                         }
@@ -3755,7 +3693,7 @@ int json_path_resolve(tld_json_obj *root, const char *path, tld_json_val **out)
 int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type != TLD_JSON_STR || v->value.str == NULL){
@@ -3770,7 +3708,7 @@ int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out)
 int tld_json_get_num(tld_json_obj *obj, const char *path, double *out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type == TLD_JSON_DBL){
@@ -3790,7 +3728,7 @@ int tld_json_get_num(tld_json_obj *obj, const char *path, double *out)
 int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type == TLD_JSON_INT){
@@ -3816,7 +3754,7 @@ int tld_json_get_int(tld_json_obj *obj, const char *path, int64_t *out)
 int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type == TLD_JSON_BOOL_TRUE){
@@ -3836,7 +3774,7 @@ int tld_json_get_bool(tld_json_obj *obj, const char *path, int *out)
 int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK){
+        if(tld__json_path_resolve(obj, path, &v) != OK){
                 return FAIL;
         }
         if(v == NULL){
@@ -3858,7 +3796,7 @@ int tld_json_get_obj(tld_json_obj *obj, const char *path, tld_json_obj **out)
 int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out)
 {
         tld_json_val* v = NULL;
-        if(json_path_resolve(obj, path, &v) != OK || v == NULL){
+        if(tld__json_path_resolve(obj, path, &v) != OK || v == NULL){
                 return FAIL;
         }
         if(v->type != TLD_JSON_ARR || v->value.arr == NULL){
@@ -3872,7 +3810,7 @@ int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr **out)
 
 /* Make sure obj (allocated here when NULL) has a free slot at index n BEFORE anything is
  * written to it. On failure an object allocated here is freed. */
-static int json_obj_slot(tld_json_obj *obj, tld_json_obj **np)
+static int tld__json_obj_slot(tld_json_obj *obj, tld_json_obj **np)
 {
         tld_json_obj *n = obj;
         if(n == NULL){
@@ -3891,7 +3829,7 @@ ERROR:
         return FAIL;
 }
 
-static int json_arr_slot(tld_json_arr *arr, tld_json_arr **np)
+static int tld__json_arr_slot(tld_json_arr *arr, tld_json_arr **np)
 {
         tld_json_arr *n = arr;
         if(n == NULL){
@@ -3941,7 +3879,7 @@ int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
         if(plen == 0 && *last == '['){
                 /* "[i]": the array that tld_json_parse wraps under "Top Level Arr" */
                 for(int i = 0; i < n->n; i++){
-                        if(strcmp(TLD_STR(n->key[i]), TLD_JSON_TOP_LEVEL_ARR) == 0){
+                        if(strcmp(TLD_STR(n->key[i]), TLD__JSON_TOP_LEVEL_ARR) == 0){
                                 pv = n->v[i];
                                 break;
                         }
@@ -3956,7 +3894,7 @@ int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
                 MMALLOC(prefix, plen + 1);
                 memcpy(prefix, path, plen);
                 prefix[plen] = 0;
-                if(json_path_resolve(n, prefix, &pv) != OK || pv == NULL){
+                if(tld__json_path_resolve(n, prefix, &pv) != OK || pv == NULL){
                         ERROR_MSG("Path %s: %s does not exist", path, prefix);
                 }
                 if(pv->type == TLD_JSON_OBJ){
@@ -3986,7 +3924,7 @@ int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
                         RUN(tld_json_val_copy(pa->v[idx], v));
                 }else if(idx == pa->n){
                         tld_json_arr* r = NULL;
-                        RUN(json_arr_slot(pa, &r));
+                        RUN(tld__json_arr_slot(pa, &r));
                         RUN(tld_json_val_copy(pa->v[pa->n], v));
                         pa->n++;
                 }else{
@@ -4011,7 +3949,7 @@ int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v)
                                 return OK;
                         }
                 }
-                RUN(json_obj_slot(po, &r));
+                RUN(tld__json_obj_slot(po, &r));
                 tld_strbuf_clear(po->key[po->n]);
                 RUN(tld_append(po->key[po->n], (char*)k));
                 RUN(tld_json_val_copy(po->v[po->n], v));
@@ -4023,7 +3961,7 @@ ERROR:
         return FAIL;
 }
 
-static void json_free_unattached(tld_json_decoration *kvs, int from, int count)
+static void tld__json_free_unattached(tld_json_decoration *kvs, int from, int count)
 {
         for(int k = from; k < count; k++){
                 if(kvs[k].value == NULL){
@@ -4039,13 +3977,13 @@ static void json_free_unattached(tld_json_decoration *kvs, int from, int count)
 
 /* The add helpers return the (possibly new) container. When an entry cannot be added it
  * is dropped; a container allocated by the call is freed and NULL returned. */
-tld_json_obj* tld_json_obj_add_val(tld_json_obj *obj, char* key, char* val)
+tld_json_obj* tld__json_obj_add_val(tld_json_obj *obj, char* key, char* val)
 {
         tld_json_obj* n = NULL;
-        RUN(json_obj_slot(obj, &n));
+        RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
         RUN(tld_append(n->key[n->n], key ? key : ""));
-        RUN(add_val(val, (int)strlen(val), n->v[n->n]));
+        RUN(tld__json_add_val(val, (int)strlen(val), n->v[n->n]));
         n->n++;
         return n;
 ERROR:
@@ -4056,10 +3994,10 @@ ERROR:
         return obj;
 }
 
-tld_json_obj* tld_json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val)
+tld_json_obj* tld__json_obj_add_obj(tld_json_obj *obj, char* key, tld_json_obj*val)
 {
         tld_json_obj* n = NULL;
-        RUN(json_obj_slot(obj, &n));
+        RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
         RUN(tld_append(n->key[n->n], key ? key : ""));
         n->v[n->n]->type = TLD_JSON_OBJ;
@@ -4074,10 +4012,10 @@ ERROR:
         return obj;
 }
 
-tld_json_obj* tld_json_obj_add_arr(tld_json_obj *obj, char* key, tld_json_arr*val)
+tld_json_obj* tld__json_obj_add_arr(tld_json_obj *obj, char* key, tld_json_arr*val)
 {
         tld_json_obj* n = NULL;
-        RUN(json_obj_slot(obj, &n));
+        RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
         RUN(tld_append(n->key[n->n], key ? key : ""));
         n->v[n->n]->type = TLD_JSON_ARR;
@@ -4092,13 +4030,13 @@ ERROR:
         return obj;
 }
 
-tld_json_obj *tld_json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d)
+tld_json_obj *tld__json_obj_add_typed(tld_json_obj *obj, char *key, tld_json_decoration *d)
 {
         tld_json_obj* n = NULL;
-        RUN(json_obj_slot(obj, &n));
+        RUN(tld__json_obj_slot(obj, &n));
         tld_strbuf_clear(n->key[n->n]);
         RUN(tld_append(n->key[n->n], key ? key : ""));
-        RUN(json_val_from_decoration(n->v[n->n], d));
+        RUN(tld__json_val_from_decoration(n->v[n->n], d));
         n->n++;
         return n;
 ERROR:
@@ -4111,10 +4049,10 @@ ERROR:
 
 /* Used by JS(): the type is guessed from the text (callers rely on
    JS("k","0.2") producing a number). */
-int add_val(char *buf, int len, tld_json_val *val)
+int tld__json_add_val(char *buf, int len, tld_json_val *val)
 {
         tld_json_type type = TLD_JSON_STR;
-        detect_type(buf,len, &type);
+        tld__json_detect_type(buf,len, &type);
 
         switch (type) {
         case TLD_JSON_DBL:
@@ -4129,7 +4067,7 @@ int add_val(char *buf, int len, tld_json_val *val)
                         val->type = TLD_JSON_DBL;
                         val->value.d_num = strtod(buf, NULL);
                 }else{
-                        json_val_set_int64(val, x);
+                        tld__json_val_set_int64(val, x);
                 }
                 break;
         }
@@ -4142,7 +4080,7 @@ int add_val(char *buf, int len, tld_json_val *val)
                 val->value.b_num = 0;
                 break;
         case TLD_JSON_STR:
-                RUN(json_val_set_str(val, buf, len));
+                RUN(tld__json_val_set_str(val, buf, len));
                 break;
         case TLD_JSON_ARR:
         case TLD_JSON_OBJ:
@@ -4156,12 +4094,12 @@ ERROR:
 }
 
 /* Fill an empty (TLD_JSON_UNDEF) slot from one of the typed decorations. */
-int json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
+int tld__json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
 {
         switch(d->type){
         case VAL_JSTR:{
                 const char* s = (const char*)d->value;
-                RUN(json_val_set_str(v, s, (int)strlen(s)));
+                RUN(tld__json_val_set_str(v, s, (int)strlen(s)));
                 break;
         }
         case VAL_NUM:
@@ -4169,7 +4107,7 @@ int json_val_from_decoration(tld_json_val *v, tld_json_decoration *d)
                 v->value.d_num = *(double*)d->value;
                 break;
         case VAL_INT:
-                json_val_set_int64(v, *(long*)d->value);
+                tld__json_val_set_int64(v, *(long*)d->value);
                 break;
         case VAL_BOOL:
                 if(*(int*)d->value){
@@ -4197,7 +4135,7 @@ ERROR:
  * container created by the call; a caller-supplied container keeps the entries added
  * so far and stays the caller's. A JO/JA entry with a NULL value is such a failure
  * (a nested JSON_OBJ / JSON_ARR returns NULL only when it failed). */
-tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs, int count)
+tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, int count)
 {
         tld_json_obj *in = obj;
         int i = 0;
@@ -4211,20 +4149,20 @@ tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs,
                 }
                 switch (kvs[i].type) {
                 case VAL_STRING:
-                        obj = tld_json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
+                        obj = tld__json_obj_add_val(obj, kvs[i].key, (char*)kvs[i].value);
                         break;
                 case VAL_OBJ:
-                        obj = tld_json_obj_add_obj(obj, kvs[i].key, (tld_json_obj*)kvs[i].value);
+                        obj = tld__json_obj_add_obj(obj, kvs[i].key, (tld_json_obj*)kvs[i].value);
                         break;
                 case VAL_ARR:
-                        obj = tld_json_obj_add_arr(obj, kvs[i].key, (tld_json_arr*)kvs[i].value);
+                        obj = tld__json_obj_add_arr(obj, kvs[i].key, (tld_json_arr*)kvs[i].value);
                         break;
                 case VAL_JSTR:
                 case VAL_NUM:
                 case VAL_INT:
                 case VAL_BOOL:
                 case VAL_NULL:
-                        obj = tld_json_obj_add_typed(obj, kvs[i].key, &kvs[i]);
+                        obj = tld__json_obj_add_typed(obj, kvs[i].key, &kvs[i]);
                         break;
                 }
                 if(obj == NULL || obj->n != before + 1){
@@ -4233,18 +4171,18 @@ tld_json_obj *json_obj_add_multiple(tld_json_obj *obj, tld_json_decoration *kvs,
         }
         return obj;
 ERROR:
-        json_free_unattached(kvs, i, count);
+        tld__json_free_unattached(kvs, i, count);
         if(in == NULL){
                 tld_json_obj_free(obj);
         }
         return NULL;
 }
 
-tld_json_arr* tld_json_arr_add_val(tld_json_arr *arr, char* val)
+tld_json_arr* tld__json_arr_add_val(tld_json_arr *arr, char* val)
 {
         tld_json_arr* n = NULL;
-        RUN(json_arr_slot(arr, &n));
-        RUN(add_val(val, (int)strlen(val), n->v[n->n]));
+        RUN(tld__json_arr_slot(arr, &n));
+        RUN(tld__json_add_val(val, (int)strlen(val), n->v[n->n]));
         n->n++;
         return n;
 ERROR:
@@ -4255,10 +4193,10 @@ ERROR:
         return arr;
 }
 
-tld_json_arr* tld_json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val)
+tld_json_arr* tld__json_arr_add_arr(tld_json_arr *arr, tld_json_arr*val)
 {
         tld_json_arr* n = NULL;
-        RUN(json_arr_slot(arr, &n));
+        RUN(tld__json_arr_slot(arr, &n));
         n->v[n->n]->type = TLD_JSON_ARR;
         n->v[n->n]->value.arr = val;
         n->n++;
@@ -4271,10 +4209,10 @@ ERROR:
         return arr;
 }
 
-tld_json_arr* tld_json_arr_add_obj(tld_json_arr *arr, tld_json_obj*val)
+tld_json_arr* tld__json_arr_add_obj(tld_json_arr *arr, tld_json_obj*val)
 {
         tld_json_arr* n = NULL;
-        RUN(json_arr_slot(arr, &n));
+        RUN(tld__json_arr_slot(arr, &n));
         n->v[n->n]->type = TLD_JSON_OBJ;
         n->v[n->n]->value.obj = val;
         n->n++;
@@ -4287,11 +4225,11 @@ ERROR:
         return arr;
 }
 
-tld_json_arr *tld_json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d)
+tld_json_arr *tld__json_arr_add_typed(tld_json_arr *arr, tld_json_decoration *d)
 {
         tld_json_arr* n = NULL;
-        RUN(json_arr_slot(arr, &n));
-        RUN(json_val_from_decoration(n->v[n->n], d));
+        RUN(tld__json_arr_slot(arr, &n));
+        RUN(tld__json_val_from_decoration(n->v[n->n], d));
         n->n++;
         return n;
 ERROR:
@@ -4302,7 +4240,7 @@ ERROR:
         return arr;
 }
 
-tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs, int count)
+tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, int count)
 {
         tld_json_arr *in = arr;
         int i = 0;
@@ -4316,20 +4254,20 @@ tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs,
                 }
                 switch (kvs[i].type) {
                 case VAL_STRING:
-                        arr = tld_json_arr_add_val(arr,  (char*)kvs[i].value);
+                        arr = tld__json_arr_add_val(arr,  (char*)kvs[i].value);
                         break;
                 case VAL_OBJ:
-                        arr = tld_json_arr_add_obj(arr, (tld_json_obj*)kvs[i].value);
+                        arr = tld__json_arr_add_obj(arr, (tld_json_obj*)kvs[i].value);
                         break;
                 case VAL_ARR:
-                        arr = tld_json_arr_add_arr(arr,  (tld_json_arr*)kvs[i].value);
+                        arr = tld__json_arr_add_arr(arr,  (tld_json_arr*)kvs[i].value);
                         break;
                 case VAL_JSTR:
                 case VAL_NUM:
                 case VAL_INT:
                 case VAL_BOOL:
                 case VAL_NULL:
-                        arr = tld_json_arr_add_typed(arr, &kvs[i]);
+                        arr = tld__json_arr_add_typed(arr, &kvs[i]);
                         break;
                 }
                 if(arr == NULL || arr->n != before + 1){
@@ -4338,7 +4276,7 @@ tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoration *kvs,
         }
         return arr;
 ERROR:
-        json_free_unattached(kvs, i, count);
+        tld__json_free_unattached(kvs, i, count);
         if(in == NULL){
                 tld_json_arr_free(arr);
         }
@@ -4347,7 +4285,7 @@ ERROR:
 
 /* Write s as a quoted JSON string, escaping '"', '\\' and control
    characters. Bytes >= 0x80 (UTF-8) are written unchanged. */
-int tld_json_dump_str(tld_strbuf *b, const uint8_t *s, int len)
+int tld__json_dump_str(tld_strbuf *b, const uint8_t *s, int len)
 {
         static const char hex[] = "0123456789abcdef";
         char* out = NULL;
@@ -4391,12 +4329,12 @@ ERROR:
         return FAIL;
 }
 
-int tld_json_dump_val(tld_json_val *val, tld_strbuf *b)
+int tld__json_dump_val(tld_json_val *val, tld_strbuf *b)
 {
         char buf[40];
         if(val->type == TLD_JSON_STR){
                 if(val->value.str){
-                        RUN(tld_json_dump_str(b, val->value.str->str, val->value.str->len));
+                        RUN(tld__json_dump_str(b, val->value.str->str, val->value.str->len));
                 }else{
                         RUN(tld_append(b, "null"));
                 }
@@ -4430,7 +4368,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_json_add_indent(tld_strbuf *b, int indent)
+int tld__json_add_indent(tld_strbuf *b, int indent)
 {
         static const char spaces[] = "                                ";   /* 32 */
         const int n_spaces = (int) sizeof spaces - 1;
@@ -4454,8 +4392,8 @@ int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
                 RUN(tld_append(b, "{\n"));
 
                 for(int i = 0; i < n->n;i++){
-                        RUN(tld_json_add_indent(b, indent + 4));
-                        RUN(tld_json_dump_str(b, n->key[i]->str, n->key[i]->len));
+                        RUN(tld__json_add_indent(b, indent + 4));
+                        RUN(tld__json_dump_str(b, n->key[i]->str, n->key[i]->len));
                         RUN(tld_append(b, ": "));
 
                         if(n->v[i]->type == TLD_JSON_ARR){
@@ -4471,14 +4409,14 @@ int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent)
                                         RUN(tld_append(b, "null"));
                                 }
                         }else{
-                                RUN(tld_json_dump_val(n->v[i], b));
+                                RUN(tld__json_dump_val(n->v[i], b));
                         }
                         if (i < n->n - 1) {
                                 RUN(tld_append(b, ","));
                         }
                         RUN(tld_append(b, "\n"));
                 }
-                RUN(tld_json_add_indent(b, indent));
+                RUN(tld__json_add_indent(b, indent));
                 RUN(tld_append(b, "}"));
         }
         return OK;
@@ -4493,7 +4431,7 @@ int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
                 RUN(tld_append(b, "[\n"));
 
                 for (int i = 0; i < n->n; i++) {
-                        RUN(tld_json_add_indent(b, indent + 4));
+                        RUN(tld__json_add_indent(b, indent + 4));
                         if (n->v[i]->type == TLD_JSON_ARR) {
                                 if(n->v[i]->value.arr){
                                         RUN(tld_json_dump_arr(n->v[i]->value.arr, b,indent + 4));
@@ -4507,33 +4445,35 @@ int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
                                         RUN(tld_append(b, "null"));
                                 }
                         } else {
-                                RUN(tld_json_dump_val(n->v[i], b));
+                                RUN(tld__json_dump_val(n->v[i], b));
                         }
                         if (i < n->n - 1) {
                                 RUN(tld_append(b, ","));
                         }
                         RUN(tld_append(b, "\n"));
                 }
-                RUN(tld_json_add_indent(b, indent));
+                RUN(tld__json_add_indent(b, indent));
                 RUN(tld_append(b, "]"));
         }
         return OK;
 ERROR:
         return FAIL;
 }
+
+#undef TLD__JSON_MAX_DEPTH
+#undef TLD__JSON_TOP_LEVEL_ARR
 /* ---- src/json/tld-json_misc.c ---- */
 
 
 #include <string.h>
 
-#define  TLD_JSON_MISC_IMPORT
 
 /* Guess the JSON type of an unquoted token (used by JS()).
    The whole token must match: a number ([+-]digits[.digits][e[+-]digits],
    INT when there is no fraction or exponent) or one of
    true/True/TRUE/false/False/FALSE. Everything else, including the empty
    string, is a string. */
-int detect_type(char*s, int len, tld_json_type* type)
+int tld__json_detect_type(char*s, int len, tld_json_type* type)
 {
         int i = 0;
         int mant = 0;
@@ -4602,54 +4542,54 @@ int detect_type(char*s, int len, tld_json_type* type)
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_VAR_NAME 64
-#define MAX_ERROR_MSG 256
-#define MAX_IF_DEPTH 512
+#define TLD__TEMPLATE_MAX_NAME 64
+#define TLD__TEMPLATE_MAX_ERROR 256
+#define TLD__TEMPLATE_MAX_IF_DEPTH 512
 
 typedef enum {
-        NODE_ROOT,
-        NODE_TEXT,
-        NODE_VARIABLE,
-        NODE_IF,
-        NODE_ELSE,
-        NODE_ENDIF
-} template_node_type;
+        TLD__NODE_ROOT,
+        TLD__NODE_TEXT,
+        TLD__NODE_VARIABLE,
+        TLD__NODE_IF,
+        TLD__NODE_ELSE,
+        TLD__NODE_ENDIF
+} tld__template_node_type;
 
-typedef struct template_node {
-        template_node_type type;
+typedef struct tld__template_node {
+        tld__template_node_type type;
         tld_strbuf *content;            /* text, or the name of a variable or IF */
-        struct template_node** children;
+        struct tld__template_node** children;
         int n;
         int n_alloc;
-        struct template_node* parent;
-} template_node;
+        struct tld__template_node* parent;
+} tld__template_node;
 
 /* input is the template text; a syntax error leaves its reason in error. */
 typedef struct {
         const char *input;
         int position;
-        char error[MAX_ERROR_MSG];
-} Parser;
+        char error[TLD__TEMPLATE_MAX_ERROR];
+} tld__template_parser;
 
-tld_internal  int parse_template(Parser *parser, template_node **node);
-tld_internal  int process_tree(template_node *node, tld_hash *hash, tld_strbuf* out);
+static  int tld__template_parse(tld__template_parser *parser, tld__template_node **node);
+static  int tld__template_process(tld__template_node *node, tld_hash *hash, tld_strbuf* out);
 
-tld_internal  int get_vars(template_node *node, tld_hash* h);
-tld_internal  int parse_text(Parser *parser, template_node **node);
-tld_internal  int parse_tag(Parser *parser, template_node **node);
+static  int tld__template_get_vars(tld__template_node *node, tld_hash* h);
+static  int tld__template_parse_text(tld__template_parser *parser, tld__template_node **node);
+static  int tld__template_parse_tag(tld__template_parser *parser, tld__template_node **node);
 
-tld_internal  int template_node_add_child(template_node *parent, template_node *child);
-tld_internal  int template_node_create(template_node **node, template_node_type type, const char *content);
-tld_internal  int template_node_resize(template_node *node);
-tld_internal void template_node_free(template_node *node);
+static  int tld__template_node_add_child(tld__template_node *parent, tld__template_node *child);
+static  int tld__template_node_create(tld__template_node **node, tld__template_node_type type, const char *content);
+static  int tld__template_node_resize(tld__template_node *node);
+static void tld__template_node_free(tld__template_node *node);
 
 /* Parse the text in txt into a new tree in *root (nodes copy their text). A syntax
    error is printed with its reason. */
-static int template_parse_strbuf(tld_strbuf *txt, template_node **root)
+static int tld__template_parse_strbuf(tld_strbuf *txt, tld__template_node **root)
 {
-        template_node* r = NULL;
-        Parser parser = {TLD_STR(txt), 0, ""};
-        if(parse_template(&parser, &r) != OK){
+        tld__template_node* r = NULL;
+        tld__template_parser parser = {TLD_STR(txt), 0, ""};
+        if(tld__template_parse(&parser, &r) != OK){
                 if(parser.error[0] != '\0'){
                         ERROR_MSG("Error parsing template: %s", parser.error);
                 }
@@ -4661,20 +4601,20 @@ ERROR:
         return FAIL;
 }
 
-int process_tree(template_node *node, tld_hash *hash, tld_strbuf* out)
+int tld__template_process(tld__template_node *node, tld_hash *hash, tld_strbuf* out)
 {
         switch(node->type){
-        case NODE_ROOT:
+        case TLD__NODE_ROOT:
                 for(int i = 0; i < node->n; i++){
-                        RUN(process_tree(node->children[i], hash, out));
+                        RUN(tld__template_process(node->children[i], hash, out));
                 }
                 break;
 
-        case NODE_TEXT:
+        case TLD__NODE_TEXT:
                 RUN(tld_append(out, TLD_STR(node->content)));
                 break;
 
-        case NODE_VARIABLE:
+        case TLD__NODE_VARIABLE:
         {
                 const char* replacement = NULL;
                 /* an absent name gives no output */
@@ -4684,7 +4624,7 @@ int process_tree(template_node *node, tld_hash *hash, tld_strbuf* out)
         }
         break;
 
-        case NODE_IF:
+        case TLD__NODE_IF:
         {
                 const char* condition_value = NULL;
 
@@ -4693,20 +4633,20 @@ int process_tree(template_node *node, tld_hash *hash, tld_strbuf* out)
 
                 if(condition_met){
                         for(int i = 0; i < node->n; i++){
-                                RUN(process_tree(node->children[i], hash, out));
+                                RUN(tld__template_process(node->children[i], hash, out));
                         }
                 }else if(node->parent != NULL){
                         /* The parser places an IF's own ELSE directly after
                            it among the parent's children. Only that ELSE
                            belongs to this IF; an ELSE further up belongs to
                            an enclosing IF. */
-                        template_node* parent = node->parent;
+                        tld__template_node* parent = node->parent;
                         for(int i = 0; i < parent->n; i++){
                                 if(parent->children[i] == node){
-                                        if(i + 1 < parent->n && parent->children[i + 1]->type == NODE_ELSE){
-                                                template_node* else_node = parent->children[i + 1];
+                                        if(i + 1 < parent->n && parent->children[i + 1]->type == TLD__NODE_ELSE){
+                                                tld__template_node* else_node = parent->children[i + 1];
                                                 for(int j = 0; j < else_node->n; j++){
-                                                        RUN(process_tree(else_node->children[j], hash, out));
+                                                        RUN(tld__template_process(else_node->children[j], hash, out));
                                                 }
                                         }
                                         break;
@@ -4716,8 +4656,8 @@ int process_tree(template_node *node, tld_hash *hash, tld_strbuf* out)
         }
         break;
 
-        case NODE_ELSE:
-        case NODE_ENDIF:
+        case TLD__NODE_ELSE:
+        case TLD__NODE_ENDIF:
                 /* handled by the IF they belong to */
                 break;
         }
@@ -4726,12 +4666,12 @@ ERROR:
         return FAIL;
 }
 
-void template_node_free(template_node *node)
+void tld__template_node_free(tld__template_node *node)
 {
         if(node){
                 tld_strbuf_free(node->content);
                 for(int i = 0; i < node->n; i++){
-                        template_node_free(node->children[i]);
+                        tld__template_node_free(node->children[i]);
                 }
                 MFREE(node->children);
                 MFREE(node);
@@ -4741,87 +4681,87 @@ void template_node_free(template_node *node)
 /* Build the tree: text and variables are children of the innermost open IF (or
    ELSE, or the root). A syntax error sets parser->error and returns FAIL, as does
    running out of memory (error left empty). */
-int parse_template(Parser *parser, template_node **node)
+int tld__template_parse(tld__template_parser *parser, tld__template_node **node)
 {
-        template_node *root = NULL;
-        template_node *current = NULL;
-        template_node *child = NULL;
-        template_node** stack = NULL;
+        tld__template_node *root = NULL;
+        tld__template_node *current = NULL;
+        tld__template_node *child = NULL;
+        tld__template_node** stack = NULL;
         int stack_top = 0;
         int stack_size = 10;
-        MMALLOC(stack, sizeof(template_node*) * stack_size);
+        MMALLOC(stack, sizeof(tld__template_node*) * stack_size);
 
-        RUN(template_node_create(&root, NODE_ROOT, NULL));
+        RUN(tld__template_node_create(&root, TLD__NODE_ROOT, NULL));
         current = root;
 
         while(parser->input[parser->position] != '\0'){
                 int at = parser->position;
                 if(strncmp(parser->input + parser->position, "{{", 2) != 0){
-                        RUN(parse_text(parser, &child));
-                        RUN(template_node_add_child(current, child));
+                        RUN(tld__template_parse_text(parser, &child));
+                        RUN(tld__template_node_add_child(current, child));
                         child = NULL;
                         continue;
                 }
-                if(parse_tag(parser, &child) != OK){
+                if(tld__template_parse_tag(parser, &child) != OK){
                         goto ERROR;
                 }
                 switch(child->type){
-                case NODE_IF:
-                        if(stack_top >= MAX_IF_DEPTH){
-                                snprintf(parser->error, MAX_ERROR_MSG,
-                                         "IF nesting deeper than %d at byte %d", MAX_IF_DEPTH, at);
+                case TLD__NODE_IF:
+                        if(stack_top >= TLD__TEMPLATE_MAX_IF_DEPTH){
+                                snprintf(parser->error, TLD__TEMPLATE_MAX_ERROR,
+                                         "IF nesting deeper than %d at byte %d", TLD__TEMPLATE_MAX_IF_DEPTH, at);
                                 goto ERROR;
                         }
                         if(stack_top >= stack_size){
                                 stack_size = stack_size + stack_size / 2;
-                                MREALLOC(stack, sizeof(template_node*) * stack_size);
+                                MREALLOC(stack, sizeof(tld__template_node*) * stack_size);
                         }
-                        RUN(template_node_add_child(current, child));
+                        RUN(tld__template_node_add_child(current, child));
                         stack[stack_top++] = current;
                         current = child;
                         break;
-                case NODE_ELSE:
-                        if(stack_top == 0 || current->type != NODE_IF){
-                                snprintf(parser->error, MAX_ERROR_MSG, "ELSE without matching IF at byte %d", at);
+                case TLD__NODE_ELSE:
+                        if(stack_top == 0 || current->type != TLD__NODE_IF){
+                                snprintf(parser->error, TLD__TEMPLATE_MAX_ERROR, "ELSE without matching IF at byte %d", at);
                                 goto ERROR;
                         }
-                        RUN(template_node_add_child(stack[stack_top - 1], child));
+                        RUN(tld__template_node_add_child(stack[stack_top - 1], child));
                         current = child;
                         break;
-                case NODE_ENDIF:
+                case TLD__NODE_ENDIF:
                         if(stack_top == 0){
-                                snprintf(parser->error, MAX_ERROR_MSG, "ENDIF without matching IF at byte %d", at);
+                                snprintf(parser->error, TLD__TEMPLATE_MAX_ERROR, "ENDIF without matching IF at byte %d", at);
                                 goto ERROR;
                         }
-                        template_node_free(child);
+                        tld__template_node_free(child);
                         current = stack[--stack_top];
                         break;
                 default:
-                        RUN(template_node_add_child(current, child));
+                        RUN(tld__template_node_add_child(current, child));
                         break;
                 }
                 child = NULL;
         }
         if(stack_top > 0){
-                snprintf(parser->error, MAX_ERROR_MSG, "IF without ENDIF (%d still open at the end)", stack_top);
+                snprintf(parser->error, TLD__TEMPLATE_MAX_ERROR, "IF without ENDIF (%d still open at the end)", stack_top);
                 goto ERROR;
         }
         MFREE(stack);
         *node = root;
         return OK;
 ERROR:
-        template_node_free(child);
+        tld__template_node_free(child);
         MFREE(stack);
-        template_node_free(root);
+        tld__template_node_free(root);
         return FAIL;
 }
 
 /* Make child the last child of parent. The parent owns it afterwards; if that
    fails, the caller still does. */
-int template_node_add_child(template_node *parent, template_node *child)
+int tld__template_node_add_child(tld__template_node *parent, tld__template_node *child)
 {
         if(parent->n == parent->n_alloc){
-                RUN(template_node_resize(parent));
+                RUN(tld__template_node_resize(parent));
         }
         parent->children[parent->n++] = child;
         child->parent = parent;
@@ -4831,7 +4771,7 @@ ERROR:
 }
 
 /* Text up to the next {{ (or the end) as a new text node in *node. */
-int parse_text(Parser *parser, template_node **node)
+int tld__template_parse_text(tld__template_parser *parser, tld__template_node **node)
 {
         char *text = NULL;
         const char *start = parser->input + parser->position;
@@ -4842,7 +4782,7 @@ int parse_text(Parser *parser, template_node **node)
         MMALLOC(text, length + 1);
         memcpy(text, start, length);
         text[length] = '\0';
-        RUN(template_node_create(node, NODE_TEXT, text));
+        RUN(tld__template_node_create(node, TLD__NODE_TEXT, text));
         MFREE(text);
         parser->position += length;
         return OK;
@@ -4853,21 +4793,21 @@ ERROR:
 
 /* The {{...}} tag at the parser's position as a new node in *node. A malformed tag
    leaves its reason in parser->error. */
-int parse_tag(Parser *parser, template_node **node)
+int tld__template_parse_tag(tld__template_parser *parser, tld__template_node **node)
 {
-        char tag[MAX_VAR_NAME];
+        char tag[TLD__TEMPLATE_MAX_NAME];
         int at = parser->position;
         int i = 0;
         const char *p = parser->input + parser->position + 2;   /* after the {{ */
 
         while(!(p[0] == '}' && p[1] == '}')){
                 if(p[0] == '\0'){
-                        snprintf(parser->error, MAX_ERROR_MSG, "Tag at byte %d is not closed with }}", at);
+                        snprintf(parser->error, TLD__TEMPLATE_MAX_ERROR, "Tag at byte %d is not closed with }}", at);
                         return FAIL;
                 }
-                if(i == MAX_VAR_NAME - 1){
-                        snprintf(parser->error, MAX_ERROR_MSG,
-                                 "Tag at byte %d is longer than %d characters", at, MAX_VAR_NAME - 1);
+                if(i == TLD__TEMPLATE_MAX_NAME - 1){
+                        snprintf(parser->error, TLD__TEMPLATE_MAX_ERROR,
+                                 "Tag at byte %d is longer than %d characters", at, TLD__TEMPLATE_MAX_NAME - 1);
                         return FAIL;
                 }
                 tag[i++] = *p++;
@@ -4876,29 +4816,29 @@ int parse_tag(Parser *parser, template_node **node)
         parser->position = (int) (p + 2 - parser->input);
 
         if(i == 0){
-                snprintf(parser->error, MAX_ERROR_MSG, "Empty tag {{}} at byte %d", at);
+                snprintf(parser->error, TLD__TEMPLATE_MAX_ERROR, "Empty tag {{}} at byte %d", at);
                 return FAIL;
         }
         if(strcmp(tag, "ELSE") == 0){
-                return template_node_create(node, NODE_ELSE, NULL);
+                return tld__template_node_create(node, TLD__NODE_ELSE, NULL);
         }
         if(strcmp(tag, "ENDIF") == 0){
-                return template_node_create(node, NODE_ENDIF, NULL);
+                return tld__template_node_create(node, TLD__NODE_ENDIF, NULL);
         }
         if(strcmp(tag, "IF") == 0 || strcmp(tag, "IF ") == 0){
-                snprintf(parser->error, MAX_ERROR_MSG, "IF without a name at byte %d", at);
+                snprintf(parser->error, TLD__TEMPLATE_MAX_ERROR, "IF without a name at byte %d", at);
                 return FAIL;
         }
         if(strncmp(tag, "IF ", 3) == 0){
-                return template_node_create(node, NODE_IF, tag + 3);
+                return tld__template_node_create(node, TLD__NODE_IF, tag + 3);
         }
-        return template_node_create(node, NODE_VARIABLE, tag);
+        return tld__template_node_create(node, TLD__NODE_VARIABLE, tag);
 }
 
-int template_node_create(template_node **node, template_node_type type, const char *content)
+int tld__template_node_create(tld__template_node **node, tld__template_node_type type, const char *content)
 {
-        template_node* n = NULL;
-        MMALLOC(n, sizeof(template_node));      /* zeroed: no children, no content */
+        tld__template_node* n = NULL;
+        MMALLOC(n, sizeof(tld__template_node));      /* zeroed: no children, no content */
         n->type = type;
         if(content){
                 RUN(tld_strbuf_alloc(&n->content, 16));
@@ -4907,16 +4847,16 @@ int template_node_create(template_node **node, template_node_type type, const ch
         *node = n;
         return OK;
 ERROR:
-        template_node_free(n);
+        tld__template_node_free(n);
         return FAIL;
 }
 
 /* Room for more children: 4 at first, then half as many again. n_alloc changes only
    once the memory is there. */
-int template_node_resize(template_node *node)
+int tld__template_node_resize(tld__template_node *node)
 {
         int new_size = node->n_alloc ? node->n_alloc + node->n_alloc / 2 : 4;
-        MREALLOC(node->children, sizeof(template_node*) * new_size);
+        MREALLOC(node->children, sizeof(tld__template_node*) * new_size);
         node->n_alloc = new_size;
         return OK;
 ERROR:
@@ -4925,30 +4865,30 @@ ERROR:
 
 int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
 {
-        template_node* root = NULL;
+        tld__template_node* root = NULL;
         tld_strbuf* out = NULL;
 
-        RUN(template_parse_strbuf(txt, &root));
+        RUN(tld__template_parse_strbuf(txt, &root));
         RUN(tld_strbuf_alloc(&out, 256));
-        RUN(process_tree(root, hash, out));
+        RUN(tld__template_process(root, hash, out));
         RUN(tld_strbuf_copy(txt, out));
 
-        template_node_free(root);
+        tld__template_node_free(root);
         tld_strbuf_free(out);
         return OK;
 ERROR:
         tld_strbuf_free(out);
-        template_node_free(root);
+        tld__template_node_free(root);
         return FAIL;
 }
 
-int get_vars(template_node *node, tld_hash* h)
+int tld__template_get_vars(tld__template_node *node, tld_hash* h)
 {
-        if(node->type == NODE_VARIABLE || node->type == NODE_IF){
+        if(node->type == TLD__NODE_VARIABLE || node->type == TLD__NODE_IF){
                 RUN(tld_hash_add(&h, TLD_STR(node->content), TLD_STR(node->content)));
         }
         for(int i = 0; i < node->n; i++){
-                RUN(get_vars(node->children[i], h));
+                RUN(tld__template_get_vars(node->children[i], h));
         }
         return OK;
 ERROR:
@@ -4958,20 +4898,24 @@ ERROR:
 int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash)
 {
         tld_hash* h = NULL;
-        template_node* root = NULL;
+        tld__template_node* root = NULL;
 
-        RUN(template_parse_strbuf(txt, &root));
+        RUN(tld__template_parse_strbuf(txt, &root));
         RUN(tld_hash_alloc(&h,1024));
-        RUN(get_vars(root, h));
+        RUN(tld__template_get_vars(root, h));
 
-        template_node_free(root);
+        tld__template_node_free(root);
         *hash = h;
         return OK;
 ERROR:
         tld_hash_free(h);
-        template_node_free(root);
+        tld__template_node_free(root);
         return FAIL;
 }
+
+#undef TLD__TEMPLATE_MAX_ERROR
+#undef TLD__TEMPLATE_MAX_IF_DEPTH
+#undef TLD__TEMPLATE_MAX_NAME
 /* ---- src/rng/tld-rng.c ---- */
 
 #include <math.h>
@@ -4985,7 +4929,7 @@ ERROR:
 #define M_PI 3.14159265358979323846
 #endif
 
-#define M_2PI ((2.0)*(M_PI))
+#define TLD__2PI ((2.0)*(M_PI))
 
 /* code here was adopted from:  */
 
@@ -5053,15 +4997,15 @@ struct rng_dist{
 
 #undef ALIGN32
 
-static inline uint64_t rotl(uint64_t x,  uint64_t k);
-static uint64_t next(struct rng_state* s);
-void jump(struct rng_state* s);
+static inline uint64_t tld__rng_rotl(uint64_t x,  uint64_t k);
+static uint64_t tld__rng_next(struct rng_state* s);
+static void tld__rng_jump(struct rng_state* s);
 
-static uint64_t choose_arbitrary_seed(void);
+static uint64_t tld__rng_entropy_seed(void);
 
-static double tl_standard_gamma(struct rng_state* rng, double shape);
-static double tl_standard_exponential(struct rng_state* rng);
-static double tl_gauss(struct rng_state* rng);
+static double tld__rng_standard_gamma(struct rng_state* rng, double shape);
+static double tld__rng_standard_exponential(struct rng_state* rng);
+static double tld__rng_gauss(struct rng_state* rng);
 
 int init_rng(struct rng_state** rng,uint64_t seed)
 {
@@ -5074,7 +5018,7 @@ int init_rng(struct rng_state** rng,uint64_t seed)
         s->has_gauss = 0;
 
         if(!seed){
-                seed = choose_arbitrary_seed();
+                seed = tld__rng_entropy_seed();
         }
 
         tld_rng_set_seed(s, seed);
@@ -5085,7 +5029,7 @@ ERROR:
         return FAIL;
 }
 
-static inline uint64_t rotl(const uint64_t x,  uint64_t k) {
+static inline uint64_t tld__rng_rotl(const uint64_t x,  uint64_t k) {
         return (x << k) | (x >> (64U - k));
 }
 
@@ -5100,9 +5044,9 @@ static inline uint64_t rotl(const uint64_t x,  uint64_t k) {
    a 64-bit seed, we suggest to seed a splitmix64 generator and use its
    output to fill s. */
 
-uint64_t next(struct rng_state* s)
+uint64_t tld__rng_next(struct rng_state* s)
 {
-        const uint64_t result_starstar = rotl(s->s[1] * 5, 7) * 9;
+        const uint64_t result_starstar = tld__rng_rotl(s->s[1] * 5, 7) * 9;
         const uint64_t t = s->s[1] << 17U;
 
         s->s[2] ^= s->s[0];
@@ -5112,16 +5056,16 @@ uint64_t next(struct rng_state* s)
 
         s->s[2] ^= t;
 
-        s->s[3] = rotl(s->s[3], 45);
+        s->s[3] = tld__rng_rotl(s->s[3], 45);
 
         return result_starstar;
 }
 
 /* This is the jump function for the generator. It is equivalent
-   to 2^128 calls to next(); it can be used to generate 2^128
+   to 2^128 calls to tld__rng_next(); it can be used to generate 2^128
    non-overlapping subsequences for parallel computations. */
 
-void jump(struct rng_state* s)
+void tld__rng_jump(struct rng_state* s)
 {
         static const uint64_t JUMP[] = { 0x180ec6d33cfd0aba,
                                          0xd5a61266f0c9392c,
@@ -5140,7 +5084,7 @@ void jump(struct rng_state* s)
                                 s2 ^= s->s[2];
                                 s3 ^= s->s[3];
                         }
-                        next(s);
+                        tld__rng_next(s);
                 }
         }
 
@@ -5165,7 +5109,7 @@ int init_rng_from_rng(struct rng_state** target, struct rng_state* rng)
         s->z1 = 0.0;
         s->gauss = 0.0;
         s->has_gauss = 0;
-        jump(rng);
+        tld__rng_jump(rng);
         *target = s;
         return OK;
 ERROR:
@@ -5229,7 +5173,7 @@ void free_rng(struct rng_state* rng)
         }
 }
 /* The splitmix64 output function: spreads the bits of z over all 64 bits. */
-static uint64_t mix64(uint64_t z)
+static uint64_t tld__rng_mix64(uint64_t z)
 {
         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9ULL;
         z = (z ^ (z >> 27U)) * 0x94d049bb133111ebULL;
@@ -5240,7 +5184,7 @@ static uint64_t mix64(uint64_t z)
  * nanoseconds, the process id and a count of the seeds made so far. Generators made
  * in one loop, or by jobs started at the same moment, therefore get different seeds,
  * even if /dev/urandom cannot be read. */
-static uint64_t choose_arbitrary_seed(void)
+static uint64_t tld__rng_entropy_seed(void)
 {
         static _Atomic uint64_t n_made = 0;
         struct timespec now = {0};
@@ -5256,9 +5200,9 @@ static uint64_t choose_arbitrary_seed(void)
         if(timespec_get(&now, TIME_UTC) != TIME_UTC){
                 now.tv_sec = time(NULL);
         }
-        seed ^= mix64((uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec);
-        seed ^= mix64(((uint64_t) getpid() << 32U) ^ atomic_fetch_add(&n_made, 1));
-        return mix64(seed);
+        seed ^= tld__rng_mix64((uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec);
+        seed ^= tld__rng_mix64(((uint64_t) getpid() << 32U) ^ atomic_fetch_add(&n_made, 1));
+        return tld__rng_mix64(seed);
 }
 
 /* Uniform on the open interval (0,1): the top 53 bits of a draw give a
@@ -5267,7 +5211,7 @@ double tl_random_double(struct rng_state* rng)
 {
         uint64_t x = 0U;
         do{
-                x = next(rng) >> 11U;
+                x = tld__rng_next(rng) >> 11U;
         }while (x == 0U);
         return (double) x * 0x1.0p-53;
 }
@@ -5291,13 +5235,13 @@ double tl_random_gaussian(struct rng_state* rng, double mu, double sigma)
                 u2 = tl_random_double(rng);
         } while (u1 <= DBL_EPSILON);
 
-        z0 = sqrt(n2 * log(u1)) * cos(M_2PI * u2);
-        rng->z1 = sqrt(n2 * log(u1)) * sin(M_2PI * u2);
+        z0 = sqrt(n2 * log(u1)) * cos(TLD__2PI * u2);
+        rng->z1 = sqrt(n2 * log(u1)) * sin(TLD__2PI * u2);
 
         return z0 * sigma + mu;
 }
 
-double tl_standard_gamma(struct rng_state* rng, double shape)
+double tld__rng_standard_gamma(struct rng_state* rng, double shape)
 {
         double b = 0.0;
         double c = 0.0;
@@ -5307,11 +5251,11 @@ double tl_standard_gamma(struct rng_state* rng, double shape)
         double Y = 0.0;
         double r = 0.0;
         if (shape == 1.0){
-                r = tl_standard_exponential(rng);
+                r = tld__rng_standard_exponential(rng);
         }else if (shape < 1.0){
                 for (;;){
                         U = tl_random_double(rng);
-                        V = tl_standard_exponential(rng);
+                        V = tld__rng_standard_exponential(rng);
                         if (U <= 1.0 - shape){
                                 X = pow(U, 1./shape);
                                 if (X <= V){
@@ -5333,7 +5277,7 @@ double tl_standard_gamma(struct rng_state* rng, double shape)
                 for (;;){
                         do
                         {
-                                X = tl_gauss(rng);
+                                X = tld__rng_gauss(rng);
                                 V = 1.0 + c*X;
                         } while (V <= 0.0);
 
@@ -5352,13 +5296,13 @@ double tl_standard_gamma(struct rng_state* rng, double shape)
         return r;
 }
 
-double tl_standard_exponential(struct rng_state* rng)
+double tld__rng_standard_exponential(struct rng_state* rng)
 {
     /* We use -log(1-U) since U is [0, 1) */
         return -log(1.0 - tl_random_double(rng));
 }
 
-double tl_gauss(struct rng_state* rng)
+double tld__rng_gauss(struct rng_state* rng)
 {
         double r = 0.0;
         if (rng->has_gauss) {
@@ -5391,7 +5335,7 @@ double tl_gauss(struct rng_state* rng)
 
 double tl_random_gamma(struct rng_state* rng, double shape, double scale)
 {
-        return scale * tl_standard_gamma(rng, shape);
+        return scale * tld__rng_standard_gamma(rng, shape);
 }
 
 /* Uniform integer in [0, a). Unbiased: draws below 2^64 mod a are
@@ -5407,7 +5351,7 @@ int tl_random_int(struct rng_state* rng,int a)
         n = (uint64_t) a;
         threshold = ((uint64_t) 0 - n) % n;
         do{
-                x = next(rng);
+                x = tld__rng_next(rng);
         }while(x < threshold);
         return (int) (x % n);
 }
@@ -5534,10 +5478,11 @@ void tl_random_sdist_free(struct rng_dist* d)
                 MFREE(d);
         }
 }
+
+#undef TLD__2PI
 /* ---- src/sort/tld-sort.c ---- */
 
-
-#define DESC_FUNC(type)                                             \
+#define TLD__SORT_DESC_FUNC(type)                                             \
         static int cmp_desc_##type (const void *a, const void *b);  \
                                                                     \
         int sort_desc_##type(type *a, int len)                      \
@@ -5568,24 +5513,22 @@ void tl_random_sdist_free(struct rng_dist* d)
                 return (*ia > *ib) - (*ia < *ib);                   \
         }
 
+TLD__SORT_DESC_FUNC(char)
+TLD__SORT_DESC_FUNC(int8_t)
+TLD__SORT_DESC_FUNC(uint8_t)
+TLD__SORT_DESC_FUNC(int16_t)
+TLD__SORT_DESC_FUNC(uint16_t)
+TLD__SORT_DESC_FUNC(int32_t)
+TLD__SORT_DESC_FUNC(uint32_t)
+TLD__SORT_DESC_FUNC(int64_t)
+TLD__SORT_DESC_FUNC(uint64_t)
+TLD__SORT_DESC_FUNC(float)
+TLD__SORT_DESC_FUNC(double)
 
-
-
-
-DESC_FUNC(char)
-DESC_FUNC(int8_t)
-DESC_FUNC(uint8_t)
-DESC_FUNC(int16_t)
-DESC_FUNC(uint16_t)
-DESC_FUNC(int32_t)
-DESC_FUNC(uint32_t)
-DESC_FUNC(int64_t)
-DESC_FUNC(uint64_t)
-DESC_FUNC(float)
-DESC_FUNC(double)
+#undef TLD__SORT_DESC_FUNC
 /* ---- src/shuffle/tld-shuffle.c ---- */
 
-#define SHUFFLE_FUNC(type)                                              \
+#define TLD__SHUFFLE_FUNC(type)                                              \
         int tld_shuffle_##type(type* arr,int n, struct rng_state* rng)  \
         {                                                               \
                 int i,j;                                                \
@@ -5599,21 +5542,21 @@ DESC_FUNC(double)
                 return OK;                                              \
         }
 
+TLD__SHUFFLE_FUNC(char)
+TLD__SHUFFLE_FUNC(int8_t)
+TLD__SHUFFLE_FUNC(uint8_t)
+TLD__SHUFFLE_FUNC(int16_t)
+TLD__SHUFFLE_FUNC(uint16_t)
+TLD__SHUFFLE_FUNC(int32_t)
+TLD__SHUFFLE_FUNC(uint32_t)
+TLD__SHUFFLE_FUNC(int64_t)
+TLD__SHUFFLE_FUNC(uint64_t)
+TLD__SHUFFLE_FUNC(float)
+TLD__SHUFFLE_FUNC(double)
 
-SHUFFLE_FUNC(char)
-SHUFFLE_FUNC(int8_t)
-SHUFFLE_FUNC(uint8_t)
-SHUFFLE_FUNC(int16_t)
-SHUFFLE_FUNC(uint16_t)
-SHUFFLE_FUNC(int32_t)
-SHUFFLE_FUNC(uint32_t)
-SHUFFLE_FUNC(int64_t)
-SHUFFLE_FUNC(uint64_t)
-SHUFFLE_FUNC(float)
-SHUFFLE_FUNC(double)
+#undef TLD__SHUFFLE_FUNC
 /* ---- src/stats/basic.c ---- */
 #include <math.h>
-#define BASIC_IMPORT
 
 int tld_shannon(double *vec, int n, double *entropy)
 {
@@ -5871,10 +5814,9 @@ ERROR:
 
   https://metacpan.org/release/JANERT/Statistics-KernelEstimation-0.05/source/lib/Statistics/KernelEstimation.pm
 */
-static int copy_steps(double *data, int data_len, double ***ret);
-static int create_steps(double *data, int data_len, int n_steps, double band, double*** ret);
-static int default_bandwidth(double *x,double* cnt, int len, double* band);
-
+static int tld__kde_copy_steps(double *data, int data_len, double ***ret);
+static int tld__kde_create_steps(double *data, int data_len, int n_steps, double band, double*** ret);
+static int tld__kde_default_bandwidth(double *x,double* cnt, int len, double* band);
 
 int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
 {
@@ -5887,9 +5829,9 @@ int tld_kde_pdf(double *data, int data_len, int n_steps, double ***out)
         ASSERT(data_len > 0,"No data len?");
         ASSERT(n_steps > 0,"Number of steps must be positive");
 
-        RUN(default_bandwidth(data,NULL,data_len,&band));
+        RUN(tld__kde_default_bandwidth(data,NULL,data_len,&band));
 
-        RUN(create_steps(data,data_len, n_steps, band, &ladder));
+        RUN(tld__kde_create_steps(data,data_len, n_steps, band, &ladder));
 
         total_cnt = data_len;
 
@@ -5933,9 +5875,9 @@ int tld_kde_count_pdf(double *data,double* cnt, int data_len, double*** out)
         }
         ASSERT(total_cnt > 0.0, "Total count is zero");
 
-        RUN(copy_steps(data,data_len, &ladder ));
+        RUN(tld__kde_copy_steps(data,data_len, &ladder ));
 
-        RUN(default_bandwidth(data,cnt,data_len,&band));
+        RUN(tld__kde_default_bandwidth(data,cnt,data_len,&band));
 
         for(int i = 0; i < data_len;i++){
                 double d = 0.0;
@@ -5960,7 +5902,7 @@ ERROR:
         return FAIL;
 }
 
-int copy_steps(double *data, int data_len, double ***ret)
+int tld__kde_copy_steps(double *data, int data_len, double ***ret)
 {
         double** x = NULL;
         galloc(&x, data_len,2);
@@ -5980,7 +5922,7 @@ ERROR:
 
 /* Evaluation points: n_steps bin centres spanning [min, max]. When all
    data are equal the range is empty, so span mean +/- 4 bandwidths. */
-int create_steps(double *data, int data_len, int n_steps, double band, double*** ret)
+int tld__kde_create_steps(double *data, int data_len, int n_steps, double band, double*** ret)
 {
         double** x = NULL;
         double min = DBL_MAX;
@@ -6020,7 +5962,7 @@ ERROR:
    the cancellation of E[x^2] - E[x]^2 for data with a large offset. For
    constant data the bandwidth falls back to 1e-3 * |mean|, or 1.0 when
    the mean is zero. */
-int default_bandwidth(double *x,double* cnt, int len, double* band)
+int tld__kde_default_bandwidth(double *x,double* cnt, int len, double* band)
 {
         double sum_x = 0.0;
         double sum_dd = 0.0;
@@ -6070,9 +6012,9 @@ ERROR:
 typedef struct {
         double v;
         int idx;
-} n_itm;
+} tld__qnorm_item;
 
-static int cmp_n_itm (const void *a, const void *b);
+static int tld__qnorm_item_cmp (const void *a, const void *b);
 
 /* Quantile normalisation of the m columns of an n x m matrix (in place).
    The reference distribution is the mean over columns of the sorted
@@ -6081,7 +6023,7 @@ static int cmp_n_itm (const void *a, const void *b);
 int norm_quantile(double **data, int n, int m)
 {
         double** data_rank = NULL;
-        n_itm** l = NULL;
+        tld__qnorm_item** l = NULL;
 
         double sum = 0.0;
 
@@ -6096,12 +6038,12 @@ int norm_quantile(double **data, int n, int m)
         }
 
         galloc(&data_rank,n,m);
-        MMALLOC(l, sizeof(n_itm*) * n );
+        MMALLOC(l, sizeof(tld__qnorm_item*) * n );
         for(int i = 0; i < n;i++){
                 l[i] = NULL;
         }
         for(int i = 0; i < n;i++){
-                MMALLOC(l[i], sizeof(n_itm));
+                MMALLOC(l[i], sizeof(tld__qnorm_item));
                 l[i]->v = 0.0;
                 l[i]->idx = 0;
         }
@@ -6112,7 +6054,7 @@ int norm_quantile(double **data, int n, int m)
                         l[i]->idx = i;
                         l[i]->v = data[i][column];
                 }
-                qsort(l,n,  sizeof(n_itm*), cmp_n_itm);
+                qsort(l,n,  sizeof(tld__qnorm_item*), tld__qnorm_item_cmp);
 
                 for(int i = 0;i < n;i++){
                         data_rank[i][column] = l[i]->v;
@@ -6134,7 +6076,7 @@ int norm_quantile(double **data, int n, int m)
                         l[i]->idx = i;
                         l[i]->v = data[i][column];
                 }
-                qsort(l,n,  sizeof(n_itm*), cmp_n_itm);
+                qsort(l,n,  sizeof(tld__qnorm_item*), tld__qnorm_item_cmp);
 
                 int start = 0;
                 while(start < n){
@@ -6175,11 +6117,10 @@ ERROR:
         return FAIL;
 }
 
-
-int cmp_n_itm (const void *a, const void *b)
+int tld__qnorm_item_cmp (const void *a, const void *b)
 {
-        n_itm * const *one = a;
-        n_itm * const *two = b;
+        tld__qnorm_item * const *one = a;
+        tld__qnorm_item * const *two = b;
         if((*one)->v > (*two)->v){
                 return 1;
         }else if((*one)->v < (*two)->v){
@@ -6200,17 +6141,17 @@ int cmp_n_itm (const void *a, const void *b)
 #include <math.h>
 
 /* Unified Struct Definition */
-struct auc_pt {
+struct tld__auc_pt {
         double Y;
         double Y_hat;
 };
 
-static int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out);
+static int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out);
 
 /* Comparator function for qsort to sort in ascending order */
-static int auc_pt_sort(const void *a, const void *b) {
-        struct auc_pt * const *one = a;
-        struct auc_pt * const *two = b;
+static int tld__auc_pt_sort(const void *a, const void *b) {
+        struct tld__auc_pt * const *one = a;
+        struct tld__auc_pt * const *two = b;
 
         if ((*one)->Y_hat < (*two)->Y_hat) {
                 return -1;
@@ -6224,9 +6165,9 @@ static int auc_pt_sort(const void *a, const void *b) {
 /* Sorts the scores, sweeps the ROC curve from the highest score down,
    accumulates the area with the trapezoidal rule (tied scores form one
    step) and records the score nearest to the (0,1) corner. */
-int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out)
+int tld__auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_out)
 {
-        struct auc_pt** l = NULL;
+        struct tld__auc_pt** l = NULL;
         double thres = 0.0;
         double auc = 0.0;
         double tpr = 0.0;
@@ -6243,7 +6184,7 @@ int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_ou
         ASSERT(Y != NULL, "No labels");
         ASSERT(Y_hat != NULL, "No predictions");
 
-        MMALLOC(l, sizeof(struct auc_pt*) * n);
+        MMALLOC(l, sizeof(struct tld__auc_pt*) * n);
         for(int i = 0; i < n; i++) {
                 l[i] = NULL;
         }
@@ -6255,7 +6196,7 @@ int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_ou
                 if(isnan(Y_hat[i])) {
                         ERROR_MSG("prediction %d is NaN", i);
                 }
-                MMALLOC(l[i], sizeof(struct auc_pt));
+                MMALLOC(l[i], sizeof(struct tld__auc_pt));
                 l[i]->Y = Y[i];
                 l[i]->Y_hat = Y_hat[i];
                 if (Y[i] == 1.0) {
@@ -6269,7 +6210,7 @@ int auc_sweep(double *Y, double *Y_hat, int n, double *auc_out, double *thres_ou
                 ERROR_MSG("AUC needs both classes (%d positive, %d negative)", total_positive, total_negative);
         }
 
-        qsort(l, n, sizeof(struct auc_pt*), auc_pt_sort);
+        qsort(l, n, sizeof(struct tld__auc_pt*), tld__auc_pt_sort);
 
         for (int i = n - 1; i >= 0; i--) {
                 if(l[i]->Y == 1.0){
@@ -6320,7 +6261,7 @@ int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret)
 {
         double thres = 0.0;
         double auc = 0.0;
-        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *t = thres;
         *ret = auc;
         return OK;
@@ -6332,7 +6273,7 @@ int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
 {
         double thres = 0.0;
         double auc = 0.0;
-        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *ret = auc;
         return OK;
 ERROR:
@@ -6345,7 +6286,7 @@ int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_thresho
 {
         double thres = 0.0;
         double auc = 0.0;
-        RUN(auc_sweep(Y, Y_hat, n, &auc, &thres));
+        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
         *best_threshold = thres;
         return OK;
 ERROR:
@@ -6357,23 +6298,23 @@ ERROR:
 #include <math.h>
 #include <float.h>
 
-#define SCALE 1000.0F
-#define LOGSUM_SIZE 16000
+#define TLD__LOGSUM_SCALE 1000.0F
+#define TLD__LOGSUM_SIZE 16000
 
-static float logsum_lookup[LOGSUM_SIZE];
-static pthread_once_t logsum_once = PTHREAD_ONCE_INIT;
+static float tld__logsum_lookup[TLD__LOGSUM_SIZE];
+static pthread_once_t tld__logsum_once = PTHREAD_ONCE_INIT;
 
-static void logsum_fill_table(void)
+static void tld__logsum_fill_table(void)
 {
-        for(int i = 0; i < LOGSUM_SIZE;i++){
-                logsum_lookup[i] = logf(1.0F + expf((float) -i / SCALE));
+        for(int i = 0; i < TLD__LOGSUM_SIZE;i++){
+                tld__logsum_lookup[i] = logf(1.0F + expf((float) -i / TLD__LOGSUM_SCALE));
         }
 }
 
 /* Thread-safe; calling it is optional, logsum() initialises the table on first use. */
 void init_logsum(void)
 {
-        pthread_once(&logsum_once, logsum_fill_table);
+        pthread_once(&tld__logsum_once, tld__logsum_fill_table);
 }
 
 float logsum(const float a,const float b)
@@ -6392,7 +6333,7 @@ float logsum(const float a,const float b)
                 return max;
         }
         init_logsum();
-        return  max+ logsum_lookup[(int)((max-min)*SCALE)];
+        return  max+ tld__logsum_lookup[(int)((max-min)*TLD__LOGSUM_SCALE)];
 }
 
 int nearly_equal_float(float a, float b)
@@ -6428,6 +6369,9 @@ int nearly_equal_double(double a, double b)
         }
         return ret;
 }
+
+#undef TLD__LOGSUM_SCALE
+#undef TLD__LOGSUM_SIZE
 /* ---- src/kdtree/tld-kdtree.c ---- */
 
 #include <stdlib.h>
@@ -6439,27 +6383,27 @@ int nearly_equal_double(double a, double b)
    slots up to n_alloc are allocated and free for later points. Building and
    rebalancing only re-link these nodes, so they never allocate and never move a
    point between nodes. */
-struct kdyard {
+struct tld__kdyard {
         kd_node** nodes;
         int n_alloc;
         int n_node;
         int vec_len;
 };
 
-static int nn_search(const kdtree *t, const kd_node* n, const double *x, int depth, double* min_d, uint32_t *id);
+static int tld__kdtree_nn(const kdtree *t, const kd_node* n, const double *x, int depth, double* min_d, uint32_t *id);
 
-static int kdyard_alloc(struct kdyard ** yard, int size, int len);
-static int kdyard_reserve(struct kdyard *y, int n);
-static void kdyard_free(struct kdyard *n);
+static int tld__kdyard_alloc(struct tld__kdyard ** yard, int size, int len);
+static int tld__kdyard_reserve(struct tld__kdyard *y, int n);
+static void tld__kdyard_free(struct tld__kdyard *n);
 
-static void kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int size);
-static void kdtree_relink(kdtree *t);
-static kd_node* link_balanced(kd_node **v, int n, int depth, int dim, int *max_depth);
-static void select_nth(kd_node **v, int n, int k, int cd);
-static int kdtree_node_alloc(kd_node **node, int size);
-static void kdtree_node_free(kd_node *n);
+static void tld__kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int size);
+static void tld__kdtree_relink(kdtree *t);
+static kd_node* tld__kdtree_link_balanced(kd_node **v, int n, int depth, int dim, int *max_depth);
+static void tld__kdtree_select_nth(kd_node **v, int n, int k, int cd);
+static int tld__kdtree_node_alloc(kd_node **node, int size);
+static void tld__kdtree_node_free(kd_node *n);
 
-int kdtree_node_alloc(kd_node **node, int size)
+int tld__kdtree_node_alloc(kd_node **node, int size)
 {
         kd_node* n = NULL;
         MMALLOC(n, sizeof(kd_node));
@@ -6468,11 +6412,11 @@ int kdtree_node_alloc(kd_node **node, int size)
         *node = n;
         return OK;
 ERROR:
-        kdtree_node_free(n);
+        tld__kdtree_node_free(n);
         return FAIL;
 }
 
-void kdtree_node_free(kd_node *n)
+void tld__kdtree_node_free(kd_node *n)
 {
         if(n){
                 gfree(n->p);
@@ -6480,22 +6424,22 @@ void kdtree_node_free(kd_node *n)
         }
 }
 
-int kdyard_alloc(struct kdyard ** yard, int size, int len)
+int tld__kdyard_alloc(struct tld__kdyard ** yard, int size, int len)
 {
-        struct kdyard* n = NULL;
-        MMALLOC(n, sizeof(struct kdyard));
+        struct tld__kdyard* n = NULL;
+        MMALLOC(n, sizeof(struct tld__kdyard));
         n->vec_len = len;
-        RUN(kdyard_reserve(n, size));
+        RUN(tld__kdyard_reserve(n, size));
         *yard = n;
         return OK;
 ERROR:
-        kdyard_free(n);
+        tld__kdyard_free(n);
         return FAIL;
 }
 
 /* Room for n more nodes after the ones in the tree, growing by at least half. On
    failure the yard is unchanged apart from extra free slots, so the tree is intact. */
-int kdyard_reserve(struct kdyard *y, int n)
+int tld__kdyard_reserve(struct tld__kdyard *y, int n)
 {
         int need = 0;
         int new_size = 0;
@@ -6511,7 +6455,7 @@ int kdyard_reserve(struct kdyard *y, int n)
         MREALLOC(y->nodes, sizeof(kd_node*) * (size_t) new_size);
         while(y->n_alloc < new_size){
                 y->nodes[y->n_alloc] = NULL;
-                RUN(kdtree_node_alloc(&y->nodes[y->n_alloc], y->vec_len));
+                RUN(tld__kdtree_node_alloc(&y->nodes[y->n_alloc], y->vec_len));
                 y->n_alloc++;
         }
         return OK;
@@ -6519,11 +6463,11 @@ ERROR:
         return FAIL;
 }
 
-void kdyard_free(struct kdyard *n)
+void tld__kdyard_free(struct tld__kdyard *n)
 {
         if(n){
                 for(int i = 0; i < n->n_alloc; i++){
-                        kdtree_node_free(n->nodes[i]);
+                        tld__kdtree_node_free(n->nodes[i]);
                 }
                 MFREE(n->nodes);
                 MFREE(n);
@@ -6538,7 +6482,7 @@ int kdtree_alloc(kdtree **tree, int size)
         t->fptr_cmp = kddist_euclidian;
         t->fptr_plane = kdplane_check_euclidian;
         t->rebalance_at = 10000;
-        RUN(kdyard_alloc(&t->yard, 1024, size));
+        RUN(tld__kdyard_alloc(&t->yard, 1024, size));
         *tree = t;
         return OK;
 ERROR:
@@ -6549,7 +6493,7 @@ ERROR:
 void kdtree_free(kdtree *t)
 {
         if(t){
-                kdyard_free(t->yard);
+                tld__kdyard_free(t->yard);
                 MFREE(t);
         }
 }
@@ -6569,7 +6513,7 @@ ERROR:
 
 /* Put point x (size doubles, zero-padded to the yard's length) and id into the free
    node n. */
-void kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int size)
+void tld__kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int size)
 {
         n->left = NULL;
         n->right = NULL;
@@ -6584,7 +6528,7 @@ void kdtree_node_set(kdtree *t, kd_node *n, const double *x, uint32_t id, int si
 
 /* Reorder v[0..n) so that v[k] holds the node whose coordinate cd would be k-th in
    sorted order, with no larger value before it and no smaller one after it. */
-void select_nth(kd_node **v, int n, int k, int cd)
+void tld__kdtree_select_nth(kd_node **v, int n, int k, int cd)
 {
         int lo = 0;
         int hi = n - 1;
@@ -6619,29 +6563,29 @@ void select_nth(kd_node **v, int n, int k, int cd)
 
 /* Link v[0..n) into a balanced subtree splitting on coordinate depth % dim; returns
    its root. */
-kd_node* link_balanced(kd_node **v, int n, int depth, int dim, int *max_depth)
+kd_node* tld__kdtree_link_balanced(kd_node **v, int n, int depth, int dim, int *max_depth)
 {
         kd_node* r = NULL;
         int mid = n / 2;
         if(n <= 0){
                 return NULL;
         }
-        select_nth(v, n, mid, depth % dim);
+        tld__kdtree_select_nth(v, n, mid, depth % dim);
         r = v[mid];
         if(depth > *max_depth){
                 *max_depth = depth;
         }
-        r->left = link_balanced(v, mid, depth + 1, dim, max_depth);
-        r->right = link_balanced(v + mid + 1, n - mid - 1, depth + 1, dim, max_depth);
+        r->left = tld__kdtree_link_balanced(v, mid, depth + 1, dim, max_depth);
+        r->right = tld__kdtree_link_balanced(v + mid + 1, n - mid - 1, depth + 1, dim, max_depth);
         return r;
 }
 
 /* Rebuild the tree balanced from the nodes it holds. */
-void kdtree_relink(kdtree *t)
+void tld__kdtree_relink(kdtree *t)
 {
         t->max_depth = 0;
         t->min_depth = 0;
-        t->root = link_balanced(t->yard->nodes, t->yard->n_node, 0, t->vec_len, &t->max_depth);
+        t->root = tld__kdtree_link_balanced(t->yard->nodes, t->yard->n_node, 0, t->vec_len, &t->max_depth);
 }
 
 int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size)
@@ -6650,15 +6594,15 @@ int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size)
         ASSERT(n >= 0, "Negative number of points (%d)", n);
         ASSERT(n == 0 || (x != NULL && ids != NULL), "No points or ids");
         ASSERT(size > 0 && size <= t->yard->vec_len, "Point length %d is not in 1..%d", size, t->yard->vec_len);
-        RUN(kdyard_reserve(t->yard, n));
+        RUN(tld__kdyard_reserve(t->yard, n));
         for(int i = 0; i < n; i++){
-                kdtree_node_set(t, t->yard->nodes[t->yard->n_node + i], x[i], ids[i], size);
+                tld__kdtree_node_set(t, t->yard->nodes[t->yard->n_node + i], x[i], ids[i], size);
         }
         t->yard->n_node += n;
         if(size > t->vec_len){
                 t->vec_len = size;
         }
-        kdtree_relink(t);
+        tld__kdtree_relink(t);
         return OK;
 ERROR:
         return FAIL;
@@ -6673,15 +6617,15 @@ int kdtree_insert(kdtree* t, double *x,uint32_t id, int size)
         ASSERT(x != NULL, "No point");
         ASSERT(size > 0 && size <= t->yard->vec_len, "Point length %d is not in 1..%d", size, t->yard->vec_len);
 
-        RUN(kdyard_reserve(t->yard, 1));
+        RUN(tld__kdyard_reserve(t->yard, 1));
         n = t->yard->nodes[t->yard->n_node];
-        kdtree_node_set(t, n, x, id, size);
+        tld__kdtree_node_set(t, n, x, id, size);
         t->yard->n_node++;
 
         if(size > t->vec_len){
                 /* the split coordinates depend on the length: re-link all */
                 t->vec_len = size;
-                kdtree_relink(t);
+                tld__kdtree_relink(t);
                 t->n_step = 0;
                 return OK;
         }
@@ -6708,7 +6652,7 @@ int kdtree_insert(kdtree* t, double *x,uint32_t id, int size)
                 }
                 t->n_step = 0;
                 if(abs(t->max_depth - opt_d) > 10){
-                        kdtree_relink(t);
+                        tld__kdtree_relink(t);
                 }
         }
         return OK;
@@ -6719,7 +6663,7 @@ ERROR:
 int kdtree_rebalance(kdtree *t)
 {
         ASSERT(t != NULL, "No tree");
-        kdtree_relink(t);
+        tld__kdtree_relink(t);
         return OK;
 ERROR:
         return FAIL;
@@ -6727,7 +6671,7 @@ ERROR:
 
 /* Depth-first nearest-neighbour search below n (at depth). The tree is only read, so
    searches of one tree may run at the same time. */
-int nn_search(const kdtree *t, const kd_node* n, const double *x, int depth, double* min_d, uint32_t *id)
+int tld__kdtree_nn(const kdtree *t, const kd_node* n, const double *x, int depth, double* min_d, uint32_t *id)
 {
         double d = 0.0;
         int cd = 0;
@@ -6743,11 +6687,11 @@ int nn_search(const kdtree *t, const kd_node* n, const double *x, int depth, dou
         }
         cd = depth % t->vec_len;
         near_left = x[cd] < n->p[cd];
-        nn_search(t, near_left ? n->left : n->right, x, depth + 1, min_d, id);
+        tld__kdtree_nn(t, near_left ? n->left : n->right, x, depth + 1, min_d, id);
         /* the far side can hold a nearer point only if the splitting plane is closer
            than the best distance so far */
         if(t->fptr_plane(n->p, (double*) x, cd, *min_d) == OK){
-                nn_search(t, near_left ? n->right : n->left, x, depth + 1, min_d, id);
+                tld__kdtree_nn(t, near_left ? n->right : n->left, x, depth + 1, min_d, id);
         }
         return OK;
 }
@@ -6760,7 +6704,7 @@ int kdtree_nn_search(kdtree *t, double *x, uint32_t *id)
         ASSERT(x != NULL, "No point");
         ASSERT(id != NULL, "No id");
         ASSERT(t->root != NULL, "The tree is empty");
-        RUN(nn_search(t, t->root, x, 0, &min_d, &best));
+        RUN(tld__kdtree_nn(t, t->root, x, 0, &min_d, &best));
         *id = best;
         return OK;
 ERROR:
@@ -6821,27 +6765,20 @@ int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist)
 
 /* Weird but works... */
 /* ---- src/tpool/tpool_internal.h ---- */
-#ifndef TPOOL_INTERNAL_H
-#define TPOOL_INTERNAL_H
+#ifndef TLD_TPOOL_INTERNAL_H
+#define TLD_TPOOL_INTERNAL_H
 
 #include <pthread.h>
 #include <stdint.h>
 /* #include "tpool.h" */
-#ifdef TPOOL_INTERNAL_IMPORT
-#define EXTERN
-#else
-#define EXTERN extern
-#endif
 
-
-#define WORK_EMPTY 0
-#define WORK_TODO 1
-#define WORK_DONE 2
+#define TLD__WORK_EMPTY 0
+#define TLD__WORK_TODO 1
+#define TLD__WORK_DONE 2
 typedef struct tld_thread_pool tld_thread_pool;
 
-
-struct work_item {
-        struct work_item* next;
+struct tld__work_item {
+        struct tld__work_item* next;
         void (*func_ptr)(tld_thread_pool*, void*,int64_t, int64_t, int);
         void* data;
         int64_t start;
@@ -6849,43 +6786,35 @@ struct work_item {
         int status;
 };
 
+struct tld__work_queue {
+        struct tld__work_item** l;
 
-struct work_queue {
-        struct work_item** l;
-
-
-        struct work_item* store;
-        struct work_item* head;
-        struct work_item* tail;
+        struct tld__work_item* store;
+        struct tld__work_item* head;
+        struct tld__work_item* tail;
 
         int n_alloc;
         int n;
 };
 
-EXTERN int work_queue_haswork(struct work_queue *q);
-EXTERN int work_queue_push(struct work_queue *q, void (*func_ptr)(tld_thread_pool*, void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
+static int tld__work_queue_haswork(struct tld__work_queue *q);
+static int tld__work_queue_push(struct tld__work_queue *q, void (*func_ptr)(tld_thread_pool*, void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
 
-EXTERN int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*, void *,int64_t, int64_t,int), void **data,int64_t* start, int64_t* end);
+static int tld__work_queue_pop(struct tld__work_queue *q, void (**func_ptr)(tld_thread_pool*, void *,int64_t, int64_t,int), void **data,int64_t* start, int64_t* end);
 
-
-EXTERN int work_queue_alloc(struct work_queue **queue, int size);
-EXTERN int work_queue_expand(struct work_queue *q, int add);
-EXTERN void work_queue_free(struct work_queue *q);
-#undef TPOOL_INTERNAL_IMPORT
-#undef EXTERN
-
+static int tld__work_queue_alloc(struct tld__work_queue **queue, int size);
+static void tld__work_queue_free(struct tld__work_queue *q);
 
 #endif
 /* ---- src/tpool/tpool_internal.c ---- */
 
 /* #include "tld.h" */
-#define TPOOL_INTERNAL_IMPORT
 
-static int  work_item_alloc(struct work_item **work);
-static void work_item_free(struct work_item *w);
-static int work_queue_add_storage(struct work_queue *q, int size);
+static int  tld__work_item_alloc(struct tld__work_item **work);
+static void tld__work_item_free(struct tld__work_item *w);
+static int tld__work_queue_add_storage(struct tld__work_queue *q, int size);
 
-int work_queue_haswork(struct work_queue *q)
+int tld__work_queue_haswork(struct tld__work_queue *q)
 {
         if(q->head != NULL){
                 return 1;
@@ -6893,12 +6822,12 @@ int work_queue_haswork(struct work_queue *q)
         return 0;
 }
 
-int work_queue_push(struct work_queue *q, void (*func_ptr)(tld_thread_pool*, void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end)
+int tld__work_queue_push(struct tld__work_queue *q, void (*func_ptr)(tld_thread_pool*, void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end)
 {
-        struct work_item* new = NULL;
+        struct tld__work_item* new = NULL;
 
         if(q->store == NULL){
-                RUN(work_queue_add_storage(q, 1024));
+                RUN(tld__work_queue_add_storage(q, 1024));
         }
 
         new = q->store;
@@ -6909,7 +6838,7 @@ int work_queue_push(struct work_queue *q, void (*func_ptr)(tld_thread_pool*, voi
 
         new->func_ptr = func_ptr;
         new->data = data;
-        new->status = WORK_TODO;
+        new->status = TLD__WORK_TODO;
         new->start = start;
         new->end = end;
 
@@ -6926,10 +6855,10 @@ ERROR:
         return FAIL;
 }
 
-int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*,void *, int64_t, int64_t , int), void **data,int64_t* start, int64_t* end)
+int tld__work_queue_pop(struct tld__work_queue *q, void (**func_ptr)(tld_thread_pool*,void *, int64_t, int64_t , int), void **data,int64_t* start, int64_t* end)
 {
 
-        struct work_item* tmp = NULL;
+        struct tld__work_item* tmp = NULL;
 
         if(q->head == NULL){
                 WARNING_MSG("Queue is empty");
@@ -6950,15 +6879,15 @@ int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*,void
         return OK;
 }
 
-int work_queue_add_storage(struct work_queue *q, int size)
+int tld__work_queue_add_storage(struct tld__work_queue *q, int size)
 {
-        struct work_item* n = NULL;
+        struct tld__work_item* n = NULL;
         if(q->store == NULL){
-                RUN(work_item_alloc(&n));
+                RUN(tld__work_item_alloc(&n));
                 q->store = n;
         }
         for(int i = 0; i < size;i++){
-                RUN(work_item_alloc(&n));
+                RUN(tld__work_item_alloc(&n));
                 n->next = q->store;
                 q->store = n;
         }
@@ -6967,11 +6896,11 @@ ERROR:
         return FAIL;
 }
 
-int work_queue_alloc(struct work_queue **queue, int size)
+int tld__work_queue_alloc(struct tld__work_queue **queue, int size)
 {
-        struct work_queue* q = NULL;
+        struct tld__work_queue* q = NULL;
 
-        MMALLOC(q, sizeof(struct work_queue));
+        MMALLOC(q, sizeof(struct tld__work_queue));
 
         q->n_alloc = size;
         q->n = -1;
@@ -6981,76 +6910,54 @@ int work_queue_alloc(struct work_queue **queue, int size)
         q->head = NULL;
         q->tail = NULL;
 
-        RUN(work_queue_add_storage(q, q->n_alloc));
+        RUN(tld__work_queue_add_storage(q, q->n_alloc));
 
         *queue = q;
         return OK;
 ERROR:
-        work_queue_free(q);
+        tld__work_queue_free(q);
         return FAIL;
 }
 
-int work_queue_expand(struct work_queue *q, int add)
-{
-        ASSERT(q != NULL,"No work queue");
-        int old_size;
-        if(add == 0){
-                add = q->n_alloc/ 2;
-        }
-
-        old_size = q->n_alloc;
-        q->n_alloc += add;
-
-        MREALLOC(q->l, sizeof(struct work_item*) * q->n_alloc);
-        for(int i = old_size; i < q->n_alloc;i++){
-                q->l[i] = NULL;
-                RUN(work_item_alloc(&q->l[i]));
-        }
-        return OK;
-ERROR:
-        work_queue_free(q);
-        return FAIL;
-}
-
-void work_queue_free(struct work_queue *q)
+void tld__work_queue_free(struct tld__work_queue *q)
 {
         if(q){
-                struct work_item* n = NULL;
-                struct work_item* tmp = NULL;
+                struct tld__work_item* n = NULL;
+                struct tld__work_item* tmp = NULL;
                 n = q->head;
                 while(n){
                         tmp = n;
                         n = n->next;
-                        work_item_free(tmp);
+                        tld__work_item_free(tmp);
                 }
 
                 n = q->store;
                 while(n){
                         tmp = n;
                         n = n->next;
-                        work_item_free(tmp);
+                        tld__work_item_free(tmp);
                 }
 
                 MFREE(q);
         }
 }
 
-int work_item_alloc(struct work_item **work)
+int tld__work_item_alloc(struct tld__work_item **work)
 {
-        struct work_item* w = NULL;
-        MMALLOC(w, sizeof(struct work_item));
+        struct tld__work_item* w = NULL;
+        MMALLOC(w, sizeof(struct tld__work_item));
         w->next = NULL;
         w->func_ptr = NULL;
         w->start = 0;
         w->end = 0;
-        w->status = WORK_EMPTY;
+        w->status = TLD__WORK_EMPTY;
         *work = w;
         return OK;
 ERROR:
         return FAIL;
 }
 
-void work_item_free(struct work_item *w)
+void tld__work_item_free(struct tld__work_item *w)
 {
         if(w){
                 MFREE(w);
@@ -7059,7 +6966,6 @@ void work_item_free(struct work_item *w)
 
 #include <unistd.h>
 
-#define TPOOL_IMPORT
 
 /* The library does not install signal handlers. A program that wants to
    stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself;
@@ -7069,39 +6975,39 @@ atomic_int tld_global_stop_run;
 pthread_mutex_t tld_global_cond_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t tld_global_cond = PTHREAD_COND_INITIALIZER;
 
-static void *pool_worker(void *data);
-static int pool_get_tid(tld_thread_pool *p);
-static void pool_set_stop_locked(tld_thread_pool *p);
-static void pool_shutdown(tld_thread_pool *p, int n_started);
+static void *tld__pool_worker(void *data);
+static int tld__pool_get_tid(tld_thread_pool *p);
+static void tld__pool_set_stop_locked(tld_thread_pool *p);
+static void tld__pool_shutdown(tld_thread_pool *p, int n_started);
 
-static int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run);
+static int tld__pool_test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run);
 
 /* Must be called with p->lock held. Marks the pool as stopped and wakes
    every thread: idle workers (work_cond) so they can exit and waiters
    (working_cond) so they can re-check their condition. */
-static void pool_set_stop_locked(tld_thread_pool *p)
+static void tld__pool_set_stop_locked(tld_thread_pool *p)
 {
         p->stop = 1;
         pthread_cond_broadcast(&p->work_cond);
         pthread_cond_broadcast(&p->working_cond);
 }
 
-void *pool_worker(void *data)
+void *tld__pool_worker(void *data)
 {
         tld_thread_pool*  p = (tld_thread_pool*) data;
         void (*func_ptr)(tld_thread_pool*, void *,int64_t, int64_t, int ) = NULL;
         void* fun_data = NULL;
-        const int thread_id = pool_get_tid(p);
+        const int thread_id = tld__pool_get_tid(p);
         int64_t start;
         int64_t end;
 
         pthread_mutex_lock(&p->lock);
         while(1){
-                while(!work_queue_haswork(p->work) && !p->stop){
+                while(!tld__work_queue_haswork(p->work) && !p->stop){
                         pthread_cond_wait(&p->work_cond, &p->lock);
                 }
                 if(tld_global_stop_run == 1 && !p->stop){
-                        pool_set_stop_locked(p);
+                        tld__pool_set_stop_locked(p);
                 }
                 /* stop means abandon queued work (time limit or global
                    stop flag); tld_thread_pool_free drains the queue
@@ -7112,7 +7018,7 @@ void *pool_worker(void *data)
 
                 start = 0 ;
                 end = 0;
-                work_queue_pop(p->work,  &func_ptr, &fun_data, &start, &end);
+                tld__work_queue_pop(p->work,  &func_ptr, &fun_data, &start, &end);
                 p->n_working++;
                 pthread_mutex_unlock(&p->lock);
 
@@ -7123,12 +7029,12 @@ void *pool_worker(void *data)
                 p->n_working--;
                 if(p->maxtime && !p->stop){
                         int timeout = 0;
-                        test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &timeout);
+                        tld__pool_test_runtime(p->internal_time, &p->stop_watch, p->maxtime, &timeout);
                         if(timeout){
-                                pool_set_stop_locked(p);
+                                tld__pool_set_stop_locked(p);
                         }
                 }
-                if(p->n_working == 0 && !work_queue_haswork(p->work)){
+                if(p->n_working == 0 && !tld__work_queue_haswork(p->work)){
                         pthread_cond_broadcast(&p->working_cond);
                 }
         }
@@ -7140,10 +7046,10 @@ void *pool_worker(void *data)
 
 /* Stops the workers and joins the first n_started threads, then frees the
    pool. Does not drain the queue. */
-static void pool_shutdown(tld_thread_pool *p, int n_started)
+static void tld__pool_shutdown(tld_thread_pool *p, int n_started)
 {
         pthread_mutex_lock(&p->lock);
-        pool_set_stop_locked(p);
+        tld__pool_set_stop_locked(p);
         pthread_mutex_unlock(&p->lock);
 
         for(int t = 0; t < n_started; t++) {
@@ -7155,7 +7061,7 @@ static void pool_shutdown(tld_thread_pool *p, int n_started)
 
         MFREE(p->threads);
         gfree(p->thread_id_map);
-        work_queue_free(p->work);
+        tld__work_queue_free(p->work);
         pthread_attr_destroy(&p->attr);
         pthread_mutex_destroy(&p->lock);
         pthread_cond_destroy(&p->work_cond);
@@ -7163,7 +7069,7 @@ static void pool_shutdown(tld_thread_pool *p, int n_started)
         MFREE(p);
 }
 
-int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run)
+int tld__pool_test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run)
 {
         double diff_t = 0.0;
         time_t cur_time;
@@ -7182,7 +7088,7 @@ int test_runtime(time_t internal_time,time_t* stop_watch,double maxtime,int* run
         return OK;
 }
 
-int pool_get_tid(tld_thread_pool *p)
+int tld__pool_get_tid(tld_thread_pool *p)
 {
         int i;
         int64_t tid = (int64_t) pthread_self();
@@ -7229,7 +7135,7 @@ int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_thread
         galloc(&p->thread_id_map,p->n_threads);
         p->thread_id_idx = 0;
         MMALLOC(p->threads, sizeof(pthread_t) * p->n_threads);
-        RUN(work_queue_alloc(&p->work, 1024));
+        RUN(tld__work_queue_alloc(&p->work, 1024));
 
         pthread_mutex_init(&p->lock, NULL);
         pthread_cond_init(&p->work_cond, NULL);
@@ -7246,7 +7152,7 @@ int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_thread
                 pthread_mutex_lock(&p->lock);
                 p->n_active_threads++;
                 pthread_mutex_unlock(&p->lock);
-                rc = pthread_create(&p->threads[t], &p->attr, pool_worker,  (void *)p);
+                rc = pthread_create(&p->threads[t], &p->attr, tld__pool_worker,  (void *)p);
                 if(rc){
                         pthread_mutex_lock(&p->lock);
                         p->n_active_threads--;
@@ -7261,7 +7167,7 @@ int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_thread
 ERROR:
         if(p){
                 if(sync_init){
-                        pool_shutdown(p, n_started);
+                        tld__pool_shutdown(p, n_started);
                 }else{
                         if(p->threads){
                                 MFREE(p->threads);
@@ -7269,7 +7175,7 @@ ERROR:
                         if(p->thread_id_map){
                                 gfree(p->thread_id_map);
                         }
-                        work_queue_free(p->work);
+                        tld__work_queue_free(p->work);
                         MFREE(p);
                 }
         }
@@ -7282,7 +7188,7 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
         ASSERT(p != NULL, "No thread pool");
         pthread_mutex_lock(&p->lock);
         if(tld_global_stop_run == 1 && !p->stop){
-                pool_set_stop_locked(p);
+                tld__pool_set_stop_locked(p);
         }
         if(p->stop){
                 /* refused: the job will not run, so data is still the caller's */
@@ -7290,7 +7196,7 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
                 pthread_mutex_unlock(&p->lock);
                 return FAIL;
         }
-        status = work_queue_push(p->work, func_ptr, data, start, end);
+        status = tld__work_queue_push(p->work, func_ptr, data, start, end);
         if(status == OK){
                 pthread_cond_broadcast(&p->work_cond);
         }
@@ -7313,18 +7219,18 @@ int tld_thread_pool_wait(tld_thread_pool *p)
                                 if(p->n_active_threads == 0){
                                         break;
                                 }
-                        }else if(p->n_working == 0 && !work_queue_haswork(p->work)){
+                        }else if(p->n_working == 0 && !tld__work_queue_haswork(p->work)){
                                 break;
                         }
                         pthread_cond_wait(&p->working_cond, &p->lock);
                 }
                 /* Count (and discard) the jobs a stop left in the queue. */
-                while(p->stop && work_queue_haswork(p->work)){
+                while(p->stop && tld__work_queue_haswork(p->work)){
                         void (*fn)(tld_thread_pool*, void *,int64_t, int64_t, int) = NULL;
                         void* data = NULL;
                         int64_t s = 0;
                         int64_t e = 0;
-                        work_queue_pop(p->work, &fn, &data, &s, &e);
+                        tld__work_queue_pop(p->work, &fn, &data, &s, &e);
                         p->n_dropped++;
                 }
                 dropped = p->n_dropped;
@@ -7338,9 +7244,13 @@ void tld_thread_pool_free(tld_thread_pool *p)
         if(p){
                 /* Run everything already queued before stopping. */
                 (void)tld_thread_pool_wait(p);
-                pool_shutdown(p, p->n_threads);
+                tld__pool_shutdown(p, p->n_threads);
         }
 }
+
+#undef TLD__WORK_DONE
+#undef TLD__WORK_EMPTY
+#undef TLD__WORK_TODO
 #endif /* TLD__IMPLEMENTED */
 #endif /* TLD_IMPLEMENTATION */
 
