@@ -79,6 +79,14 @@ TOP = """\
  *   TLD_VERBOSE  0 errors only, 1 normal (default), 2 also DEBUG_MSG lines
  *   NO_COLOR     set and non-empty: no colour on stderr (likewise TERM=dumb)
  *
+ * LIMITATIONS
+ *   JSON integers that fit in 32 bits are stored exactly; larger ones are stored as
+ *   double, exact only up to 2^53 (9007199254740992), so bigger values lose precision.
+ *   JSON parsing is strict (RFC 8259): True, NaN, leading zeros and trailing commas are
+ *   rejected. JSON keys containing '.' or '[' cannot be addressed by path.
+ *   tld_progress keeps one bar at a time and is not for concurrent use from threads.
+ *   POSIX only (macOS, Linux, other Unix); not Windows except through WSL.
+ *
  * LICENCE: MIT, see the end of tld.h.
  */
 """

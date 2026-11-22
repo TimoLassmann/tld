@@ -16,6 +16,7 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [Memory](#sec-memory)
 - [Threads](#sec-threads)
 - [Environment](#sec-environment)
+- [Limitations](#sec-limitations)
 - [Licence](#sec-licence)
 - [core](#mod-core): 30 symbols (`src/core/tld-core.h`)
 - [alloc](#mod-alloc): 19 symbols (`src/alloc/tld-alloc.h`)
@@ -115,6 +116,17 @@ state.
 TLD_VERBOSE  0 errors only, 1 normal (default), 2 also DEBUG_MSG lines
 NO_COLOR     set and non-empty: no colour on stderr (likewise TERM=dumb)
 ```
+
+<a id="sec-limitations"></a>
+
+## Limitations
+
+JSON integers that fit in 32 bits are stored exactly; larger ones are stored as
+double, exact only up to 2^53 (9007199254740992), so bigger values lose precision.
+JSON parsing is strict (RFC 8259): True, NaN, leading zeros and trailing commas are
+rejected. JSON keys containing '.' or '[' cannot be addressed by path.
+tld_progress keeps one bar at a time and is not for concurrent use from threads.
+POSIX only (macOS, Linux, other Unix); not Windows except through WSL.
 
 <a id="sec-licence"></a>
 
