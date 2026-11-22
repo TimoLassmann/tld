@@ -1,7 +1,7 @@
 /* auc: area under the ROC curve, and the best score threshold, for 0/1 labels and
  * real-valued scores. */
-#ifndef TLD_STATS_AUC_H
-#define TLD_STATS_AUC_H
+#ifndef TLD_AUC_H
+#define TLD_AUC_H
 
 #include "../core/tld-core.h"
 

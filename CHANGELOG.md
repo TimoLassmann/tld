@@ -7,6 +7,35 @@ seq/ and hdf5/ modules were removed and the small signature changes under "Safet
 made so the compiler catches mistakes that used to corrupt memory silently. Behaviour
 changes listed here fix bugs.
 
+### Renamed: one naming scheme
+Public functions, types and variables start with `tld_` and the module word, macros and
+constants with `TLD_`; the error-handling idiom keeps its short names (`OK`, `FAIL`, `RUN`, `ASSERT`,
+`*_MSG`, `MMALLOC`, `MREALLOC`, `MFREE`, `galloc`, `gfree`). The `names` test holds every name of
+tld.h to this. Old → new:
+- core: `MACRO_MIN` → `TLD_MIN`, `MACRO_MAX` → `TLD_MAX`, `tld_term_color` → `tld_term_has_color`.
+- alloc: `get_dim1` → `tld_galloc_dim1`, `get_dim2` → `tld_galloc_dim2`.
+- string: `tld_append` → `tld_strbuf_append`, `tld_append_char` → `tld_strbuf_append_char`, `tld_prepend` → `tld_strbuf_prepend`, `tld_string_buffer` → `tld_strbuf`.
+- path: `tld_file_exists` → `tld_path_exists`, `tld_dir_exists` → `tld_path_is_dir`, `tld_dir_create` → `tld_path_mkdir`, `tld_get_full_path` → `tld_path_full`, `tld_get_filename` → `tld_path_filename`, `tld_get_dirname` → `tld_path_dirname`, `tld_capture_cmd_line` → `tld_cmdline_capture`.
+- bitfield: `tl_bitfield` → `tld_bitfield`, `tl_bitfield_alloc` → `tld_bitfield_alloc`, `tl_bitfield_free` → `tld_bitfield_free`, `tl_bitfield_reset` → `tld_bitfield_reset`, `tl_bitfield_set` → `tld_bitfield_set`, `tl_bitfield_get` → `tld_bitfield_get`, `tl_bitfield_clear` → `tld_bitfield_clear`, `tl_bitfield_copy` → `tld_bitfield_copy`, `tl_bitfield_or` → `tld_bitfield_or`, `tl_bitfield_hamming` → `tld_bitfield_hamming`.
+- rng: `rng_state` → `tld_rng`, `rng_dist` → `tld_rng_dist`, `init_rng` → `tld_rng_alloc`, `init_rng_from_rng` → `tld_rng_split`, `free_rng` → `tld_rng_free`, `tl_random_double` → `tld_rng_double`, `tl_random_int` → `tld_rng_int`, `tl_random_gaussian` → `tld_rng_gaussian`, `tl_random_gamma` → `tld_rng_gamma`, `tl_random_sdist_init` → `tld_rng_dist_alloc`, `tl_random_sdist_smpl` → `tld_rng_dist_sample`, `tl_random_sdist_free` → `tld_rng_dist_free`.
+- logsum: `init_logsum` → `tld_logsum_init`, `logsum` → `tld_logsum`, `nearly_equal_float` → `tld_nearly_equal_float`, `nearly_equal_double` → `tld_nearly_equal_double`, `TLSAFE_EQ` → `TLD_NEARLY_EQUAL`.
+- stats: `norm_quantile` → `tld_quantile_normalise`.
+- kdtree: `kdtree` → `tld_kdtree`, `kd_node` → `tld_kdtree_node`, `kddist_euclidian` → `tld_kdtree_dist_euclidean`, `kdplane_check_euclidian` → `tld_kdtree_plane_euclidean`, `kdtree_alloc` → `tld_kdtree_alloc`, `kdtree_free` → `tld_kdtree_free`, `kdtree_reset` → `tld_kdtree_reset`, `kdtree_build` → `tld_kdtree_build`, `kdtree_insert` → `tld_kdtree_insert`, `kdtree_rebalance` → `tld_kdtree_rebalance`, `kdtree_nn_search` → `tld_kdtree_nn_search`, `kdtree_bf_search` → `tld_kdtree_bf_search`.
+- tpool: `tld_thread_pool_create` → `tld_thread_pool_alloc`.
+- json: `JSON_OBJ` → `TLD_JSON_OBJECT`, `JSON_ARR` → `TLD_JSON_ARRAY`, `JS` → `TLD_JAUTO`, `JO` → `TLD_JOBJ`, `JA` → `TLD_JARR`, `JSTR` → `TLD_JSTR`, `JNUM` → `TLD_JNUM`, `JINT` → `TLD_JINT`, `JBOOL` → `TLD_JBOOL`, `JNULL` → `TLD_JNULL`, `TLD_JSON_UNDEF` → `TLD_JSON_NULL`.
+- hash: `tld_hash_iterator_next` → `tld_hash_iter_next`.
+- template: `tld_template_extract_var` → `tld_template_vars`.
+- sort: `sort_asc_<type>` / `sort_desc_<type>` → `tld_sort_asc_<type>` / `tld_sort_desc_<type>`.
+- json internals: `tld_json_obj_chk_space`, `tld_json_obj_realloc`, `tld_json_arr_chk_space` and
+  `tld_json_arr_realloc` are `tld__` (not for direct use).
+- galloc takes any element type malloc can align (structs, pointers, `long double`); the
+  `tld_valid_1D`/`tld_valid_2D` checks are gone, and an over-aligned type is a compile error.
+- Source layout: every module is `src/<module>/tld-<module>.{c,h}` (`misc` is `path`, `data/bitfield`
+  is `bitfield`, `stats/basic` is `stats/tld-stats`, `norm_quantile` is `stats/tld-quantile`).
+- tests: `unit-names` is replaced by `names` (tests/names: symbols, macros and documented names follow
+  the rules, and a program may reuse common names); `regress-alloc galloc-any`; misuse
+  `err_galloc_align.c`.
+
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,
   OK_MSG, DEBUG_MSG) requires a string-literal format, and the format is checked against the

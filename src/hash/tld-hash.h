@@ -41,8 +41,8 @@ TLD_API  int tld_hash_iter_init(tld_hash *h);
  *
  *   const char *k, *v;
  *   RUN(tld_hash_iter_init(h));
- *   while(tld_hash_iterator_next(h, &k, &v) == OK){ ... }
+ *   while(tld_hash_iter_next(h, &k, &v) == OK){ ... }
  */
-TLD_API  int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value);
+TLD_API  int tld_hash_iter_next(tld_hash* h, const char **key, const char **value);
 
 #endif

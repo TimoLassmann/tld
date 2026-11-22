@@ -17,7 +17,7 @@ TLD_API atomic_int tld_global_stop_run;
 TLD_API pthread_mutex_t tld_global_cond_mutex;
 TLD_API  pthread_cond_t tld_global_cond;
 
-/* A thread pool; create with tld_thread_pool_create, free with tld_thread_pool_free.
+/* A thread pool; create with tld_thread_pool_alloc, free with tld_thread_pool_free.
  * The fields are internal (n_threads may be read). */
 typedef struct tld_thread_pool {
         struct tld__work_queue* work;
@@ -46,7 +46,7 @@ typedef struct tld_thread_pool {
 /* Start a pool of n_threads workers (at least 2) in *pool. max_time is a limit in
  * minutes since creation, checked after each job: once passed, the pool stops and
  * queued jobs are dropped. 0 means no limit. */
-TLD_API int  tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads);
+TLD_API int  tld_thread_pool_alloc(tld_thread_pool **pool, double max_time, int n_threads);
 
 /* Queue a job: a worker calls func_ptr(p, data, start, end, thread_id), thread_id in
  * [0, n_threads). start and end are passed through (e.g. a slice of an index range).

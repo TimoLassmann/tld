@@ -150,9 +150,9 @@ int auc_test(void)
 
         int n_error = 0;
         int n_error_test  = 0;
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
 
-        RUN(init_rng(&rng, 0));
+        RUN(tld_rng_alloc(&rng, 0));
         for(int i = 0; i < n;i++){
                 int p = (pred[i] > thres) ? 1 : 0;
                 if( p != labels[i]){
@@ -174,12 +174,12 @@ int auc_test(void)
                 if(n_error_test < n_error){
                 }
         }
-        free_rng(rng);
+        tld_rng_free(rng);
 
         return OK;
 ERROR:
         if(rng){
-                free_rng(rng);
+                tld_rng_free(rng);
         }
         return FAIL;
 }

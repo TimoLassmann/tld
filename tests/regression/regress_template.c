@@ -25,7 +25,7 @@ static void check_apply(const char *t, const char **kv, const char *expect)
         tld_hash* h = NULL;
         int r;
         tld_strbuf_alloc(&b, 64);
-        tld_append(b, (char*)t);
+        tld_strbuf_append(b, (char*)t);
         tld_hash_alloc(&h, 64);
         for(int i = 0; kv && kv[i]; i += 2){
                 tld_hash_add(&h, (char*)kv[i], (char*)kv[i + 1]);
@@ -106,20 +106,20 @@ static void test_errors(void)
 
         /* the input is left unchanged on failure */
         tld_strbuf_alloc(&b, 64);
-        tld_append(b, "{{IF name}}Hello");
+        tld_strbuf_append(b, "{{IF name}}Hello");
         tld_hash_alloc(&h, 64);
         CHECK(tld_template_apply(b, h) == FAIL);
         CHECK(strcmp(TLD_STR(b), "{{IF name}}Hello") == 0);
         tld_hash_free(h);
         h = NULL;
 
-        CHECK(tld_template_extract_var(b, &h) == FAIL);
+        CHECK(tld_template_vars(b, &h) == FAIL);
         tld_strbuf_clear(b);
-        tld_append(b, "Hello {{name");
-        CHECK(tld_template_extract_var(b, &h) == FAIL);
+        tld_strbuf_append(b, "Hello {{name");
+        CHECK(tld_template_vars(b, &h) == FAIL);
         tld_strbuf_clear(b);
-        tld_append(b, "{{IF a}}{{b}}{{ELSE}}{{c}}{{ENDIF}}");
-        CHECK(tld_template_extract_var(b, &h) == OK);
+        tld_strbuf_append(b, "{{IF a}}{{b}}{{ELSE}}{{c}}{{ENDIF}}");
+        CHECK(tld_template_vars(b, &h) == OK);
         {
                 const char* v = NULL;
                 CHECK(h != NULL);
@@ -177,7 +177,7 @@ static int fails_saying(const char *t, const char *want)
                 return 0;
         }
         tld_strbuf_alloc(&b, 64);
-        tld_append(b, t);
+        tld_strbuf_append(b, t);
         tld_hash_alloc(&h, 16);
         fflush(stderr);
         dup2(fd, STDERR_FILENO);

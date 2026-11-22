@@ -17,32 +17,32 @@ static void tld__logsum_fill_table(void)
         }
 }
 
-/* Thread-safe; calling it is optional, logsum() initialises the table on first use. */
-void init_logsum(void)
+/* Thread-safe; calling it is optional, tld_logsum() initialises the table on first use. */
+void tld_logsum_init(void)
 {
         pthread_once(&tld__logsum_once, tld__logsum_fill_table);
 }
 
-float logsum(const float a,const float b)
+float tld_logsum(const float a,const float b)
 {
         if(isnan(a) || isnan(b)){
                 return NAN;
         }
-        const float max = MACRO_MAX(a, b);
-        const float min = MACRO_MIN(a, b);
+        const float max = TLD_MAX(a, b);
+        const float min = TLD_MIN(a, b);
 
-        if(  TLSAFE_EQ(min, -INFINITY)){
+        if(  TLD_NEARLY_EQUAL(min, -INFINITY)){
                 return max;
         }
         /* !(d < 15.7) also catches +inf - +inf = NaN */
         if( !((max-min) < 15.7F)){
                 return max;
         }
-        init_logsum();
+        tld_logsum_init();
         return  max+ tld__logsum_lookup[(int)((max-min)*TLD__LOGSUM_SCALE)];
 }
 
-int nearly_equal_float(float a, float b)
+int tld_nearly_equal_float(float a, float b)
 {
         const float min = FLT_MIN;
         float absa = fabsf(a);
@@ -54,12 +54,12 @@ int nearly_equal_float(float a, float b)
         }else if (a == 0.0F || b == 0 || (absa + absb < min)){
                 ret =  d < (FLT_EPSILON * min);
         }else{
-                ret =  d / MACRO_MIN((absa+absb), FLT_MAX) < FLT_EPSILON;
+                ret =  d / TLD_MIN((absa+absb), FLT_MAX) < FLT_EPSILON;
         }
         return ret;
 }
 
-int nearly_equal_double(double a, double b)
+int tld_nearly_equal_double(double a, double b)
 {
         const double min = DBL_MIN;
         double absa = fabs(a);
@@ -71,7 +71,7 @@ int nearly_equal_double(double a, double b)
         }else if (a == 0.0 || b == 0 || (absa + absb < min)){
                 ret = d < (DBL_EPSILON * min);
         }else{
-                ret = d / MACRO_MIN((absa+absb), DBL_MAX) < DBL_EPSILON;
+                ret = d / TLD_MIN((absa+absb), DBL_MAX) < DBL_EPSILON;
         }
         return ret;
 }

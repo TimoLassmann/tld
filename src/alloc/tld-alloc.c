@@ -12,7 +12,7 @@ typedef struct {
 
 #define TLD__MEM_SHIFT sizeof(tld__mem_info)
 
-int get_dim1(void* ptr,uint32_t* d)
+int tld_galloc_dim1(void* ptr,uint32_t* d)
 {
         if(ptr){
                 tld__mem_info* h = NULL;
@@ -23,7 +23,7 @@ int get_dim1(void* ptr,uint32_t* d)
         return FAIL;
 }
 
-int get_dim2(void* ptr,uint32_t* d)
+int tld_galloc_dim2(void* ptr,uint32_t* d)
 {
         if(ptr){
                 tld__mem_info* h = NULL;

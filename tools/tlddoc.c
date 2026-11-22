@@ -16,7 +16,7 @@
  *   declaration (a function prototype, a #define, a typedef, struct or enum, or an
  *   extern variable), with no blank line in between. It documents that declaration and
  *   every declaration that follows it without a blank line or another comment in
- *   between, so a family (MACRO_MIN and MACRO_MAX, the tld_json_get_* getters) shares
+ *   between, so a family (TLD_MIN and TLD_MAX, the tld_json_get_* getters) shares
  *   one comment. #if, #ifdef, #ifndef, #else and #endif lines do not interrupt this. A
  *   comment at the end of a declaration's last line also documents that declaration.
  *
@@ -36,7 +36,7 @@
  *   that start with '_' or contain "__", include guards, macros #undef'd in the same
  *   module and forward declarations without a doc comment (the full definition
  *   is documented instead). A function-like macro whose body pastes its argument into
- *   prototypes (TLD__SORT_HEADER) is expanded where it is invoked, so sort_asc_int32_t and
+ *   prototypes (TLD__SORT_HEADER) is expanded where it is invoked, so tld_sort_asc_int32_t and
  *   the like are documented and indexed.
  *
  * Parsing is line-based and assumes the style of these headers.
@@ -140,7 +140,7 @@ static int append_n(tld_strbuf *b, const char *s, size_t n)
 {
         char *t = xstrndup(s, n);
         ASSERT(t != NULL, "Out of memory");
-        RUN(tld_append(b, t));
+        RUN(tld_strbuf_append(b, t));
         MFREE(t);
         return OK;
 ERROR:
@@ -158,7 +158,7 @@ static int appendf(tld_strbuf *b, const char *fmt, ...)
         n = vsnprintf(buf, sizeof buf, fmt, ap);
         va_end(ap);
         ASSERT(n >= 0 && n < (int)sizeof buf, "Formatted text too long");
-        RUN(tld_append(b, buf));
+        RUN(tld_strbuf_append(b, buf));
         return OK;
 ERROR:
         return FAIL;
@@ -303,7 +303,7 @@ static int read_file(const char *path, tld_strbuf **out)
         while((got = fread(buf, 1, sizeof buf - 1, f)) > 0){
                 buf[got] = 0;
                 ASSERT(strlen(buf) == got, "%s contains a NUL byte", path);
-                RUN(tld_append(b, buf));
+                RUN(tld_strbuf_append(b, buf));
         }
         ASSERT(!ferror(f), "Cannot read %s", path);
         fclose(f);
@@ -487,9 +487,9 @@ static int clean_comment(header *h, int first, int last, char **out)
                 if((int)strlen(s) >= min_ind){
                         s += min_ind;
                 }
-                RUN(tld_append(b, (char *)s));
+                RUN(tld_strbuf_append(b, (char *)s));
                 if(i + 1 < lines.n){
-                        RUN(tld_append_char(b, '\n'));
+                        RUN(tld_strbuf_append_char(b, '\n'));
                 }
         }
         *out = xstrdup(TLD_STR(b));
@@ -720,7 +720,7 @@ static int expand_template(const char *tmpl, const char *arg, tld_strbuf *code, 
                                 n++;
                         }
                         if(n == pn && strncmp(p, param, n) == 0){
-                                RUN(tld_append(b, (char *)arg));
+                                RUN(tld_strbuf_append(b, (char *)arg));
                         }else{
                                 RUN(append_n(b, p, n));
                         }
@@ -729,12 +729,12 @@ static int expand_template(const char *tmpl, const char *arg, tld_strbuf *code, 
                 }
                 if(isspace((unsigned char)*p)){
                         if(b->len && b->str[b->len - 1] != ' '){
-                                RUN(tld_append_char(b, ' '));
+                                RUN(tld_strbuf_append_char(b, ' '));
                         }
                         p++;
                         continue;
                 }
-                RUN(tld_append_char(b, *p));
+                RUN(tld_strbuf_append_char(b, *p));
                 p++;
         }
         /* split into statements; drop the space before '(' */
@@ -747,7 +747,7 @@ static int expand_template(const char *tmpl, const char *arg, tld_strbuf *code, 
                 if(c == ' ' && stmt->len == 0){
                         continue;
                 }
-                RUN(tld_append_char(stmt, c));
+                RUN(tld_strbuf_append_char(stmt, c));
                 if(c == ';'){
                         char name[256];
                         const char *s = TLD_STR(stmt);
@@ -767,8 +767,8 @@ static int expand_template(const char *tmpl, const char *arg, tld_strbuf *code, 
                                 RUN(sl_add(names, name));
                         }
                         if(code){
-                                RUN(tld_append(code, (char *)s));
-                                RUN(tld_append_char(code, '\n'));
+                                RUN(tld_strbuf_append(code, (char *)s));
+                                RUN(tld_strbuf_append_char(code, '\n'));
                         }
                         RUN(tld_strbuf_clear(stmt));
                 }
@@ -789,9 +789,9 @@ static char *join_lines(header *h, int first, int last)
         char *r = NULL;
         RUN(tld_strbuf_alloc(&b, 256));
         for(int i = first; i <= last; i++){
-                RUN(tld_append(b, h->l[i]));
+                RUN(tld_strbuf_append(b, h->l[i]));
                 if(i < last){
-                        RUN(tld_append_char(b, '\n'));
+                        RUN(tld_strbuf_append_char(b, '\n'));
                 }
         }
         r = xstrdup(TLD_STR(b));
@@ -839,7 +839,7 @@ static int lex_define(header *h, item *it, int first, int last, const char *last
                         n--;
                 }
                 RUN(append_n(body, s, n));
-                RUN(tld_append_char(body, ' '));
+                RUN(tld_strbuf_append_char(body, ' '));
         }
         if(blank(TLD_STR(body)) && strcmp(name, last_ifndef) == 0){
                 it->kind = IT_IGNORE;   /* include guard */
@@ -854,8 +854,8 @@ static int lex_define(header *h, item *it, int first, int last, const char *last
                 char pname[128];
                 RUN(ident_at(params, pname, sizeof pname));
                 RUN(tld_strbuf_alloc(&t, 256));
-                if(tld_append(t, pname) != OK || tld_append_char(t, '\001') != OK ||
-                   tld_append(t, TLD_STR(body)) != OK ||
+                if(tld_strbuf_append(t, pname) != OK || tld_strbuf_append_char(t, '\001') != OK ||
+                   tld_strbuf_append(t, TLD_STR(body)) != OK ||
                    tld_hash_add(&h->templates, name, TLD_STR(t)) != OK){
                         tld_strbuf_free(t);
                         ERROR_MSG("Out of memory");
@@ -919,11 +919,11 @@ static int lex_statement(header *h, item *it, int first, int end, int *lastp)
                         }
                         if(isspace((unsigned char)*p)){
                                 if(s->len && s->str[s->len - 1] != ' '){
-                                        RUN(tld_append_char(s, ' '));
+                                        RUN(tld_strbuf_append_char(s, ' '));
                                 }
                                 continue;
                         }
-                        RUN(tld_append_char(s, *p));
+                        RUN(tld_strbuf_append_char(s, *p));
                         if(*p == ';' && depth == 0){
                                 const char *t = skip_ws(p + 1);
                                 done = 1;
@@ -941,7 +941,7 @@ static int lex_statement(header *h, item *it, int first, int end, int *lastp)
                         }
                 }
                 if(s->len && s->str[s->len - 1] != ' '){
-                        RUN(tld_append_char(s, ' '));
+                        RUN(tld_strbuf_append_char(s, ' '));
                 }
         }
         ASSERT(done, "%s:%d: declaration without ';'", h->file, first + 1);
@@ -1172,9 +1172,9 @@ ERROR:
 static int entry_code(entry *e, const char *s)
 {
         if(e->code->len){
-                RUN(tld_append_char(e->code, '\n'));
+                RUN(tld_strbuf_append_char(e->code, '\n'));
         }
-        RUN(tld_append(e->code, (char *)s));
+        RUN(tld_strbuf_append(e->code, (char *)s));
         return OK;
 ERROR:
         return FAIL;
@@ -1248,13 +1248,13 @@ static int make_anchor(const char *prefix, const char *title, char **out)
 {
         tld_strbuf *b = NULL;
         RUN(tld_strbuf_alloc(&b, 64));
-        RUN(tld_append(b, (char *)prefix));
+        RUN(tld_strbuf_append(b, (char *)prefix));
         for(const char *p = title; *p; p++){
                 if(isalnum((unsigned char)*p) || *p == '_'){
-                        RUN(tld_append_char(b, (char)tolower((unsigned char)*p)));
+                        RUN(tld_strbuf_append_char(b, (char)tolower((unsigned char)*p)));
                 }else if((*p == ' ' || *p == '-' || *p == '/' || *p == '.') && b->len &&
                          b->str[b->len - 1] != '-'){
-                        RUN(tld_append_char(b, '-'));
+                        RUN(tld_strbuf_append_char(b, '-'));
                 }
         }
         while(b->len && b->str[b->len - 1] == '-'){
@@ -1486,9 +1486,9 @@ static int parse_header(const char *root, const char *file, header **out)
         h->file = xstrdup(file);
         ASSERT(h->file != NULL, "Out of memory");
         RUN(tld_strbuf_alloc(&path, 256));
-        RUN(tld_append(path, (char *)root));
-        RUN(tld_append(path, "/"));
-        RUN(tld_append(path, (char *)file));
+        RUN(tld_strbuf_append(path, (char *)root));
+        RUN(tld_strbuf_append(path, "/"));
+        RUN(tld_strbuf_append(path, (char *)file));
         RUN(read_file(TLD_STR(path), &txt));
         {
                 const char *s = TLD_STR(txt);
@@ -1591,16 +1591,16 @@ static int flush_block(tld_strbuf *o, strlist *blk)
         if(pre){
                 RUN(appendf(o, "```%s\n", looks_like_code(blk) ? "c" : "text"));
                 for(int i = 0; i < blk->n; i++){
-                        RUN(tld_append(o, blk->s[i] + min_ind));
-                        RUN(tld_append_char(o, '\n'));
+                        RUN(tld_strbuf_append(o, blk->s[i] + min_ind));
+                        RUN(tld_strbuf_append_char(o, '\n'));
                 }
-                RUN(tld_append(o, "```\n\n"));
+                RUN(tld_strbuf_append(o, "```\n\n"));
         }else{
                 for(int i = 0; i < blk->n; i++){
-                        RUN(tld_append(o, blk->s[i]));
-                        RUN(tld_append_char(o, '\n'));
+                        RUN(tld_strbuf_append(o, blk->s[i]));
+                        RUN(tld_strbuf_append_char(o, '\n'));
                 }
-                RUN(tld_append_char(o, '\n'));
+                RUN(tld_strbuf_append_char(o, '\n'));
         }
         sl_free(blk);
         return OK;
@@ -1705,8 +1705,8 @@ static int split_top(const char *top, char **title, char **overview, char **prea
         RUN(tld_strbuf_alloc(&b, 1024));
         /* overview: the first paragraph, "file - text" */
         for(; i < lines.n && !blank(lines.s[i]); i++){
-                RUN(tld_append(b, lines.s[i]));
-                RUN(tld_append_char(b, i + 1 < lines.n && !blank(lines.s[i + 1]) ? ' ' : '\n'));
+                RUN(tld_strbuf_append(b, lines.s[i]));
+                RUN(tld_strbuf_append_char(b, i + 1 < lines.n && !blank(lines.s[i + 1]) ? ' ' : '\n'));
         }
         {
                 const char *ov = TLD_STR(b);
@@ -1726,8 +1726,8 @@ static int split_top(const char *top, char **title, char **overview, char **prea
         /* preamble: up to the first heading */
         RUN(tld_strbuf_clear(b));
         for(; i < lines.n && !heading_len(lines.s[i]); i++){
-                RUN(tld_append(b, lines.s[i]));
-                RUN(tld_append_char(b, '\n'));
+                RUN(tld_strbuf_append(b, lines.s[i]));
+                RUN(tld_strbuf_append_char(b, '\n'));
         }
         *preamble = xstrdup(TLD_STR(b));
         ASSERT(*preamble != NULL, "Out of memory");
@@ -1747,13 +1747,13 @@ static int split_top(const char *top, char **title, char **overview, char **prea
                 RUN(make_anchor("sec-", x->title, &x->anchor));
                 RUN(tld_strbuf_clear(b));
                 if(*rest){
-                        RUN(tld_append(b, "  "));
-                        RUN(tld_append(b, (char *)rest));
-                        RUN(tld_append_char(b, '\n'));
+                        RUN(tld_strbuf_append(b, "  "));
+                        RUN(tld_strbuf_append(b, (char *)rest));
+                        RUN(tld_strbuf_append_char(b, '\n'));
                 }
                 for(i++; i < lines.n && !heading_len(lines.s[i]); i++){
-                        RUN(tld_append(b, lines.s[i]));
-                        RUN(tld_append_char(b, '\n'));
+                        RUN(tld_strbuf_append(b, lines.s[i]));
+                        RUN(tld_strbuf_append_char(b, '\n'));
                 }
                 x->body = xstrdup(TLD_STR(b));
                 ASSERT(x->body != NULL, "Out of memory");
@@ -1849,7 +1849,7 @@ static int render(header *h, const char *impl_macro, tld_strbuf *o)
                     h->file, impl_macro));
 
         /* contents */
-        RUN(tld_append(o, "## Contents\n\n"));
+        RUN(tld_strbuf_append(o, "## Contents\n\n"));
         for(int i = 0; i < n_sec; i++){
                 RUN(appendf(o, "- [%s](#%s)\n", sec[i].title, sec[i].anchor));
         }
@@ -1864,7 +1864,7 @@ static int render(header *h, const char *impl_macro, tld_strbuf *o)
                             starts(m->name, "src/") ? m->name : "",
                             starts(m->name, "src/") ? "`)" : ""));
         }
-        RUN(tld_append(o, "- [Index](#index)\n\n"));
+        RUN(tld_strbuf_append(o, "- [Index](#index)\n\n"));
 
         /* top sections */
         for(int i = 0; i < n_sec; i++){
@@ -1887,17 +1887,17 @@ static int render(header *h, const char *impl_macro, tld_strbuf *o)
                         for(int k = 0; k < e->names.n; k++){
                                 RUN(appendf(o, "<a id=\"%s\"></a>", e->names.s[k]));
                         }
-                        RUN(tld_append(o, "\n\n### "));
+                        RUN(tld_strbuf_append(o, "\n\n### "));
                         if(e->heading){
-                                RUN(tld_append(o, e->heading));
+                                RUN(tld_strbuf_append(o, e->heading));
                         }else{
                                 for(int k = 0; k < e->names.n; k++){
                                         RUN(appendf(o, "%s`%s`", k ? ", " : "", e->names.s[k]));
                                 }
                         }
-                        RUN(tld_append(o, "\n\n```c\n"));
-                        RUN(tld_append(o, TLD_STR(e->code)));
-                        RUN(tld_append(o, "\n```\n\n"));
+                        RUN(tld_strbuf_append(o, "\n\n```c\n"));
+                        RUN(tld_strbuf_append(o, TLD_STR(e->code)));
+                        RUN(tld_strbuf_append(o, "\n```\n\n"));
                         if(e->doc){
                                 RUN(render_text(o, e->doc, 0));
                         }else{
@@ -1919,8 +1919,8 @@ static int render(header *h, const char *impl_macro, tld_strbuf *o)
         }
 
         /* index */
-        RUN(tld_append(o, "<a id=\"index\"></a>\n\n## Index\n\n"));
-        RUN(tld_append(o, "| Symbol | Kind | Module |\n|---|---|---|\n"));
+        RUN(tld_strbuf_append(o, "<a id=\"index\"></a>\n\n## Index\n\n"));
+        RUN(tld_strbuf_append(o, "| Symbol | Kind | Module |\n|---|---|---|\n"));
         if(n_rows){
                 qsort(rows, (size_t)n_rows, sizeof(idx_row), idx_cmp);
         }
@@ -2061,10 +2061,10 @@ int main(int argc, char *argv[])
         RUN(tld_strbuf_alloc(&path, 256));
         RUN(tld_strbuf_alloc(&o, 1 << 16));
         if(outdir == NULL){
-                RUN(tld_append(path, (char *)root));
-                RUN(tld_append(path, "/docs"));
+                RUN(tld_strbuf_append(path, (char *)root));
+                RUN(tld_strbuf_append(path, "/docs"));
         }else{
-                RUN(tld_append(path, (char *)outdir));
+                RUN(tld_strbuf_append(path, (char *)outdir));
         }
         if(!check && mkdir(TLD_STR(path), 0755) != 0 && errno != EEXIST){
                 ERROR_MSG("Cannot create %s: %s", TLD_STR(path), strerror(errno));
@@ -2076,8 +2076,8 @@ int main(int argc, char *argv[])
                 RUN(lint(h, &problems));
                 RUN(tld_strbuf_clear(o));
                 RUN(render(h, impl[f], o));
-                RUN(tld_append(path, "/"));
-                RUN(tld_append(path, (char *)outs[f]));
+                RUN(tld_strbuf_append(path, "/"));
+                RUN(tld_strbuf_append(path, (char *)outs[f]));
                 if(check){
                         RUN(same_as_file(TLD_STR(path), o, &same));
                         if(!same){

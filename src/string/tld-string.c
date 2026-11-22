@@ -1,4 +1,4 @@
-#include "str.h"
+#include "tld-string.h"
 
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
@@ -124,7 +124,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_append(tld_strbuf *b, const char *content)
+int tld_strbuf_append(tld_strbuf *b, const char *content)
 {
         size_t size = strlen(content);
         ptrdiff_t off = tld__strbuf_offset(b, content);
@@ -142,7 +142,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_append_char(tld_strbuf *b, char c)
+int tld_strbuf_append_char(tld_strbuf *b, char c)
 {
         RUN(tld__strbuf_ensure_size(b, 1));
         b->str[b->len] = c;
@@ -154,7 +154,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_prepend(tld_strbuf *b, const char *content)
+int tld_strbuf_prepend(tld_strbuf *b, const char *content)
 {
         size_t size = strlen(content);
         ptrdiff_t off = tld__strbuf_offset(b, content);

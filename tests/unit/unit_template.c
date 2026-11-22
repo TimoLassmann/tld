@@ -15,7 +15,7 @@ static int demo(int argc, char **argv)
         const char *key = NULL;
         const char *value = NULL;
         RUN(tld_strbuf_alloc(&t, 64));
-        RUN(tld_append(t, argv[1]));
+        RUN(tld_strbuf_append(t, argv[1]));
         RUN(tld_hash_alloc(&h, 16));
         SECTION_MSG("template");
         KV_MSG("template", "%s", argv[1]);
@@ -26,9 +26,9 @@ static int demo(int argc, char **argv)
                 RUN(tld_hash_add(&h, argv[i], eq + 1));
                 KV_MSG(argv[i], "%s", eq + 1);
         }
-        if(tld_template_extract_var(t, &vars) == OK){
+        if(tld_template_vars(t, &vars) == OK){
                 RUN(tld_hash_iter_init(vars));
-                while(tld_hash_iterator_next(vars, &key, &value) == OK){
+                while(tld_hash_iter_next(vars, &key, &value) == OK){
                         DEBUG_MSG("template uses variable %s", key);
                 }
         }
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
         SECTION_MSG("tld_template_apply");
         RUN(test_new_template());
         OK_MSG("templates applied");
-        SECTION_MSG("tld_template_extract_var");
+        SECTION_MSG("tld_template_vars");
         RUN(test_get_vars_template());
         OK_MSG("variables extracted");
         return EXIT_SUCCESS;
@@ -139,13 +139,13 @@ int test_get_vars_template(void)
 
         for (int i = 0; i < num_test_templates; i++) {
                 tld_strbuf_clear(template);
-                RUN(tld_append(template, test_templates[i]));
+                RUN(tld_strbuf_append(template, test_templates[i]));
                 KV_MSG("template", "%s", TLD_STR(template));
-                if(tld_template_extract_var(template, &h) == OK){
+                if(tld_template_vars(template, &h) == OK){
                         RUN(tld_hash_iter_init(h));
                         const char* key = NULL;
                         const char* value = NULL;
-                        while(tld_hash_iterator_next(h, &key, &value) == OK){
+                        while(tld_hash_iter_next(h, &key, &value) == OK){
                                 DEBUG_MSG("key %s value %s", key, value);
                         }
                         tld_hash_free(h);
@@ -236,7 +236,7 @@ int test_new_template(void)
 
         for (int i = 0; i < num_test_templates; i++) {
                 tld_strbuf_clear(template);
-                RUN(tld_append(template, test_templates[i]));
+                RUN(tld_strbuf_append(template, test_templates[i]));
                 KV_MSG("template", "%s", TLD_STR(template));
                 if(tld_template_apply(template, h) != OK){
                         DEBUG_MSG("template %d rejected (some test templates are malformed on purpose)", i);

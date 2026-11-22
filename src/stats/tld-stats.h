@@ -1,8 +1,8 @@
 /* stats: descriptive statistics of double arrays (mean, variance, covariance, Pearson
  * correlation, Shannon entropy, standardising), the sigmoid, the normal density and
  * Gaussian kernel density estimates. Results come back through the last argument. */
-#ifndef TLD_STATS_BASIC_H
-#define TLD_STATS_BASIC_H
+#ifndef TLD_STATS_H
+#define TLD_STATS_H
 
 /* Shannon entropy in bits of the distribution vec[i] / sum(vec) (n >= 1, every
  * vec[i] >= 0); 0 when all values are 0. */

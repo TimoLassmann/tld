@@ -42,7 +42,7 @@ static int checks(void)
                 char row[256];
                 int o = 0;
                 for(int j = 0; j < dim2;j++){
-                        mat[i][j] = MACRO_MAX(i,j);
+                        mat[i][j] = TLD_MAX(i,j);
                         o += snprintf(row + o, sizeof row - (size_t)o, "%0.1f ", mat[i][j]);
                 }
                 DEBUG_MSG("%s", row);

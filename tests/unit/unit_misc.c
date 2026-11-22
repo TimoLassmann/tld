@@ -11,17 +11,17 @@ static int demo(int n, char **args)
                 char *dir = NULL;
                 SECTION_MSG("%s", args[i]);
                 fprintf(stdout, "%s\n", args[i]);
-                int exists = tld_file_exists(args[i]) == OK;
+                int exists = tld_path_exists(args[i]) == OK;
                 fprintf(stdout, "  exists:      %s\n", exists ? "yes" : "no");
-                if(tld_get_filename(args[i], &name) == OK){
+                if(tld_path_filename(args[i], &name) == OK){
                         fprintf(stdout, "  filename:    %s\n", name);
                         MFREE(name);
                 }
-                if(tld_get_dirname(args[i], &dir) == OK){
+                if(tld_path_dirname(args[i], &dir) == OK){
                         fprintf(stdout, "  dirname:     %s\n", dir);
                         MFREE(dir);
                 }
-                if(exists && tld_get_full_path(&full, args[i]) == OK){
+                if(exists && tld_path_full(&full, args[i]) == OK){
                         fprintf(stdout, "  full path:   %s\n", TLD_STR(full));
                 }
                 if(full){
@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
 {
         char **orig = NULL;
         int orig_n = argc;
-        /* keep the full command line (with options) for tld_capture_cmd_line */
+        /* keep the full command line (with options) for tld_cmdline_capture */
         orig = malloc(sizeof(char *) * (size_t)(argc + 1));
         if(!orig){
                 return EXIT_FAILURE;
@@ -45,16 +45,16 @@ int main(int argc, char *argv[])
                 orig[i] = argv[i];
         }
         test_init(&argc, argv, "[PATH ...]",
-                  "With no arguments: captures the command line with tld_capture_cmd_line.\n"
+                  "With no arguments: captures the command line with tld_cmdline_capture.\n"
                   "With PATH: for each path prints whether it exists, its filename, dirname\n"
-                  "and (if it exists) full path (tld_file_exists, tld_get_filename,\n"
-                  "tld_get_dirname, tld_get_full_path).\n"
+                  "and (if it exists) full path (tld_path_exists, tld_path_filename,\n"
+                  "tld_path_dirname, tld_path_full).\n"
                   "Example: unit-misc /etc/hosts .");
 
         tld_strbuf* cmd = NULL;
 
-        SECTION_MSG("tld_capture_cmd_line");
-        RUN(tld_capture_cmd_line(&cmd, orig_n, orig));
+        SECTION_MSG("tld_cmdline_capture");
+        RUN(tld_cmdline_capture(&cmd, orig_n, orig));
 
         KV_MSG("command line", "%s", TLD_STR(cmd));
 

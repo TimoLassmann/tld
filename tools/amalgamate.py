@@ -37,7 +37,7 @@ TOP = """\
  *   A function that can fail returns int: OK (0) on success, FAIL (1) on failure, with
  *   its results in pointer arguments; one that returns a pointer returns NULL on
  *   failure. Failures print an ERROR line (time, message, file and line) to stderr;
- *   lookups that just find nothing (tld_hash_get, tld_file_exists, tld_json_get_*, ...)
+ *   lookups that just find nothing (tld_hash_get, tld_path_exists, tld_json_get_*, ...)
  *   return FAIL silently. A few functions return a plain value or a 1/0 truth value
  *   instead; each one says so. Nothing exits or aborts.
  *
@@ -50,7 +50,7 @@ TOP = """\
  *               tld_strbuf *b = NULL;
  *               ASSERT(path != NULL, "No path");
  *               RUN(tld_strbuf_alloc(&b, 256));
- *               RUN(tld_append(b, path));
+ *               RUN(tld_strbuf_append(b, path));
  *               *out = b;
  *               return OK;
  *       ERROR:
@@ -67,9 +67,9 @@ TOP = """\
  *
  * MEMORY
  *   Objects come from an allocator (tld_strbuf_alloc(&b, ...), tld_hash_alloc,
- *   kdtree_alloc, init_rng, tld_json_parse, JSON_OBJ, ...) and belong to the caller,
+ *   tld_tld_kdtree_alloc, tld_rng_alloc, tld_json_parse, TLD_JSON_OBJECT, ...) and belong to the caller,
  *   who frees them with the matching free function (tld_strbuf_free, tld_hash_free,
- *   kdtree_free, free_rng, tld_json_obj_free, ...); every free function accepts NULL.
+ *   tld_tld_kdtree_free, tld_rng_free, tld_json_obj_free, ...); every free function accepts NULL.
  *   galloc memory is freed with gfree, MMALLOC memory with MFREE, never with free();
  *   both set the pointer to NULL, so freeing again on an error path is harmless.
  *   Pointers handed out by an object (tld_hash_get, tld_json_get_str, ...) are borrowed
@@ -79,7 +79,7 @@ TOP = """\
  *
  * THREADS
  *   Objects have no locks: use each one from one thread at a time. The tld_thread_pool_*
- *   calls and init_logsum are thread-safe; tld_progress and the TLD_START_TIMER timer keep
+ *   calls and tld_logsum_init are thread-safe; tld_progress and the TLD_START_TIMER timer keep
  *   global state.
  *
  * ENVIRONMENT

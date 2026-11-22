@@ -1,6 +1,6 @@
 #include "../core/tld-core.h"
 #include <math.h>
-#include "basic.h"
+#include "tld-stats.h"
 
 int tld_shannon(double *vec, int n, double *entropy)
 {

@@ -1,5 +1,5 @@
 #include "../alloc/tld-alloc.h"
-#include "../string/str.h"
+#include "../string/tld-string.h"
 
 #include "tld-json.h"
 
@@ -57,10 +57,10 @@ int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s)
         tld_json_obj* t = NULL;
         RUN(tld_json_obj_alloc(&t));
         for(int i = 0; i < s->n;i++){
-                RUN(tld_append(t->key[i], TLD_STR(s->key[i])));
+                RUN(tld_strbuf_append(t->key[i], TLD_STR(s->key[i])));
                 RUN(tld_json_val_copy(t->v[i], s->v[i]));
                 t->n++;
-                RUN(tld_json_obj_chk_space(t));
+                RUN(tld__json_obj_chk_space(t));
         }
 
         *target = t;
@@ -72,17 +72,17 @@ ERROR:
         return FAIL;
 }
 
-int tld_json_obj_chk_space(tld_json_obj *n)
+int tld__json_obj_chk_space(tld_json_obj *n)
 {
         if(n->n == n->n_alloc){
-                RUN(tld_json_obj_realloc(n));
+                RUN(tld__json_obj_realloc(n));
         }
         return OK;
 ERROR:
         return FAIL;
 }
 
-int tld_json_obj_realloc(tld_json_obj *n)
+int tld__json_obj_realloc(tld_json_obj *n)
 {
         /* Grow the arrays first; n_alloc only counts slots that really exist, so a
          * failure part-way leaves the object consistent (and freeable). */
@@ -103,7 +103,7 @@ int tld_json_obj_realloc(tld_json_obj *n)
                         n->key[i] = NULL;
                         ERROR_MSG("Could not grow JSON object");
                 }
-                n->v[i]->type = TLD_JSON_UNDEF;
+                n->v[i]->type = TLD_JSON_NULL;
                 n->n_alloc++;
         }
         return OK;
@@ -156,7 +156,7 @@ int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s)
         for(int i = 0; i < s->n;i++){
                 RUN(tld_json_val_copy(n->v[n->n] , s->v[i]));
                 n->n++;
-                RUN(tld_json_arr_chk_space(n));
+                RUN(tld__json_arr_chk_space(n));
         }
         *t = n;
         return OK;
@@ -165,17 +165,17 @@ ERROR:
         return FAIL;
 }
 
-int tld_json_arr_chk_space(tld_json_arr *n)
+int tld__json_arr_chk_space(tld_json_arr *n)
 {
         if(n->n == n->n_alloc){
-                RUN(tld_json_arr_realloc(n));
+                RUN(tld__json_arr_realloc(n));
         }
         return OK;
 ERROR:
         return FAIL;
 }
 
-int tld_json_arr_realloc(tld_json_arr *n)
+int tld__json_arr_realloc(tld_json_arr *n)
 {
         /* As for objects: n_alloc only counts slots that exist. */
         int target = n->n_alloc + n->n_alloc / 2 + 1;
@@ -196,7 +196,7 @@ int tld_json_val_alloc(tld_json_val **node)
 {
         tld_json_val* n = NULL;
         MMALLOC(n, sizeof(tld_json_val));
-        n->type = TLD_JSON_UNDEF;
+        n->type = TLD_JSON_NULL;
         *node = n;
         return OK;
 ERROR:
@@ -221,7 +221,7 @@ void tld_json_val_free(tld_json_val* n)
                 case TLD_JSON_OBJ:
                         tld_json_obj_free(n->value.obj);
                         break;
-                case TLD_JSON_UNDEF:
+                case TLD_JSON_NULL:
                         break;
                 }
                 MFREE(n);
@@ -244,7 +244,7 @@ static void tld__json_val_clear(tld_json_val *v)
         default:
                 break;
         }
-        v->type = TLD_JSON_UNDEF;
+        v->type = TLD_JSON_NULL;
 }
 
 /* Deep copy s into t. Whatever t held before is released, so t may hold a
@@ -289,7 +289,7 @@ int tld_json_val_copy(tld_json_val *t, tld_json_val *s)
         case TLD_JSON_BOOL_FALSE:
                 tmp.value.b_num = s->value.b_num;
                 break;
-        case TLD_JSON_UNDEF:
+        case TLD_JSON_NULL:
                 break;
         }
         tld__json_val_clear(t);

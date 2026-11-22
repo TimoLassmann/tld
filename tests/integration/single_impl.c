@@ -9,7 +9,7 @@ int single_use(void);
 int main(int argc, char *argv[])
 {
         tld_strbuf *b = NULL;
-        struct rng_state *rng = NULL;
+        struct tld_rng *rng = NULL;
         test_init(&argc, argv, "[WORD ...]",
                   "Built from the single-header ./tld.h in two translation units (implementation\n"
                   "here, declarations only in single_use.c). With no arguments checks a string\n"
@@ -18,22 +18,22 @@ int main(int argc, char *argv[])
                   "Example: single-header one two three");
         SECTION_MSG("tld.h single header");
         RUN(tld_strbuf_alloc(&b, 16));
-        RUN(tld_append(b, "single"));
-        RUN(tld_append(b, "-header"));
+        RUN(tld_strbuf_append(b, "single"));
+        RUN(tld_strbuf_append(b, "-header"));
         if (strcmp(TLD_STR(b), "single-header") != 0) ERROR_MSG("append gave %s", TLD_STR(b));
         OK_MSG("strbuf: %s", TLD_STR(b));
-        RUN(init_rng(&rng, 42));
-        double r = tl_random_double(rng);
+        RUN(tld_rng_alloc(&rng, 42));
+        double r = tld_rng_double(rng);
         if (!(r > 0.0 && r < 1.0)) ERROR_MSG("random double %f out of range", r);
         OK_MSG("rng: %f", r);
-        free_rng(rng);
+        tld_rng_free(rng);
         RUN(single_use());
         OK_MSG("hash lookup in the second translation unit");
         if (argc > 1) {
                 RUN(tld_strbuf_clear(b));
                 for (int i = 1; i < argc; i++) {
-                        if (i > 1) RUN(tld_append_char(b, '-'));
-                        RUN(tld_append(b, argv[i]));
+                        if (i > 1) RUN(tld_strbuf_append_char(b, '-'));
+                        RUN(tld_strbuf_append(b, argv[i]));
                 }
                 fprintf(stdout, "%s\n", TLD_STR(b));
         }

@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
 {
         test_init(&argc, argv, "[FILE]",
                   "With no arguments: parses and dumps two chat-completion replies, searches\n"
-                  "one for \"content\", and builds objects with JSON_OBJ/JSON_ARR/JS/JO/JA\n"
+                  "one for \"content\", and builds objects with TLD_JSON_OBJECT/TLD_JSON_ARRAY/TLD_JAUTO/TLD_JOBJ/TLD_JARR\n"
                   "(including a NULL member and tld_json_set_val).\n"
                   "With FILE: reads the JSON file, parses it with tld_json_parse and dumps it to\n"
                   "stdout with tld_json_dump.\n"
@@ -42,7 +42,7 @@ int test_parser2(void)
         tld_json_obj *n = NULL;
         tld_json_obj *res = NULL;
         tld_strbuf_alloc(&buf, 1024);
-        tld_append(buf, in);
+        tld_strbuf_append(buf, in);
         DEBUG_MSG("%s", TLD_STR(buf));
         tld_json_parse(buf, &n);
         tld_strbuf_clear(buf);
@@ -59,7 +59,7 @@ int test_parser2(void)
 
         char in2[] = "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,\"message\":{\"content\":\"Let me see...\n\nI've got it!\n\nMeet Kaelin \\\"Kae\\\" Valtor, a 32-year-old skilled astrobiologist and explorer from the planet of Xeridia. Kae is a brilliant scientist with a passion for uncovering the secrets of the universe. Born on a remote research station\",\"role\":\"assistant\"}}],\"created\":1720583143,\"model\":\"gpt-3.5-turbo\",\"object\":\"chat.completion\",\"usage\":{\"completion_tokens\":64,\"prompt_tokens\":58,\"total_tokens\":122},\"id\":\"chatcmpl-C0uWNFiitSmQwefVTnsllXDvcilXoIah\"}";
         tld_strbuf_clear(buf);
-        tld_append(buf, in2);
+        tld_strbuf_append(buf, in2);
         KV_MSG("input", "message 2");
         DEBUG_MSG("%s", TLD_STR(buf));
         tld_json_parse(buf, &n);
@@ -78,7 +78,7 @@ int test_create(void)
         tld_json_arr* a = NULL;
 
         tld_strbuf_alloc(&b, 1024);
-        a = JSON_ARR( JO(NULL,JSON_OBJ(JS("Model","gpt-3.5-turbo"))));
+        a = TLD_JSON_ARRAY( TLD_JOBJ(NULL,TLD_JSON_OBJECT(TLD_JAUTO("Model","gpt-3.5-turbo"))));
 
                 
         tld_json_dump_arr(a, b, 0);
@@ -87,22 +87,22 @@ int test_create(void)
         tld_json_arr_free(a);
         const char* message = "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests.";
 
-        tld_json_obj* n = JSON_OBJ(
-                JS("model", "gpt-3.5-turbo"),
-                JO("response_format",
-                   JSON_OBJ(
-                           JS("type", "json_object")
+        tld_json_obj* n = TLD_JSON_OBJECT(
+                TLD_JAUTO("model", "gpt-3.5-turbo"),
+                TLD_JOBJ("response_format",
+                   TLD_JSON_OBJECT(
+                           TLD_JAUTO("type", "json_object")
                            )
                         ),
-                JA("messages",
-                   JSON_ARR(
-                           JO(NULL, JSON_OBJ(
-                                      JS("role", "system"),
-                                      JS("content", message)
+                TLD_JARR("messages",
+                   TLD_JSON_ARRAY(
+                           TLD_JOBJ(NULL, TLD_JSON_OBJECT(
+                                      TLD_JAUTO("role", "system"),
+                                      TLD_JAUTO("content", message)
                                       )),
-                           JO(NULL, JSON_OBJ(
-                                      JS("role", "user"),
-                                      JS("content", "Write a limerick about python exceptions.")
+                           TLD_JOBJ(NULL, TLD_JSON_OBJECT(
+                                      TLD_JAUTO("role", "user"),
+                                      TLD_JAUTO("content", "Write a limerick about python exceptions.")
                                       ))
                            )
                         )
@@ -114,32 +114,32 @@ int test_create(void)
         tld_json_obj_free(n);
         tld_strbuf_clear(b);
 
-        n = JSON_OBJ(
-                JO("response_format",JSON_OBJ(
-                           JS("type", "json_object"),
-                           JO("schema",JSON_OBJ(
-                                      JS("type", "object"),
-                                      JO("properties",JSON_OBJ(
-                                                 JO("name",
-                                                    JSON_OBJ(
-                                                            JS("type", "string"),
-                                                            JS("minLength", "1"),
-                                                            JS("maxLength", "100")
+        n = TLD_JSON_OBJECT(
+                TLD_JOBJ("response_format",TLD_JSON_OBJECT(
+                           TLD_JAUTO("type", "json_object"),
+                           TLD_JOBJ("schema",TLD_JSON_OBJECT(
+                                      TLD_JAUTO("type", "object"),
+                                      TLD_JOBJ("properties",TLD_JSON_OBJECT(
+                                                 TLD_JOBJ("name",
+                                                    TLD_JSON_OBJECT(
+                                                            TLD_JAUTO("type", "string"),
+                                                            TLD_JAUTO("minLength", "1"),
+                                                            TLD_JAUTO("maxLength", "100")
                                                             )
                                                          ),
-                                                 JO("age",
-                                                    JSON_OBJ(
-                                                            JS("type", "integer"),
-                                                            JS("minimum", "0"),
-                                                            JS("maximum", "120")
+                                                 TLD_JOBJ("age",
+                                                    TLD_JSON_OBJECT(
+                                                            TLD_JAUTO("type", "integer"),
+                                                            TLD_JAUTO("minimum", "0"),
+                                                            TLD_JAUTO("maximum", "120")
                                                             )
                                                          )
                                                  )
                                               ),
-                                      JA("required",
-                                         JSON_ARR(
-                                                 JS(NULL,"message"),
-                                                 JS(NULL,"age"),
+                                      TLD_JARR("required",
+                                         TLD_JSON_ARRAY(
+                                                 TLD_JAUTO(NULL,"message"),
+                                                 TLD_JAUTO(NULL,"age"),
                                                  )
                                               )
                                       )
@@ -152,26 +152,26 @@ int test_create(void)
         DEBUG_MSG("%s", TLD_STR(b));
         tld_json_obj_free(n);
         LOG_MSG("Create a JSON OBJECT with a NULL schema");
-        n = JSON_OBJ(
-                JO("response_format",JSON_OBJ(
-                           JS("type", "json_object"),
-                           JO("schema",JSON_OBJ(
-                                      JS("type", "object"),
-                                      JO("properties",JSON_OBJ(
-                                                 JO("name",NULL),
-                                                 JO("age",
-                                                    JSON_OBJ(
-                                                            JS("type", "integer"),
-                                                            JS("minimum", "0"),
-                                                            JS("maximum", "120")
+        n = TLD_JSON_OBJECT(
+                TLD_JOBJ("response_format",TLD_JSON_OBJECT(
+                           TLD_JAUTO("type", "json_object"),
+                           TLD_JOBJ("schema",TLD_JSON_OBJECT(
+                                      TLD_JAUTO("type", "object"),
+                                      TLD_JOBJ("properties",TLD_JSON_OBJECT(
+                                                 TLD_JOBJ("name",NULL),
+                                                 TLD_JOBJ("age",
+                                                    TLD_JSON_OBJECT(
+                                                            TLD_JAUTO("type", "integer"),
+                                                            TLD_JAUTO("minimum", "0"),
+                                                            TLD_JAUTO("maximum", "120")
                                                             )
                                                          )
                                                  )
                                               ),
-                                      JA("required",
-                                         JSON_ARR(
-                                                 JS(NULL,"message"),
-                                                 JS(NULL,"age"),
+                                      TLD_JARR("required",
+                                         TLD_JSON_ARRAY(
+                                                 TLD_JAUTO(NULL,"message"),
+                                                 TLD_JAUTO(NULL,"age"),
                                                  )
                                               )
                                       )
@@ -189,7 +189,7 @@ int test_create(void)
         tld_json_val_alloc(&v);
         v->type = TLD_JSON_STR;
         tld_strbuf_alloc(&v->value.str, 64);
-        tld_append(v->value.str, "AGARGAGAGA");
+        tld_strbuf_append(v->value.str, "AGARGAGAGA");
         tld_json_set_val(n, "type", v);
         tld_json_val_free(v);
         tld_json_dump(n, b, 0);
@@ -212,7 +212,7 @@ int test_file_parser(char *infile)
         char* buffer = NULL;
         tld_json_obj *n = NULL;
         size_t bufsize = 2048;
-        if(tld_file_exists(infile) == FAIL){
+        if(tld_path_exists(infile) == FAIL){
                 ERROR_MSG("File : %s does not exist!", infile);
         }
         SECTION_MSG("%s", infile);
@@ -223,7 +223,7 @@ int test_file_parser(char *infile)
                 ERROR_MSG("cannot open %s", infile);
         }
         while (getline(&buffer,&bufsize ,f_ptr) != -1){
-                RUN(tld_append(buf, buffer));
+                RUN(tld_strbuf_append(buf, buffer));
         }
         MFREE(buffer);
         fclose(f_ptr);
@@ -267,7 +267,7 @@ int test_obj_parser(void)
         tld_strbuf* buf = NULL;
         tld_json_obj *n = NULL;
         tld_strbuf_alloc(&buf, 1024);
-        tld_append(buf, test);
+        tld_strbuf_append(buf, test);
         fprintf(stdout,"%s", TLD_STR(buf));
         tld_json_parse(buf, &n);
 
@@ -319,7 +319,7 @@ int test_parser(void)
         tld_strbuf* buf = NULL;
         tld_json_obj *n = NULL;
         tld_strbuf_alloc(&buf, 1024);
-        tld_append(buf, test);
+        tld_strbuf_append(buf, test);
         fprintf(stdout,"%s", TLD_STR(buf));
         tld_json_parse(buf, &n);
 

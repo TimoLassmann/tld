@@ -19,7 +19,7 @@ void tld__vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char 
 {
         int saved_errno = errno;
         char time_string[BUFSIZ];
-        int col = (f_ptr == stderr) && tld_term_color();
+        int col = (f_ptr == stderr) && tld_term_has_color();
         if(type != TLD__MSG_ERROR && tld_verbosity() < 1){
                 errno = saved_errno;
                 return;
@@ -106,7 +106,7 @@ int tld_verbosity(void)
         return 1;
 }
 
-int tld_term_color(void)
+int tld_term_has_color(void)
 {
         const char *nc = getenv("NO_COLOR");
         const char *term = getenv("TERM");
@@ -125,7 +125,7 @@ void tld__section(const char *format, ...)
         char title[256];
         va_list argp;
         int len;
-        int col = tld_term_color();
+        int col = tld_term_has_color();
         if(tld_verbosity() < 1){
                 errno = saved_errno;
                 return;
@@ -161,7 +161,7 @@ void tld__kv(const char *key, const char *format, ...)
                 errno = saved_errno;
                 return;
         }
-        if(tld_term_color()){
+        if(tld_term_has_color()){
                 fprintf(stderr, "   \033[2m%-9s\033[0m ", key);
         }else{
                 fprintf(stderr, "   %-9s ", key);
@@ -182,7 +182,7 @@ void tld__ok(const char *format, ...)
                 errno = saved_errno;
                 return;
         }
-        fputs(tld_term_color() ? " \033[1;32m✓\033[0m " : " OK ", stderr);
+        fputs(tld_term_has_color() ? " \033[1;32m✓\033[0m " : " OK ", stderr);
         va_start(argp, format);
         vfprintf(stderr, format, argp);
         va_end(argp);
@@ -200,7 +200,7 @@ void tld__debug(const char *format, ...)
                 errno = saved_errno;
                 return;
         }
-        col = tld_term_color();
+        col = tld_term_has_color();
         fputs(col ? " \033[2m· " : " . ", stderr);
         va_start(argp, format);
         vfprintf(stderr, format, argp);

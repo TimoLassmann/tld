@@ -47,12 +47,12 @@ static int level(void)
                 type x = (lo);                                          \
                 type y = (hi);                                          \
                 type z = (lo);                                          \
-                CHECK(cmp_asc_##type(&x, &z) == 0);                     \
-                CHECK(cmp_desc_##type(&x, &z) == 0);                    \
-                CHECK(cmp_asc_##type(&x, &y) < 0);                      \
-                CHECK(cmp_asc_##type(&y, &x) > 0);                      \
-                CHECK(cmp_desc_##type(&x, &y) > 0);                     \
-                CHECK(cmp_desc_##type(&y, &x) < 0);                     \
+                CHECK(tld__sort_cmp_asc_##type(&x, &z) == 0);                     \
+                CHECK(tld__sort_cmp_desc_##type(&x, &z) == 0);                    \
+                CHECK(tld__sort_cmp_asc_##type(&x, &y) < 0);                      \
+                CHECK(tld__sort_cmp_asc_##type(&y, &x) > 0);                      \
+                CHECK(tld__sort_cmp_desc_##type(&x, &y) > 0);                     \
+                CHECK(tld__sort_cmp_desc_##type(&y, &x) < 0);                     \
         } while (0)
 
 static int test_cmp(void)
@@ -81,11 +81,11 @@ static int test_ties(void)
         for (int i = 0; i < 1000; i++) {
                 a[i] = (i * 7919) % 5;
         }
-        sort_asc_int32_t(a, 1000);
+        tld_sort_asc_int32_t(a, 1000);
         for (int i = 1; i < 1000; i++) {
                 CHECK(a[i - 1] <= a[i]);
         }
-        sort_desc_int32_t(a, 1000);
+        tld_sort_desc_int32_t(a, 1000);
         for (int i = 1; i < 1000; i++) {
                 CHECK(a[i - 1] >= a[i]);
         }

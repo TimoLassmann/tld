@@ -11,7 +11,7 @@
  * pointer across changes. Create with tld_strbuf_alloc, free with tld_strbuf_free.
  * A buffer holds at most INT32_MAX - 1 bytes; an append that would pass that fails
  * with an error and leaves the buffer unchanged. */
-typedef struct tld_string_buffer {
+typedef struct tld_strbuf {
         uint8_t* str;
         int32_t len;
         int32_t alloc_len;
@@ -36,12 +36,12 @@ TLD_API int tld_strbuf_clear(tld_strbuf *b);
 TLD_API int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
 
 /* Append the NUL-terminated string content to b; b grows as needed. */
-TLD_API int tld_append(tld_strbuf *b, const char *content);
+TLD_API int tld_strbuf_append(tld_strbuf *b, const char *content);
 
 /* Append the single character c to b. */
-TLD_API int tld_append_char(tld_strbuf *b, char c);
+TLD_API int tld_strbuf_append_char(tld_strbuf *b, char c);
 
 /* Insert the NUL-terminated string content at the start of b. */
-TLD_API int tld_prepend(tld_strbuf *b, const char *content);
+TLD_API int tld_strbuf_prepend(tld_strbuf *b, const char *content);
 
 #endif

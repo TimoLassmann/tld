@@ -79,9 +79,9 @@
 
 /* galloc(&a, n): a = zeroed array of n elements of a's element type.
  * galloc(&m, n, k): m = zeroed n x k matrix, used as m[i][j]; the rows share one
- * contiguous block. Element types: char, int8_t..int64_t, uint8_t..uint64_t, float,
- * double. The pointer should be NULL (an existing block is not freed or resized). On
- * failure an error is printed and goto ERROR. Free with gfree; get_dim1/get_dim2 give
+ * contiguous block. Any element type (numbers, pointers, structs) whose alignment malloc
+ * provides; a more strictly aligned type is a compile error. The pointer should be NULL (an existing block is not freed or resized). On
+ * failure an error is printed and goto ERROR. Free with gfree; tld_galloc_dim1/tld_galloc_dim2 give
  * the dimensions back. */
 #define galloc(...) TLD__GALLOC_ARGS(__VA_ARGS__)
 
@@ -96,25 +96,12 @@
 
 /* Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
  * into *d. FAIL if ptr is NULL. Only valid for memory from galloc. */
-TLD_API int get_dim1(void *ptr, uint32_t *d);
-TLD_API int get_dim2(void *ptr, uint32_t *d);
+TLD_API int tld_galloc_dim1(void *ptr, uint32_t *d);
+TLD_API int tld_galloc_dim2(void *ptr, uint32_t *d);
 
 /* The function behind gfree: frees a galloc block and its 2D data block. NULL is
  * ignored. */
 TLD_API void tld__gfree(void *p);
-
-/* tld_valid_1D(x) is 1 if x is a T ** and tld_valid_2D(x) is 1 if x is a T ***, where T
- * is a type galloc supports (char, int8_t..int64_t, uint8_t..uint64_t, float, double);
- * 0 otherwise. Compile-time checks used by galloc. */
-#define tld_valid_1D(x)                                                 \
-        _Generic((x), char ** : 1, int8_t ** : 1, uint8_t ** : 1, int16_t ** : 1, \
-                 uint16_t ** : 1, int32_t ** : 1, uint32_t ** : 1, int64_t ** : 1, \
-                 uint64_t ** : 1, float ** : 1, double ** : 1, default : 0)
-#define tld_valid_2D(x)                                                 \
-        _Generic((x), char *** : 1, int8_t *** : 1, uint8_t *** : 1,    \
-                 int16_t *** : 1, uint16_t *** : 1, int32_t *** : 1,    \
-                 uint32_t *** : 1, int64_t *** : 1, uint64_t *** : 1, float *** : 1, \
-                 double *** : 1, default : 0)
 
 /* Argument counting for galloc: TLD__NARG3(...) is the number of its 1 to 3 arguments. */
 #define TLD__XARG3(_0, _1, _2, _3, ...) _3
@@ -124,9 +111,8 @@ TLD_API void tld__gfree(void *p);
 #define TLD__XGALLOC_ARGS_1(a) tld__galloc_too_few()
 #define TLD__XGALLOC_ARGS_2(a, b)                                            \
         do {                                                            \
-                if (!tld_valid_1D((a))) {                               \
-                        ERROR_MSG("Wrong pointer type for 1D alloc");   \
-                }                                                       \
+                _Static_assert(_Alignof(__typeof__(**(a))) <= _Alignof(max_align_t), \
+                               "galloc: element type aligned beyond malloc"); \
                 *(a) = tld__galloc(sizeof(__typeof__(**(a))),           \
                                    sizeof(__typeof__(**(a))), (b), 0);  \
                 if (*(a) == NULL) {                                     \
@@ -141,9 +127,8 @@ TLD_API void tld__gfree(void *p);
  * (b) or (c). */
 #define TLD__XGALLOC_ARGS_3(a, b, c)                                         \
         do {                                                            \
-                if (!tld_valid_2D((a))) {                               \
-                        ERROR_MSG("Wrong pointer type for 2D alloc");   \
-                }                                                       \
+                _Static_assert(_Alignof(__typeof__(***(a))) <= _Alignof(max_align_t), \
+                               "galloc: element type aligned beyond malloc"); \
                 const size_t tld_galloc_n_ = (size_t)(b);               \
                 const size_t tld_galloc_m_ = (size_t)(c);               \
                 __typeof__(*(a)) tld_galloc_rows_ =                     \

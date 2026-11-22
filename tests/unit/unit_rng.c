@@ -8,7 +8,7 @@ static void printHistogram(double* values, int n);
 /* unit-rng SEED N [KIND]: N draws from a generator seeded with SEED. */
 static int demo(int argc, char **argv)
 {
-        struct rng_state *rng = NULL;
+        struct tld_rng *rng = NULL;
         char *end = NULL;
         const char *kind = argc > 3 ? argv[3] : "double";
         uint64_t seed = strtoull(argv[1], &end, 10);
@@ -26,29 +26,29 @@ static int demo(int argc, char **argv)
         SECTION_MSG("%ld draws", n);
         KV_MSG("seed", "%llu", (unsigned long long)seed);
         KV_MSG("kind", "%s", kind);
-        RUN(init_rng(&rng, seed));
+        RUN(tld_rng_alloc(&rng, seed));
         for(long i = 0; i < n; i++){
                 if(k){
-                        fprintf(stdout, "%d\n", tl_random_int(rng, k));
+                        fprintf(stdout, "%d\n", tld_rng_int(rng, k));
                 } else if(strcmp(kind, "double") == 0){
-                        fprintf(stdout, "%f\n", tl_random_double(rng));
+                        fprintf(stdout, "%f\n", tld_rng_double(rng));
                 } else if(strcmp(kind, "gaussian") == 0){
-                        fprintf(stdout, "%f\n", tl_random_gaussian(rng, 0.0, 1.0));
+                        fprintf(stdout, "%f\n", tld_rng_gaussian(rng, 0.0, 1.0));
                 } else {
-                        fprintf(stdout, "%f\n", tl_random_gamma(rng, 2.0, 1.0));
+                        fprintf(stdout, "%f\n", tld_rng_gamma(rng, 2.0, 1.0));
                 }
         }
         OK_MSG("done");
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
-        free_rng(rng);
+        tld_rng_free(rng);
         return FAIL;
 }
 
 int main(int argc, char *argv[])
 {
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
         double* values = NULL;
         double mean = 0.0;
         double stdev = 1.0;
@@ -73,13 +73,13 @@ int main(int argc, char *argv[])
                 return 2;
         }
 
-        RUN(init_rng(&rng,0));
+        RUN(tld_rng_alloc(&rng,0));
 
         MMALLOC(values,sizeof(double) * num_val);
 
         SECTION_MSG("Gaussian");
         for(i = 0; i < num_val;i++){
-                values[i] = tl_random_gaussian(rng,mean,stdev);
+                values[i] = tld_rng_gaussian(rng,mean,stdev);
                 if((i + 1) % 10000 == 0){
                         tld_progress(i + 1, num_val, "gaussian");
                 }
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
         for(i = 0; i < 100;i+=5){
                 mean = 0.0;
                 for(j = 0; j < 10;j++){
-                        values[j] = tl_random_gamma(rng, (double) i + 0.01,1.0);
+                        values[j] = tld_rng_gamma(rng, (double) i + 0.01,1.0);
                         mean+=values[j];
                 }
                 for(j = 0; j < 10;j++){
@@ -111,10 +111,10 @@ int main(int argc, char *argv[])
 
         SECTION_MSG("Double");
         for(int i = 0; i < 10;i++){
-                double r = tl_random_double( rng);
+                double r = tld_rng_double( rng);
                 DEBUG_MSG("%d %f",i, r);
         }
-        free_rng(rng);
+        tld_rng_free(rng);
 
         SECTION_MSG("Test rngdist");
         RUN(rng_dist_test());
@@ -128,7 +128,7 @@ int rng_dist_test(void)
 {
         double* w = NULL;
         int* out = NULL;
-        struct rng_dist* d = NULL;
+        struct tld_rng_dist* d = NULL;
         double sum;
         galloc(&w, 6);
         galloc(&out,6);
@@ -142,9 +142,9 @@ int rng_dist_test(void)
         for(int i = 0; i < 6;i++){
                 sum += w[i];
         }
-        RUN(tl_random_sdist_init(&d, w, 6, 0));
+        RUN(tld_rng_dist_alloc(&d, w, 6, 0));
         for(int i = 0; i < 10000000;i++){
-                out[tl_random_sdist_smpl(d)]++;
+                out[tld_rng_dist_sample(d)]++;
                 if((i + 1) % 100000 == 0){
                         tld_progress(i + 1, 10000000, "sampling");
                 }
@@ -155,7 +155,7 @@ int rng_dist_test(void)
                 snprintf(key, sizeof key, "bin %d", i);
                 KV_MSG(key, "observed %f expected %f", (double) out[i] /  10000000.0, w[i]/sum);
         }
-        tl_random_sdist_free(d);
+        tld_rng_dist_free(d);
         gfree(w);
         gfree(out);
         return OK;

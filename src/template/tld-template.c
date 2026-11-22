@@ -1,9 +1,9 @@
-#include "template.h"
+#include "tld-template.h"
 
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
-#include "../string/str.h"
-#include "../hash/hash.h"
+#include "../string/tld-string.h"
+#include "../hash/tld-hash.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -77,7 +77,7 @@ int tld__template_process(tld__template_node *node, tld_hash *hash, tld_strbuf* 
                 break;
 
         case TLD__NODE_TEXT:
-                RUN(tld_append(out, TLD_STR(node->content)));
+                RUN(tld_strbuf_append(out, TLD_STR(node->content)));
                 break;
 
         case TLD__NODE_VARIABLE:
@@ -85,7 +85,7 @@ int tld__template_process(tld__template_node *node, tld_hash *hash, tld_strbuf* 
                 const char* replacement = NULL;
                 /* an absent name gives no output */
                 if(tld_hash_get(hash, TLD_STR(node->content), &replacement) == OK){
-                        RUN(tld_append(out, replacement));
+                        RUN(tld_strbuf_append(out, replacement));
                 }
         }
         break;
@@ -308,7 +308,7 @@ int tld__template_node_create(tld__template_node **node, tld__template_node_type
         n->type = type;
         if(content){
                 RUN(tld_strbuf_alloc(&n->content, 16));
-                RUN(tld_append(n->content, content));
+                RUN(tld_strbuf_append(n->content, content));
         }
         *node = n;
         return OK;
@@ -361,7 +361,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash)
+int tld_template_vars(tld_strbuf *txt, tld_hash **hash)
 {
         tld_hash* h = NULL;
         tld__template_node* root = NULL;

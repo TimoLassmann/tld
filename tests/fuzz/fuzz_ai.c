@@ -24,7 +24,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n) {
                 if (ai__unpack(&x, t, s) == 0 || 1) ai__free_strs(&x, t);
         } else {
                 if (!ai__cache) tld_hash_alloc(&ai__cache, 64);
-                tld_strbuf *l = NULL; tld_strbuf_alloc(&l, (int)n + 1); tld_append(l, s);
+                tld_strbuf *l = NULL; tld_strbuf_alloc(&l, (int)n + 1); tld_strbuf_append(l, s);
                 int sk = 0; ai__cache_line(l, &sk); tld_strbuf_free(l);
         }
         free(s);

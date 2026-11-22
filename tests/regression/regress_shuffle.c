@@ -1,5 +1,5 @@
 /* Regression test for the shuffle bias. The old step
- *     r = tl_random_int(rng, n); j = i + r % (n - i);
+ *     r = tld_rng_int(rng, n); j = i + r % (n - i);
  * is not uniform when (n - i) does not divide n. For n = 3 the second step
  * picks one of two positions with probability 2/3, so two of the six
  * permutations come up twice as often as two others. A Fisher-Yates shuffle
@@ -22,13 +22,13 @@ static int perm_index(const int *a)
 
 static int test_uniform(void)
 {
-        struct rng_state *rng = NULL;
+        struct tld_rng *rng = NULL;
         const int n_trials = 120000;
         const double expect = n_trials / 6.0;
         int count[6] = {0};
         double chi2 = 0.0;
 
-        RUN(init_rng(&rng, 42));
+        RUN(tld_rng_alloc(&rng, 42));
         for (int t = 0; t < n_trials; t++) {
                 int a[3] = {0, 1, 2};
                 RUN(tld_shuffle_int32_t(a, 3, rng));
@@ -48,17 +48,17 @@ static int test_uniform(void)
         /* 5 degrees of freedom: P(chi2 > 30) is about 1.5e-5. The biased
            shuffle gives chi2 in the thousands here. */
         ASSERT(chi2 < 30.0, "permutations not uniform: chi2 = %f", chi2);
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
-        free_rng(rng);
+        tld_rng_free(rng);
         return FAIL;
 }
 
 static int test_lengths(void)
 {
-        struct rng_state *rng = NULL;
-        RUN(init_rng(&rng, 42));
+        struct tld_rng *rng = NULL;
+        RUN(tld_rng_alloc(&rng, 42));
         /* other lengths still permute */
         int b[10];
         for (int i = 0; i < 10; i++) {
@@ -73,10 +73,10 @@ static int test_lengths(void)
         RUN(TLD_SHUFFLE(b, 1, rng));
         RUN(TLD_SHUFFLE(b, 0, rng));
 
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
-        free_rng(rng);
+        tld_rng_free(rng);
         return FAIL;
 }
 

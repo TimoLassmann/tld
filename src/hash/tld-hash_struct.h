@@ -1,6 +1,6 @@
 #ifndef TLD_HASH_STRUCT_H
 #define TLD_HASH_STRUCT_H
-#include "../string/str.h"
+#include "../string/tld-string.h"
 
 typedef struct tld_hash_entry {
         tld_strbuf* key;

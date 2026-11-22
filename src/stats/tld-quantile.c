@@ -1,4 +1,4 @@
-#include "norm_quantile.h"
+#include "tld-quantile.h"
 #include "../alloc/tld-alloc.h"
 
 #include <math.h>
@@ -14,7 +14,7 @@ static int tld__qnorm_item_cmp (const void *a, const void *b);
    The reference distribution is the mean over columns of the sorted
    values. Each group of tied values in a column covers a run of sorted
    positions and gets the mean of the reference values over that run. */
-int norm_quantile(double **data, int n, int m)
+int tld_quantile_normalise(double **data, int n, int m)
 {
         double** data_rank = NULL;
         tld__qnorm_item** l = NULL;

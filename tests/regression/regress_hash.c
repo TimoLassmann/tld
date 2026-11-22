@@ -6,7 +6,7 @@
  *   lost the entry (and a NULL new key crashed).
  * - tld_hash_alloc with a size above the largest prime left table_size 0
  *   (modulo by zero on the first add).
- * - tl_bitfield_hamming never checked the mask length (heap over-read).
+ * - tld_bitfield_hamming never checked the mask length (heap over-read).
  */
 #include "tld.h"
 #include "test.h"
@@ -114,40 +114,40 @@ ERROR:
 
 static int test_bitfield_mask(void)
 {
-        tl_bitfield *a = NULL;
-        tl_bitfield *b = NULL;
-        tl_bitfield *small = NULL;
-        tl_bitfield *mask = NULL;
+        tld_bitfield *a = NULL;
+        tld_bitfield *b = NULL;
+        tld_bitfield *small = NULL;
+        tld_bitfield *mask = NULL;
         int32_t dist = -1;
 
-        RUN(tl_bitfield_alloc(&a, 1000));
-        RUN(tl_bitfield_alloc(&b, 1000));
-        RUN(tl_bitfield_alloc(&mask, 1000));
-        RUN(tl_bitfield_alloc(&small, 10));
-        RUN(tl_bitfield_set(a, 3));
-        RUN(tl_bitfield_set(a, 900));
-        RUN(tl_bitfield_set(mask, 900));
+        RUN(tld_bitfield_alloc(&a, 1000));
+        RUN(tld_bitfield_alloc(&b, 1000));
+        RUN(tld_bitfield_alloc(&mask, 1000));
+        RUN(tld_bitfield_alloc(&small, 10));
+        RUN(tld_bitfield_set(a, 3));
+        RUN(tld_bitfield_set(a, 900));
+        RUN(tld_bitfield_set(mask, 900));
 
-        RUN(tl_bitfield_hamming(a, b, NULL, &dist));
+        RUN(tld_bitfield_hamming(a, b, NULL, &dist));
         ASSERT(dist == 2, "dist %d", dist);
-        RUN(tl_bitfield_hamming(a, b, mask, &dist));
+        RUN(tld_bitfield_hamming(a, b, mask, &dist));
         ASSERT(dist == 1, "dist %d", dist);
 
         /* mask shorter than the bitfields: reading it was a heap over-read */
         dist = -1;
-        ASSERT(tl_bitfield_hamming(a, b, small, &dist) == FAIL, "short mask accepted");
+        ASSERT(tld_bitfield_hamming(a, b, small, &dist) == FAIL, "short mask accepted");
         ASSERT(dist == -1, "dist written on failure");
 
-        tl_bitfield_free(a);
-        tl_bitfield_free(b);
-        tl_bitfield_free(mask);
-        tl_bitfield_free(small);
+        tld_bitfield_free(a);
+        tld_bitfield_free(b);
+        tld_bitfield_free(mask);
+        tld_bitfield_free(small);
         return OK;
 ERROR:
-        tl_bitfield_free(a);
-        tl_bitfield_free(b);
-        tl_bitfield_free(mask);
-        tl_bitfield_free(small);
+        tld_bitfield_free(a);
+        tld_bitfield_free(b);
+        tld_bitfield_free(mask);
+        tld_bitfield_free(small);
         return FAIL;
 }
 
@@ -161,7 +161,7 @@ static const struct {
         {"rename", test_hash_rename, "tld_hash_rename keeps the entry when a step fails"},
         {"alloc-size", test_hash_alloc_size, "tld_hash_alloc above the largest prime"},
         {"self-assign", test_hash_self_assign, "a value from tld_hash_get added back under its key"},
-        {"bitfield-mask", test_bitfield_mask, "tl_bitfield_hamming checks the mask length"},
+        {"bitfield-mask", test_bitfield_mask, "tld_bitfield_hamming checks the mask length"},
 };
 
 int main(int argc, char *argv[])
@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
                   "  rename         tld_hash_rename keeps the entry when a step fails\n"
                   "  alloc-size     tld_hash_alloc above the largest prime\n"
                   "  self-assign    a value from tld_hash_get added back under its key\n"
-                  "  bitfield-mask  tl_bitfield_hamming checks the mask length\n"
+                  "  bitfield-mask  tld_bitfield_hamming checks the mask length\n"
                   "\n"
                   "Example: regress-hash rename alloc-size");
         for(int i = 1; i < argc; i++){

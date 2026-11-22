@@ -5,14 +5,14 @@
 /* unit-shuffle SEED ITEM ...: the items in TLD_SHUFFLE order. */
 static int demo(int n, char **args)
 {
-        struct rng_state *rng = NULL;
+        struct tld_rng *rng = NULL;
         char *end = NULL;
         uint64_t seed = strtoull(args[0], &end, 10);
         int32_t *idx = NULL;
         ASSERT(end != args[0] && *end == 0, "seed must be a number: %s", args[0]);
         n--;
         args++;
-        RUN(init_rng(&rng, seed));
+        RUN(tld_rng_alloc(&rng, seed));
         galloc(&idx, n);
         for(int i = 0; i < n; i++){
                 idx[i] = i;
@@ -25,19 +25,19 @@ static int demo(int n, char **args)
         fprintf(stdout, "\n");
         OK_MSG("done");
         gfree(idx);
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
         gfree(idx);
         if(rng){
-                free_rng(rng);
+                tld_rng_free(rng);
         }
         return FAIL;
 }
 
 int main(int argc, char *argv[])
 {
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
         int len = 15;
         double* d_arr = NULL;
         uint8_t* small_arr = NULL;
@@ -54,12 +54,12 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "unit-shuffle needs a SEED and at least one ITEM (see -h)\n");
                 return 2;
         }
-        RUN(init_rng(&rng, 42));
+        RUN(tld_rng_alloc(&rng, 42));
 
         galloc(&d_arr,len);
         galloc(&small_arr,len);
         for(int i = 0;i < len;i++){
-                d_arr[i] = tl_random_double(rng)*10.0;
+                d_arr[i] = tld_rng_double(rng)*10.0;
         }
 
         SECTION_MSG("10 rounds of TLD_SHUFFLE on %d doubles", len);
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
         gfree(d_arr);
         gfree(small_arr);
 
-        free_rng(rng);
+        tld_rng_free(rng);
         return EXIT_SUCCESS;
 ERROR:
         return EXIT_FAILURE;

@@ -24,7 +24,7 @@ static int parse_cstr(const char *s, tld_json_obj **out)
         if(tld_strbuf_alloc(&b, 64) != OK){
                 return FAIL;
         }
-        tld_append(b, (char*)s);
+        tld_strbuf_append(b, (char*)s);
         r = tld_json_parse(b, out);
         tld_strbuf_free(b);
         return r;
@@ -92,13 +92,13 @@ static void test_roundtrip_prompts(void)
                 const char* got = NULL;
                 tld_strbuf_alloc(&b, 64);
 
-                o = JSON_OBJ(
-                        JS("model", "llama3.2"),
-                        JSTR("prompt", prompts[i]),
-                        JA("messages", JSON_ARR(
-                                   JO(NULL, JSON_OBJ(JSTR("role", "user"),
-                                                     JSTR("content", prompts[i]))),
-                                   JSTR(NULL, prompts[i])
+                o = TLD_JSON_OBJECT(
+                        TLD_JAUTO("model", "llama3.2"),
+                        TLD_JSTR("prompt", prompts[i]),
+                        TLD_JARR("messages", TLD_JSON_ARRAY(
+                                   TLD_JOBJ(NULL, TLD_JSON_OBJECT(TLD_JSTR("role", "user"),
+                                                     TLD_JSTR("content", prompts[i]))),
+                                   TLD_JSTR(NULL, prompts[i])
                                    ))
                         );
                 CHECK(o != NULL);
@@ -232,7 +232,7 @@ static void test_numbers(void)
         CHECK(tld_json_get_int(o, "ie", &i) == OK && i == 1000);
         CHECK(tld_json_get_int(o, "frac", &i) == FAIL);
         CHECK(tld_json_get_num(o, "frac", &d) == OK && d == 2.5);
-        CHECK(get_val(o, "n")->type == TLD_JSON_UNDEF);
+        CHECK(get_val(o, "n")->type == TLD_JSON_NULL);
         CHECK(tld_json_get_str(o, "n", &s) == FAIL);
         CHECK(tld_json_get_num(o, "n", &d) == FAIL);
         tld_json_obj_free(o);
@@ -249,27 +249,27 @@ static void test_writer_numbers(void)
         double third = 1.0 / 3.0;
 
         tld_strbuf_alloc(&b, 64);
-        o = JSON_OBJ(
-                JNUM("temperature", 0.1),
-                JNUM("third", third),
-                JNUM("tiny", 1.4e-300),
-                JNUM("big", 1.7976931348623157e308),
-                JNUM("inf", INFINITY),
-                JNUM("nan", NAN),
-                JINT("ns", 5123456789L),
-                JINT("ctx", 4096),
-                JINT("neg", -7),
-                JBOOL("stream", 0),
-                JBOOL("think", 5),
-                JNULL("nothing"),
-                JS("guess_dbl", "0.2"),
-                JS("guess_int", "12"),
-                JS("guess_bigint", "5123456789"),
-                JS("guess_bool", "true"),
-                JS("not_num", "2024-11"),
-                JS("not_bool", "truex"),
-                JS("empty", ""),
-                JSTR("str42", "42")
+        o = TLD_JSON_OBJECT(
+                TLD_JNUM("temperature", 0.1),
+                TLD_JNUM("third", third),
+                TLD_JNUM("tiny", 1.4e-300),
+                TLD_JNUM("big", 1.7976931348623157e308),
+                TLD_JNUM("inf", INFINITY),
+                TLD_JNUM("nan", NAN),
+                TLD_JINT("ns", 5123456789L),
+                TLD_JINT("ctx", 4096),
+                TLD_JINT("neg", -7),
+                TLD_JBOOL("stream", 0),
+                TLD_JBOOL("think", 5),
+                TLD_JNULL("nothing"),
+                TLD_JAUTO("guess_dbl", "0.2"),
+                TLD_JAUTO("guess_int", "12"),
+                TLD_JAUTO("guess_bigint", "5123456789"),
+                TLD_JAUTO("guess_bool", "true"),
+                TLD_JAUTO("not_num", "2024-11"),
+                TLD_JAUTO("not_bool", "truex"),
+                TLD_JAUTO("empty", ""),
+                TLD_JSTR("str42", "42")
                 );
         CHECK(tld_json_dump(o, b, 0) == OK);
         CHECK(strstr(TLD_STR(b), "\"temperature\": 0.1,") != NULL);
@@ -378,16 +378,16 @@ static void test_ollama_embed(void)
         int ok = 1;
         int64_t i = 0;
         tld_strbuf_alloc(&b, 1 << 17);
-        tld_append(b, "{\"model\":\"nomic-embed-text\",\"embeddings\":[");
+        tld_strbuf_append(b, "{\"model\":\"nomic-embed-text\",\"embeddings\":[");
         for(int r = 0; r < 4; r++){
-                tld_append(b, r ? ",[" : "[");
+                tld_strbuf_append(b, r ? ",[" : "[");
                 for(int c = 0; c < 768; c++){
                         snprintf(num, sizeof(num), "%s%.17g", c ? "," : "", embed_value(r, c));
-                        tld_append(b, num);
+                        tld_strbuf_append(b, num);
                 }
-                tld_append(b, "]");
+                tld_strbuf_append(b, "]");
         }
-        tld_append(b, "],\"total_duration\":14143917,\"load_duration\":1019500,\"prompt_eval_count\":8}");
+        tld_strbuf_append(b, "],\"total_duration\":14143917,\"load_duration\":1019500,\"prompt_eval_count\":8}");
 
         CHECK(tld_json_parse(b, &o) == OK);
         CHECK(tld_json_get_arr(o, "embeddings", &a) == OK && a->n == 4);
@@ -664,7 +664,7 @@ static void test_long_strings(void)
                 }
                 s[n] = 0;
                 tld_strbuf_alloc(&b, 64);
-                o = JSON_OBJ(JSTR("s", s), JSTR("t", "after"));
+                o = TLD_JSON_OBJECT(TLD_JSTR("s", s), TLD_JSTR("t", "after"));
                 CHECK(tld_json_dump(o, b, 0) == OK);
                 CHECK(parse_cstr(TLD_STR(b), &p) == OK);
                 CHECK(tld_json_get_str(p, "s", &got) == OK && strcmp(got, s) == 0);
@@ -692,7 +692,7 @@ static void test_long_strings(void)
                         raw[q++] = '}';
                         raw[q] = 0;
                         tld_strbuf_alloc(&b, q + 1);
-                        tld_append(b, raw);
+                        tld_strbuf_append(b, raw);
                         free(raw);
                 }
                 p = NULL;
@@ -710,13 +710,13 @@ static void test_search_many(void)
         tld_json_obj* r = NULL;
         tld_strbuf* b = NULL;
         tld_strbuf_alloc(&b, 64);
-        tld_append(b, "{\"x\":[");
+        tld_strbuf_append(b, "{\"x\":[");
         for(int i = 0; i < 40; i++){
                 char tmp[64];
                 snprintf(tmp, sizeof(tmp), "%s{\"k\":%d,\"o\":{\"k\":\"s%d\"}}", i ? "," : "", i, i);
-                tld_append(b, tmp);
+                tld_strbuf_append(b, tmp);
         }
-        tld_append(b, "]}");
+        tld_strbuf_append(b, "]}");
         CHECK(tld_json_parse(b, &o) == OK);
         CHECK(tld_json_search(o, "k", &r) == OK);
         CHECK(r != NULL && r->n == 80);
@@ -749,7 +749,7 @@ static void test_set_val(void)
         tld_json_val_alloc(&v);
         v->type = TLD_JSON_STR;
         tld_strbuf_alloc(&v->value.str, 16);
-        tld_append(v->value.str, "now a string");
+        tld_strbuf_append(v->value.str, "now a string");
         CHECK(tld_json_set_val(o, "d", v) == OK);        /* INT -> STR */
         CHECK(tld_json_get_str(o, "d", &s) == OK && strcmp(s, "now a string") == 0);
         CHECK(tld_json_set_val(o, "e", v) == OK);        /* ARR -> STR */
@@ -783,15 +783,15 @@ static void test_build_request(void)
         int bo = -1;
         int64_t i = 0;
         const char* user = "Classify: \"my bill is wrong\"\n\tthanks \xF0\x9F\x99\x8F";
-        tld_json_obj* o = JSON_OBJ(
-                JSTR("model", "llama3.2"),
-                JA("messages", JSON_ARR(
-                           JO(NULL, JSON_OBJ(JSTR("role", "system"), JSTR("content", "Answer \"yes\" or \"no\"."))),
-                           JO(NULL, JSON_OBJ(JSTR("role", "user"), JSTR("content", user)))
+        tld_json_obj* o = TLD_JSON_OBJECT(
+                TLD_JSTR("model", "llama3.2"),
+                TLD_JARR("messages", TLD_JSON_ARRAY(
+                           TLD_JOBJ(NULL, TLD_JSON_OBJECT(TLD_JSTR("role", "system"), TLD_JSTR("content", "Answer \"yes\" or \"no\"."))),
+                           TLD_JOBJ(NULL, TLD_JSON_OBJECT(TLD_JSTR("role", "user"), TLD_JSTR("content", user)))
                            )),
-                JBOOL("stream", 0),
-                JO("options", JSON_OBJ(JNUM("temperature", 0.2), JINT("num_ctx", 8192), JINT("seed", 42))),
-                JA("stop", JSON_ARR(JSTR(NULL, "\n\n"), JSTR(NULL, "</s>"), JNUM(NULL, 1.5), JINT(NULL, 3), JBOOL(NULL, 1), JNULL(NULL)))
+                TLD_JBOOL("stream", 0),
+                TLD_JOBJ("options", TLD_JSON_OBJECT(TLD_JNUM("temperature", 0.2), TLD_JINT("num_ctx", 8192), TLD_JINT("seed", 42))),
+                TLD_JARR("stop", TLD_JSON_ARRAY(TLD_JSTR(NULL, "\n\n"), TLD_JSTR(NULL, "</s>"), TLD_JNUM(NULL, 1.5), TLD_JINT(NULL, 3), TLD_JBOOL(NULL, 1), TLD_JNULL(NULL)))
                 );
         tld_strbuf_alloc(&b, 64);
         CHECK(tld_json_dump(o, b, 0) == OK);
@@ -827,11 +827,11 @@ static void test_long_key(void)
         memset(k300, 'k', 300);
         k300[300] = 0;
         tld_strbuf_alloc(&b, 1024);
-        tld_append(b, "{\"");
-        tld_append(b, k256);
-        tld_append(b, "\":\"short\",\"");
-        tld_append(b, k300);
-        tld_append(b, "\":\"long\"}");
+        tld_strbuf_append(b, "{\"");
+        tld_strbuf_append(b, k256);
+        tld_strbuf_append(b, "\":\"short\",\"");
+        tld_strbuf_append(b, k300);
+        tld_strbuf_append(b, "\":\"long\"}");
         CHECK(tld_json_parse(b, &o) == OK);
         CHECK(tld_json_search(o, k300, &r) == OK);
         CHECK(r != NULL && r->n == 1);
@@ -868,23 +868,23 @@ static void test_deep_indent(void)
         tld_strbuf_free(b);
 }
 
-/* A nested JSON_OBJ / JSON_ARR that fails returns NULL; JO/JA used to skip a NULL
+/* A nested TLD_JSON_OBJECT / TLD_JSON_ARRAY that fails returns NULL; TLD_JOBJ/TLD_JARR used to skip a NULL
    value, so the outer build reported success without the nested part. */
 static void test_null_entry(void)
 {
         tld_json_obj* o = NULL;
         tld_json_arr* a = NULL;
-        o = JSON_OBJ(JSTR("a", "x"), JA("v", NULL));
+        o = TLD_JSON_OBJECT(TLD_JSTR("a", "x"), TLD_JARR("v", NULL));
         CHECK(o == NULL);
         tld_json_obj_free(o);
-        o = JSON_OBJ(JSTR("a", "x"), JO("v", NULL), JA("w", JSON_ARR(JINT(NULL, 1))));
-        CHECK(o == NULL);                       /* and the JSON_ARR after it is freed */
+        o = TLD_JSON_OBJECT(TLD_JSTR("a", "x"), TLD_JOBJ("v", NULL), TLD_JARR("w", TLD_JSON_ARRAY(TLD_JINT(NULL, 1))));
+        CHECK(o == NULL);                       /* and the TLD_JSON_ARRAY after it is freed */
         tld_json_obj_free(o);
-        a = JSON_ARR(JINT(NULL, 1), JO(NULL, NULL));
+        a = TLD_JSON_ARRAY(TLD_JINT(NULL, 1), TLD_JOBJ(NULL, NULL));
         CHECK(a == NULL);
         tld_json_arr_free(a);
         /* a NULL string is still skipped */
-        o = JSON_OBJ(JSTR("a", NULL), JS("b", NULL), JINT("n", 3));
+        o = TLD_JSON_OBJECT(TLD_JSTR("a", NULL), TLD_JAUTO("b", NULL), TLD_JINT("n", 3));
         CHECK(o != NULL && o->n == 1);
         tld_json_obj_free(o);
 }
@@ -894,22 +894,22 @@ static void test_null_entry(void)
    container to the caller, holding the entries added so far. */
 static void test_caller_container(void)
 {
-        tld_json_obj* o = JSON_OBJ(JINT("n", 1));
+        tld_json_obj* o = TLD_JSON_OBJECT(TLD_JINT("n", 1));
         tld_json_obj* r = NULL;
-        tld_json_arr* a = JSON_ARR(JINT(NULL, 1));
+        tld_json_arr* a = TLD_JSON_ARRAY(TLD_JINT(NULL, 1));
         tld_json_arr* ra = NULL;
         CHECK(o != NULL && a != NULL);
         if(o == NULL || a == NULL){
                 return;
         }
-        r = tld__json_obj_build(o, (tld_json_decoration[]){JINT("m", 2), JA("bad", NULL),
-                                                             JA("later", JSON_ARR(JINT(NULL, 3)))}, 3);
+        r = tld__json_obj_build(o, (tld_json_decoration[]){TLD_JINT("m", 2), TLD_JARR("bad", NULL),
+                                                             TLD_JARR("later", TLD_JSON_ARRAY(TLD_JINT(NULL, 3)))}, 3);
         CHECK(r == NULL);
         CHECK(o->n == 2);                       /* n and m */
-        ra = tld__json_arr_build(a, (tld_json_decoration[]){JO(NULL, NULL)}, 1);
+        ra = tld__json_arr_build(a, (tld_json_decoration[]){TLD_JOBJ(NULL, NULL)}, 1);
         CHECK(ra == NULL);
         CHECK(a->n == 1);
-        r = tld__json_obj_build(o, (tld_json_decoration[]){JINT("k", 4)}, 1);
+        r = tld__json_obj_build(o, (tld_json_decoration[]){TLD_JINT("k", 4)}, 1);
         CHECK(r == o && o->n == 3);
         tld_json_obj_free(o);
         tld_json_arr_free(a);
@@ -964,7 +964,7 @@ static void test_set_path(void)
         tld_json_val_alloc(&v);
         v->type = TLD_JSON_STR;
         tld_strbuf_alloc(&v->value.str, 8);
-        tld_append(v->value.str, "z");
+        tld_strbuf_append(v->value.str, "z");
         CHECK(tld_json_set_val(t, "[1]", v) == OK);
         CHECK(tld_json_get_str(t, "[1]", &s) == OK && strcmp(s, "z") == 0);
         CHECK(tld_json_get_str(t, "[0]", &s) == OK && strcmp(s, "x") == 0);
@@ -999,7 +999,7 @@ static const struct {
         {"build-request", test_build_request, "building a request object"},
         {"long-key", test_long_key, "search with keys longer than 256 bytes"},
         {"deep-indent", test_deep_indent, "dump indents every level, also past 31 spaces"},
-        {"null-entry", test_null_entry, "a JO/JA entry holding NULL fails the build"},
+        {"null-entry", test_null_entry, "a TLD_JOBJ/TLD_JARR entry holding NULL fails the build"},
         {"caller-container", test_caller_container, "a failed add to the caller's container returns NULL"},
 };
 
@@ -1031,7 +1031,7 @@ int main(int argc, char *argv[])
                   "  build-request      building a request object\n"
                   "  long-key           search with keys longer than 256 bytes\n"
                   "  deep-indent        dump indents every level, also past 31 spaces\n"
-                  "  null-entry         a JO/JA entry holding NULL fails the build\n"
+                  "  null-entry         a TLD_JOBJ/TLD_JARR entry holding NULL fails the build\n"
                   "  caller-container   a failed add to the caller's container returns NULL\n"
                   "\n"
                   "Example: regress-json escapes malformed");

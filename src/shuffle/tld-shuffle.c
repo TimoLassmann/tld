@@ -2,12 +2,12 @@
 #include "../rng/tld-rng.h"
 
 #define TLD__SHUFFLE_FUNC(type)                                              \
-        int tld_shuffle_##type(type* arr,int n, struct rng_state* rng)  \
+        int tld_shuffle_##type(type* arr,int n, struct tld_rng* rng)  \
         {                                                               \
                 int i,j;                                                \
                 type tmp;                                               \
                 for (i = 0; i < n - 1; i++) {                           \
-                        j = i + tl_random_int(rng, n - i);              \
+                        j = i + tld_rng_int(rng, n - i);              \
                         tmp = arr[j];                                   \
                         arr[j] = arr[i];                                \
                         arr[i] = tmp;                                   \

@@ -1,10 +1,10 @@
 /* Regression tests for the misc fixes.
- * - tld_get_full_path never set *full when it allocated the buffer (caller got
+ * - tld_path_full never set *full when it allocated the buffer (caller got
  *   NULL, buffer leaked) and freed a caller-supplied buffer on error (the
  *   caller's later use/free was a use-after-free / double free under ASan).
- * - tld_dir_create ignored mkdir's result (returned OK when nothing was made)
+ * - tld_path_mkdir ignored mkdir's result (returned OK when nothing was made)
  *   and printed an error in the normal case.
- * - tld_get_dirname("/file") failed with "No dirname".
+ * - tld_path_dirname("/file") failed with "No dirname".
  */
 #include "tld.h"
 #include "test.h"
@@ -26,25 +26,25 @@ static int test_full_path(const char *dir)
         fclose(f);
 
         /* NULL buffer: the function allocates one and hands it back */
-        RUN(tld_get_full_path(&full, file));
+        RUN(tld_path_full(&full, file));
         ASSERT(full != NULL, "*full was not set");
         ASSERT(full->len > 0 && TLD_STR(full)[0] == '/', "not an absolute path: %s", TLD_STR(full));
         ASSERT(strstr(TLD_STR(full), "afile.txt") != NULL, "wrong path %s", TLD_STR(full));
 
         /* reuse the same buffer */
-        RUN(tld_get_full_path(&full, file));
+        RUN(tld_path_full(&full, file));
         ASSERT(strstr(TLD_STR(full), "afile.txt") != NULL, "wrong path %s", TLD_STR(full));
 
         /* caller-supplied buffer survives an error */
         RUN(tld_strbuf_alloc(&mine, 16));
-        RUN(tld_append(mine, "keep"));
-        ASSERT(tld_get_full_path(&mine, "/no/such/file/anywhere") == FAIL, "missing file accepted");
+        RUN(tld_strbuf_append(mine, "keep"));
+        ASSERT(tld_path_full(&mine, "/no/such/file/anywhere") == FAIL, "missing file accepted");
         ASSERT(mine != NULL, "caller buffer pointer was cleared");
-        RUN(tld_append(mine, "x"));
+        RUN(tld_strbuf_append(mine, "x"));
 
         /* NULL buffer and an error: nothing handed back */
         tld_strbuf *none = NULL;
-        ASSERT(tld_get_full_path(&none, "/no/such/file/anywhere") == FAIL, "missing file accepted");
+        ASSERT(tld_path_full(&none, "/no/such/file/anywhere") == FAIL, "missing file accepted");
         ASSERT(none == NULL, "buffer handed back on error");
 
         unlink(file);
@@ -69,20 +69,20 @@ static int test_dir_create(const char *dir)
         snprintf(deep, sizeof(deep), "%s/missing/parent/child", dir);
         snprintf(file, sizeof(file), "%s/plainfile", dir);
 
-        RUN(tld_dir_create(sub));
+        RUN(tld_path_mkdir(sub));
         ASSERT(stat(sub, &st) == 0 && S_ISDIR(st.st_mode), "%s was not created", sub);
         /* already there: still OK */
-        RUN(tld_dir_create(sub));
+        RUN(tld_path_mkdir(sub));
 
         /* mkdir fails (no parent): must be reported */
-        ASSERT(tld_dir_create(deep) == FAIL, "tld_dir_create returned OK but made nothing");
+        ASSERT(tld_path_mkdir(deep) == FAIL, "tld_path_mkdir returned OK but made nothing");
         ASSERT(stat(deep, &st) != 0, "unexpected directory");
 
         /* a plain file is in the way */
         f = fopen(file, "w");
         ASSERT(f != NULL, "could not create %s", file);
         fclose(f);
-        ASSERT(tld_dir_create(file) == FAIL, "tld_dir_create accepted a plain file");
+        ASSERT(tld_path_mkdir(file) == FAIL, "tld_path_mkdir accepted a plain file");
 
         unlink(file);
         rmdir(sub);
@@ -94,7 +94,7 @@ ERROR:
 static int check_dirname(char *path, const char *expect)
 {
         char *out = NULL;
-        RUN(tld_get_dirname(path, &out));
+        RUN(tld_path_dirname(path, &out));
         ASSERT(strcmp(out, expect) == 0, "dirname(%s) = '%s', expected '%s'", path, out, expect);
         MFREE(out);
         return OK;
@@ -110,7 +110,7 @@ static int test_dirname(void)
         RUN(check_dirname("/", "/"));
         RUN(check_dirname("/a/b/file.txt", "/a/b"));
         RUN(check_dirname("a/file.txt", "a"));
-        ASSERT(tld_get_dirname("file.txt", &out) == FAIL, "dirname of a bare name succeeded");
+        ASSERT(tld_path_dirname("file.txt", &out) == FAIL, "dirname of a bare name succeeded");
         ASSERT(out == NULL, "out set on failure");
         return OK;
 ERROR:
@@ -121,7 +121,7 @@ static int test_cmd_line(void)
 {
         tld_strbuf *cmd = NULL;
         char *argv[] = {"prog", "-x", "1"};
-        RUN(tld_capture_cmd_line(&cmd, 3, argv));
+        RUN(tld_cmdline_capture(&cmd, 3, argv));
         ASSERT(strcmp(TLD_STR(cmd), "prog -x 1 ") == 0, "got '%s'", TLD_STR(cmd));
         tld_strbuf_free(cmd);
         return OK;
@@ -148,10 +148,10 @@ static const struct {
         int (*fn)(void);
         const char *about;
 } checks[] = {
-        {"full-path", test_full_path_tmp, "tld_get_full_path sets *full and keeps caller buffers"},
-        {"dir-create", test_dir_create_tmp, "tld_dir_create reports mkdir failures"},
-        {"dirname", test_dirname, "tld_get_dirname on paths with and without a directory"},
-        {"cmd-line", test_cmd_line, "tld_capture_cmd_line joins argv"},
+        {"full-path", test_full_path_tmp, "tld_path_full sets *full and keeps caller buffers"},
+        {"dir-create", test_dir_create_tmp, "tld_path_mkdir reports mkdir failures"},
+        {"dirname", test_dirname, "tld_path_dirname on paths with and without a directory"},
+        {"cmd-line", test_cmd_line, "tld_cmdline_capture joins argv"},
 };
 
 int main(int argc, char *argv[])
@@ -162,10 +162,10 @@ int main(int argc, char *argv[])
                   "removed at the end.\n"
                   "\n"
                   "CHECK names (default: all, in this order):\n"
-                  "  full-path   tld_get_full_path sets *full and keeps caller buffers\n"
-                  "  dir-create  tld_dir_create reports mkdir failures\n"
-                  "  dirname     tld_get_dirname on paths with and without a directory\n"
-                  "  cmd-line    tld_capture_cmd_line joins argv\n"
+                  "  full-path   tld_path_full sets *full and keeps caller buffers\n"
+                  "  dir-create  tld_path_mkdir reports mkdir failures\n"
+                  "  dirname     tld_path_dirname on paths with and without a directory\n"
+                  "  cmd-line    tld_cmdline_capture joins argv\n"
                   "\n"
                   "Example: regress-misc dirname cmd-line");
         for(int i = 1; i < argc; i++){

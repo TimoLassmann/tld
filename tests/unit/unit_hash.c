@@ -1,6 +1,6 @@
 // test_hash.c
 #include "tld.h"
-#include "hash/hash_struct.h"
+#include "hash/tld-hash_struct.h"
 #include "test.h"
 #include <stdio.h>
 
@@ -49,7 +49,7 @@ static int demo(int n, char **args)
         }
         SECTION_MSG("all entries");
         RUN(tld_hash_iter_init(hash));
-        while (tld_hash_iterator_next(hash, &key, &value) == OK) {
+        while (tld_hash_iter_next(hash, &key, &value) == OK) {
                 fprintf(stdout, "%s=%s\n", key, value);
         }
         OK_MSG("%d entries", hash->n);

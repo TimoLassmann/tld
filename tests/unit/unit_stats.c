@@ -127,19 +127,19 @@ ERROR:
 int test_covariance(void)
 {
 
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
 
         double* v1 = NULL;
         double* v2 = NULL;
         double cov;
         int n = 10;
 
-        RUN(init_rng(&rng, 43));
+        RUN(tld_rng_alloc(&rng, 43));
         galloc(&v1, n);
         galloc(&v2, n);
         for(int i = 0; i < n;i++){
-                v1[i] = tl_random_double(rng);
-                v2[i] = tl_random_double(rng);
+                v1[i] = tld_rng_double(rng);
+                v2[i] = tld_rng_double(rng);
         }
 
         tld_pop_covariance(v1, v2, n, &cov);
@@ -165,13 +165,13 @@ int test_covariance(void)
         gfree(v2);
         gfree(v1);
 
-        free_rng(rng);
+        tld_rng_free(rng);
 
         return OK;
 ERROR:
 
         if(rng){
-                free_rng(rng);
+                tld_rng_free(rng);
         }
         if(v2){
                 gfree(v2);

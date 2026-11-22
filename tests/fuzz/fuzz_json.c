@@ -8,7 +8,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n) {
         if (n > 1 << 16) return 0;
         char *s = cstr(d, n);
         tld_strbuf *b = NULL; tld_json_obj *o = NULL, *c = NULL; tld_strbuf *out = NULL;
-        tld_strbuf_alloc(&b, (int)n + 1); tld_append(b, s);
+        tld_strbuf_alloc(&b, (int)n + 1); tld_strbuf_append(b, s);
         if (tld_json_parse(b, &o) == OK) {
                 const char *str; double x; int64_t i; int bo; tld_json_obj *so; tld_json_arr *sa;
                 static const char *paths[] = {"a", "a.b", "a[0]", "[0]", "[1].x", "a.b[2].c", "x[99999999999]", "a[-1]", "", ".", "[", "a..b", "a[", "a[0", "a]", "model", "message.content"};

@@ -1,14 +1,14 @@
-#include "hash.h"
+#include "tld-hash.h"
 #include <limits.h>
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
-#include "../string/str.h"
+#include "../string/tld-string.h"
 
 #include <stdio.h>
 
 #define LOAD_FACTOR_THRESHOLD 0.75
 
-#include "hash_struct.h"
+#include "tld-hash_struct.h"
 
 static  int tld__hash_entry_alloc(tld_hash_entry **entry);
 static void tld__hash_entry_free(tld_hash_entry *n);
@@ -176,7 +176,7 @@ static int tld__hash_set_value(tld_strbuf *v, const char *val)
                 return OK;
         }
         RUN(tld_strbuf_clear(v));
-        RUN(tld_append(v, val));
+        RUN(tld_strbuf_append(v, val));
         return OK;
 ERROR:
         return FAIL;
@@ -220,8 +220,8 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
         /* Key does not exist, create a new entry */
         RUN(tld__hash_entry_alloc(&new_entry));
 
-        RUN(tld_append(new_entry->key, key));
-        RUN(tld_append(new_entry->value, val));
+        RUN(tld_strbuf_append(new_entry->key, key));
+        RUN(tld_strbuf_append(new_entry->value, val));
         new_entry->next = h->table[index];
         h->table[index] = new_entry;
         h->n++;
@@ -338,7 +338,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value)
+int tld_hash_iter_next(tld_hash* h, const char **key, const char **value)
 {
         ASSERT(h != NULL, "Iterator is NULL");
         ASSERT(key != NULL, "Key pointer is NULL");

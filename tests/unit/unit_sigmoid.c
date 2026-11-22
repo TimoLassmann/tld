@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
 {
         double y = 0.0;
 
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
 
         test_init(&argc, argv, "[X ...]",
                   "With no arguments: tld_sigmoid on 10000 random values in [-1e6, 1e6], then\n"
@@ -46,17 +46,17 @@ int main(int argc, char *argv[])
                 return EXIT_SUCCESS;
         }
 
-        RUN(init_rng(&rng, 0));
+        RUN(tld_rng_alloc(&rng, 0));
 
         SECTION_MSG("tld_sigmoid on 10000 random values");
         for(int i = 0; i < 10000;i++){
-                double x = tl_random_double(rng)* 2000000.0  - 1000000.0;
+                double x = tld_rng_double(rng)* 2000000.0  - 1000000.0;
                 tld_sigmoid(x, &y);
                 DEBUG_MSG("%d %f %f", i, y, x);
                 tld_progress(i + 1, 10000, "sigmoid");
         }
 
-        free_rng(rng);
+        tld_rng_free(rng);
         rng = NULL;
 
         SECTION_MSG("tld_sigmoid_safe on edge values");
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS;
 ERROR:
         if(rng){
-                free_rng(rng);
+                tld_rng_free(rng);
         }
         return EXIT_FAILURE;
 }

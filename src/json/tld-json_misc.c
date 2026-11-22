@@ -1,11 +1,11 @@
 
 
 #include <string.h>
-#include "../string/str.h"
+#include "../string/tld-string.h"
 
 #include "tld-json_misc.h"
 
-/* Guess the JSON type of an unquoted token (used by JS()).
+/* Guess the JSON type of an unquoted token (used by TLD_JAUTO()).
    The whole token must match: a number ([+-]digits[.digits][e[+-]digits],
    INT when there is no fraction or exponent) or one of
    true/True/TRUE/false/False/FALSE. Everything else, including the empty

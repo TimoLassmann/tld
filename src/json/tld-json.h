@@ -1,5 +1,5 @@
-/* json: parse JSON text into a tree (tld_json_parse), build trees with JSON_OBJ and
- * JSON_ARR, read values by path (tld_json_get_*), search and update, and write JSON
+/* json: parse JSON text into a tree (tld_json_parse), build trees with TLD_JSON_OBJECT and
+ * TLD_JSON_ARRAY, read values by path (tld_json_get_*), search and update, and write JSON
  * text (tld_json_dump). */
 #ifndef TLD_JSON_H
 #define TLD_JSON_H
@@ -28,7 +28,7 @@ TLD_API int tld_json_search(tld_json_obj *n, char *key, tld_json_obj **ret);
    does not exist or the value has another type. Strings, objects and arrays
    are borrowed from the tree. get_num accepts integers; get_int accepts
    integral doubles inside the int64_t range. JSON null has type
-   TLD_JSON_UNDEF and fails every getter. An empty path in get_obj returns
+   TLD_JSON_NULL and fails every getter. An empty path in get_obj returns
    obj itself. out may be NULL to test whether the path exists. */
 TLD_API int tld_json_get_str(tld_json_obj *obj, const char *path, const char **out);
 TLD_API int tld_json_get_num(tld_json_obj *obj, const char *path, double *out);
@@ -46,44 +46,44 @@ TLD_API int tld_json_get_arr(tld_json_obj *obj, const char *path, tld_json_arr *
  * further past the end, or no memory. Keys containing '.' or '[' cannot be addressed. */
 TLD_API int tld_json_set_val(tld_json_obj *n, char *key, tld_json_val *v);
 
-/* Entries for JSON_OBJ / JSON_ARR. JS(k, s): the string s, with its type guessed from
+/* Entries for TLD_JSON_OBJECT / TLD_JSON_ARRAY. TLD_JAUTO(k, s): the string s, with its type guessed from
  * the text: "12" becomes an integer, "0.2" a number, true/false (also True, TRUE, ...) a
- * boolean, anything else a string. JO(k, o) / JA(k, a): a nested tld_json_obj * /
+ * boolean, anything else a string. TLD_JOBJ(k, o) / TLD_JARR(k, a): a nested tld_json_obj * /
  * tld_json_arr *, which the new container takes over (do not free it yourself), also
- * when the build fails. A JS or JSTR entry whose string is NULL is skipped; a JO or JA
- * entry whose value is NULL makes the build fail, since a nested JSON_OBJ / JSON_ARR
+ * when the build fails. A TLD_JAUTO or TLD_JSTR entry whose string is NULL is skipped; a TLD_JOBJ or TLD_JARR
+ * entry whose value is NULL makes the build fail, since a nested TLD_JSON_OBJECT / TLD_JSON_ARRAY
  * returns NULL only when it failed. Arrays ignore the key; pass NULL. */
-#define JS(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_STRING, .value = (void*)(v)})
-#define JO(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_OBJ, .value = (void*)(v)})
-#define JA(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_ARR, .value = (void*)(v)})
+#define TLD_JAUTO(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_STRING, .value = (void*)(v)})
+#define TLD_JOBJ(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_OBJ, .value = (void*)(v)})
+#define TLD_JARR(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_ARR, .value = (void*)(v)})
 
-/* Typed decorations. JS above guesses the type from the text ("0.2" becomes
-   a number); these do not. JSTR(k,s) is always a string, JNUM(k,d) a number
-   (non-finite values are written as null), JINT(k,l) an integer (values
-   outside int32_t are stored as double), JBOOL(k,b) true/false, JNULL(k) null.
-   A NULL string in JSTR skips the entry, like JS. */
-#define JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_JSTR, .value = (void*)(v)})
-#define JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_NUM,  .value = (void*)&(double){(v)}})
-#define JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_INT,  .value = (void*)&(long){(v)}})
-#define JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_BOOL, .value = (void*)&(int){(v)}})
-#define JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = VAL_NULL, .value = (void*)""})
+/* Typed decorations. TLD_JAUTO above guesses the type from the text ("0.2" becomes
+   a number); these do not. TLD_JSTR(k,s) is always a string, TLD_JNUM(k,d) a number
+   (non-finite values are written as null), TLD_JINT(k,l) an integer (values
+   outside int32_t are stored as double), TLD_JBOOL(k,b) true/false, TLD_JNULL(k) null.
+   A NULL string in TLD_JSTR skips the entry, like TLD_JAUTO. */
+#define TLD_JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_JSTR, .value = (void*)(v)})
+#define TLD_JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_NUM,  .value = (void*)&(double){(v)}})
+#define TLD_JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_INT,  .value = (void*)&(long){(v)}})
+#define TLD_JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_BOOL, .value = (void*)&(int){(v)}})
+#define TLD_JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = VAL_NULL, .value = (void*)""})
 
-/* JSON_OBJ(entry, ...): a new tld_json_obj * holding the entries in order; JSON_ARR(...)
+/* TLD_JSON_OBJECT(entry, ...): a new tld_json_obj * holding the entries in order; TLD_JSON_ARRAY(...)
  * a new tld_json_arr *. NULL (with an error printed) when an entry cannot be added: out
- * of memory, or a JO/JA entry holding NULL. The containers passed in with JO/JA are then
+ * of memory, or a TLD_JOBJ/TLD_JARR entry holding NULL. The containers passed in with TLD_JOBJ/TLD_JARR are then
  * freed too. Free the result with tld_json_obj_free / tld_json_arr_free.
  *
- *   tld_json_obj *o = JSON_OBJ(JSTR("name", "x"), JINT("n", 3),
- *                              JA("v", JSON_ARR(JNUM(NULL, 0.5), JNUM(NULL, 2))));
+ *   tld_json_obj *o = TLD_JSON_OBJECT(TLD_JSTR("name", "x"), TLD_JINT("n", 3),
+ *                              TLD_JARR("v", TLD_JSON_ARRAY(TLD_JNUM(NULL, 0.5), TLD_JNUM(NULL, 2))));
  */
-#define JSON_OBJ(...) tld__json_obj_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
+#define TLD_JSON_OBJECT(...) tld__json_obj_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))
-#define JSON_ARR(...) tld__json_arr_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
+#define TLD_JSON_ARRAY(...) tld__json_arr_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))
 
-/* Back ends of JSON_OBJ / JSON_ARR: add count entries to obj / arr (allocated when NULL)
+/* Back ends of TLD_JSON_OBJECT / TLD_JSON_ARRAY: add count entries to obj / arr (allocated when NULL)
  * and return it. They stop at the first entry that cannot be added and return NULL: the
- * JO/JA children not yet attached are freed, as is a container created by the call; a
+ * TLD_JOBJ/TLD_JARR children not yet attached are freed, as is a container created by the call; a
  * caller-supplied container keeps the entries added so far and stays the caller's. */
 TLD_API tld_json_obj *tld__json_obj_build(tld_json_obj *obj, tld_json_decoration *kvs, int count);
 TLD_API tld_json_arr *tld__json_arr_build(tld_json_arr *arr, tld_json_decoration *kvs, int count);

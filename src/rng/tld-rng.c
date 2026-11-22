@@ -61,7 +61,7 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>. */
 #include <stdint.h>
 
 #define ALIGN64 64
-struct rng_state{
+struct tld_rng{
         uint64_t s[4];
         uint8_t gen;
         double z1;
@@ -71,8 +71,8 @@ struct rng_state{
 #undef ALIGN64
 
 #define ALIGN32 32
-struct rng_dist{
-        struct rng_state* rng;
+struct tld_rng_dist{
+        struct tld_rng* rng;
         double* p;
         int* a;
         int n;
@@ -81,20 +81,20 @@ struct rng_dist{
 #undef ALIGN32
 
 static inline uint64_t tld__rng_rotl(uint64_t x,  uint64_t k);
-static uint64_t tld__rng_next(struct rng_state* s);
-static void tld__rng_jump(struct rng_state* s);
+static uint64_t tld__rng_next(struct tld_rng* s);
+static void tld__rng_jump(struct tld_rng* s);
 
 static uint64_t tld__rng_entropy_seed(void);
 
-static double tld__rng_standard_gamma(struct rng_state* rng, double shape);
-static double tld__rng_standard_exponential(struct rng_state* rng);
-static double tld__rng_gauss(struct rng_state* rng);
+static double tld__rng_standard_gamma(struct tld_rng* rng, double shape);
+static double tld__rng_standard_exponential(struct tld_rng* rng);
+static double tld__rng_gauss(struct tld_rng* rng);
 
-int init_rng(struct rng_state** rng,uint64_t seed)
+int tld_rng_alloc(struct tld_rng** rng,uint64_t seed)
 {
-        struct rng_state* s = NULL;
+        struct tld_rng* s = NULL;
 
-        MMALLOC_ALIGNED(s, sizeof(struct rng_state), _Alignof(struct rng_state));
+        MMALLOC_ALIGNED(s, sizeof(struct tld_rng), _Alignof(struct tld_rng));
         s->gen = 0;
         s->z1 = 0.0F;
         s->gauss = 0.0;
@@ -127,7 +127,7 @@ static inline uint64_t tld__rng_rotl(const uint64_t x,  uint64_t k) {
    a 64-bit seed, we suggest to seed a splitmix64 generator and use its
    output to fill s. */
 
-uint64_t tld__rng_next(struct rng_state* s)
+uint64_t tld__rng_next(struct tld_rng* s)
 {
         const uint64_t result_starstar = tld__rng_rotl(s->s[1] * 5, 7) * 9;
         const uint64_t t = s->s[1] << 17U;
@@ -148,7 +148,7 @@ uint64_t tld__rng_next(struct rng_state* s)
    to 2^128 calls to tld__rng_next(); it can be used to generate 2^128
    non-overlapping subsequences for parallel computations. */
 
-void tld__rng_jump(struct rng_state* s)
+void tld__rng_jump(struct tld_rng* s)
 {
         static const uint64_t JUMP[] = { 0x180ec6d33cfd0aba,
                                          0xd5a61266f0c9392c,
@@ -177,11 +177,11 @@ void tld__rng_jump(struct rng_state* s)
         s->s[3] = s3;
 }
 
-int init_rng_from_rng(struct rng_state** target, struct rng_state* rng)
+int tld_rng_split(struct tld_rng** target, struct tld_rng* rng)
 {
-        struct rng_state* s = NULL;
+        struct tld_rng* s = NULL;
         int i = 0;
-        MMALLOC_ALIGNED(s, sizeof(struct rng_state), _Alignof(struct rng_state));
+        MMALLOC_ALIGNED(s, sizeof(struct tld_rng), _Alignof(struct tld_rng));
 
         for(i = 0; i < 4;i++){
                 s->s[i] = rng->s[i];
@@ -199,7 +199,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_rng_set_seed(struct rng_state *s, uint64_t seed)
+int tld_rng_set_seed(struct tld_rng *s, uint64_t seed)
 {
         uint64_t sanity = 0U;
         uint64_t z = 0U;
@@ -249,7 +249,7 @@ ERROR:
         return FAIL;
 }
 
-void free_rng(struct rng_state* rng)
+void tld_rng_free(struct tld_rng* rng)
 {
         if(rng){
                 MFREE(rng);
@@ -263,7 +263,7 @@ static uint64_t tld__rng_mix64(uint64_t z)
         return z ^ (z >> 31U);
 }
 
-/* The seed init_rng uses for seed 0: 64 bits from /dev/urandom, mixed with the time in
+/* The seed tld_rng_alloc uses for seed 0: 64 bits from /dev/urandom, mixed with the time in
  * nanoseconds, the process id and a count of the seeds made so far. Generators made
  * in one loop, or by jobs started at the same moment, therefore get different seeds,
  * even if /dev/urandom cannot be read. */
@@ -290,7 +290,7 @@ static uint64_t tld__rng_entropy_seed(void)
 
 /* Uniform on the open interval (0,1): the top 53 bits of a draw give a
    multiple of 2^-53 in [0, 1 - 2^-53]; zero is rejected. */
-double tl_random_double(struct rng_state* rng)
+double tld_rng_double(struct tld_rng* rng)
 {
         uint64_t x = 0U;
         do{
@@ -301,7 +301,7 @@ double tl_random_double(struct rng_state* rng)
 
 /* from:  */
 /* https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform */
-double tl_random_gaussian(struct rng_state* rng, double mu, double sigma)
+double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma)
 {
         double u1 = 0.0;
         double u2 = 0.0;
@@ -314,8 +314,8 @@ double tl_random_gaussian(struct rng_state* rng, double mu, double sigma)
         }
 
         do{
-                u1 = tl_random_double(rng);
-                u2 = tl_random_double(rng);
+                u1 = tld_rng_double(rng);
+                u2 = tld_rng_double(rng);
         } while (u1 <= DBL_EPSILON);
 
         z0 = sqrt(n2 * log(u1)) * cos(TLD__2PI * u2);
@@ -324,7 +324,7 @@ double tl_random_gaussian(struct rng_state* rng, double mu, double sigma)
         return z0 * sigma + mu;
 }
 
-double tld__rng_standard_gamma(struct rng_state* rng, double shape)
+double tld__rng_standard_gamma(struct tld_rng* rng, double shape)
 {
         double b = 0.0;
         double c = 0.0;
@@ -337,7 +337,7 @@ double tld__rng_standard_gamma(struct rng_state* rng, double shape)
                 r = tld__rng_standard_exponential(rng);
         }else if (shape < 1.0){
                 for (;;){
-                        U = tl_random_double(rng);
+                        U = tld_rng_double(rng);
                         V = tld__rng_standard_exponential(rng);
                         if (U <= 1.0 - shape){
                                 X = pow(U, 1./shape);
@@ -365,7 +365,7 @@ double tld__rng_standard_gamma(struct rng_state* rng, double shape)
                         } while (V <= 0.0);
 
                         V = V*V*V;
-                        U = tl_random_double(rng);
+                        U = tld_rng_double(rng);
                         if (U < 1.0 - 0.0331*(X*X)*(X*X)){
                                 r = b*V;
                                 break;
@@ -379,13 +379,13 @@ double tld__rng_standard_gamma(struct rng_state* rng, double shape)
         return r;
 }
 
-double tld__rng_standard_exponential(struct rng_state* rng)
+double tld__rng_standard_exponential(struct tld_rng* rng)
 {
     /* We use -log(1-U) since U is [0, 1) */
-        return -log(1.0 - tl_random_double(rng));
+        return -log(1.0 - tld_rng_double(rng));
 }
 
-double tld__rng_gauss(struct rng_state* rng)
+double tld__rng_gauss(struct tld_rng* rng)
 {
         double r = 0.0;
         if (rng->has_gauss) {
@@ -400,8 +400,8 @@ double tld__rng_gauss(struct rng_state* rng)
                 double r2 = 0.0;
 
                 do {
-                        x1 = 2.0*tl_random_double(rng) - 1.0;
-                        x2 = 2.0*tl_random_double(rng) - 1.0;
+                        x1 = 2.0*tld_rng_double(rng) - 1.0;
+                        x2 = 2.0*tld_rng_double(rng) - 1.0;
                         r2 = x1*x1 + x2*x2;
                 }
                 while (r2 >= 1.0 || r2 == 0.0);
@@ -416,14 +416,14 @@ double tld__rng_gauss(struct rng_state* rng)
         return r;
 }
 
-double tl_random_gamma(struct rng_state* rng, double shape, double scale)
+double tld_rng_gamma(struct tld_rng* rng, double shape, double scale)
 {
         return scale * tld__rng_standard_gamma(rng, shape);
 }
 
 /* Uniform integer in [0, a). Unbiased: draws below 2^64 mod a are
    rejected so that every residue is equally likely. Returns 0 if a <= 1. */
-int tl_random_int(struct rng_state* rng,int a)
+int tld_rng_int(struct tld_rng* rng,int a)
 {
         uint64_t n = 0U;
         uint64_t threshold = 0U;
@@ -439,9 +439,9 @@ int tl_random_int(struct rng_state* rng,int a)
         return (int) (x % n);
 }
 
-int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
+int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed)
 {
-        struct rng_dist* d = NULL;
+        struct tld_rng_dist* d = NULL;
 
         double* p = NULL;
         int* s = NULL;
@@ -451,10 +451,10 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         double sum = 0.0;
         int a = 0;
         int g = 0;
-        ASSERT(rng_dist != NULL, "No rng_dist pointer");
+        ASSERT(dist != NULL, "No dist pointer");
         ASSERT(w != NULL, "No weights");
         ASSERT(n > 0, "Number of weights must be positive (got %d)", n);
-        MMALLOC_ALIGNED(d, sizeof(struct rng_dist), _Alignof(struct rng_dist));
+        MMALLOC_ALIGNED(d, sizeof(struct tld_rng_dist), _Alignof(struct tld_rng_dist));
         d->p = NULL;
         d->a = NULL;
         d->rng = NULL;
@@ -462,7 +462,7 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
 
         galloc(&d->p, d->n);
         galloc(&d->a, d->n);
-        RUN( init_rng(&d->rng, seed));
+        RUN( tld_rng_alloc(&d->rng, seed));
 
         galloc(&p,n);
         galloc(&s,n);
@@ -521,7 +521,7 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         gfree(s);
         gfree(l);
 
-        *rng_dist = d;
+        *dist = d;
         return OK;
 ERROR:
         if(p){
@@ -533,14 +533,14 @@ ERROR:
         if(l){
                 gfree(l);
         }
-        tl_random_sdist_free(d);
+        tld_rng_dist_free(d);
         return FAIL;
 }
 
-int tl_random_sdist_smpl(struct rng_dist* d)
+int tld_rng_dist_sample(struct tld_rng_dist* d)
 {
-        const double r1 = tl_random_double(d->rng);
-        const double r2 = tl_random_double(d->rng);
+        const double r1 = tld_rng_double(d->rng);
+        const double r2 = tld_rng_double(d->rng);
         int i = (int) (d->n * r1);
         if(i >= d->n){
                 i = d->n - 1;
@@ -548,7 +548,7 @@ int tl_random_sdist_smpl(struct rng_dist* d)
         return r2 < d->p[i] ? i : d->a[i];
 }
 
-void tl_random_sdist_free(struct rng_dist* d)
+void tld_rng_dist_free(struct tld_rng_dist* d)
 {
         if(d){
                 if(d->p){
@@ -557,7 +557,7 @@ void tl_random_sdist_free(struct rng_dist* d)
                 if(d->a){
                         gfree(d->a);
                 }
-                free_rng(d->rng);
+                tld_rng_free(d->rng);
                 MFREE(d);
         }
 }

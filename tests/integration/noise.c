@@ -8,13 +8,13 @@
  * noise's variance. seed 0 picks a seed from the clock. */
 static int run(uint64_t seed, int n, int print)
 {
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
         double* vec = NULL;
         double* noise = NULL;
         double var = 0.0;
         double mu = 0.0;
 
-        RUN(init_rng(&rng, seed));
+        RUN(tld_rng_alloc(&rng, seed));
 
         galloc(&vec,n);
         galloc(&noise,n);
@@ -22,7 +22,7 @@ static int run(uint64_t seed, int n, int print)
         SECTION_MSG("noise on %d uniform draws", n);
         KV_MSG("seed", "%llu", (unsigned long long) seed);
         for(int i = 0; i < n;i++){
-                vec[i] = tl_random_double(rng)+10.0;
+                vec[i] = tld_rng_double(rng)+10.0;
         }
 
         RUN(tld_sample_variance(vec, n, &var));
@@ -33,7 +33,7 @@ static int run(uint64_t seed, int n, int print)
 
         mu = sqrt(var*0.5);
         for(int i = 0; i < n;i++){
-                noise[i] = tl_random_gaussian(rng, 0.0 , mu);
+                noise[i] = tld_rng_gaussian(rng, 0.0 , mu);
         }
         RUN(tld_sample_variance(noise, n, &var));
         KV_MSG("noise", "variance %f (sd %f)", var, mu);
@@ -43,7 +43,7 @@ static int run(uint64_t seed, int n, int print)
 
         mu = sqrt(var);
         for(int i = 0; i < n;i++){
-                noise[i] = tl_random_gaussian(rng, 0.0 ,0.5 *  mu);
+                noise[i] = tld_rng_gaussian(rng, 0.0 ,0.5 *  mu);
         }
         RUN(tld_sample_variance(noise, n, &var));
         KV_MSG("noise/2", "variance %f (sd %f)", var, 0.5 * mu);
@@ -51,13 +51,13 @@ static int run(uint64_t seed, int n, int print)
                 fprintf(stdout, "noise/2 variance: %f\n", var);
         }
         OK_MSG("done");
-        free_rng(rng);
+        tld_rng_free(rng);
         gfree(noise);
         gfree(vec);
         return OK;
 ERROR:
         if(rng){
-                free_rng(rng);
+                tld_rng_free(rng);
         }
         if(noise){
                 gfree(noise);

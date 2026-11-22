@@ -21,7 +21,7 @@ symbol has no doc comment.
   declaration (function prototype, `#define`, typedef, struct or enum, extern variable),
   with no blank line in between.
 - It documents that declaration and every declaration that follows it without a blank line
-  or another comment in between, so a family of declarations (`MACRO_MIN` and `MACRO_MAX`,
+  or another comment in between, so a family of declarations (`TLD_MIN` and `TLD_MAX`,
   the `tld_json_get_*` getters, the `SORT_HEADER(type)` expansions) shares one comment.
   `#if`/`#ifdef`/`#ifndef`/`#else`/`#endif` lines do not interrupt a group.
 - A comment at the end of a declaration's last line also counts as its doc comment.

@@ -3,7 +3,6 @@
 
 #include <pthread.h>
 #include <stdint.h>
-/* #include "tpool.h" */
 
 #define TLD__WORK_EMPTY 0
 #define TLD__WORK_TODO 1

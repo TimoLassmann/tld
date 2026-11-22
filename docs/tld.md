@@ -19,25 +19,25 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [Limitations](#sec-limitations)
 - [Licence](#sec-licence)
 - [core](#mod-core): 17 symbols (`src/core/tld-core.h`)
-- [alloc](#mod-alloc): 10 symbols (`src/alloc/tld-alloc.h`)
-- [string](#mod-string): 10 symbols (`src/string/str.h`)
-- [misc](#mod-misc): 7 symbols (`src/misc/misc.h`)
+- [alloc](#mod-alloc): 8 symbols (`src/alloc/tld-alloc.h`)
+- [string](#mod-string): 10 symbols (`src/string/tld-string.h`)
+- [path](#mod-path): 7 symbols (`src/path/tld-path.h`)
 - [timing](#mod-timing): 2 symbols (`src/timing/tld-timing.h`)
-- [bitfield](#mod-bitfield): 10 symbols (`src/data/bitfield.h`)
-- [hash](#mod-hash): 9 symbols (`src/hash/hash.h`)
+- [bitfield](#mod-bitfield): 10 symbols (`src/bitfield/tld-bitfield.h`)
+- [hash](#mod-hash): 9 symbols (`src/hash/tld-hash.h`)
 - [json types](#mod-json-types): 5 symbols (`src/json/tld-json_struct.h`)
-- [json memory](#mod-json-memory): 13 symbols (`src/json/tld-json_mem.h`)
+- [json memory](#mod-json-memory): 9 symbols (`src/json/tld-json_mem.h`)
 - [json](#mod-json): 21 symbols (`src/json/tld-json.h`)
-- [template](#mod-template): 2 symbols (`src/template/template.h`)
+- [template](#mod-template): 2 symbols (`src/template/tld-template.h`)
 - [rng](#mod-rng): 13 symbols (`src/rng/tld-rng.h`)
 - [sort](#mod-sort): 24 symbols (`src/sort/tld-sort.h`)
 - [shuffle](#mod-shuffle): 12 symbols (`src/shuffle/tld-shuffle.h`)
-- [stats](#mod-stats): 13 symbols (`src/stats/basic.h`)
-- [norm_quantile](#mod-norm_quantile): 1 symbol (`src/stats/norm_quantile.h`)
-- [auc](#mod-auc): 3 symbols (`src/stats/auc.h`)
+- [stats](#mod-stats): 13 symbols (`src/stats/tld-stats.h`)
+- [quantile](#mod-quantile): 1 symbol (`src/stats/tld-quantile.h`)
+- [auc](#mod-auc): 3 symbols (`src/stats/tld-auc.h`)
 - [logsum](#mod-logsum): 5 symbols (`src/logsum/tld-logsum.h`)
 - [kdtree](#mod-kdtree): 12 symbols (`src/kdtree/tld-kdtree.h`)
-- [tpool](#mod-tpool): 8 symbols (`src/tpool/tpool.h`)
+- [tpool](#mod-tpool): 8 symbols (`src/tpool/tld-tpool.h`)
 - [Index](#index)
 
 <a id="sec-usage"></a>
@@ -61,7 +61,7 @@ realpath); macOS and Linux. Build: cc -std=c11 prog.c -lm -lpthread.
 A function that can fail returns int: OK (0) on success, FAIL (1) on failure, with
 its results in pointer arguments; one that returns a pointer returns NULL on
 failure. Failures print an ERROR line (time, message, file and line) to stderr;
-lookups that just find nothing (tld_hash_get, tld_file_exists, tld_json_get_*, ...)
+lookups that just find nothing (tld_hash_get, tld_path_exists, tld_json_get_*, ...)
 return FAIL silently. A few functions return a plain value or a 1/0 truth value
 instead; each one says so. Nothing exits or aborts.
 
@@ -75,7 +75,7 @@ int load(const char *path, tld_strbuf **out)
         tld_strbuf *b = NULL;
         ASSERT(path != NULL, "No path");
         RUN(tld_strbuf_alloc(&b, 256));
-        RUN(tld_append(b, path));
+        RUN(tld_strbuf_append(b, path));
         *out = b;
         return OK;
 ERROR:
@@ -96,9 +96,9 @@ the format itself: LOG_MSG("%s", line), not LOG_MSG(line).
 ## Memory
 
 Objects come from an allocator (tld_strbuf_alloc(&b, ...), tld_hash_alloc,
-kdtree_alloc, init_rng, tld_json_parse, JSON_OBJ, ...) and belong to the caller,
+tld_tld_kdtree_alloc, tld_rng_alloc, tld_json_parse, TLD_JSON_OBJECT, ...) and belong to the caller,
 who frees them with the matching free function (tld_strbuf_free, tld_hash_free,
-kdtree_free, free_rng, tld_json_obj_free, ...); every free function accepts NULL.
+tld_tld_kdtree_free, tld_rng_free, tld_json_obj_free, ...); every free function accepts NULL.
 galloc memory is freed with gfree, MMALLOC memory with MFREE, never with free();
 both set the pointer to NULL, so freeing again on an error path is harmless.
 Pointers handed out by an object (tld_hash_get, tld_json_get_str, ...) are borrowed
@@ -111,7 +111,7 @@ and refuses to grow past that.
 ## Threads
 
 Objects have no locks: use each one from one thread at a time. The tld_thread_pool_*
-calls and init_logsum are thread-safe; tld_progress and the TLD_START_TIMER timer keep
+calls and tld_logsum_init are thread-safe; tld_progress and the TLD_START_TIMER timer keep
 global state.
 
 <a id="sec-environment"></a>
@@ -175,17 +175,17 @@ C++). Define it before including tld.h to add attributes (visibility, dllexport)
 Return codes of every tld function that can fail: OK (0) on success, FAIL (1) on
 failure. Compare with == OK; do not use the result as a boolean.
 
-<a id="MACRO_MIN"></a><a id="MACRO_MAX"></a>
+<a id="TLD_MIN"></a><a id="TLD_MAX"></a>
 
-### `MACRO_MIN`, `MACRO_MAX`
+### `TLD_MIN`, `TLD_MAX`
 
 ```c
-#define MACRO_MIN(a,b)          TLD__MINMAX(<, a, b, __COUNTER__)
-#define MACRO_MAX(a,b)          TLD__MINMAX(>, a, b, __COUNTER__)
+#define TLD_MIN(a,b)          TLD__MINMAX(<, a, b, __COUNTER__)
+#define TLD_MAX(a,b)          TLD__MINMAX(>, a, b, __COUNTER__)
 ```
 
 Smaller / larger of a and b, with the usual arithmetic conversions (int and double
-give double). Each argument is evaluated exactly once, so MACRO_MAX(i++, n) is safe.
+give double). Each argument is evaluated exactly once, so TLD_MAX(i++, n) is safe.
 A GNU statement expression (gcc, clang): not for constant expressions such as a
 file-scope array size.
 
@@ -255,12 +255,12 @@ TLD_API int tld_verbosity(void);
 The TLD_VERBOSE level: 0, 1 (the default, also for unset or unparsable values) or 2.
 A single digit is accepted; the variable is read on every call.
 
-<a id="tld_term_color"></a>
+<a id="tld_term_has_color"></a>
 
-### `tld_term_color`
+### `tld_term_has_color`
 
 ```c
-TLD_API int tld_term_color(void);
+TLD_API int tld_term_has_color(void);
 ```
 
 1 if stderr gets colour: it is a terminal, NO_COLOR is unset or empty and TERM is
@@ -373,9 +373,9 @@ gfree for galloc memory). p must be an lvalue; a NULL p is fine.
 
 galloc(&a, n): a = zeroed array of n elements of a's element type.
 galloc(&m, n, k): m = zeroed n x k matrix, used as m[i][j]; the rows share one
-contiguous block. Element types: char, int8_t..int64_t, uint8_t..uint64_t, float,
-double. The pointer should be NULL (an existing block is not freed or resized). On
-failure an error is printed and goto ERROR. Free with gfree; get_dim1/get_dim2 give
+contiguous block. Any element type (numbers, pointers, structs) whose alignment malloc
+provides; a more strictly aligned type is a compile error. The pointer should be NULL (an existing block is not freed or resized). On
+failure an error is printed and goto ERROR. Free with gfree; tld_galloc_dim1/tld_galloc_dim2 give
 the dimensions back.
 
 <a id="gfree"></a>
@@ -394,50 +394,30 @@ gfree(p): free memory from galloc (1D or 2D) and set p to NULL, like MFREE, so a
 second gfree(p) on an error path is harmless. p must be an lvalue (a variable, field
 or element); a NULL p is fine. Never pass galloc memory to free() or MFREE.
 
-<a id="get_dim1"></a><a id="get_dim2"></a>
+<a id="tld_galloc_dim1"></a><a id="tld_galloc_dim2"></a>
 
-### `get_dim1`, `get_dim2`
+### `tld_galloc_dim1`, `tld_galloc_dim2`
 
 ```c
-TLD_API int get_dim1(void *ptr, uint32_t *d);
-TLD_API int get_dim2(void *ptr, uint32_t *d);
+TLD_API int tld_galloc_dim1(void *ptr, uint32_t *d);
+TLD_API int tld_galloc_dim2(void *ptr, uint32_t *d);
 ```
 
 Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
 into *d. FAIL if ptr is NULL. Only valid for memory from galloc.
 
-<a id="tld_valid_1D"></a><a id="tld_valid_2D"></a>
-
-### `tld_valid_1D`, `tld_valid_2D`
-
-```c
-#define tld_valid_1D(x)                                                 \
-        _Generic((x), char ** : 1, int8_t ** : 1, uint8_t ** : 1, int16_t ** : 1, \
-                 uint16_t ** : 1, int32_t ** : 1, uint32_t ** : 1, int64_t ** : 1, \
-                 uint64_t ** : 1, float ** : 1, double ** : 1, default : 0)
-#define tld_valid_2D(x)                                                 \
-        _Generic((x), char *** : 1, int8_t *** : 1, uint8_t *** : 1,    \
-                 int16_t *** : 1, uint16_t *** : 1, int32_t *** : 1,    \
-                 uint32_t *** : 1, int64_t *** : 1, uint64_t *** : 1, float *** : 1, \
-                 double *** : 1, default : 0)
-```
-
-tld_valid_1D(x) is 1 if x is a T ** and tld_valid_2D(x) is 1 if x is a T ***, where T
-is a type galloc supports (char, int8_t..int64_t, uint8_t..uint64_t, float, double);
-0 otherwise. Compile-time checks used by galloc.
-
 <a id="mod-string"></a>
 
 ## string
 
-`src/string/str.h`: Tld_strbuf, a growable NUL-terminated byte buffer (append, prepend, copy). Inspired by the rayfork str code by Sas Luca.
+`src/string/tld-string.h`: Tld_strbuf, a growable NUL-terminated byte buffer (append, prepend, copy). Inspired by the rayfork str code by Sas Luca.
 
 <a id="tld_strbuf"></a>
 
 ### `tld_strbuf`
 
 ```c
-typedef struct tld_string_buffer {
+typedef struct tld_strbuf {
         uint8_t* str;
         int32_t len;
         int32_t alloc_len;
@@ -503,115 +483,115 @@ TLD_API int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
 
 Replace the contents of t with a copy of s; t grows as needed.
 
-<a id="tld_append"></a>
+<a id="tld_strbuf_append"></a>
 
-### `tld_append`
+### `tld_strbuf_append`
 
 ```c
-TLD_API int tld_append(tld_strbuf *b, const char *content);
+TLD_API int tld_strbuf_append(tld_strbuf *b, const char *content);
 ```
 
 Append the NUL-terminated string content to b; b grows as needed.
 
-<a id="tld_append_char"></a>
+<a id="tld_strbuf_append_char"></a>
 
-### `tld_append_char`
+### `tld_strbuf_append_char`
 
 ```c
-TLD_API int tld_append_char(tld_strbuf *b, char c);
+TLD_API int tld_strbuf_append_char(tld_strbuf *b, char c);
 ```
 
 Append the single character c to b.
 
-<a id="tld_prepend"></a>
+<a id="tld_strbuf_prepend"></a>
 
-### `tld_prepend`
+### `tld_strbuf_prepend`
 
 ```c
-TLD_API int tld_prepend(tld_strbuf *b, const char *content);
+TLD_API int tld_strbuf_prepend(tld_strbuf *b, const char *content);
 ```
 
 Insert the NUL-terminated string content at the start of b.
 
-<a id="mod-misc"></a>
+<a id="mod-path"></a>
 
-## misc
+## path
 
-`src/misc/misc.h`: File and directory checks, absolute paths, file and directory names of a path, and capturing the command line.
+`src/path/tld-path.h`: File and directory checks, absolute paths, file and directory names of a path, and capturing the command line.
 
-<a id="tld_file_exists"></a>
+<a id="tld_path_exists"></a>
 
-### `tld_file_exists`
+### `tld_path_exists`
 
 ```c
-TLD_API int tld_file_exists(const char* name);
+TLD_API int tld_path_exists(const char* name);
 ```
 
 OK if name exists (a file, directory or anything else stat() sees), FAIL otherwise,
 without a message. Test with == OK.
 
-<a id="tld_dir_exists"></a>
+<a id="tld_path_is_dir"></a>
 
-### `tld_dir_exists`
+### `tld_path_is_dir`
 
 ```c
-TLD_API int tld_dir_exists(const char *name);
+TLD_API int tld_path_is_dir(const char *name);
 ```
 
 OK if name is a directory that can be opened; otherwise prints an error and returns
 FAIL.
 
-<a id="tld_dir_create"></a>
+<a id="tld_path_mkdir"></a>
 
-### `tld_dir_create`
+### `tld_path_mkdir`
 
 ```c
-TLD_API int tld_dir_create(char *dir);
+TLD_API int tld_path_mkdir(char *dir);
 ```
 
 Create the directory dir (mode 0700; its parent must exist). OK when it was created
 or already exists as a directory (with a warning); FAIL otherwise.
 
-<a id="tld_get_full_path"></a>
+<a id="tld_path_full"></a>
 
-### `tld_get_full_path`
+### `tld_path_full`
 
 ```c
-TLD_API int tld_get_full_path(tld_strbuf **full, char *filename);
+TLD_API int tld_path_full(tld_strbuf **full, char *filename);
 ```
 
 The absolute, symlink-free path of the existing file filename into *full. A non-NULL
 *full is cleared and reused; otherwise a buffer is allocated (free with
 tld_strbuf_free). FAIL when the file does not exist.
 
-<a id="tld_capture_cmd_line"></a>
+<a id="tld_cmdline_capture"></a>
 
-### `tld_capture_cmd_line`
+### `tld_cmdline_capture`
 
 ```c
-TLD_API int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[]);
+TLD_API int tld_cmdline_capture(tld_strbuf **cmdline, const int argc, char *const argv[]);
 ```
 
 Append argv[0] .. argv[argc - 1], each followed by a space, to *cmdline (allocated when
 NULL; free with tld_strbuf_free). For recording how a program was run.
 
-<a id="tld_get_filename"></a>
+<a id="tld_path_filename"></a>
 
-### `tld_get_filename`
+### `tld_path_filename`
 
 ```c
-TLD_API int tld_get_filename(char* path, char** out);
+TLD_API int tld_path_filename(char* path, char** out);
 ```
 
 A new string in *out (free with MFREE or free) with the part of path after the last
 '/'. FAIL when that part is empty (path is empty or ends in '/').
 
-<a id="tld_get_dirname"></a>
+<a id="tld_path_dirname"></a>
 
-### `tld_get_dirname`
+### `tld_path_dirname`
 
 ```c
-TLD_API int tld_get_dirname(char* path, char** out);
+TLD_API int tld_path_dirname(char* path, char** out);
 ```
 
 A new string in *out (free with MFREE or free) with the part of path before the last
@@ -639,92 +619,92 @@ stopwatch, TLD_END_TIMER prints the elapsed time (tld__timer(0) / (1)).
 
 ## bitfield
 
-`src/data/bitfield.h`: Fixed-length bit sets with set, get and clear, OR, copy and (masked) Hamming distance.
+`src/bitfield/tld-bitfield.h`: Fixed-length bit sets with set, get and clear, OR, copy and (masked) Hamming distance.
 
-<a id="tl_bitfield"></a>
+<a id="tld_bitfield"></a>
 
-### `tl_bitfield`
+### `tld_bitfield`
 
 ```c
 typedef struct {
         uint64_t* m;
         int32_t len;
         int32_t alloc_len;
-} tl_bitfield;
+} tld_bitfield;
 ```
 
-A set of len bits, stored in alloc_len 64-bit words m. Create with tl_bitfield_alloc,
-free with tl_bitfield_free.
+A set of len bits, stored in alloc_len 64-bit words m. Create with tld_bitfield_alloc,
+free with tld_bitfield_free.
 
-<a id="tl_bitfield_alloc"></a>
+<a id="tld_bitfield_alloc"></a>
 
-### `tl_bitfield_alloc`
+### `tld_bitfield_alloc`
 
 ```c
-TLD_API  int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size);
+TLD_API  int tld_bitfield_alloc(tld_bitfield **bit_f, int32_t size);
 ```
 
-A new bitfield of size bits, all 0, in *bit_f. Free with tl_bitfield_free.
+A new bitfield of size bits, all 0, in *bit_f. Free with tld_bitfield_free.
 
-<a id="tl_bitfield_free"></a>
+<a id="tld_bitfield_free"></a>
 
-### `tl_bitfield_free`
+### `tld_bitfield_free`
 
 ```c
-TLD_API void tl_bitfield_free(tl_bitfield *b);
+TLD_API void tld_bitfield_free(tld_bitfield *b);
 ```
 
 Free a bitfield; NULL is ignored.
 
-<a id="tl_bitfield_reset"></a>
+<a id="tld_bitfield_reset"></a>
 
-### `tl_bitfield_reset`
+### `tld_bitfield_reset`
 
 ```c
-TLD_API  int tl_bitfield_reset(tl_bitfield *b);
+TLD_API  int tld_bitfield_reset(tld_bitfield *b);
 ```
 
 Clear every bit.
 
-<a id="tl_bitfield_set"></a><a id="tl_bitfield_get"></a><a id="tl_bitfield_clear"></a>
+<a id="tld_bitfield_set"></a><a id="tld_bitfield_get"></a><a id="tld_bitfield_clear"></a>
 
-### `tl_bitfield_set`, `tl_bitfield_get`, `tl_bitfield_clear`
+### `tld_bitfield_set`, `tld_bitfield_get`, `tld_bitfield_clear`
 
 ```c
-TLD_API  int tl_bitfield_set(tl_bitfield *b, int32_t index);
-TLD_API  int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit);
-TLD_API  int tl_bitfield_clear(tl_bitfield *b, int32_t index);
+TLD_API  int tld_bitfield_set(tld_bitfield *b, int32_t index);
+TLD_API  int tld_bitfield_get(tld_bitfield *b, int32_t index, uint8_t* bit);
+TLD_API  int tld_bitfield_clear(tld_bitfield *b, int32_t index);
 ```
 
 Set bit index to 1, read it into *bit (0 or 1), or clear it to 0. FAIL, without a
 message, when index is outside [0, len).
 
-<a id="tl_bitfield_copy"></a>
+<a id="tld_bitfield_copy"></a>
 
-### `tl_bitfield_copy`
+### `tld_bitfield_copy`
 
 ```c
-TLD_API  int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src);
+TLD_API  int tld_bitfield_copy(tld_bitfield *dst, tld_bitfield *src);
 ```
 
 Copy the bits of src into dst; both must have the same length.
 
-<a id="tl_bitfield_or"></a>
+<a id="tld_bitfield_or"></a>
 
-### `tl_bitfield_or`
+### `tld_bitfield_or`
 
 ```c
-TLD_API  int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret);
+TLD_API  int tld_bitfield_or(tld_bitfield *b1, tld_bitfield *b2,tld_bitfield* ret);
 ```
 
 ret = b1 | b2, bit by bit; all three must have the same length.
 
-<a id="tl_bitfield_hamming"></a>
+<a id="tld_bitfield_hamming"></a>
 
-### `tl_bitfield_hamming`
+### `tld_bitfield_hamming`
 
 ```c
-TLD_API  int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield *mask, int32_t *dist);
+TLD_API  int tld_bitfield_hamming(tld_bitfield *b1, tld_bitfield *b2,tld_bitfield *mask, int32_t *dist);
 ```
 
 The number of positions at which b1 and b2 differ into *dist, counting only positions
@@ -734,7 +714,7 @@ set in mask (NULL: all). The bitfields (and mask) must have the same length.
 
 ## hash
 
-`src/hash/hash.h`: A string-to-string hash map (FNV-1a, chaining, grows automatically). Keys and values are copied in; pointers handed out are borrowed from the map. Not locked: one thread at a time per map.
+`src/hash/tld-hash.h`: A string-to-string hash map (FNV-1a, chaining, grows automatically). Keys and values are copied in; pointers handed out are borrowed from the map. Not locked: one thread at a time per map.
 
 <a id="tld_hash"></a>
 
@@ -822,12 +802,12 @@ TLD_API  int tld_hash_iter_init(tld_hash *h);
 
 Start iterating over the map (entries come in no particular order).
 
-<a id="tld_hash_iterator_next"></a>
+<a id="tld_hash_iter_next"></a>
 
-### `tld_hash_iterator_next`
+### `tld_hash_iter_next`
 
 ```c
-TLD_API  int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value);
+TLD_API  int tld_hash_iter_next(tld_hash* h, const char **key, const char **value);
 ```
 
 Next entry: *key and *value point into the map (borrowed and read-only). Returns FAIL, without a
@@ -836,7 +816,7 @@ message, when there are no more entries. Do not add or delete while iterating.
 ```c
 const char *k, *v;
 RUN(tld_hash_iter_init(h));
-while(tld_hash_iterator_next(h, &k, &v) == OK){ ... }
+while(tld_hash_iter_next(h, &k, &v) == OK){ ... }
 ```
 
 <a id="mod-json-types"></a>
@@ -858,11 +838,11 @@ typedef enum tld_json_type {
         TLD_JSON_INT,
         TLD_JSON_BOOL_TRUE,
         TLD_JSON_BOOL_FALSE,
-        TLD_JSON_UNDEF
+        TLD_JSON_NULL
 } tld_json_type;
 ```
 
-Type tag of a tld_json_val. JSON null is TLD_JSON_UNDEF.
+Type tag of a tld_json_val. JSON null is TLD_JSON_NULL.
 
 <a id="tld_json_val"></a>
 
@@ -901,7 +881,7 @@ typedef struct tld_json_obj{
 ```
 
 A JSON object: key[i] maps to v[i] for i < n, in document order (duplicate keys are
-kept); n_alloc slots exist. Made by tld_json_parse, JSON_OBJ or tld_json_obj_alloc;
+kept); n_alloc slots exist. Made by tld_json_parse, TLD_JSON_OBJECT or tld_json_obj_alloc;
 freed with tld_json_obj_free.
 
 <a id="tld_json_arr"></a>
@@ -917,7 +897,7 @@ typedef struct tld_json_arr {
 } tld_json_arr;
 ```
 
-A JSON array of n values v[0..n-1] (read_head is unused). Made by JSON_ARR or
+A JSON array of n values v[0..n-1] (read_head is unused). Made by TLD_JSON_ARRAY or
 tld_json_arr_alloc; freed with tld_json_arr_free.
 
 <a id="tld_json_decoration"></a>
@@ -928,14 +908,14 @@ tld_json_arr_alloc; freed with tld_json_arr_free.
 typedef struct {
         char* key;
         void* value;
-        /* VAL_STRING guesses the type from the text (JS); the values after
-           VAL_ARR are the typed decorations JSTR, JNUM, JINT, JBOOL, JNULL. */
+        /* VAL_STRING guesses the type from the text (TLD_JAUTO); the values after
+           VAL_ARR are the typed decorations TLD_JSTR, TLD_JNUM, TLD_JINT, TLD_JBOOL, TLD_JNULL. */
         enum { VAL_STRING, VAL_OBJ, VAL_ARR, VAL_JSTR, VAL_NUM, VAL_INT, VAL_BOOL, VAL_NULL } type;
 } tld_json_decoration;
 ```
 
-One entry for JSON_OBJ / JSON_ARR, made by JS, JO, JA, JSTR, JNUM, JINT, JBOOL or
-JNULL.
+One entry for TLD_JSON_OBJECT / TLD_JSON_ARRAY, made by TLD_JAUTO, TLD_JOBJ, TLD_JARR, TLD_JSTR, TLD_JNUM, TLD_JINT, TLD_JBOOL or
+TLD_JNULL.
 
 <a id="mod-json-memory"></a>
 
@@ -973,19 +953,6 @@ TLD_API  int tld_json_obj_copy(tld_json_obj **target, tld_json_obj *s);
 
 Deep copy of the object s into a new object in *target (free with tld_json_obj_free).
 
-<a id="tld_json_obj_chk_space"></a><a id="tld_json_obj_realloc"></a>
-
-### `tld_json_obj_chk_space`, `tld_json_obj_realloc`
-
-```c
-TLD_API  int tld_json_obj_chk_space(tld_json_obj *n);
-TLD_API  int tld_json_obj_realloc(tld_json_obj *n);
-```
-
-Make room for more entries: chk_space grows n when every slot is used (n == n_alloc),
-realloc always grows it by half. Only needed by code that fills key[n] / v[n]
-directly; JSON_OBJ and the parser do this themselves.
-
 <a id="tld_json_arr_alloc"></a>
 
 ### `tld_json_arr_alloc`
@@ -1016,18 +983,6 @@ TLD_API  int tld_json_arr_copy(tld_json_arr **t, tld_json_arr *s);
 
 Deep copy of the array s into a new array in *t (free with tld_json_arr_free).
 
-<a id="tld_json_arr_chk_space"></a><a id="tld_json_arr_realloc"></a>
-
-### `tld_json_arr_chk_space`, `tld_json_arr_realloc`
-
-```c
-TLD_API  int tld_json_arr_chk_space(tld_json_arr *n);
-TLD_API  int tld_json_arr_realloc(tld_json_arr *n);
-```
-
-Make room for more values: chk_space grows n when every slot is used, realloc always
-grows it by half. Only needed by code that fills v[n] directly.
-
 <a id="tld_json_val_alloc"></a>
 
 ### `tld_json_val_alloc`
@@ -1036,7 +991,7 @@ grows it by half. Only needed by code that fills v[n] directly.
 TLD_API   int tld_json_val_alloc(tld_json_val **node);
 ```
 
-A new value of type TLD_JSON_UNDEF (null) in *node. Free with tld_json_val_free.
+A new value of type TLD_JSON_NULL (null) in *node. Free with tld_json_val_free.
 
 <a id="tld_json_val_free"></a>
 
@@ -1063,7 +1018,7 @@ live inside t.
 
 ## json
 
-`src/json/tld-json.h`: Parse JSON text into a tree (tld_json_parse), build trees with JSON_OBJ and JSON_ARR, read values by path (tld_json_get_*), search and update, and write JSON text (tld_json_dump).
+`src/json/tld-json.h`: Parse JSON text into a tree (tld_json_parse), build trees with TLD_JSON_OBJECT and TLD_JSON_ARRAY, read values by path (tld_json_get_*), search and update, and write JSON text (tld_json_dump).
 
 <a id="tld_json_parse"></a>
 
@@ -1111,7 +1066,7 @@ be addressed. All return OK, or FAIL (leaving *out unchanged) when the path
 does not exist or the value has another type. Strings, objects and arrays
 are borrowed from the tree. get_num accepts integers; get_int accepts
 integral doubles inside the int64_t range. JSON null has type
-TLD_JSON_UNDEF and fails every getter. An empty path in get_obj returns
+TLD_JSON_NULL and fails every getter. An empty path in get_obj returns
 obj itself. out may be NULL to test whether the path exists.
 
 <a id="tld_json_set_val"></a>
@@ -1130,61 +1085,61 @@ end of an array (v is appended). An existing value is replaced, even by one of
 another type, and v may be part of n. Returns FAIL for a missing parent, an index
 further past the end, or no memory. Keys containing '.' or '[' cannot be addressed.
 
-<a id="JS"></a><a id="JO"></a><a id="JA"></a>
+<a id="TLD_JAUTO"></a><a id="TLD_JOBJ"></a><a id="TLD_JARR"></a>
 
-### `JS`, `JO`, `JA`
+### `TLD_JAUTO`, `TLD_JOBJ`, `TLD_JARR`
 
 ```c
-#define JS(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_STRING, .value = (void*)(v)})
-#define JO(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_OBJ, .value = (void*)(v)})
-#define JA(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_ARR, .value = (void*)(v)})
+#define TLD_JAUTO(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_STRING, .value = (void*)(v)})
+#define TLD_JOBJ(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_OBJ, .value = (void*)(v)})
+#define TLD_JARR(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_ARR, .value = (void*)(v)})
 ```
 
-Entries for JSON_OBJ / JSON_ARR. JS(k, s): the string s, with its type guessed from
+Entries for TLD_JSON_OBJECT / TLD_JSON_ARRAY. TLD_JAUTO(k, s): the string s, with its type guessed from
 the text: "12" becomes an integer, "0.2" a number, true/false (also True, TRUE, ...) a
-boolean, anything else a string. JO(k, o) / JA(k, a): a nested tld_json_obj * /
+boolean, anything else a string. TLD_JOBJ(k, o) / TLD_JARR(k, a): a nested tld_json_obj * /
 tld_json_arr *, which the new container takes over (do not free it yourself), also
-when the build fails. A JS or JSTR entry whose string is NULL is skipped; a JO or JA
-entry whose value is NULL makes the build fail, since a nested JSON_OBJ / JSON_ARR
+when the build fails. A TLD_JAUTO or TLD_JSTR entry whose string is NULL is skipped; a TLD_JOBJ or TLD_JARR
+entry whose value is NULL makes the build fail, since a nested TLD_JSON_OBJECT / TLD_JSON_ARRAY
 returns NULL only when it failed. Arrays ignore the key; pass NULL.
 
-<a id="JSTR"></a><a id="JNUM"></a><a id="JINT"></a><a id="JBOOL"></a><a id="JNULL"></a>
+<a id="TLD_JSTR"></a><a id="TLD_JNUM"></a><a id="TLD_JINT"></a><a id="TLD_JBOOL"></a><a id="TLD_JNULL"></a>
 
-### `JSTR`, `JNUM`, `JINT`, `JBOOL`, `JNULL`
-
-```c
-#define JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_JSTR, .value = (void*)(v)})
-#define JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_NUM,  .value = (void*)&(double){(v)}})
-#define JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_INT,  .value = (void*)&(long){(v)}})
-#define JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_BOOL, .value = (void*)&(int){(v)}})
-#define JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = VAL_NULL, .value = (void*)""})
-```
-
-Typed decorations. JS above guesses the type from the text ("0.2" becomes
-a number); these do not. JSTR(k,s) is always a string, JNUM(k,d) a number
-(non-finite values are written as null), JINT(k,l) an integer (values
-outside int32_t are stored as double), JBOOL(k,b) true/false, JNULL(k) null.
-A NULL string in JSTR skips the entry, like JS.
-
-<a id="JSON_OBJ"></a><a id="JSON_ARR"></a>
-
-### `JSON_OBJ`, `JSON_ARR`
+### `TLD_JSTR`, `TLD_JNUM`, `TLD_JINT`, `TLD_JBOOL`, `TLD_JNULL`
 
 ```c
-#define JSON_OBJ(...) tld__json_obj_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
+#define TLD_JSTR(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_JSTR, .value = (void*)(v)})
+#define TLD_JNUM(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_NUM,  .value = (void*)&(double){(v)}})
+#define TLD_JINT(k,v)  ((tld_json_decoration){.key =(char*)k, .type = VAL_INT,  .value = (void*)&(long){(v)}})
+#define TLD_JBOOL(k,v) ((tld_json_decoration){.key =(char*)k, .type = VAL_BOOL, .value = (void*)&(int){(v)}})
+#define TLD_JNULL(k)   ((tld_json_decoration){.key =(char*)k, .type = VAL_NULL, .value = (void*)""})
+```
+
+Typed decorations. TLD_JAUTO above guesses the type from the text ("0.2" becomes
+a number); these do not. TLD_JSTR(k,s) is always a string, TLD_JNUM(k,d) a number
+(non-finite values are written as null), TLD_JINT(k,l) an integer (values
+outside int32_t are stored as double), TLD_JBOOL(k,b) true/false, TLD_JNULL(k) null.
+A NULL string in TLD_JSTR skips the entry, like TLD_JAUTO.
+
+<a id="TLD_JSON_OBJECT"></a><a id="TLD_JSON_ARRAY"></a>
+
+### `TLD_JSON_OBJECT`, `TLD_JSON_ARRAY`
+
+```c
+#define TLD_JSON_OBJECT(...) tld__json_obj_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))
-#define JSON_ARR(...) tld__json_arr_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
+#define TLD_JSON_ARRAY(...) tld__json_arr_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))
 ```
 
-JSON_OBJ(entry, ...): a new tld_json_obj * holding the entries in order; JSON_ARR(...)
+TLD_JSON_OBJECT(entry, ...): a new tld_json_obj * holding the entries in order; TLD_JSON_ARRAY(...)
 a new tld_json_arr *. NULL (with an error printed) when an entry cannot be added: out
-of memory, or a JO/JA entry holding NULL. The containers passed in with JO/JA are then
+of memory, or a TLD_JOBJ/TLD_JARR entry holding NULL. The containers passed in with TLD_JOBJ/TLD_JARR are then
 freed too. Free the result with tld_json_obj_free / tld_json_arr_free.
 
 ```c
-tld_json_obj *o = JSON_OBJ(JSTR("name", "x"), JINT("n", 3),
-                           JA("v", JSON_ARR(JNUM(NULL, 0.5), JNUM(NULL, 2))));
+tld_json_obj *o = TLD_JSON_OBJECT(TLD_JSTR("name", "x"), TLD_JINT("n", 3),
+                           TLD_JARR("v", TLD_JSON_ARRAY(TLD_JNUM(NULL, 0.5), TLD_JNUM(NULL, 2))));
 ```
 
 <a id="tld_json_dump"></a><a id="tld_json_dump_arr"></a>
@@ -1204,7 +1159,7 @@ digits that read back exactly, inf/nan as null. A NULL n appends nothing.
 
 ## template
 
-`src/template/template.h`: Fill {{name}} placeholders and {{IF name}}...{{ELSE}}...{{ENDIF}} blocks in text from a tld_hash of names to values.
+`src/template/tld-template.h`: Fill {{name}} placeholders and {{IF name}}...{{ELSE}}...{{ENDIF}} blocks in text from a tld_hash of names to values.
 
 <a id="tld_template_apply"></a>
 
@@ -1224,16 +1179,16 @@ name) prints the reason with its byte offset and returns FAIL with txt unchanged
 ```c
 tld_hash *m = NULL;
 RUN(tld_hash_add(&m, "who", "world"));
-RUN(tld_append(txt, "Hello {{who}}{{IF excl}}!{{ENDIF}}"));
+RUN(tld_strbuf_append(txt, "Hello {{who}}{{IF excl}}!{{ENDIF}}"));
 RUN(tld_template_apply(txt, m));        // txt is now "Hello world"
 ```
 
-<a id="tld_template_extract_var"></a>
+<a id="tld_template_vars"></a>
 
-### `tld_template_extract_var`
+### `tld_template_vars`
 
 ```c
-TLD_API int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash);
+TLD_API int tld_template_vars(tld_strbuf *txt, tld_hash **hash);
 ```
 
 A new map in *hash (free with tld_hash_free) whose keys are the variable names used
@@ -1245,142 +1200,142 @@ in txt, from {{name}} and {{IF name}}, each mapped to itself.
 
 `src/rng/tld-rng.h`: The xoshiro256** random number generator (seedable, and splittable for threads) with uniform, integer, Gaussian and gamma draws, plus alias-table sampling from a discrete distribution. A generator is not locked: use one per thread.
 
-<a id="rng_state"></a>
+<a id="tld_rng"></a>
 
-### `rng_state`
+### `tld_rng`
 
 ```c
-typedef struct rng_state rng_state;
+typedef struct tld_rng tld_rng;
 ```
 
-Opaque generator state. Create with init_rng or init_rng_from_rng, free with
-free_rng.
+Opaque generator state. Create with tld_rng_alloc or tld_rng_split, free with
+tld_rng_free.
 
-<a id="rng_dist"></a>
+<a id="tld_rng_dist"></a>
 
-### `rng_dist`
+### `tld_rng_dist`
 
 ```c
-struct rng_dist;
+struct tld_rng_dist;
 ```
 
 Opaque alias table for sampling from a discrete distribution (tl_random_sdist_*).
 
-<a id="init_rng"></a>
+<a id="tld_rng_alloc"></a>
 
-### `init_rng`
+### `tld_rng_alloc`
 
 ```c
-TLD_API int init_rng(struct rng_state **rng, uint64_t seed);
+TLD_API int tld_rng_alloc(struct tld_rng **rng, uint64_t seed);
 ```
 
 Allocate a generator in *rng seeded with seed; the same seed gives the same sequence.
 seed 0 picks a seed from /dev/urandom, mixed with the time, the process id and a
 counter, so every generator made with seed 0 has its own stream, also across jobs
-started at the same moment. Free with free_rng.
+started at the same moment. Free with tld_rng_free.
 
-<a id="init_rng_from_rng"></a>
+<a id="tld_rng_split"></a>
 
-### `init_rng_from_rng`
+### `tld_rng_split`
 
 ```c
-TLD_API int init_rng_from_rng(struct rng_state** target, struct rng_state* rng);
+TLD_API int tld_rng_split(struct tld_rng** target, struct tld_rng* rng);
 ```
 
 Allocate a generator for another thread in *target: it continues rng's current
 stream, and rng itself jumps 2^128 draws ahead, so the two streams never overlap.
-Free with free_rng.
+Free with tld_rng_free.
 
 <a id="tld_rng_set_seed"></a>
 
 ### `tld_rng_set_seed`
 
 ```c
-TLD_API int tld_rng_set_seed(struct rng_state *s, uint64_t seed);
+TLD_API int tld_rng_set_seed(struct tld_rng *s, uint64_t seed);
 ```
 
 Reseed an existing generator (seed is used as given, 0 included) and drop any cached
 Gaussian deviate.
 
-<a id="free_rng"></a>
+<a id="tld_rng_free"></a>
 
-### `free_rng`
+### `tld_rng_free`
 
 ```c
-TLD_API void free_rng(struct rng_state* rng);
+TLD_API void tld_rng_free(struct tld_rng* rng);
 ```
 
 Free a generator; NULL is ignored.
 
-<a id="tl_random_double"></a>
+<a id="tld_rng_double"></a>
 
-### `tl_random_double`
+### `tld_rng_double`
 
 ```c
-TLD_API double tl_random_double(struct rng_state* rng);
+TLD_API double tld_rng_double(struct tld_rng* rng);
 ```
 
 Uniform double on the open interval (0, 1): never exactly 0 or 1.
 
-<a id="tl_random_gaussian"></a>
+<a id="tld_rng_gaussian"></a>
 
-### `tl_random_gaussian`
+### `tld_rng_gaussian`
 
 ```c
-TLD_API double tl_random_gaussian(struct rng_state* rng, double mu, double sigma);
+TLD_API double tld_rng_gaussian(struct tld_rng* rng, double mu, double sigma);
 ```
 
 Normal deviate with mean mu and standard deviation sigma (Box-Muller; values are made
 in pairs and every other call returns the cached second one).
 
-<a id="tl_random_gamma"></a>
+<a id="tld_rng_gamma"></a>
 
-### `tl_random_gamma`
+### `tld_rng_gamma`
 
 ```c
-TLD_API double tl_random_gamma(struct rng_state* rng, double shape, double scale);
+TLD_API double tld_rng_gamma(struct tld_rng* rng, double shape, double scale);
 ```
 
 Gamma deviate with the given shape (> 0, not checked) and scale; mean shape * scale.
 
-<a id="tl_random_int"></a>
+<a id="tld_rng_int"></a>
 
-### `tl_random_int`
+### `tld_rng_int`
 
 ```c
-TLD_API int tl_random_int(struct rng_state* rng,int a);
+TLD_API int tld_rng_int(struct tld_rng* rng,int a);
 ```
 
 Uniform integer in [0, a), without modulo bias; 0 when a <= 1.
 
-<a id="tl_random_sdist_init"></a>
+<a id="tld_rng_dist_alloc"></a>
 
-### `tl_random_sdist_init`
+### `tld_rng_dist_alloc`
 
 ```c
-TLD_API int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed);
+TLD_API int tld_rng_dist_alloc(struct tld_rng_dist** dist,double* w, int n,int seed);
 ```
 
-Build in *rng_dist an alias table that samples index i in [0, n) with probability
+Build in *tld_rng_dist an alias table that samples index i in [0, n) with probability
 w[i] / sum(w). Weights must be >= 0 with a finite, positive sum. The table owns its
-own generator seeded with seed (0 = arbitrary). Free with tl_random_sdist_free.
+own generator seeded with seed (0 = arbitrary). Free with tld_rng_dist_free.
 
-<a id="tl_random_sdist_smpl"></a>
+<a id="tld_rng_dist_sample"></a>
 
-### `tl_random_sdist_smpl`
+### `tld_rng_dist_sample`
 
 ```c
-TLD_API int tl_random_sdist_smpl(struct rng_dist* d);
+TLD_API int tld_rng_dist_sample(struct tld_rng_dist* d);
 ```
 
 One sample from the table: an index in [0, n).
 
-<a id="tl_random_sdist_free"></a>
+<a id="tld_rng_dist_free"></a>
 
-### `tl_random_sdist_free`
+### `tld_rng_dist_free`
 
 ```c
-TLD_API void tl_random_sdist_free(struct rng_dist* d);
+TLD_API void tld_rng_dist_free(struct tld_rng_dist* d);
 ```
 
 Free an alias table and its generator; NULL is ignored.
@@ -1391,33 +1346,33 @@ Free an alias table and its generator; NULL is ignored.
 
 `src/sort/tld-sort.h`: In-place sorting of arrays of char, int8_t..int64_t, uint8_t..uint64_t, float and double, ascending or descending; TLD_SORT_ASC and TLD_SORT_DESC pick the function from the array's type.
 
-<a id="sort_desc_char"></a><a id="sort_asc_char"></a><a id="sort_desc_int8_t"></a><a id="sort_asc_int8_t"></a><a id="sort_desc_uint8_t"></a><a id="sort_asc_uint8_t"></a><a id="sort_desc_int16_t"></a><a id="sort_asc_int16_t"></a><a id="sort_desc_uint16_t"></a><a id="sort_asc_uint16_t"></a><a id="sort_desc_int32_t"></a><a id="sort_asc_int32_t"></a><a id="sort_desc_uint32_t"></a><a id="sort_asc_uint32_t"></a><a id="sort_desc_int64_t"></a><a id="sort_asc_int64_t"></a><a id="sort_desc_uint64_t"></a><a id="sort_asc_uint64_t"></a><a id="sort_desc_float"></a><a id="sort_asc_float"></a><a id="sort_desc_double"></a><a id="sort_asc_double"></a>
+<a id="tld_sort_desc_char"></a><a id="tld_sort_asc_char"></a><a id="tld_sort_desc_int8_t"></a><a id="tld_sort_asc_int8_t"></a><a id="tld_sort_desc_uint8_t"></a><a id="tld_sort_asc_uint8_t"></a><a id="tld_sort_desc_int16_t"></a><a id="tld_sort_asc_int16_t"></a><a id="tld_sort_desc_uint16_t"></a><a id="tld_sort_asc_uint16_t"></a><a id="tld_sort_desc_int32_t"></a><a id="tld_sort_asc_int32_t"></a><a id="tld_sort_desc_uint32_t"></a><a id="tld_sort_asc_uint32_t"></a><a id="tld_sort_desc_int64_t"></a><a id="tld_sort_asc_int64_t"></a><a id="tld_sort_desc_uint64_t"></a><a id="tld_sort_asc_uint64_t"></a><a id="tld_sort_desc_float"></a><a id="tld_sort_asc_float"></a><a id="tld_sort_desc_double"></a><a id="tld_sort_asc_double"></a>
 
-### `sort_desc_<type>`, `sort_asc_<type>`
+### `tld_sort_desc_<type>`, `tld_sort_asc_<type>`
 
 ```c
-int sort_desc_char(char *a, int len);
-int sort_asc_char(char* a, int len);
-int sort_desc_int8_t(int8_t *a, int len);
-int sort_asc_int8_t(int8_t* a, int len);
-int sort_desc_uint8_t(uint8_t *a, int len);
-int sort_asc_uint8_t(uint8_t* a, int len);
-int sort_desc_int16_t(int16_t *a, int len);
-int sort_asc_int16_t(int16_t* a, int len);
-int sort_desc_uint16_t(uint16_t *a, int len);
-int sort_asc_uint16_t(uint16_t* a, int len);
-int sort_desc_int32_t(int32_t *a, int len);
-int sort_asc_int32_t(int32_t* a, int len);
-int sort_desc_uint32_t(uint32_t *a, int len);
-int sort_asc_uint32_t(uint32_t* a, int len);
-int sort_desc_int64_t(int64_t *a, int len);
-int sort_asc_int64_t(int64_t* a, int len);
-int sort_desc_uint64_t(uint64_t *a, int len);
-int sort_asc_uint64_t(uint64_t* a, int len);
-int sort_desc_float(float *a, int len);
-int sort_asc_float(float* a, int len);
-int sort_desc_double(double *a, int len);
-int sort_asc_double(double* a, int len);
+int tld_sort_desc_char(char *a, int len);
+int tld_sort_asc_char(char* a, int len);
+int tld_sort_desc_int8_t(int8_t *a, int len);
+int tld_sort_asc_int8_t(int8_t* a, int len);
+int tld_sort_desc_uint8_t(uint8_t *a, int len);
+int tld_sort_asc_uint8_t(uint8_t* a, int len);
+int tld_sort_desc_int16_t(int16_t *a, int len);
+int tld_sort_asc_int16_t(int16_t* a, int len);
+int tld_sort_desc_uint16_t(uint16_t *a, int len);
+int tld_sort_asc_uint16_t(uint16_t* a, int len);
+int tld_sort_desc_int32_t(int32_t *a, int len);
+int tld_sort_asc_int32_t(int32_t* a, int len);
+int tld_sort_desc_uint32_t(uint32_t *a, int len);
+int tld_sort_asc_uint32_t(uint32_t* a, int len);
+int tld_sort_desc_int64_t(int64_t *a, int len);
+int tld_sort_asc_int64_t(int64_t* a, int len);
+int tld_sort_desc_uint64_t(uint64_t *a, int len);
+int tld_sort_asc_uint64_t(uint64_t* a, int len);
+int tld_sort_desc_float(float *a, int len);
+int tld_sort_asc_float(float* a, int len);
+int tld_sort_desc_double(double *a, int len);
+int tld_sort_asc_double(double* a, int len);
 ```
 
 Sort len elements of a in place, descending (sort_desc_*) or ascending (sort_asc_*),
@@ -1454,20 +1409,20 @@ TLD_SORT_ASC(a, len): sort_asc_<type>(a, len) for a's element type.
 ### `tld_shuffle_<type>`
 
 ```c
-int tld_shuffle_char(char *a, int len, struct rng_state* rng);
-int tld_shuffle_int8_t(int8_t *a, int len, struct rng_state* rng);
-int tld_shuffle_uint8_t(uint8_t *a, int len, struct rng_state* rng);
-int tld_shuffle_int16_t(int16_t *a, int len, struct rng_state* rng);
-int tld_shuffle_uint16_t(uint16_t *a, int len, struct rng_state* rng);
-int tld_shuffle_int32_t(int32_t *a, int len, struct rng_state* rng);
-int tld_shuffle_uint32_t(uint32_t *a, int len, struct rng_state* rng);
-int tld_shuffle_int64_t(int64_t *a, int len, struct rng_state* rng);
-int tld_shuffle_uint64_t(uint64_t *a, int len, struct rng_state* rng);
-int tld_shuffle_float(float *a, int len, struct rng_state* rng);
-int tld_shuffle_double(double *a, int len, struct rng_state* rng);
+int tld_shuffle_char(char *a, int len, struct tld_rng* rng);
+int tld_shuffle_int8_t(int8_t *a, int len, struct tld_rng* rng);
+int tld_shuffle_uint8_t(uint8_t *a, int len, struct tld_rng* rng);
+int tld_shuffle_int16_t(int16_t *a, int len, struct tld_rng* rng);
+int tld_shuffle_uint16_t(uint16_t *a, int len, struct tld_rng* rng);
+int tld_shuffle_int32_t(int32_t *a, int len, struct tld_rng* rng);
+int tld_shuffle_uint32_t(uint32_t *a, int len, struct tld_rng* rng);
+int tld_shuffle_int64_t(int64_t *a, int len, struct tld_rng* rng);
+int tld_shuffle_uint64_t(uint64_t *a, int len, struct tld_rng* rng);
+int tld_shuffle_float(float *a, int len, struct tld_rng* rng);
+int tld_shuffle_double(double *a, int len, struct tld_rng* rng);
 ```
 
-Shuffle len elements of a in place, drawing from rng (see init_rng). Always OK.
+Shuffle len elements of a in place, drawing from rng (see tld_rng_alloc). Always OK.
 
 <a id="TLD_SHUFFLE"></a>
 
@@ -1483,7 +1438,7 @@ TLD_SHUFFLE(a, len, rng): tld_shuffle_<type>(a, len, rng) for a's element type.
 
 ## stats
 
-`src/stats/basic.h`: Descriptive statistics of double arrays (mean, variance, covariance, Pearson correlation, Shannon entropy, standardising), the sigmoid, the normal density and Gaussian kernel density estimates. Results come back through the last argument.
+`src/stats/tld-stats.h`: Descriptive statistics of double arrays (mean, variance, covariance, Pearson correlation, Shannon entropy, standardising), the sigmoid, the normal density and Gaussian kernel density estimates. Results come back through the last argument.
 
 <a id="tld_shannon"></a>
 
@@ -1599,18 +1554,18 @@ Weighted kernel density estimate: value data[i] seen cnt[i] (>= 0) times. The de
 is evaluated at each data[i]: *out is a new data_len x 2 galloc matrix, out[i][0] =
 data[i] and out[i][1] = density; free with gfree.
 
-<a id="mod-norm_quantile"></a>
+<a id="mod-quantile"></a>
 
-## norm_quantile
+## quantile
 
-`src/stats/norm_quantile.h`: Quantile normalisation of the columns of a matrix.
+`src/stats/tld-quantile.h`: Quantile normalisation of the columns of a matrix.
 
-<a id="norm_quantile"></a>
+<a id="tld_quantile_normalise"></a>
 
-### `norm_quantile`
+### `tld_quantile_normalise`
 
 ```c
-TLD_API int norm_quantile(double** data, int n, int m);
+TLD_API int tld_quantile_normalise(double** data, int n, int m);
 ```
 
 Quantile-normalise, in place, the m columns of the n x m matrix data (data[i][j] is
@@ -1622,7 +1577,7 @@ share the mean of their positions. NaN is an error.
 
 ## auc
 
-`src/stats/auc.h`: Area under the ROC curve, and the best score threshold, for 0/1 labels and real-valued scores.
+`src/stats/tld-auc.h`: Area under the ROC curve, and the best score threshold, for 0/1 labels and real-valued scores.
 
 <a id="tld_auc"></a>
 
@@ -1655,52 +1610,52 @@ tld_auc giving only the AUC (tld_auc_calculate) or only the threshold
 
 `src/logsum/tld-logsum.h`: Arithmetic on probabilities stored as logarithms (log-sum-exp via a lookup table) and tolerant floating-point equality.
 
-<a id="init_logsum"></a>
+<a id="tld_logsum_init"></a>
 
-### `init_logsum`
+### `tld_logsum_init`
 
 ```c
-TLD_API void init_logsum(void);
+TLD_API void tld_logsum_init(void);
 ```
 
 Fill logsum's lookup table. Optional (logsum does it on first use); thread-safe.
 
-<a id="logsum"></a>
+<a id="tld_logsum"></a>
 
-### `logsum`
+### `tld_logsum`
 
 ```c
-TLD_API float logsum(const float a,const float b);
+TLD_API float tld_logsum(const float a,const float b);
 ```
 
 log(exp(a) + exp(b)) for log-space values, from a table with steps of 0.001. NaN if
 either is NaN; -INFINITY acts as log(0); returns max(a, b) when they differ by 15.7 or
 more.
 
-<a id="nearly_equal_float"></a><a id="nearly_equal_double"></a>
+<a id="tld_nearly_equal_float"></a><a id="tld_nearly_equal_double"></a>
 
-### `nearly_equal_float`, `nearly_equal_double`
+### `tld_nearly_equal_float`, `tld_nearly_equal_double`
 
 ```c
-TLD_API int nearly_equal_float(float a, float b);
-TLD_API int nearly_equal_double(double a, double b);
+TLD_API int tld_nearly_equal_float(float a, float b);
+TLD_API int tld_nearly_equal_double(double a, double b);
 ```
 
 1 if a and b are equal up to a relative difference of FLT_EPSILON / DBL_EPSILON (an
 absolute one when either is 0 or both are tiny), else 0.
 
-<a id="TLSAFE_EQ"></a>
+<a id="TLD_NEARLY_EQUAL"></a>
 
-### `TLSAFE_EQ`
+### `TLD_NEARLY_EQUAL`
 
 ```c
-#define TLSAFE_EQ(X,Y) _Generic((X),                        \
-                                float: nearly_equal_float,  \
-                                double: nearly_equal_double \
+#define TLD_NEARLY_EQUAL(X,Y) _Generic((X),                        \
+                                float: tld_nearly_equal_float,  \
+                                double: tld_nearly_equal_double \
                 )(X,Y)
 ```
 
-TLSAFE_EQ(X, Y): nearly_equal_float or nearly_equal_double, chosen by the type of X
+TLD_NEARLY_EQUAL(X, Y): tld_nearly_equal_float or tld_nearly_equal_double, chosen by the type of X
 (float or double only).
 
 <a id="mod-kdtree"></a>
@@ -1709,29 +1664,29 @@ TLSAFE_EQ(X, Y): nearly_equal_float or nearly_equal_double, chosen by the type o
 
 `src/kdtree/tld-kdtree.h`: A k-d tree of double vectors with caller-chosen ids for nearest-neighbour search (squared Euclidean distance by default); points can be built in bulk or inserted one at a time. Not locked: changing a tree (alloc, build, insert, rebalance, reset) needs it to itself, but searches only read it and may run at the same time.
 
-<a id="kd_node"></a>
+<a id="tld_kdtree_node"></a>
 
-### `kd_node`
+### `tld_kdtree_node`
 
 ```c
-typedef struct kd_node {
+typedef struct tld_kdtree_node {
         double* p;
-        struct kd_node* left;
-        struct kd_node* right;
+        struct tld_kdtree_node* left;
+        struct tld_kdtree_node* right;
         uint32_t id;
         int n;
-} kd_node;
+} tld_kdtree_node;
 ```
 
 A tree node: p is the point (n doubles, owned by the tree), id the caller's id.
 
-<a id="kdtree"></a>
+<a id="tld_kdtree"></a>
 
-### `kdtree`
+### `tld_kdtree`
 
 ```c
-typedef struct kdtree {
-        kd_node* root;
+typedef struct tld_kdtree {
+        tld_kdtree_node* root;
         struct tld__kdyard* yard;
         int(*fptr_cmp)(double*, double*, int, double*);
         int(*fptr_plane)(double*, double*, int, double);
@@ -1741,118 +1696,118 @@ typedef struct kdtree {
         int max_depth;
         int min_depth;
         int vec_len;
-} kdtree;
+} tld_kdtree;
 ```
 
-A k-d tree; create with kdtree_alloc, free with kdtree_free. Fields a caller may set:
-fptr_cmp (distance, default kddist_euclidian) with the matching fptr_plane (default
-kdplane_check_euclidian), and rebalance_at (insertions between balance checks, default
+A k-d tree; create with tld_kdtree_alloc, free with tld_kdtree_free. Fields a caller may set:
+fptr_cmp (distance, default tld_kdtree_dist_euclidean) with the matching fptr_plane (default
+tld_kdtree_plane_euclidean), and rebalance_at (insertions between balance checks, default
 10000). The rest is internal.
 
-<a id="kdtree_alloc"></a>
+<a id="tld_kdtree_alloc"></a>
 
-### `kdtree_alloc`
+### `tld_kdtree_alloc`
 
 ```c
-TLD_API  int kdtree_alloc(kdtree **tree, int size);
+TLD_API  int tld_kdtree_alloc(tld_kdtree **tree, int size);
 ```
 
 Allocate in *tree an empty tree for points of size (> 0) dimensions, using squared
-Euclidean distance. Storage grows as points are added. Free with kdtree_free.
+Euclidean distance. Storage grows as points are added. Free with tld_kdtree_free.
 
-<a id="kdtree_free"></a>
+<a id="tld_kdtree_free"></a>
 
-### `kdtree_free`
+### `tld_kdtree_free`
 
 ```c
-TLD_API void kdtree_free(kdtree *t);
+TLD_API void tld_kdtree_free(tld_kdtree *t);
 ```
 
 Free the tree and all its points; NULL is ignored.
 
-<a id="kdtree_reset"></a>
+<a id="tld_kdtree_reset"></a>
 
-### `kdtree_reset`
+### `tld_kdtree_reset`
 
 ```c
-TLD_API  int kdtree_reset(kdtree *t);
+TLD_API  int tld_kdtree_reset(tld_kdtree *t);
 ```
 
 Remove every point and keep the memory for reuse.
 
-<a id="kdtree_build"></a>
+<a id="tld_kdtree_build"></a>
 
-### `kdtree_build`
+### `tld_kdtree_build`
 
 ```c
-TLD_API  int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size);
+TLD_API  int tld_kdtree_build(tld_kdtree *t, double **x,uint32_t* ids, int n, int size);
 ```
 
-Add n points x[i] of size doubles (size <= the length given to kdtree_alloc) with
+Add n points x[i] of size doubles (size <= the length given to tld_kdtree_alloc) with
 ids[i] and rebuild the tree balanced. The points are copied; x and ids are not
 changed. On failure (no memory) the tree is unchanged.
 
-<a id="kdtree_insert"></a>
+<a id="tld_kdtree_insert"></a>
 
-### `kdtree_insert`
+### `tld_kdtree_insert`
 
 ```c
-TLD_API  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
+TLD_API  int tld_kdtree_insert(tld_kdtree* t, double *x,uint32_t id, int size);
 ```
 
 Insert one point x of size doubles with id (copied). Every rebalance_at insertions
 the tree is rebuilt if its depth is more than 10 levels off the balanced depth. On
 failure (no memory) the tree is unchanged.
 
-<a id="kdtree_rebalance"></a>
+<a id="tld_kdtree_rebalance"></a>
 
-### `kdtree_rebalance`
+### `tld_kdtree_rebalance`
 
 ```c
-TLD_API  int kdtree_rebalance(kdtree *t);
+TLD_API  int tld_kdtree_rebalance(tld_kdtree *t);
 ```
 
 Rebuild the tree balanced from the points it holds (allocates nothing).
 
-<a id="kdtree_nn_search"></a>
+<a id="tld_kdtree_nn_search"></a>
 
-### `kdtree_nn_search`
+### `tld_kdtree_nn_search`
 
 ```c
-TLD_API  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
+TLD_API  int tld_kdtree_nn_search(tld_kdtree *t, double *x, uint32_t *id);
 ```
 
 The id of the stored point nearest to x (a vector of the tree's length) into *id.
 FAIL (with an error) when the tree is empty.
 
-<a id="kdtree_bf_search"></a>
+<a id="tld_kdtree_bf_search"></a>
 
-### `kdtree_bf_search`
+### `tld_kdtree_bf_search`
 
 ```c
-TLD_API  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
+TLD_API  int tld_kdtree_bf_search(tld_kdtree *t, double *x, uint32_t *id);
 ```
 
 Brute force: the id of the stored point nearest to x, comparing every point; FAIL
-(with an error) when the tree is empty. For checking kdtree_nn_search.
+(with an error) when the tree is empty. For checking tld_kdtree_nn_search.
 
-<a id="kddist_euclidian"></a>
+<a id="tld_kdtree_dist_euclidean"></a>
 
-### `kddist_euclidian`
+### `tld_kdtree_dist_euclidean`
 
 ```c
-TLD_API  int kddist_euclidian(double *a, double *b, int vec_len, double *dist);
+TLD_API  int tld_kdtree_dist_euclidean(double *a, double *b, int vec_len, double *dist);
 ```
 
 Squared Euclidean distance between a and b (vec_len doubles) into *dist. The default
 fptr_cmp.
 
-<a id="kdplane_check_euclidian"></a>
+<a id="tld_kdtree_plane_euclidean"></a>
 
-### `kdplane_check_euclidian`
+### `tld_kdtree_plane_euclidean`
 
 ```c
-TLD_API  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
+TLD_API  int tld_kdtree_plane_euclidean(double *a, double *b, int cd, double min_dist);
 ```
 
 OK when the squared distance between a and b along dimension cd is below min_dist
@@ -1863,7 +1818,7 @@ default fptr_plane.
 
 ## tpool
 
-`src/tpool/tpool.h`: A pthread pool. Jobs func(pool, data, start, end, thread_id) are queued with tld_thread_pool_add and run in FIFO order by a fixed set of worker threads; optional time limit and a global stop flag.
+`src/tpool/tld-tpool.h`: A pthread pool. Jobs func(pool, data, start, end, thread_id) are queued with tld_thread_pool_add and run in FIFO order by a fixed set of worker threads; optional time limit and a global stop flag.
 
 <a id="tld_global_stop_run"></a><a id="tld_global_cond_mutex"></a><a id="tld_global_cond"></a>
 
@@ -1910,15 +1865,15 @@ typedef struct tld_thread_pool {
 } tld_thread_pool;
 ```
 
-A thread pool; create with tld_thread_pool_create, free with tld_thread_pool_free.
+A thread pool; create with tld_thread_pool_alloc, free with tld_thread_pool_free.
 The fields are internal (n_threads may be read).
 
-<a id="tld_thread_pool_create"></a>
+<a id="tld_thread_pool_alloc"></a>
 
-### `tld_thread_pool_create`
+### `tld_thread_pool_alloc`
 
 ```c
-TLD_API int  tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads);
+TLD_API int  tld_thread_pool_alloc(tld_thread_pool **pool, double max_time, int n_threads);
 ```
 
 Start a pool of n_threads workers (at least 2) in *pool. max_time is a limit in
@@ -1974,107 +1929,36 @@ is ignored.
 | [`DEBUG_MSG`](#DEBUG_MSG) | macro | [core](#mod-core) |
 | [`ERROR_MSG`](#ERROR_MSG) | macro | [core](#mod-core) |
 | [`FAIL`](#FAIL) | macro | [core](#mod-core) |
-| [`free_rng`](#free_rng) | function | [rng](#mod-rng) |
 | [`galloc`](#galloc) | macro | [alloc](#mod-alloc) |
-| [`get_dim1`](#get_dim1) | function | [alloc](#mod-alloc) |
-| [`get_dim2`](#get_dim2) | function | [alloc](#mod-alloc) |
 | [`gfree`](#gfree) | macro | [alloc](#mod-alloc) |
-| [`init_logsum`](#init_logsum) | function | [logsum](#mod-logsum) |
-| [`init_rng`](#init_rng) | function | [rng](#mod-rng) |
-| [`init_rng_from_rng`](#init_rng_from_rng) | function | [rng](#mod-rng) |
-| [`JA`](#JA) | macro | [json](#mod-json) |
-| [`JBOOL`](#JBOOL) | macro | [json](#mod-json) |
-| [`JINT`](#JINT) | macro | [json](#mod-json) |
-| [`JNULL`](#JNULL) | macro | [json](#mod-json) |
-| [`JNUM`](#JNUM) | macro | [json](#mod-json) |
-| [`JO`](#JO) | macro | [json](#mod-json) |
-| [`JS`](#JS) | macro | [json](#mod-json) |
-| [`JSON_ARR`](#JSON_ARR) | macro | [json](#mod-json) |
-| [`JSON_OBJ`](#JSON_OBJ) | macro | [json](#mod-json) |
-| [`JSTR`](#JSTR) | macro | [json](#mod-json) |
-| [`kd_node`](#kd_node) | type | [kdtree](#mod-kdtree) |
-| [`kddist_euclidian`](#kddist_euclidian) | function | [kdtree](#mod-kdtree) |
-| [`kdplane_check_euclidian`](#kdplane_check_euclidian) | function | [kdtree](#mod-kdtree) |
-| [`kdtree`](#kdtree) | type | [kdtree](#mod-kdtree) |
-| [`kdtree_alloc`](#kdtree_alloc) | function | [kdtree](#mod-kdtree) |
-| [`kdtree_bf_search`](#kdtree_bf_search) | function | [kdtree](#mod-kdtree) |
-| [`kdtree_build`](#kdtree_build) | function | [kdtree](#mod-kdtree) |
-| [`kdtree_free`](#kdtree_free) | function | [kdtree](#mod-kdtree) |
-| [`kdtree_insert`](#kdtree_insert) | function | [kdtree](#mod-kdtree) |
-| [`kdtree_nn_search`](#kdtree_nn_search) | function | [kdtree](#mod-kdtree) |
-| [`kdtree_rebalance`](#kdtree_rebalance) | function | [kdtree](#mod-kdtree) |
-| [`kdtree_reset`](#kdtree_reset) | function | [kdtree](#mod-kdtree) |
 | [`KV_MSG`](#KV_MSG) | macro | [core](#mod-core) |
 | [`LOG_MSG`](#LOG_MSG) | macro | [core](#mod-core) |
-| [`logsum`](#logsum) | function | [logsum](#mod-logsum) |
-| [`MACRO_MAX`](#MACRO_MAX) | macro | [core](#mod-core) |
-| [`MACRO_MIN`](#MACRO_MIN) | macro | [core](#mod-core) |
 | [`MFREE`](#MFREE) | macro | [alloc](#mod-alloc) |
 | [`MMALLOC`](#MMALLOC) | macro | [alloc](#mod-alloc) |
 | [`MMALLOC_ALIGNED`](#MMALLOC_ALIGNED) | macro | [alloc](#mod-alloc) |
 | [`MREALLOC`](#MREALLOC) | macro | [alloc](#mod-alloc) |
-| [`nearly_equal_double`](#nearly_equal_double) | function | [logsum](#mod-logsum) |
-| [`nearly_equal_float`](#nearly_equal_float) | function | [logsum](#mod-logsum) |
-| [`norm_quantile`](#norm_quantile) | function | [norm_quantile](#mod-norm_quantile) |
 | [`OK`](#OK) | macro | [core](#mod-core) |
 | [`OK_MSG`](#OK_MSG) | macro | [core](#mod-core) |
-| [`rng_dist`](#rng_dist) | type | [rng](#mod-rng) |
-| [`rng_state`](#rng_state) | type | [rng](#mod-rng) |
 | [`RUN`](#RUN) | macro | [core](#mod-core) |
 | [`SECTION_MSG`](#SECTION_MSG) | macro | [core](#mod-core) |
-| [`sort_asc_char`](#sort_asc_char) | function | [sort](#mod-sort) |
-| [`sort_asc_double`](#sort_asc_double) | function | [sort](#mod-sort) |
-| [`sort_asc_float`](#sort_asc_float) | function | [sort](#mod-sort) |
-| [`sort_asc_int16_t`](#sort_asc_int16_t) | function | [sort](#mod-sort) |
-| [`sort_asc_int32_t`](#sort_asc_int32_t) | function | [sort](#mod-sort) |
-| [`sort_asc_int64_t`](#sort_asc_int64_t) | function | [sort](#mod-sort) |
-| [`sort_asc_int8_t`](#sort_asc_int8_t) | function | [sort](#mod-sort) |
-| [`sort_asc_uint16_t`](#sort_asc_uint16_t) | function | [sort](#mod-sort) |
-| [`sort_asc_uint32_t`](#sort_asc_uint32_t) | function | [sort](#mod-sort) |
-| [`sort_asc_uint64_t`](#sort_asc_uint64_t) | function | [sort](#mod-sort) |
-| [`sort_asc_uint8_t`](#sort_asc_uint8_t) | function | [sort](#mod-sort) |
-| [`sort_desc_char`](#sort_desc_char) | function | [sort](#mod-sort) |
-| [`sort_desc_double`](#sort_desc_double) | function | [sort](#mod-sort) |
-| [`sort_desc_float`](#sort_desc_float) | function | [sort](#mod-sort) |
-| [`sort_desc_int16_t`](#sort_desc_int16_t) | function | [sort](#mod-sort) |
-| [`sort_desc_int32_t`](#sort_desc_int32_t) | function | [sort](#mod-sort) |
-| [`sort_desc_int64_t`](#sort_desc_int64_t) | function | [sort](#mod-sort) |
-| [`sort_desc_int8_t`](#sort_desc_int8_t) | function | [sort](#mod-sort) |
-| [`sort_desc_uint16_t`](#sort_desc_uint16_t) | function | [sort](#mod-sort) |
-| [`sort_desc_uint32_t`](#sort_desc_uint32_t) | function | [sort](#mod-sort) |
-| [`sort_desc_uint64_t`](#sort_desc_uint64_t) | function | [sort](#mod-sort) |
-| [`sort_desc_uint8_t`](#sort_desc_uint8_t) | function | [sort](#mod-sort) |
-| [`tl_bitfield`](#tl_bitfield) | type | [bitfield](#mod-bitfield) |
-| [`tl_bitfield_alloc`](#tl_bitfield_alloc) | function | [bitfield](#mod-bitfield) |
-| [`tl_bitfield_clear`](#tl_bitfield_clear) | function | [bitfield](#mod-bitfield) |
-| [`tl_bitfield_copy`](#tl_bitfield_copy) | function | [bitfield](#mod-bitfield) |
-| [`tl_bitfield_free`](#tl_bitfield_free) | function | [bitfield](#mod-bitfield) |
-| [`tl_bitfield_get`](#tl_bitfield_get) | function | [bitfield](#mod-bitfield) |
-| [`tl_bitfield_hamming`](#tl_bitfield_hamming) | function | [bitfield](#mod-bitfield) |
-| [`tl_bitfield_or`](#tl_bitfield_or) | function | [bitfield](#mod-bitfield) |
-| [`tl_bitfield_reset`](#tl_bitfield_reset) | function | [bitfield](#mod-bitfield) |
-| [`tl_bitfield_set`](#tl_bitfield_set) | function | [bitfield](#mod-bitfield) |
-| [`tl_random_double`](#tl_random_double) | function | [rng](#mod-rng) |
-| [`tl_random_gamma`](#tl_random_gamma) | function | [rng](#mod-rng) |
-| [`tl_random_gaussian`](#tl_random_gaussian) | function | [rng](#mod-rng) |
-| [`tl_random_int`](#tl_random_int) | function | [rng](#mod-rng) |
-| [`tl_random_sdist_free`](#tl_random_sdist_free) | function | [rng](#mod-rng) |
-| [`tl_random_sdist_init`](#tl_random_sdist_init) | function | [rng](#mod-rng) |
-| [`tl_random_sdist_smpl`](#tl_random_sdist_smpl) | function | [rng](#mod-rng) |
 | [`TLD_API`](#TLD_API) | macro | [core](#mod-core) |
-| [`tld_append`](#tld_append) | function | [string](#mod-string) |
-| [`tld_append_char`](#tld_append_char) | function | [string](#mod-string) |
 | [`tld_auc`](#tld_auc) | function | [auc](#mod-auc) |
 | [`tld_auc_best_threshold`](#tld_auc_best_threshold) | function | [auc](#mod-auc) |
 | [`tld_auc_calculate`](#tld_auc_calculate) | function | [auc](#mod-auc) |
-| [`tld_capture_cmd_line`](#tld_capture_cmd_line) | function | [misc](#mod-misc) |
-| [`tld_dir_create`](#tld_dir_create) | function | [misc](#mod-misc) |
-| [`tld_dir_exists`](#tld_dir_exists) | function | [misc](#mod-misc) |
+| [`tld_bitfield`](#tld_bitfield) | type | [bitfield](#mod-bitfield) |
+| [`tld_bitfield_alloc`](#tld_bitfield_alloc) | function | [bitfield](#mod-bitfield) |
+| [`tld_bitfield_clear`](#tld_bitfield_clear) | function | [bitfield](#mod-bitfield) |
+| [`tld_bitfield_copy`](#tld_bitfield_copy) | function | [bitfield](#mod-bitfield) |
+| [`tld_bitfield_free`](#tld_bitfield_free) | function | [bitfield](#mod-bitfield) |
+| [`tld_bitfield_get`](#tld_bitfield_get) | function | [bitfield](#mod-bitfield) |
+| [`tld_bitfield_hamming`](#tld_bitfield_hamming) | function | [bitfield](#mod-bitfield) |
+| [`tld_bitfield_or`](#tld_bitfield_or) | function | [bitfield](#mod-bitfield) |
+| [`tld_bitfield_reset`](#tld_bitfield_reset) | function | [bitfield](#mod-bitfield) |
+| [`tld_bitfield_set`](#tld_bitfield_set) | function | [bitfield](#mod-bitfield) |
+| [`tld_cmdline_capture`](#tld_cmdline_capture) | function | [path](#mod-path) |
 | [`TLD_END_TIMER`](#TLD_END_TIMER) | macro | [timing](#mod-timing) |
-| [`tld_file_exists`](#tld_file_exists) | function | [misc](#mod-misc) |
-| [`tld_get_dirname`](#tld_get_dirname) | function | [misc](#mod-misc) |
-| [`tld_get_filename`](#tld_get_filename) | function | [misc](#mod-misc) |
-| [`tld_get_full_path`](#tld_get_full_path) | function | [misc](#mod-misc) |
+| [`tld_galloc_dim1`](#tld_galloc_dim1) | function | [alloc](#mod-alloc) |
+| [`tld_galloc_dim2`](#tld_galloc_dim2) | function | [alloc](#mod-alloc) |
 | [`tld_global_cond`](#tld_global_cond) | variable | [tpool](#mod-tpool) |
 | [`tld_global_cond_mutex`](#tld_global_cond_mutex) | variable | [tpool](#mod-tpool) |
 | [`tld_global_stop_run`](#tld_global_stop_run) | variable | [tpool](#mod-tpool) |
@@ -2085,15 +1969,21 @@ is ignored.
 | [`tld_hash_free`](#tld_hash_free) | function | [hash](#mod-hash) |
 | [`tld_hash_get`](#tld_hash_get) | function | [hash](#mod-hash) |
 | [`tld_hash_iter_init`](#tld_hash_iter_init) | function | [hash](#mod-hash) |
-| [`tld_hash_iterator_next`](#tld_hash_iterator_next) | function | [hash](#mod-hash) |
+| [`tld_hash_iter_next`](#tld_hash_iter_next) | function | [hash](#mod-hash) |
 | [`tld_hash_rename`](#tld_hash_rename) | function | [hash](#mod-hash) |
+| [`TLD_JARR`](#TLD_JARR) | macro | [json](#mod-json) |
+| [`TLD_JAUTO`](#TLD_JAUTO) | macro | [json](#mod-json) |
+| [`TLD_JBOOL`](#TLD_JBOOL) | macro | [json](#mod-json) |
+| [`TLD_JINT`](#TLD_JINT) | macro | [json](#mod-json) |
+| [`TLD_JNULL`](#TLD_JNULL) | macro | [json](#mod-json) |
+| [`TLD_JNUM`](#TLD_JNUM) | macro | [json](#mod-json) |
+| [`TLD_JOBJ`](#TLD_JOBJ) | macro | [json](#mod-json) |
 | [`TLD_JSON_ARR`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`tld_json_arr`](#tld_json_arr) | type | [json types](#mod-json-types) |
 | [`tld_json_arr_alloc`](#tld_json_arr_alloc) | function | [json memory](#mod-json-memory) |
-| [`tld_json_arr_chk_space`](#tld_json_arr_chk_space) | function | [json memory](#mod-json-memory) |
 | [`tld_json_arr_copy`](#tld_json_arr_copy) | function | [json memory](#mod-json-memory) |
 | [`tld_json_arr_free`](#tld_json_arr_free) | function | [json memory](#mod-json-memory) |
-| [`tld_json_arr_realloc`](#tld_json_arr_realloc) | function | [json memory](#mod-json-memory) |
+| [`TLD_JSON_ARRAY`](#TLD_JSON_ARRAY) | macro | [json](#mod-json) |
 | [`TLD_JSON_BOOL_FALSE`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`TLD_JSON_BOOL_TRUE`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`TLD_JSON_DBL`](#tld_json_type) | constant | [json types](#mod-json-types) |
@@ -2107,33 +1997,70 @@ is ignored.
 | [`tld_json_get_obj`](#tld_json_get_obj) | function | [json](#mod-json) |
 | [`tld_json_get_str`](#tld_json_get_str) | function | [json](#mod-json) |
 | [`TLD_JSON_INT`](#tld_json_type) | constant | [json types](#mod-json-types) |
+| [`TLD_JSON_NULL`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`TLD_JSON_OBJ`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`tld_json_obj`](#tld_json_obj) | type | [json types](#mod-json-types) |
 | [`tld_json_obj_alloc`](#tld_json_obj_alloc) | function | [json memory](#mod-json-memory) |
-| [`tld_json_obj_chk_space`](#tld_json_obj_chk_space) | function | [json memory](#mod-json-memory) |
 | [`tld_json_obj_copy`](#tld_json_obj_copy) | function | [json memory](#mod-json-memory) |
 | [`tld_json_obj_free`](#tld_json_obj_free) | function | [json memory](#mod-json-memory) |
-| [`tld_json_obj_realloc`](#tld_json_obj_realloc) | function | [json memory](#mod-json-memory) |
+| [`TLD_JSON_OBJECT`](#TLD_JSON_OBJECT) | macro | [json](#mod-json) |
 | [`tld_json_parse`](#tld_json_parse) | function | [json](#mod-json) |
 | [`tld_json_search`](#tld_json_search) | function | [json](#mod-json) |
 | [`tld_json_set_val`](#tld_json_set_val) | function | [json](#mod-json) |
 | [`TLD_JSON_STR`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`tld_json_type`](#tld_json_type) | type | [json types](#mod-json-types) |
-| [`TLD_JSON_UNDEF`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`tld_json_val`](#tld_json_val) | type | [json types](#mod-json-types) |
 | [`tld_json_val_alloc`](#tld_json_val_alloc) | function | [json memory](#mod-json-memory) |
 | [`tld_json_val_copy`](#tld_json_val_copy) | function | [json memory](#mod-json-memory) |
 | [`tld_json_val_free`](#tld_json_val_free) | function | [json memory](#mod-json-memory) |
+| [`TLD_JSTR`](#TLD_JSTR) | macro | [json](#mod-json) |
 | [`tld_kde_count_pdf`](#tld_kde_count_pdf) | function | [stats](#mod-stats) |
 | [`tld_kde_pdf`](#tld_kde_pdf) | function | [stats](#mod-stats) |
+| [`tld_kdtree`](#tld_kdtree) | type | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_alloc`](#tld_kdtree_alloc) | function | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_bf_search`](#tld_kdtree_bf_search) | function | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_build`](#tld_kdtree_build) | function | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_dist_euclidean`](#tld_kdtree_dist_euclidean) | function | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_free`](#tld_kdtree_free) | function | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_insert`](#tld_kdtree_insert) | function | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_nn_search`](#tld_kdtree_nn_search) | function | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_node`](#tld_kdtree_node) | type | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_plane_euclidean`](#tld_kdtree_plane_euclidean) | function | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_rebalance`](#tld_kdtree_rebalance) | function | [kdtree](#mod-kdtree) |
+| [`tld_kdtree_reset`](#tld_kdtree_reset) | function | [kdtree](#mod-kdtree) |
+| [`tld_logsum`](#tld_logsum) | function | [logsum](#mod-logsum) |
+| [`tld_logsum_init`](#tld_logsum_init) | function | [logsum](#mod-logsum) |
+| [`TLD_MAX`](#TLD_MAX) | macro | [core](#mod-core) |
 | [`tld_mean`](#tld_mean) | function | [stats](#mod-stats) |
+| [`TLD_MIN`](#TLD_MIN) | macro | [core](#mod-core) |
+| [`TLD_NEARLY_EQUAL`](#TLD_NEARLY_EQUAL) | macro | [logsum](#mod-logsum) |
+| [`tld_nearly_equal_double`](#tld_nearly_equal_double) | function | [logsum](#mod-logsum) |
+| [`tld_nearly_equal_float`](#tld_nearly_equal_float) | function | [logsum](#mod-logsum) |
 | [`tld_normal_pdf`](#tld_normal_pdf) | function | [stats](#mod-stats) |
+| [`tld_path_dirname`](#tld_path_dirname) | function | [path](#mod-path) |
+| [`tld_path_exists`](#tld_path_exists) | function | [path](#mod-path) |
+| [`tld_path_filename`](#tld_path_filename) | function | [path](#mod-path) |
+| [`tld_path_full`](#tld_path_full) | function | [path](#mod-path) |
+| [`tld_path_is_dir`](#tld_path_is_dir) | function | [path](#mod-path) |
+| [`tld_path_mkdir`](#tld_path_mkdir) | function | [path](#mod-path) |
 | [`tld_pearson_corr`](#tld_pearson_corr) | function | [stats](#mod-stats) |
 | [`tld_pop_covariance`](#tld_pop_covariance) | function | [stats](#mod-stats) |
 | [`tld_pop_variance`](#tld_pop_variance) | function | [stats](#mod-stats) |
-| [`tld_prepend`](#tld_prepend) | function | [string](#mod-string) |
 | [`tld_progress`](#tld_progress) | function | [core](#mod-core) |
+| [`tld_quantile_normalise`](#tld_quantile_normalise) | function | [quantile](#mod-quantile) |
+| [`tld_rng`](#tld_rng) | type | [rng](#mod-rng) |
+| [`tld_rng_alloc`](#tld_rng_alloc) | function | [rng](#mod-rng) |
+| [`tld_rng_dist`](#tld_rng_dist) | type | [rng](#mod-rng) |
+| [`tld_rng_dist_alloc`](#tld_rng_dist_alloc) | function | [rng](#mod-rng) |
+| [`tld_rng_dist_free`](#tld_rng_dist_free) | function | [rng](#mod-rng) |
+| [`tld_rng_dist_sample`](#tld_rng_dist_sample) | function | [rng](#mod-rng) |
+| [`tld_rng_double`](#tld_rng_double) | function | [rng](#mod-rng) |
+| [`tld_rng_free`](#tld_rng_free) | function | [rng](#mod-rng) |
+| [`tld_rng_gamma`](#tld_rng_gamma) | function | [rng](#mod-rng) |
+| [`tld_rng_gaussian`](#tld_rng_gaussian) | function | [rng](#mod-rng) |
+| [`tld_rng_int`](#tld_rng_int) | function | [rng](#mod-rng) |
 | [`tld_rng_set_seed`](#tld_rng_set_seed) | function | [rng](#mod-rng) |
+| [`tld_rng_split`](#tld_rng_split) | function | [rng](#mod-rng) |
 | [`tld_sample_covariance`](#tld_sample_covariance) | function | [stats](#mod-stats) |
 | [`tld_sample_variance`](#tld_sample_variance) | function | [stats](#mod-stats) |
 | [`tld_shannon`](#tld_shannon) | function | [stats](#mod-stats) |
@@ -2152,26 +2079,48 @@ is ignored.
 | [`tld_sigmoid`](#tld_sigmoid) | function | [stats](#mod-stats) |
 | [`tld_sigmoid_safe`](#tld_sigmoid_safe) | function | [stats](#mod-stats) |
 | [`TLD_SORT_ASC`](#TLD_SORT_ASC) | macro | [sort](#mod-sort) |
+| [`tld_sort_asc_char`](#tld_sort_asc_char) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_double`](#tld_sort_asc_double) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_float`](#tld_sort_asc_float) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_int16_t`](#tld_sort_asc_int16_t) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_int32_t`](#tld_sort_asc_int32_t) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_int64_t`](#tld_sort_asc_int64_t) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_int8_t`](#tld_sort_asc_int8_t) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_uint16_t`](#tld_sort_asc_uint16_t) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_uint32_t`](#tld_sort_asc_uint32_t) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_uint64_t`](#tld_sort_asc_uint64_t) | function | [sort](#mod-sort) |
+| [`tld_sort_asc_uint8_t`](#tld_sort_asc_uint8_t) | function | [sort](#mod-sort) |
 | [`TLD_SORT_DESC`](#TLD_SORT_DESC) | macro | [sort](#mod-sort) |
+| [`tld_sort_desc_char`](#tld_sort_desc_char) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_double`](#tld_sort_desc_double) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_float`](#tld_sort_desc_float) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_int16_t`](#tld_sort_desc_int16_t) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_int32_t`](#tld_sort_desc_int32_t) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_int64_t`](#tld_sort_desc_int64_t) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_int8_t`](#tld_sort_desc_int8_t) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_uint16_t`](#tld_sort_desc_uint16_t) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_uint32_t`](#tld_sort_desc_uint32_t) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_uint64_t`](#tld_sort_desc_uint64_t) | function | [sort](#mod-sort) |
+| [`tld_sort_desc_uint8_t`](#tld_sort_desc_uint8_t) | function | [sort](#mod-sort) |
 | [`tld_standardise`](#tld_standardise) | function | [stats](#mod-stats) |
 | [`TLD_START_TIMER`](#TLD_START_TIMER) | macro | [timing](#mod-timing) |
 | [`TLD_STR`](#TLD_STR) | macro | [string](#mod-string) |
 | [`tld_strbuf`](#tld_strbuf) | type | [string](#mod-string) |
 | [`tld_strbuf_alloc`](#tld_strbuf_alloc) | function | [string](#mod-string) |
+| [`tld_strbuf_append`](#tld_strbuf_append) | function | [string](#mod-string) |
+| [`tld_strbuf_append_char`](#tld_strbuf_append_char) | function | [string](#mod-string) |
 | [`tld_strbuf_clear`](#tld_strbuf_clear) | function | [string](#mod-string) |
 | [`tld_strbuf_copy`](#tld_strbuf_copy) | function | [string](#mod-string) |
 | [`tld_strbuf_free`](#tld_strbuf_free) | function | [string](#mod-string) |
+| [`tld_strbuf_prepend`](#tld_strbuf_prepend) | function | [string](#mod-string) |
 | [`TLD_STRLEN`](#TLD_STRLEN) | macro | [string](#mod-string) |
 | [`tld_template_apply`](#tld_template_apply) | function | [template](#mod-template) |
-| [`tld_template_extract_var`](#tld_template_extract_var) | function | [template](#mod-template) |
-| [`tld_term_color`](#tld_term_color) | function | [core](#mod-core) |
+| [`tld_template_vars`](#tld_template_vars) | function | [template](#mod-template) |
+| [`tld_term_has_color`](#tld_term_has_color) | function | [core](#mod-core) |
 | [`tld_thread_pool`](#tld_thread_pool) | type | [tpool](#mod-tpool) |
 | [`tld_thread_pool_add`](#tld_thread_pool_add) | function | [tpool](#mod-tpool) |
-| [`tld_thread_pool_create`](#tld_thread_pool_create) | function | [tpool](#mod-tpool) |
+| [`tld_thread_pool_alloc`](#tld_thread_pool_alloc) | function | [tpool](#mod-tpool) |
 | [`tld_thread_pool_free`](#tld_thread_pool_free) | function | [tpool](#mod-tpool) |
 | [`tld_thread_pool_wait`](#tld_thread_pool_wait) | function | [tpool](#mod-tpool) |
-| [`tld_valid_1D`](#tld_valid_1D) | macro | [alloc](#mod-alloc) |
-| [`tld_valid_2D`](#tld_valid_2D) | macro | [alloc](#mod-alloc) |
 | [`tld_verbosity`](#tld_verbosity) | function | [core](#mod-core) |
-| [`TLSAFE_EQ`](#TLSAFE_EQ) | macro | [logsum](#mod-logsum) |
 | [`WARNING_MSG`](#WARNING_MSG) | macro | [core](#mod-core) |

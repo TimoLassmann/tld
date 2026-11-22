@@ -5,7 +5,7 @@
 
 #include "../core/tld-core.h"
 
-#include "../string/str.h"
+#include "../string/tld-string.h"
 typedef struct tld_hash tld_hash;
 
 /* Render the template in txt in place. {{name}} becomes map's value for name (nothing
@@ -17,12 +17,12 @@ typedef struct tld_hash tld_hash;
  *
  *   tld_hash *m = NULL;
  *   RUN(tld_hash_add(&m, "who", "world"));
- *   RUN(tld_append(txt, "Hello {{who}}{{IF excl}}!{{ENDIF}}"));
+ *   RUN(tld_strbuf_append(txt, "Hello {{who}}{{IF excl}}!{{ENDIF}}"));
  *   RUN(tld_template_apply(txt, m));        // txt is now "Hello world"
  */
 TLD_API int tld_template_apply(tld_strbuf *txt, tld_hash *map);
 
 /* A new map in *hash (free with tld_hash_free) whose keys are the variable names used
  * in txt, from {{name}} and {{IF name}}, each mapped to itself. */
-TLD_API int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash);
+TLD_API int tld_template_vars(tld_strbuf *txt, tld_hash **hash);
 #endif

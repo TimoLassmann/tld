@@ -32,11 +32,11 @@
 #define FAIL            1
 
 /* Smaller / larger of a and b, with the usual arithmetic conversions (int and double
- * give double). Each argument is evaluated exactly once, so MACRO_MAX(i++, n) is safe.
+ * give double). Each argument is evaluated exactly once, so TLD_MAX(i++, n) is safe.
  * A GNU statement expression (gcc, clang): not for constant expressions such as a
  * file-scope array size. */
-#define MACRO_MIN(a,b)          TLD__MINMAX(<, a, b, __COUNTER__)
-#define MACRO_MAX(a,b)          TLD__MINMAX(>, a, b, __COUNTER__)
+#define TLD_MIN(a,b)          TLD__MINMAX(<, a, b, __COUNTER__)
+#define TLD_MAX(a,b)          TLD__MINMAX(>, a, b, __COUNTER__)
 #define TLD__MINMAX(op, a, b, n) TLD__MINMAX_(op, a, b, n)
 #define TLD__MINMAX_(op, a, b, n)                                       \
         __extension__({                                                 \
@@ -110,7 +110,7 @@ TLD_API int tld_verbosity(void);
 
 /* 1 if stderr gets colour: it is a terminal, NO_COLOR is unset or empty and TERM is
  * not "dumb"; 0 otherwise. */
-TLD_API int tld_term_color(void);
+TLD_API int tld_term_has_color(void);
 
 /* Rich terminal output. Everything goes to stderr, so stdout keeps only a program's
  * results. Colour and symbols are used only when stderr is a terminal and NO_COLOR is

@@ -8,9 +8,9 @@
 
 /* TLD__SHUFFLE_HEADER(type) declares tld_shuffle_<type>. */
 #define TLD__SHUFFLE_HEADER(type)                        \
-        int tld_shuffle_##type(type *a, int len, struct rng_state* rng);
+        int tld_shuffle_##type(type *a, int len, struct tld_rng* rng);
 
-/* Shuffle len elements of a in place, drawing from rng (see init_rng). Always OK. */
+/* Shuffle len elements of a in place, drawing from rng (see tld_rng_alloc). Always OK. */
 TLD__SHUFFLE_HEADER(char)
         TLD__SHUFFLE_HEADER(int8_t)
         TLD__SHUFFLE_HEADER(uint8_t)

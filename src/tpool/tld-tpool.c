@@ -2,12 +2,12 @@
 #include "../alloc/tld-alloc.h"
 
 /* Weird but works... */
-#include "tpool_internal.h"
-#include "tpool_internal.c"
+#include "tld-tpool_internal.h"
+#include "tld-tpool_internal.c"
 
 #include <unistd.h>
 
-#include "tpool.h"
+#include "tld-tpool.h"
 
 /* The library does not install signal handlers. A program that wants to
    stop running pools (e.g. on SIGINT) sets tld_global_stop_run = 1 itself;
@@ -152,7 +152,7 @@ int tld__pool_get_tid(tld_thread_pool *p)
         return ID;
 }
 
-int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_threads)
+int tld_thread_pool_alloc(tld_thread_pool **pool, double max_time, int n_threads)
 {
         tld_thread_pool* p = NULL;
         int n_started = 0;

@@ -1,8 +1,7 @@
 
-/* #include "tld.h" */
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
-#include "tpool_internal.h"
+#include "tld-tpool_internal.h"
 
 static int  tld__work_item_alloc(struct tld__work_item **work);
 static void tld__work_item_free(struct tld__work_item *w);

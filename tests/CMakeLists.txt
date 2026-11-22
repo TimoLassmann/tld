@@ -39,7 +39,7 @@ function(tld_test TEST_NAME)
 endfunction()
 
 # unit/: unit-<module> from unit/unit_<module>.c
-foreach(m align alloc auc bitfield core hash json kdtree logsum misc names pearson
+foreach(m align alloc auc bitfield core hash json kdtree logsum misc pearson
           qnorm rng shuffle sigmoid sort stats str template timing)
   tld_test(unit-${m} unit/unit_${m}.c)
 endforeach()
@@ -99,6 +99,12 @@ set_target_properties(oom-tld PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
 target_link_libraries(oom-tld PRIVATE m Threads::Threads)
 add_test(NAME oom-tld COMMAND oom-tld WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set_tests_properties(oom-tld PROPERTIES TIMEOUT 600)
+
+# Every name tld.h gives a program follows the naming rules (tld_/TLD_, internals
+# tld__/TLD__), and a program may reuse common names after the implementation.
+find_program(NM_PROGRAM nm)
+add_test(NAME names
+  COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/names/check.sh ${CMAKE_C_COMPILER} ${CMAKE_SOURCE_DIR} ${NM_PROGRAM})
 
 # The compiler rejects the mistakes the headers are designed to catch (text as a
 # printf format, free() on library memory, writable pointers into a hash, gfree(&p)).

@@ -40,7 +40,7 @@ static int test_no_signal_handler(void)
 {
         tld_thread_pool *pool = NULL;
         struct sigaction sa;
-        RUN(tld_thread_pool_create(&pool, 0.0, 2));
+        RUN(tld_thread_pool_alloc(&pool, 0.0, 2));
         ASSERT(sigaction(SIGINT, NULL, &sa) == 0, "sigaction failed");
         ASSERT(sa.sa_handler == SIG_DFL, "library installed a SIGINT handler");
         ASSERT(sigaction(SIGABRT, NULL, &sa) == 0, "sigaction failed");
@@ -55,7 +55,7 @@ static int test_wait(void)
 {
         tld_thread_pool *pool = NULL;
         const int n = 64;
-        RUN(tld_thread_pool_create(&pool, 0.0, 4));
+        RUN(tld_thread_pool_alloc(&pool, 0.0, 4));
         for(int round = 0; round < 5; round++){
                 atomic_store(&counter, 0);
                 for(int i = 0; i < n; i++){
@@ -80,7 +80,7 @@ static int test_free_drains(void)
         for(int round = 0; round < 3; round++){
                 pool = NULL;
                 atomic_store(&counter, 0);
-                RUN(tld_thread_pool_create(&pool, 0.0, 4));
+                RUN(tld_thread_pool_alloc(&pool, 0.0, 4));
                 for(int i = 0; i < n; i++){
                         RUN(tld_thread_pool_add(pool, inc_job, NULL, i, i + 1));
                 }
@@ -98,7 +98,7 @@ static int test_maxtime(void)
 {
         tld_thread_pool *pool = NULL;
         /* maxtime is in minutes; anything above zero seconds exceeds it. */
-        RUN(tld_thread_pool_create(&pool, 1e-9, 4));
+        RUN(tld_thread_pool_alloc(&pool, 1e-9, 4));
         atomic_store(&counter, 0);
         /* One job: the other three workers are idle on the work condition
            when the time limit is hit and must be woken to exit. */
@@ -116,7 +116,7 @@ static int test_maxtime(void)
         pool = NULL;
 
         /* Jobs still queued when the limit passes are abandoned: wait says so. */
-        RUN(tld_thread_pool_create(&pool, 1e-9, 2));
+        RUN(tld_thread_pool_alloc(&pool, 1e-9, 2));
         atomic_store(&counter, 0);
         RUN(tld_thread_pool_add(pool, slow_job, NULL, 0, 1));
         RUN(tld_thread_pool_add(pool, slow_job, NULL, 0, 1));
@@ -137,7 +137,7 @@ ERROR:
 static int test_global_stop(void)
 {
         tld_thread_pool *pool = NULL;
-        RUN(tld_thread_pool_create(&pool, 0.0, 4));
+        RUN(tld_thread_pool_alloc(&pool, 0.0, 4));
         atomic_store(&counter, 0);
         tld_global_stop_run = 1;
         ASSERT(tld_thread_pool_add(pool, inc_job, NULL, 0, 1) == FAIL,
@@ -185,7 +185,7 @@ static int demo(int argc, char **argv)
         SECTION_MSG("%d jobs of %d ms on %d threads", jobs, demo_ms, threads);
         atomic_store(&counter, 0);
         clock_gettime(CLOCK_MONOTONIC, &t0);
-        RUN(tld_thread_pool_create(&pool, 0.0, threads));
+        RUN(tld_thread_pool_alloc(&pool, 0.0, threads));
         for(int i = 0; i < jobs; i++){
                 RUN(tld_thread_pool_add(pool, demo_job, NULL, i, i + 1));
         }

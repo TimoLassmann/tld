@@ -5,21 +5,21 @@
 
 static int checks(void)
 {
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
         double* x = NULL;
         double r = 0.0;
         int len = 10000;
 
-        RUN(init_rng(&rng,0));
+        RUN(tld_rng_alloc(&rng,0));
         galloc(&x, len);
 
         SECTION_MSG("tld_kde_pdf on %d draws from 0.3 N(1, 0.2) + 0.7 N(5, 1)", len);
         for(int i = 0;i < len;i++){
-                r = tl_random_double(rng);
+                r = tld_rng_double(rng);
                 if(r < 0.3){
-                        x[i] = tl_random_gaussian(rng, 1.0, 0.2);
+                        x[i] = tld_rng_gaussian(rng, 1.0, 0.2);
                 }else{
-                        x[i] = tl_random_gaussian(rng, 5.0, 1.0);
+                        x[i] = tld_rng_gaussian(rng, 5.0, 1.0);
                 }
 
         }
@@ -47,16 +47,16 @@ static int checks(void)
 
         SECTION_MSG("tld_kde_count_pdf on counts of 10000 rounded draws in 0..9");
         for(int i = 0;i < 10000;i++){
-                r = tl_random_double(rng);
+                r = tld_rng_double(rng);
                 int a = 0;
                 if(r < 0.3){
-                        a = (int) round(tl_random_gaussian(rng, 1.0, 0.2));
+                        a = (int) round(tld_rng_gaussian(rng, 1.0, 0.2));
 
                 }else{
-                        a = (int) round(tl_random_gaussian(rng, 5.0, 1.0));
+                        a = (int) round(tld_rng_gaussian(rng, 5.0, 1.0));
                 }
-                a = MACRO_MAX(0, a);
-                a = MACRO_MIN(9, a);
+                a = TLD_MAX(0, a);
+                a = TLD_MIN(9, a);
 
                 y[a]++;
         }
@@ -78,7 +78,7 @@ static int checks(void)
                 gfree(y);
         }
 
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
         return FAIL;

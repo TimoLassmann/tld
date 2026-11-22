@@ -16,7 +16,7 @@ static int test_strbuf_growth(void)
         RUN(tld_strbuf_alloc(&b, 16));
         last_alloc = b->alloc_len;
         for (int i = 0; i < 100000; i++) {
-                RUN(tld_append_char(b, 'a' + (i % 26)));
+                RUN(tld_strbuf_append_char(b, 'a' + (i % 26)));
                 ASSERT(b->alloc_len > b->len, "alloc_len %d not above len %d", b->alloc_len, b->len);
                 if (b->alloc_len != last_alloc) {
                         n_growth++;
@@ -29,8 +29,8 @@ static int test_strbuf_growth(void)
         ASSERT(TLD_STR(b)[26] == 'a', "wrong content");
 
         RUN(tld_strbuf_clear(b));
-        RUN(tld_append(b, "xyz"));
-        RUN(tld_prepend(b, "abc"));
+        RUN(tld_strbuf_append(b, "xyz"));
+        RUN(tld_strbuf_prepend(b, "abc"));
         ASSERT(strcmp(TLD_STR(b), "abcxyz") == 0, "got %s", TLD_STR(b));
         tld_strbuf_free(b);
         return OK;
@@ -51,7 +51,7 @@ static int test_strbuf_limit(void)
         real_alloc = b->alloc_len;
         b->alloc_len = INT32_MAX - 8;        /* as if it had grown to 2 GB ... */
         b->len = INT32_MAX - 20;             /* ... and was nearly full */
-        int rc = tld_append(b, "0123456789012345678901234567890123456789");
+        int rc = tld_strbuf_append(b, "0123456789012345678901234567890123456789");
         ASSERT(rc == FAIL, "append past INT32_MAX succeeded");
         ASSERT(b->len == INT32_MAX - 20, "len changed to %d", b->len);
         b->alloc_len = real_alloc;
@@ -69,25 +69,25 @@ ERROR:
 
 /* Text taken from the buffer itself (TLD_STR(b), or a suffix of it) was read after
    the buffer had grown and freed its old storage (ASan: heap-use-after-free in
-   tld_append / tld_prepend). */
+   tld_strbuf_append / tld_strbuf_prepend). */
 static int test_self_append(void)
 {
         tld_strbuf *b = NULL;
         RUN(tld_strbuf_alloc(&b, 4));
-        RUN(tld_append(b, "abc"));
-        RUN(tld_append(b, TLD_STR(b)));                 /* grows: 3 + 3 + 1 > 4 */
+        RUN(tld_strbuf_append(b, "abc"));
+        RUN(tld_strbuf_append(b, TLD_STR(b)));                 /* grows: 3 + 3 + 1 > 4 */
         ASSERT(strcmp(TLD_STR(b), "abcabc") == 0, "self-append gave '%s'", TLD_STR(b));
-        RUN(tld_append(b, TLD_STR(b) + 4));             /* a suffix of itself */
+        RUN(tld_strbuf_append(b, TLD_STR(b) + 4));             /* a suffix of itself */
         ASSERT(strcmp(TLD_STR(b), "abcabcbc") == 0, "suffix append gave '%s'", TLD_STR(b));
         for(int i = 0; i < 6; i++){                     /* doubles each time */
-                RUN(tld_append(b, TLD_STR(b)));
+                RUN(tld_strbuf_append(b, TLD_STR(b)));
         }
         ASSERT(TLD_STRLEN(b) == 8 * 64, "length %d after six doublings", TLD_STRLEN(b));
         RUN(tld_strbuf_clear(b));
-        RUN(tld_append(b, "xyz"));
-        RUN(tld_prepend(b, TLD_STR(b)));
+        RUN(tld_strbuf_append(b, "xyz"));
+        RUN(tld_strbuf_prepend(b, TLD_STR(b)));
         ASSERT(strcmp(TLD_STR(b), "xyzxyz") == 0, "self-prepend gave '%s'", TLD_STR(b));
-        RUN(tld_prepend(b, TLD_STR(b) + 4));
+        RUN(tld_strbuf_prepend(b, TLD_STR(b) + 4));
         ASSERT(strcmp(TLD_STR(b), "yzxyzxyz") == 0, "suffix prepend gave '%s'", TLD_STR(b));
         RUN(tld_strbuf_copy(b, b));
         ASSERT(strcmp(TLD_STR(b), "yzxyzxyz") == 0, "self-copy gave '%s'", TLD_STR(b));

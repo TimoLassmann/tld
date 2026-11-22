@@ -1,4 +1,4 @@
-/* regress-json-build: JSON_OBJ / JSON_ARR / json_*_add_multiple grow their containers
+/* regress-json-build: TLD_JSON_OBJECT / TLD_JSON_ARRAY / json_*_add_multiple grow their containers
  * before writing (they used to write first and grow after, ignoring a failed grow, and the
  * realloc counted slots that were never allocated). Builds large objects and arrays one
  * entry at a time and in bulk, then checks counts and a dump/parse round trip. */
@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 
         for (int i = 0; i < 5000; i++) {
                 snprintf(key, sizeof key, "k%d", i);
-                tld_json_obj *r = tld__json_obj_build(o, (tld_json_decoration[]){JINT(key, i)}, 1);
+                tld_json_obj *r = tld__json_obj_build(o, (tld_json_decoration[]){TLD_JINT(key, i)}, 1);
                 if (r == NULL) ERROR_MSG("add %d failed", i);
                 o = r;
         }
@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
         KV_MSG("object", "%d entries, %d allocated", o->n, o->n_alloc);
 
         for (int i = 0; i < 5000; i++) {
-                tld_json_arr *r = tld__json_arr_build(a, (tld_json_decoration[]){JSTR(NULL, "x\"y")}, 1);
+                tld_json_arr *r = tld__json_arr_build(a, (tld_json_decoration[]){TLD_JSTR(NULL, "x\"y")}, 1);
                 if (r == NULL) ERROR_MSG("arr add %d failed", i);
                 a = r;
         }
@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
         KV_MSG("array", "%d entries", a->n);
         OK_MSG("counts are right");
 
-        o = tld__json_obj_build(o, (tld_json_decoration[]){JA("list", a)}, 1);
+        o = tld__json_obj_build(o, (tld_json_decoration[]){TLD_JARR("list", a)}, 1);
         a = NULL; /* now owned by o */
 
         RUN(tld_strbuf_alloc(&b, 1024));

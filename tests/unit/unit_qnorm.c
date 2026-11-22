@@ -26,8 +26,8 @@ static int demo(int n, char **rows)
                 }
                 ASSERT(*s == 0, "row %d has more than %d values: %s", i + 1, m, rows[i]);
         }
-        SECTION_MSG("norm_quantile on %d rows x %d columns", n, m);
-        RUN(norm_quantile(data, n, m));
+        SECTION_MSG("tld_quantile_normalise on %d rows x %d columns", n, m);
+        RUN(tld_quantile_normalise(data, n, m));
         for(int i = 0; i < n; i++){
                 for(int j = 0; j < m; j++){
                         fprintf(stdout, "%s%g", j ? "\t" : "", data[i][j]);
@@ -45,7 +45,7 @@ ERROR:
 int main(int argc, char *argv[])
 {
         test_init(&argc, argv, "[ROW ...]",
-                  "With no arguments: norm_quantile on a 4x3 matrix and on 50000x10 gaussian\n"
+                  "With no arguments: tld_quantile_normalise on a 4x3 matrix and on 50000x10 gaussian\n"
                   "draws.\n"
                   "With ROWs (each a comma-separated list of numbers, one value per column):\n"
                   "quantile-normalises the columns and prints the matrix, tab-separated.\n"
@@ -94,7 +94,7 @@ int qnorm_test(void)
 
         }
 
-        RUN(norm_quantile(data,  n, m));
+        RUN(tld_quantile_normalise(data,  n, m));
         for(int i = 0; i < n;i++){
                 DEBUG_MSG("row %d: %f %f %f", i, data[i][0], data[i][1], data[i][2]);
         }
@@ -108,32 +108,32 @@ ERROR:
 
 int qnorm_big_test(void)
 {
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
 
         double** data = NULL;
 
         int n = 50000;
         int m = 10;
 
-        RUN(init_rng(&rng, 0));
+        RUN(tld_rng_alloc(&rng, 0));
 
         galloc(&data,n,m);
         for(int i = 0; i < n;i++){
                 for(int j = 0; j < m;j++){
-                        data[i][j] = tl_random_gaussian(rng, (double) (j + 1), (double)(j + 1));
+                        data[i][j] = tld_rng_gaussian(rng, (double) (j + 1), (double)(j + 1));
                 }
                 tld_progress(i + 1, n, "drawing");
         }
 
-        RUN(norm_quantile(data,  n, m));
+        RUN(tld_quantile_normalise(data,  n, m));
         DEBUG_MSG("first row after: %f %f", data[0][0], data[0][1]);
 
-        free_rng(rng);
+        tld_rng_free(rng);
         gfree(data);
         return OK;
 ERROR:
         if(rng){
-                free_rng(rng);
+                tld_rng_free(rng);
         }
         if(data){
                 gfree(data);

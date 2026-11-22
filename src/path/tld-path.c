@@ -1,8 +1,8 @@
-#include "misc.h"
+#include "tld-path.h"
 
 #include "../core/tld-core.h"
 #include "../alloc/tld-alloc.h"
-#include "../string/str.h"
+#include "../string/tld-string.h"
 
 #include <sys/stat.h>
 #include <dirent.h>
@@ -10,7 +10,7 @@
 
 #define TLD__MAX_CMD_LEN 16384
 
-int tld_file_exists(const char* name)
+int tld_path_exists(const char* name)
 {
         struct stat buf;
         int local_ret = 0;
@@ -23,7 +23,7 @@ int tld_file_exists(const char* name)
         return FAIL;
 }
 
-int tld_dir_exists(const char* name)
+int tld_path_is_dir(const char* name)
 {
         ASSERT(name != NULL,"No directory name");
         DIR* dir = opendir(name);
@@ -42,7 +42,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_dir_create(char* dir)
+int tld_path_mkdir(char* dir)
 {
         struct stat st;
         ASSERT(dir != NULL, "No directory name");
@@ -62,13 +62,13 @@ ERROR:
         return FAIL;
 }
 
-int tld_get_full_path(tld_strbuf **full, char *filename)
+int tld_path_full(tld_strbuf **full, char *filename)
 {
         char* full_path = NULL;
         tld_strbuf *f = NULL;
         int allocated = 0;
-        ASSERT(full != NULL, "tld_get_full_path: No output buffer pointer");
-        ASSERT(filename != NULL, "tld_get_full_path: No filename");
+        ASSERT(full != NULL, "tld_path_full: No output buffer pointer");
+        ASSERT(filename != NULL, "tld_path_full: No filename");
         if(*full){
                 f = *full;
                 RUN(tld_strbuf_clear(f));
@@ -76,7 +76,7 @@ int tld_get_full_path(tld_strbuf **full, char *filename)
                 RUN(tld_strbuf_alloc(&f,512));
                 allocated = 1;
         }
-        if(tld_file_exists(filename) != OK){
+        if(tld_path_exists(filename) != OK){
                 ERROR_MSG("File %s does not exist", filename);
         }
 
@@ -86,7 +86,7 @@ int tld_get_full_path(tld_strbuf **full, char *filename)
                 ERROR_MSG("Could not get full path of %s", filename);
         }
 
-        RUN(tld_append(f, full_path));
+        RUN(tld_strbuf_append(f, full_path));
         free(full_path);
         full_path = NULL;
 
@@ -102,7 +102,7 @@ ERROR:
 
 }
 
-int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[])
+int tld_cmdline_capture(tld_strbuf **cmdline, const int argc, char *const argv[])
 {
 
         tld_strbuf* cmd = NULL;
@@ -116,8 +116,8 @@ int tld_capture_cmd_line(tld_strbuf **cmdline, const int argc, char *const argv[
                 cmd = *cmdline;
         }
         for(int i = 0; i < argc;i++){
-                RUN(tld_append(cmd, argv[i]));
-                RUN(tld_append(cmd, " "));
+                RUN(tld_strbuf_append(cmd, argv[i]));
+                RUN(tld_strbuf_append(cmd, " "));
         }
 
         *cmdline = cmd;
@@ -133,7 +133,7 @@ ERROR:
    directory / filenames. The functions below copy the input path and alloc
    a new character array to store the output. Needs to be MFREE'd...
  */
-int tld_get_filename(char* path, char** out)
+int tld_path_filename(char* path, char** out)
 {
         char* tmp = NULL;
         int len = 0;
@@ -163,7 +163,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_get_dirname(char* path, char** out)
+int tld_path_dirname(char* path, char** out)
 {
         char* tmp = NULL;
         int len = 0;

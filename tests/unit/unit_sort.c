@@ -35,7 +35,7 @@ ERROR:
 
 int main(int argc, char *argv[])
 {
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
         char line[256];
         int o;
 
@@ -48,13 +48,13 @@ int main(int argc, char *argv[])
                 RUN(demo(argc - 1, argv + 1));
                 return EXIT_SUCCESS;
         }
-        RUN(init_rng(&rng,0));
+        RUN(tld_rng_alloc(&rng,0));
 
         float* x_flt = NULL;
         galloc(&x_flt, 10);
 
         for(int i = 0; i < 10;i++){
-                x_flt[i] = (float) tl_random_double(rng);
+                x_flt[i] = (float) tld_rng_double(rng);
         }
 
         SECTION_MSG("floats");
@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
         galloc(&x_char, 10);
 
         for(int i = 0; i < 10;i++){
-                x_char[i] = (char) tl_random_int(rng, 26) + 65;
+                x_char[i] = (char) tld_rng_int(rng, 26) + 65;
         }
 
         SECTION_MSG("chars");
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 
         gfree(x_char);
 
-        free_rng(rng);
+        tld_rng_free(rng);
         OK_MSG("sorted");
 
         return EXIT_SUCCESS;

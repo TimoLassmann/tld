@@ -127,7 +127,7 @@ int test_qnorm_ties(void)
         d[0][0] = 1.0; d[1][0] = 1.0; d[2][0] = 2.0;
         d[0][1] = 1.0; d[1][1] = 2.0; d[2][1] = 3.0;
 
-        RUN(norm_quantile(d, 3, 2));
+        RUN(tld_quantile_normalise(d, 3, 2));
 
         CHECK(close_to(d[0][0], 1.25, 1e-12), "d[0][0] = %f, expected 1.25", d[0][0]);
         CHECK(close_to(d[1][0], 1.25, 1e-12), "d[1][0] = %f, expected 1.25", d[1][0]);
@@ -140,7 +140,7 @@ int test_qnorm_ties(void)
         d[0][0] = 5.0; d[1][0] = 3.0; d[2][0] = 5.0;
         d[0][1] = 2.0; d[1][1] = 9.0; d[2][1] = 4.0;
         /* sorted col0: 3,5,5  col1: 2,4,9  ref: 2.5,4.5,7 */
-        RUN(norm_quantile(d, 3, 2));
+        RUN(tld_quantile_normalise(d, 3, 2));
         CHECK(close_to(d[1][0], 2.5, 1e-12), "d[1][0] = %f, expected 2.5", d[1][0]);
         CHECK(close_to(d[0][0], 5.75, 1e-12), "d[0][0] = %f, expected 5.75", d[0][0]);
         CHECK(close_to(d[2][0], 5.75, 1e-12), "d[2][0] = %f, expected 5.75", d[2][0]);
@@ -149,7 +149,7 @@ int test_qnorm_ties(void)
         CHECK(close_to(d[1][1], 7.0, 1e-12), "d[1][1] = %f, expected 7", d[1][1]);
 
         d[1][1] = NAN;
-        CHECK(norm_quantile(d, 3, 2) == FAIL, "NaN input accepted");
+        CHECK(tld_quantile_normalise(d, 3, 2) == FAIL, "NaN input accepted");
 
         gfree(d);
         return OK;
@@ -219,16 +219,16 @@ ERROR:
 /* Near-constant data with a large offset: one-pass variance cancels. */
 int test_kde_offset_noise(void)
 {
-        struct rng_state* rng = NULL;
+        struct tld_rng* rng = NULL;
         double* x = NULL;
         double** ladder = NULL;
         int len = 1000;
         int n_steps = 400;
 
-        RUN(init_rng(&rng, 42));
+        RUN(tld_rng_alloc(&rng, 42));
         galloc(&x, len);
         for(int i = 0; i < len; i++){
-                x[i] = 1e9 + tl_random_gaussian(rng, 0.0, 1e-3);
+                x[i] = 1e9 + tld_rng_gaussian(rng, 0.0, 1e-3);
         }
         RUN(tld_kde_pdf(x, len, n_steps, &ladder));
         /* The ladder spans only [min,max], so the tails are cut off. */
@@ -237,7 +237,7 @@ int test_kde_offset_noise(void)
         ladder = NULL;
 
         gfree(x);
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
         if(ladder){
@@ -247,7 +247,7 @@ ERROR:
                 gfree(x);
         }
         if(rng){
-                free_rng(rng);
+                tld_rng_free(rng);
         }
         return FAIL;
 }

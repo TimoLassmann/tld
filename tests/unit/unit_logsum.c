@@ -15,7 +15,7 @@ static int demo(int n, char **args)
                         ERROR_MSG("not a probability: %s", args[i]);
                 }
                 float s = logf((float)p);
-                acc = logsum(acc, s);
+                acc = tld_logsum(acc, s);
                 direct += p;
                 KV_MSG(args[i], "scaled %f", s);
                 DEBUG_MSG("running sum %f", expf(acc));
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
                   "With P ...: converts each probability with logf, sums them with\n"
                   "logsum and prints the result next to the plain sum.\n"
                   "Example: unit-logsum 0.1 0.25 0.3");
-        init_logsum();
+        tld_logsum_init();
         if(argc > 1){
                 RUN(demo(argc - 1, argv + 1));
                 return EXIT_SUCCESS;
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
         a = logf(0.4f);
         b = logf(0.4f);
 
-        KV_MSG("sum", "%f", expf(logsum(a, b)));
+        KV_MSG("sum", "%f", expf(tld_logsum(a, b)));
         OK_MSG("done");
         return EXIT_SUCCESS;
 ERROR:

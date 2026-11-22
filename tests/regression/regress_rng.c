@@ -9,7 +9,7 @@
 
 /* regress-rng: regression tests for the rng fixes.
 
-   White-box: struct rng_state and struct rng_dist are opaque in the public
+   White-box: struct tld_rng and struct tld_rng_dist are opaque in the public
    header. The mirrors below copy their layout from src/rng/tld-rng.c so a
    test can put the generator into a chosen state. Keep them in sync. */
 
@@ -22,7 +22,7 @@ struct rng_state_mirror {
 } __attribute__((aligned(64)));
 
 struct rng_dist_mirror {
-        struct rng_state* rng;
+        struct tld_rng* rng;
         double* p;
         int* a;
         int n;
@@ -45,7 +45,7 @@ static uint64_t rotr64(uint64_t x, unsigned k)
 
 /* Sets the state so that the next raw 64-bit draw of xoshiro256** is
    target (the output only depends on s[1]). */
-static void force_next(struct rng_state *rng, uint64_t target)
+static void force_next(struct tld_rng *rng, uint64_t target)
 {
         struct rng_state_mirror *m = (struct rng_state_mirror *) rng;
         m->s[0] = 0x0123456789abcdefULL;
@@ -56,90 +56,90 @@ static void force_next(struct rng_state *rng, uint64_t target)
 
 static int test_force_next_sanity(void)
 {
-        struct rng_state *rng = NULL;
-        RUN(init_rng(&rng, 1));
+        struct tld_rng *rng = NULL;
+        RUN(tld_rng_alloc(&rng, 1));
         /* 2^63 + 2^11: old and new mapping both give exactly 0.5 + 2^-53 */
         force_next(rng, (UINT64_C(1) << 63) | (UINT64_C(1) << 11));
-        ASSERT(tl_random_double(rng) == 0.5 + 0x1.0p-53, "force_next does not control the draw");
-        free_rng(rng);
+        ASSERT(tld_rng_double(rng) == 0.5 + 0x1.0p-53, "force_next does not control the draw");
+        tld_rng_free(rng);
         return OK;
 ERROR:
-        free_rng(rng);
+        tld_rng_free(rng);
         return FAIL;
 }
 
 static int test_double_open_interval(void)
 {
-        struct rng_state *rng = NULL;
+        struct tld_rng *rng = NULL;
         double r;
-        RUN(init_rng(&rng, 1));
+        RUN(tld_rng_alloc(&rng, 1));
 
         force_next(rng, UINT64_MAX);
-        r = tl_random_double(rng);
-        ASSERT(r > 0.0 && r < 1.0, "tl_random_double returned %a for the largest draw", r);
+        r = tld_rng_double(rng);
+        ASSERT(r > 0.0 && r < 1.0, "tld_rng_double returned %a for the largest draw", r);
 
         force_next(rng, UINT64_MAX - 100);
-        r = tl_random_double(rng);
-        ASSERT(r < 1.0, "tl_random_double returned %a", r);
+        r = tld_rng_double(rng);
+        ASSERT(r < 1.0, "tld_rng_double returned %a", r);
 
         /* a draw whose top 53 bits are zero is rejected, not returned as 0 */
         force_next(rng, 0x7ffULL);
-        r = tl_random_double(rng);
-        ASSERT(r > 0.0 && r < 1.0, "tl_random_double returned %a", r);
+        r = tld_rng_double(rng);
+        ASSERT(r > 0.0 && r < 1.0, "tld_rng_double returned %a", r);
 
         tld_rng_set_seed(rng, 7);
         for(int i = 0; i < 1000000; i++){
-                r = tl_random_double(rng);
+                r = tld_rng_double(rng);
                 ASSERT(r > 0.0 && r < 1.0, "draw %d out of (0,1): %a", i, r);
                 if((i + 1) % 10000 == 0){
                         tld_progress(i + 1, 1000000, "draws");
                 }
         }
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
-        free_rng(rng);
+        tld_rng_free(rng);
         return FAIL;
 }
 
 static int test_int_range(void)
 {
-        struct rng_state *rng = NULL;
+        struct tld_rng *rng = NULL;
         int v;
-        RUN(init_rng(&rng, 1));
+        RUN(tld_rng_alloc(&rng, 1));
 
         force_next(rng, UINT64_MAX);
-        v = tl_random_int(rng, 1);
-        ASSERT(v == 0, "tl_random_int(rng,1) returned %d", v);
+        v = tld_rng_int(rng, 1);
+        ASSERT(v == 0, "tld_rng_int(rng,1) returned %d", v);
 
         force_next(rng, UINT64_MAX);
-        v = tl_random_int(rng, 10);
-        ASSERT(v >= 0 && v < 10, "tl_random_int(rng,10) returned %d", v);
+        v = tld_rng_int(rng, 10);
+        ASSERT(v >= 0 && v < 10, "tld_rng_int(rng,10) returned %d", v);
 
         force_next(rng, UINT64_MAX);
-        v = tl_random_int(rng, 2147483647);
-        ASSERT(v >= 0 && v < 2147483647, "tl_random_int(rng,INT_MAX) returned %d", v);
+        v = tld_rng_int(rng, 2147483647);
+        ASSERT(v >= 0 && v < 2147483647, "tld_rng_int(rng,INT_MAX) returned %d", v);
 
-        ASSERT(tl_random_int(rng, 0) == 0, "tl_random_int(rng,0) != 0");
+        ASSERT(tld_rng_int(rng, 0) == 0, "tld_rng_int(rng,0) != 0");
 
         tld_rng_set_seed(rng, 11);
         for(int i = 0; i < 100000; i++){
-                ASSERT(tl_random_int(rng, 1) == 0, "tl_random_int(rng,1) != 0");
-                v = tl_random_int(rng, 7);
-                ASSERT(v >= 0 && v < 7, "tl_random_int(rng,7) returned %d", v);
+                ASSERT(tld_rng_int(rng, 1) == 0, "tld_rng_int(rng,1) != 0");
+                v = tld_rng_int(rng, 7);
+                ASSERT(v >= 0 && v < 7, "tld_rng_int(rng,7) returned %d", v);
         }
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
-        free_rng(rng);
+        tld_rng_free(rng);
         return FAIL;
 }
 
 static int test_int_uniform(void)
 {
-        struct rng_state *rng = NULL;
+        struct tld_rng *rng = NULL;
         const int ns[] = {2, 3, 5, 10};
-        RUN(init_rng(&rng, 12345));
+        RUN(tld_rng_alloc(&rng, 12345));
         for(int k = 0; k < 4; k++){
                 const int n = ns[k];
                 const int draws = 200000;
@@ -147,87 +147,87 @@ static int test_int_uniform(void)
                 double chi2 = 0.0;
                 double e = (double) draws / n;
                 for(int i = 0; i < draws; i++){
-                        count[tl_random_int(rng, n)]++;
+                        count[tld_rng_int(rng, n)]++;
                 }
                 for(int i = 0; i < n; i++){
                         chi2 += (count[i] - e) * (count[i] - e) / e;
                 }
                 KV_MSG("chi2", "n = %2d: %.2f (limit 60)", n, chi2);
                 /* df <= 9; 60 is far beyond the 0.9999 quantile */
-                ASSERT(chi2 < 60.0, "tl_random_int(rng,%d) not uniform: chi2 = %f", n, chi2);
+                ASSERT(chi2 < 60.0, "tld_rng_int(rng,%d) not uniform: chi2 = %f", n, chi2);
         }
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
-        free_rng(rng);
+        tld_rng_free(rng);
         return FAIL;
 }
 
 static int test_exponential_finite(void)
 {
-        struct rng_state *rng = NULL;
+        struct tld_rng *rng = NULL;
         double g;
-        RUN(init_rng(&rng, 1));
+        RUN(tld_rng_alloc(&rng, 1));
         /* shape 1 is the exponential: -log(1 - U) */
         force_next(rng, UINT64_MAX);
-        g = tl_random_gamma(rng, 1.0, 1.0);
+        g = tld_rng_gamma(rng, 1.0, 1.0);
         ASSERT(isfinite(g) && g > 0.0, "exponential deviate is %f", g);
-        free_rng(rng);
+        tld_rng_free(rng);
         return OK;
 ERROR:
-        free_rng(rng);
+        tld_rng_free(rng);
         return FAIL;
 }
 
 static int test_child_gauss(void)
 {
-        struct rng_state *parent = NULL;
-        struct rng_state *child = NULL;
+        struct tld_rng *parent = NULL;
+        struct tld_rng *child = NULL;
         struct rng_state_mirror *pm = NULL;
         struct rng_state_mirror *cm = NULL;
         double gp;
         double gc;
 
-        RUN(init_rng(&parent, 99));
+        RUN(tld_rng_alloc(&parent, 99));
         pm = (struct rng_state_mirror *) parent;
         pm->has_gauss = 1;
         pm->gauss = 1.5;
 
-        RUN(init_rng_from_rng(&child, parent));
+        RUN(tld_rng_split(&child, parent));
         cm = (struct rng_state_mirror *) child;
         ASSERT(cm->has_gauss == 0, "child inherited the parent's cached gaussian");
 
-        /* tl_random_gamma with shape > 1 consumes tl_gauss first; with a
+        /* tld_rng_gamma with shape > 1 consumes tl_gauss first; with a
            shared cached value both return b*(1+c*1.5)^3 on acceptance. */
-        gp = tl_random_gamma(parent, 3.0, 1.0);
-        gc = tl_random_gamma(child, 3.0, 1.0);
+        gp = tld_rng_gamma(parent, 3.0, 1.0);
+        gc = tld_rng_gamma(child, 3.0, 1.0);
         ASSERT(gp != gc, "parent and child returned the same gamma deviate %f", gp);
 
-        free_rng(parent);
-        free_rng(child);
+        tld_rng_free(parent);
+        tld_rng_free(child);
         return OK;
 ERROR:
-        free_rng(parent);
-        free_rng(child);
+        tld_rng_free(parent);
+        tld_rng_free(child);
         return FAIL;
 }
 
 static int test_seed_reproducible(void)
 {
-        struct rng_state *a = NULL;
-        struct rng_state *b = NULL;
-        RUN(init_rng(&a, 2024));
-        RUN(init_rng(&b, 2024));
+        struct tld_rng *a = NULL;
+        struct tld_rng *b = NULL;
+        RUN(tld_rng_alloc(&a, 2024));
+        RUN(tld_rng_alloc(&b, 2024));
         for(int i = 0; i < 1000; i++){
-                ASSERT(tl_random_int(a, 1000) == tl_random_int(b, 1000), "same seed, different sequence");
-                ASSERT(tl_random_double(a) == tl_random_double(b), "same seed, different sequence");
+                ASSERT(tld_rng_int(a, 1000) == tld_rng_int(b, 1000), "same seed, different sequence");
+                ASSERT(tld_rng_double(a) == tld_rng_double(b), "same seed, different sequence");
         }
-        free_rng(a);
-        free_rng(b);
+        tld_rng_free(a);
+        tld_rng_free(b);
         return OK;
 ERROR:
-        free_rng(a);
-        free_rng(b);
+        tld_rng_free(a);
+        tld_rng_free(b);
         return FAIL;
 }
 
@@ -237,23 +237,23 @@ ERROR:
 static int test_seed0_distinct(void)
 {
         enum { N_RNG = 64, N_PROC = 16 };
-        struct rng_state *r[N_RNG] = {NULL};
+        struct tld_rng *r[N_RNG] = {NULL};
         uint64_t first[N_RNG + N_PROC];
         int fd[2] = {-1, -1};
 
         for(int i = 0; i < N_RNG; i++){
-                RUN(init_rng(&r[i], 0));
-                first[i] = (uint64_t) (tl_random_double(r[i]) * 9007199254740992.0);
+                RUN(tld_rng_alloc(&r[i], 0));
+                first[i] = (uint64_t) (tld_rng_double(r[i]) * 9007199254740992.0);
         }
         ASSERT(pipe(fd) == 0, "pipe failed");
         for(int i = 0; i < N_PROC; i++){
                 pid_t pid = fork();
                 ASSERT(pid >= 0, "fork failed");
                 if(pid == 0){
-                        struct rng_state *c = NULL;
+                        struct tld_rng *c = NULL;
                         uint64_t v = 0;
-                        if(init_rng(&c, 0) == OK){
-                                v = (uint64_t) (tl_random_double(c) * 9007199254740992.0);
+                        if(tld_rng_alloc(&c, 0) == OK){
+                                v = (uint64_t) (tld_rng_double(c) * 9007199254740992.0);
                         }
                         _exit(write(fd[1], &v, sizeof v) == (ssize_t) sizeof v ? 0 : 1);
                 }
@@ -269,21 +269,21 @@ static int test_seed0_distinct(void)
         close(fd[0]);
         close(fd[1]);
         for(int i = 0; i < N_RNG; i++){
-                free_rng(r[i]);
+                tld_rng_free(r[i]);
         }
         return OK;
 ERROR:
         if(fd[0] >= 0) close(fd[0]);
         if(fd[1] >= 0) close(fd[1]);
         for(int i = 0; i < N_RNG; i++){
-                free_rng(r[i]);
+                tld_rng_free(r[i]);
         }
         return FAIL;
 }
 
-/* Runs tl_random_sdist_init with stdout sent to a temporary file and
+/* Runs tld_rng_dist_alloc with stdout sent to a temporary file and
    returns the number of bytes it wrote there. */
-static int sdist_init_quiet(struct rng_dist **d, double *w, int n, long *n_bytes)
+static int sdist_init_quiet(struct tld_rng_dist **d, double *w, int n, long *n_bytes)
 {
         char path[] = "/tmp/tld_sdist_XXXXXX";
         int fd = -1;
@@ -296,7 +296,7 @@ static int sdist_init_quiet(struct rng_dist **d, double *w, int n, long *n_bytes
         saved = dup(STDOUT_FILENO);
         ASSERT(saved >= 0, "dup failed");
         dup2(fd, STDOUT_FILENO);
-        status = tl_random_sdist_init(d, w, n, 42);
+        status = tld_rng_dist_alloc(d, w, n, 42);
         fflush(stdout);
         dup2(saved, STDOUT_FILENO);
         close(saved);
@@ -312,7 +312,7 @@ ERROR:
 
 static int test_sdist(void)
 {
-        struct rng_dist *d = NULL;
+        struct tld_rng_dist *d = NULL;
         double w[6] = {1.0, 1.0, 2.0, 1.0, 1.0, 1.0};
         int count[6] = {0};
         const int draws = 700000;
@@ -320,10 +320,10 @@ static int test_sdist(void)
         double chi2 = 0.0;
 
         ASSERT(sdist_init_quiet(&d, w, 6, &n_bytes) == OK, "sdist init failed");
-        ASSERT(n_bytes == 0, "tl_random_sdist_init wrote %ld bytes to stdout", n_bytes);
+        ASSERT(n_bytes == 0, "tld_rng_dist_alloc wrote %ld bytes to stdout", n_bytes);
 
         for(int i = 0; i < draws; i++){
-                const int k = tl_random_sdist_smpl(d);
+                const int k = tld_rng_dist_sample(d);
                 ASSERT(k >= 0 && k < 6, "sample %d out of range", k);
                 count[k]++;
         }
@@ -338,30 +338,30 @@ static int test_sdist(void)
         for(int k = 0; k < 2; k++){
                 struct rng_dist_mirror *dm = (struct rng_dist_mirror *) d;
                 force_next(dm->rng, UINT64_MAX);
-                const int s = tl_random_sdist_smpl(d);
+                const int s = tld_rng_dist_sample(d);
                 ASSERT(s >= 0 && s < 6, "sample %d out of range", s);
         }
-        tl_random_sdist_free(d);
+        tld_rng_dist_free(d);
         return OK;
 ERROR:
-        tl_random_sdist_free(d);
+        tld_rng_dist_free(d);
         return FAIL;
 }
 
 static int test_sdist_errors(void)
 {
-        struct rng_dist *d = NULL;
+        struct tld_rng_dist *d = NULL;
         double neg[3] = {1.0, -1.0, 1.0};
         double zero[3] = {0.0, 0.0, 0.0};
         double nan_w[2] = {1.0, NAN};
         /* error paths must fail and free what they allocated (ASan/LSan or
            valgrind report a leak otherwise) */
-        ASSERT(tl_random_sdist_init(&d, neg, 3, 1) == FAIL, "negative weight accepted");
+        ASSERT(tld_rng_dist_alloc(&d, neg, 3, 1) == FAIL, "negative weight accepted");
         ASSERT(d == NULL, "output set on failure");
-        ASSERT(tl_random_sdist_init(&d, zero, 3, 1) == FAIL, "zero sum accepted");
+        ASSERT(tld_rng_dist_alloc(&d, zero, 3, 1) == FAIL, "zero sum accepted");
         ASSERT(d == NULL, "output set on failure");
-        ASSERT(tl_random_sdist_init(&d, nan_w, 2, 1) == FAIL, "NaN weight accepted");
-        ASSERT(tl_random_sdist_init(&d, neg, 0, 1) == FAIL, "n = 0 accepted");
+        ASSERT(tld_rng_dist_alloc(&d, nan_w, 2, 1) == FAIL, "NaN weight accepted");
+        ASSERT(tld_rng_dist_alloc(&d, neg, 0, 1) == FAIL, "n = 0 accepted");
         ASSERT(d == NULL, "output set on failure");
         return OK;
 ERROR:
@@ -375,15 +375,15 @@ static const struct {
         const char *about;
 } checks[] = {
         {"force-next", test_force_next_sanity, "the test's force_next controls the next draw"},
-        {"double-open", test_double_open_interval, "tl_random_double stays in the open (0,1)"},
-        {"int-range", test_int_range, "tl_random_int(rng, n) stays in [0, n)"},
-        {"int-uniform", test_int_uniform, "tl_random_int is uniform (chi2)"},
+        {"double-open", test_double_open_interval, "tld_rng_double stays in the open (0,1)"},
+        {"int-range", test_int_range, "tld_rng_int(rng, n) stays in [0, n)"},
+        {"int-uniform", test_int_uniform, "tld_rng_int is uniform (chi2)"},
         {"exponential", test_exponential_finite, "the exponential deviate is finite"},
         {"child-gauss", test_child_gauss, "a child rng does not inherit the cached gaussian"},
         {"seed", test_seed_reproducible, "the same seed gives the same sequence"},
         {"seed0", test_seed0_distinct, "seed 0 gives every generator and process its own stream"},
         {"sdist", test_sdist, "tl_random_sdist samples in proportion, prints nothing"},
-        {"sdist-errors", test_sdist_errors, "tl_random_sdist_init rejects bad weights"},
+        {"sdist-errors", test_sdist_errors, "tld_rng_dist_alloc rejects bad weights"},
 };
 
 int main(int argc, char *argv[])
@@ -395,15 +395,15 @@ int main(int argc, char *argv[])
                   "\n"
                   "CHECK names (default: all, in this order):\n"
                   "  force-next    the test's force_next controls the next draw\n"
-                  "  double-open   tl_random_double stays in the open (0,1)\n"
-                  "  int-range     tl_random_int(rng, n) stays in [0, n)\n"
-                  "  int-uniform   tl_random_int is uniform (chi2)\n"
+                  "  double-open   tld_rng_double stays in the open (0,1)\n"
+                  "  int-range     tld_rng_int(rng, n) stays in [0, n)\n"
+                  "  int-uniform   tld_rng_int is uniform (chi2)\n"
                   "  exponential   the exponential deviate is finite\n"
                   "  child-gauss   a child rng does not inherit the cached gaussian\n"
                   "  seed          the same seed gives the same sequence\n"
                   "  seed0         seed 0 gives every generator and process its own stream\n"
                   "  sdist         tl_random_sdist samples in proportion, prints nothing\n"
-                  "  sdist-errors  tl_random_sdist_init rejects bad weights\n"
+                  "  sdist-errors  tld_rng_dist_alloc rejects bad weights\n"
                   "\n"
                   "Example: regress-rng int-uniform sdist");
         for(int i = 1; i < argc; i++){

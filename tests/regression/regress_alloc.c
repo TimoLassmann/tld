@@ -199,8 +199,8 @@ static int test_galloc_2d(void)
         uint32_t d2 = 0;
 
         RUN(galloc_2d(&m, i, j));
-        RUN(get_dim1(m, &d1));
-        RUN(get_dim2(m, &d2));
+        RUN(tld_galloc_dim1(m, &d1));
+        RUN(tld_galloc_dim2(m, &d2));
         ASSERT(d1 == 7 && d2 == 5, "dims are %u x %u", d1, d2);
         for (int r = 0; r < i; r++) {
                 ASSERT(m[r] == m[0] + (size_t)r * j, "row %d points to the wrong place", r);
@@ -247,6 +247,52 @@ ERROR:
         return FAIL;
 }
 
+/* galloc takes any element type malloc can align: structs, pointers and
+   long double, in 1D and 2D (it only took a fixed list of number types). */
+struct galloc_pt {
+        double x;
+        long double y;
+        char tag;
+};
+
+static int test_galloc_any(void)
+{
+        struct galloc_pt *v = NULL;
+        struct galloc_pt **m = NULL;
+        const char **names = NULL;
+        uint32_t d1 = 0;
+        uint32_t d2 = 0;
+        galloc(&v, 5);
+        for(int i = 0; i < 5; i++){
+                ASSERT(v[i].x == 0.0 && v[i].tag == 0, "1D element %d not zeroed", i);
+                ASSERT(((uintptr_t) &v[i]) % _Alignof(struct galloc_pt) == 0, "element %d misaligned", i);
+                v[i].y = (long double) i;
+        }
+        galloc(&m, 3, 4);
+        RUN(tld_galloc_dim1(m, &d1));
+        RUN(tld_galloc_dim2(m, &d2));
+        ASSERT(d1 == 3 && d2 == 4, "dims are %u x %u", d1, d2);
+        for(int r = 0; r < 3; r++){
+                ASSERT(((uintptr_t) m[r]) % _Alignof(struct galloc_pt) == 0, "row %d misaligned", r);
+                for(int c = 0; c < 4; c++){
+                        m[r][c].tag = (char) ('a' + r * 4 + c);
+                }
+        }
+        ASSERT(m[2][3].tag == 'l', "2D struct matrix holds '%c'", m[2][3].tag);
+        galloc(&names, 2);
+        names[0] = "x";
+        ASSERT(names[1] == NULL, "pointer array not zeroed");
+        gfree(v);
+        gfree(m);
+        gfree(names);
+        return OK;
+ERROR:
+        gfree(v);
+        gfree(m);
+        gfree(names);
+        return FAIL;
+}
+
 static int test_macros(void)
 {
         RUN(test_statement_macros(1));
@@ -276,19 +322,19 @@ ERROR:
         return FAIL;
 }
 
-/* MACRO_MIN / MACRO_MAX evaluate each argument once (they used to evaluate the
+/* TLD_MIN / TLD_MAX evaluate each argument once (they used to evaluate the
  * chosen one twice), keep the usual arithmetic conversions, and nest. */
 static int test_minmax(void)
 {
         int i = 0;
         int n = 5;
-        int m = MACRO_MAX(i++, n);
-        ASSERT(i == 1 && m == 5, "MACRO_MAX(i++, n): i = %d, result %d", i, m);
-        m = MACRO_MIN(n--, 10);
-        ASSERT(n == 4 && m == 5, "MACRO_MIN(n--, 10): n = %d, result %d", n, m);
-        double d = MACRO_MAX(1, 2.5);           /* int and double: double */
+        int m = TLD_MAX(i++, n);
+        ASSERT(i == 1 && m == 5, "TLD_MAX(i++, n): i = %d, result %d", i, m);
+        m = TLD_MIN(n--, 10);
+        ASSERT(n == 4 && m == 5, "TLD_MIN(n--, 10): n = %d, result %d", n, m);
+        double d = TLD_MAX(1, 2.5);           /* int and double: double */
         ASSERT(d == 2.5, "mixed types gave %g", d);
-        m = MACRO_MAX(MACRO_MIN(i, 3), MACRO_MAX(n, 2));
+        m = TLD_MAX(TLD_MIN(i, 3), TLD_MAX(n, 2));
         ASSERT(m == 4, "nested gave %d", m);
         return OK;
 ERROR:
@@ -304,8 +350,9 @@ static const struct {
         {"macros", test_macros, "RUN/ASSERT/MMALLOC/MFREE are single statements (if/else)"},
         {"messages", test_messages, "library messages go to stderr, MFREE(NULL) is silent"},
         {"galloc-2d", test_galloc_2d, "2D galloc sets every row and checks its size"},
+        {"galloc-any", test_galloc_any, "galloc takes structs, pointers and long double"},
         {"error-symbol", test_error_symbol, "a program may define its own error()"},
-        {"minmax", test_minmax, "MACRO_MIN/MACRO_MAX evaluate each argument once"},
+        {"minmax", test_minmax, "TLD_MIN/TLD_MAX evaluate each argument once"},
 };
 
 int main(int argc, char *argv[])
@@ -319,8 +366,9 @@ int main(int argc, char *argv[])
                   "  macros        RUN/ASSERT/MMALLOC/MFREE are single statements (if/else)\n"
                   "  messages      library messages go to stderr, MFREE(NULL) is silent\n"
                   "  galloc-2d     2D galloc sets every row and checks its size\n"
+                  "  galloc-any    galloc takes structs, pointers and long double\n"
                   "  error-symbol  a program may define its own error()\n"
-                  "  minmax        MACRO_MIN/MACRO_MAX evaluate each argument once\n"
+                  "  minmax        TLD_MIN/TLD_MAX evaluate each argument once\n"
                   "\n"
                   "Example: regress-alloc galloc-2d");
         for(int i = 1; i < argc; i++){

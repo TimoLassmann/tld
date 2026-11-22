@@ -1,7 +1,7 @@
 /* Regression tests for the logsum fixes.
- * - nearly_equal_float/double divided by MIN(|a|+|b|, FLT_MIN/DBL_MIN), which
+ * - tld_nearly_equal_float/double divided by MIN(|a|+|b|, FLT_MIN/DBL_MIN), which
  *   is FLT_MIN for any normal input, so they behaved like ==.
- * - logsum() used an all-zero table unless init_logsum() had been called
+ * - tld_logsum() used an all-zero table unless tld_logsum_init() had been called
  *   (this test never calls it before the first logsum), and the init was not
  *   thread-safe.
  * - NaN input reached the (int) table index (UB; UBSan float-cast-overflow).
@@ -20,22 +20,22 @@ static int test_nearly_equal(void)
         double d1 = 1.0;
         double d2 = nextafter(1.0, 2.0);
 
-        ASSERT(nearly_equal_float(f1, f2) == 1, "adjacent floats not nearly equal");
-        ASSERT(nearly_equal_double(d1, d2) == 1, "adjacent doubles not nearly equal");
-        ASSERT(nearly_equal_float(1000.0F, nextafterf(1000.0F, 0.0F)) == 1, "adjacent floats not nearly equal");
-        ASSERT(nearly_equal_double(-1e10, nextafter(-1e10, 0.0)) == 1, "adjacent doubles not nearly equal");
-        ASSERT(TLSAFE_EQ(f1, f2) == 1, "TLSAFE_EQ float");
-        ASSERT(TLSAFE_EQ(d1, d2) == 1, "TLSAFE_EQ double");
+        ASSERT(tld_nearly_equal_float(f1, f2) == 1, "adjacent floats not nearly equal");
+        ASSERT(tld_nearly_equal_double(d1, d2) == 1, "adjacent doubles not nearly equal");
+        ASSERT(tld_nearly_equal_float(1000.0F, nextafterf(1000.0F, 0.0F)) == 1, "adjacent floats not nearly equal");
+        ASSERT(tld_nearly_equal_double(-1e10, nextafter(-1e10, 0.0)) == 1, "adjacent doubles not nearly equal");
+        ASSERT(TLD_NEARLY_EQUAL(f1, f2) == 1, "TLD_NEARLY_EQUAL float");
+        ASSERT(TLD_NEARLY_EQUAL(d1, d2) == 1, "TLD_NEARLY_EQUAL double");
 
-        ASSERT(nearly_equal_float(1.0F, 1.001F) == 0, "1 and 1.001 nearly equal");
-        ASSERT(nearly_equal_double(1.0, 1.0 + 1e-9) == 0, "1 and 1+1e-9 nearly equal");
-        ASSERT(nearly_equal_float(1.0F, -1.0F) == 0, "1 and -1 nearly equal");
-        ASSERT(nearly_equal_float(FLT_MAX, -FLT_MAX) == 0, "FLT_MAX and -FLT_MAX nearly equal");
-        ASSERT(nearly_equal_double(0.0, 1e-300) == 0, "0 and 1e-300 nearly equal");
-        ASSERT(nearly_equal_float(0.0F, 0.0F) == 1, "0 and 0");
-        ASSERT(nearly_equal_float(-INFINITY, -INFINITY) == 1, "-inf and -inf");
-        ASSERT(nearly_equal_float(-INFINITY, 1.0F) == 0, "-inf and 1");
-        ASSERT(nearly_equal_float(NAN, NAN) == 0, "NaN and NaN");
+        ASSERT(tld_nearly_equal_float(1.0F, 1.001F) == 0, "1 and 1.001 nearly equal");
+        ASSERT(tld_nearly_equal_double(1.0, 1.0 + 1e-9) == 0, "1 and 1+1e-9 nearly equal");
+        ASSERT(tld_nearly_equal_float(1.0F, -1.0F) == 0, "1 and -1 nearly equal");
+        ASSERT(tld_nearly_equal_float(FLT_MAX, -FLT_MAX) == 0, "FLT_MAX and -FLT_MAX nearly equal");
+        ASSERT(tld_nearly_equal_double(0.0, 1e-300) == 0, "0 and 1e-300 nearly equal");
+        ASSERT(tld_nearly_equal_float(0.0F, 0.0F) == 1, "0 and 0");
+        ASSERT(tld_nearly_equal_float(-INFINITY, -INFINITY) == 1, "-inf and -inf");
+        ASSERT(tld_nearly_equal_float(-INFINITY, 1.0F) == 0, "-inf and 1");
+        ASSERT(tld_nearly_equal_float(NAN, NAN) == 0, "NaN and NaN");
         return OK;
 ERROR:
         return FAIL;
@@ -43,24 +43,24 @@ ERROR:
 
 static int test_logsum_values(void)
 {
-        /* deliberately no init_logsum() before this point */
+        /* deliberately no tld_logsum_init() before this point */
         float h = logf(0.5F);
-        float r = logsum(h, h);
+        float r = tld_logsum(h, h);
         ASSERT(fabsf(r) < 1e-3F, "logsum(log .5, log .5) = %f, expected 0", (double)r);
 
-        r = logsum(logf(0.25F), logf(0.5F));
+        r = tld_logsum(logf(0.25F), logf(0.5F));
         ASSERT(fabsf(expf(r) - 0.75F) < 1e-3F, "0.25 + 0.5 = %f", (double)expf(r));
 
-        init_logsum();
-        init_logsum();
+        tld_logsum_init();
+        tld_logsum_init();
 
-        ASSERT(logsum(-INFINITY, h) == h, "-inf identity");
-        ASSERT(logsum(h, -INFINITY) == h, "-inf identity");
-        ASSERT(logsum(INFINITY, INFINITY) == INFINITY, "+inf + +inf");
-        ASSERT(logsum(INFINITY, 1.0F) == INFINITY, "+inf + 1");
-        ASSERT(isnan(logsum(NAN, 1.0F)), "NaN not propagated");
-        ASSERT(isnan(logsum(1.0F, NAN)), "NaN not propagated");
-        ASSERT(isnan(logsum(NAN, NAN)), "NaN not propagated");
+        ASSERT(tld_logsum(-INFINITY, h) == h, "-inf identity");
+        ASSERT(tld_logsum(h, -INFINITY) == h, "-inf identity");
+        ASSERT(tld_logsum(INFINITY, INFINITY) == INFINITY, "+inf + +inf");
+        ASSERT(tld_logsum(INFINITY, 1.0F) == INFINITY, "+inf + 1");
+        ASSERT(isnan(tld_logsum(NAN, 1.0F)), "NaN not propagated");
+        ASSERT(isnan(tld_logsum(1.0F, NAN)), "NaN not propagated");
+        ASSERT(isnan(tld_logsum(NAN, NAN)), "NaN not propagated");
         return OK;
 ERROR:
         return FAIL;
@@ -72,8 +72,8 @@ static void *thread_fn(void *arg)
         float h = logf(0.5F);
         *ok = 1;
         for (int i = 0; i < 1000; i++) {
-                init_logsum();
-                if (fabsf(logsum(h, h)) > 1e-3F) {
+                tld_logsum_init();
+                if (fabsf(tld_logsum(h, h)) > 1e-3F) {
                         *ok = 0;
                 }
         }
@@ -102,8 +102,8 @@ static const struct {
         int (*fn)(void);
         const char *about;
 } checks[] = {
-        {"values", test_logsum_values, "logsum values without init_logsum, NaN input"},
-        {"nearly-equal", test_nearly_equal, "nearly_equal_float/double use a relative tolerance"},
+        {"values", test_logsum_values, "logsum values without tld_logsum_init, NaN input"},
+        {"nearly-equal", test_nearly_equal, "tld_nearly_equal_float/double use a relative tolerance"},
         {"threads", test_threads, "8 threads call logsum at once"},
 };
 
@@ -111,12 +111,12 @@ int main(int argc, char *argv[])
 {
         const int n_checks = (int) (sizeof checks / sizeof checks[0]);
         test_init(&argc, argv, "[CHECK ...]",
-                  "Regression checks for the logsum fixes. A plain run calls logsum() before\n"
-                  "init_logsum() on purpose (values first).\n"
+                  "Regression checks for the logsum fixes. A plain run calls tld_logsum() before\n"
+                  "tld_logsum_init() on purpose (values first).\n"
                   "\n"
                   "CHECK names (default: all, in this order):\n"
-                  "  values        logsum values without init_logsum, NaN input\n"
-                  "  nearly-equal  nearly_equal_float/double use a relative tolerance\n"
+                  "  values        logsum values without tld_logsum_init, NaN input\n"
+                  "  nearly-equal  tld_nearly_equal_float/double use a relative tolerance\n"
                   "  threads       8 threads call logsum at once\n"
                   "\n"
                   "Example: regress-logsum nearly-equal");

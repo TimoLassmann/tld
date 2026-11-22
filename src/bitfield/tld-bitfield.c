@@ -1,5 +1,5 @@
 #include "../alloc/tld-alloc.h"
-#include "bitfield.h"
+#include "tld-bitfield.h"
 
 #define BITS_W 64
 #define BIT_SHIFT 6
@@ -11,23 +11,23 @@ static inline int tld__bitfield_popcount(uint64_t x);
         available on most modern CPUs
  */
 
-int tl_bitfield_alloc(tl_bitfield **bit_f, int32_t size)
+int tld_bitfield_alloc(tld_bitfield **bit_f, int32_t size)
 {
-        tl_bitfield* b = NULL;
-        MMALLOC(b, sizeof(tl_bitfield));
+        tld_bitfield* b = NULL;
+        MMALLOC(b, sizeof(tld_bitfield));
         b->alloc_len = 1 + size / BITS_W;
         galloc(&b->m, b->alloc_len);
         b->len = size;
 
-        RUN(tl_bitfield_reset(b));
+        RUN(tld_bitfield_reset(b));
         *bit_f = b;
         return OK;
 ERROR:
-        tl_bitfield_free(b);
+        tld_bitfield_free(b);
         return FAIL;
 }
 
-void tl_bitfield_free(tl_bitfield *b)
+void tld_bitfield_free(tld_bitfield *b)
 {
         if(b){
                 if(b->m){
@@ -37,13 +37,13 @@ void tl_bitfield_free(tl_bitfield *b)
         }
 }
 
-int tl_bitfield_reset(tl_bitfield *b)
+int tld_bitfield_reset(tld_bitfield *b)
 {
         memset(b->m, 0, b->alloc_len * sizeof(uint64_t));
         return OK;
 }
 
-int tl_bitfield_set(tl_bitfield *b, int32_t index)
+int tld_bitfield_set(tld_bitfield *b, int32_t index)
 {
         if(index < 0 || index >= b->len){
                 return FAIL;
@@ -52,7 +52,7 @@ int tl_bitfield_set(tl_bitfield *b, int32_t index)
         return OK;
 }
 
-int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit)
+int tld_bitfield_get(tld_bitfield *b, int32_t index, uint8_t* bit)
 {
         if(index < 0 || index >= b->len){
                 return FAIL;
@@ -61,7 +61,7 @@ int tl_bitfield_get(tl_bitfield *b, int32_t index, uint8_t* bit)
         return OK;
 }
 
-int tl_bitfield_clear(tl_bitfield *b, int32_t index)
+int tld_bitfield_clear(tld_bitfield *b, int32_t index)
 {
         if(index < 0 || index >= b->len){
                 return FAIL;
@@ -70,7 +70,7 @@ int tl_bitfield_clear(tl_bitfield *b, int32_t index)
         return OK;
 }
 
-int tl_bitfield_copy(tl_bitfield *dst, tl_bitfield *src)
+int tld_bitfield_copy(tld_bitfield *dst, tld_bitfield *src)
 {
         if(dst->len != src->len){
                 ERROR_MSG("bitfields have different lengths");
@@ -83,7 +83,7 @@ ERROR:
         return FAIL;
 }
 
-int tl_bitfield_or(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* ret)
+int tld_bitfield_or(tld_bitfield *b1, tld_bitfield *b2,tld_bitfield* ret)
 {
         if(b1->len != b2->len){
                 ERROR_MSG("bitfields have different lengths");
@@ -114,7 +114,7 @@ int tld__bitfield_popcount(uint64_t x)
         return x & 0x7F;
 }
 
-int tl_bitfield_hamming(tl_bitfield *b1, tl_bitfield *b2,tl_bitfield* mask, int32_t* dist)
+int tld_bitfield_hamming(tld_bitfield *b1, tld_bitfield *b2,tld_bitfield* mask, int32_t* dist)
 {
         /* making sure the bitfields have the same length */
         if(b1->len != b2->len || b2->alloc_len < b1->alloc_len){
