@@ -1,7 +1,7 @@
 /* tld_ai.h - local LLMs, decision models and embeddings through the Ollama server on this
  * machine, called as ordinary C functions. Single header, builds on tld.h. Thread-safe.
  *
- *   char *s = ai_text("Summarise:\n%s", doc);
+ *   const char *s = ai_text("Summarise:\n%s", doc);
  *   double p = ai_yesno("Is a refund being requested?", ticket);
  *   struct team_answer t = ai_choose(team, ticket);
  *   ai_fill(&fix, fix, "Propose a fix for:\n%s", ticket);
@@ -295,11 +295,11 @@ typedef struct { const char *name; const char *desc; } ai_label;
 #define AI__FIELD(t, n, d) { #n, AI_T_##t, offsetof(S, n), d },
 
 /* AI_STRUCT(name, FIELDS) defines struct name for ai_fill. FIELDS is an X-macro of
- * X(kind, member, "description") entries; kind is str (char *), num (double), int
+ * X(kind, member, "description") entries; kind is str (const char *), num (double), int
  * (long) or bool (int). The descriptions reach the model in a JSON schema.
  *
  *   #define FIX(X) X(str, title, "One-line summary") X(num, risk, "Risk 0 to 1")
- *   AI_STRUCT(fix, FIX)      // struct fix { char *title; double risk; };
+ *   AI_STRUCT(fix, FIX)      // struct fix { const char *title; double risk; };
  */
 #define AI_STRUCT(name, FIELDS)                                               \
     struct name { FIELDS(AI__DECL) };                                         \
@@ -314,6 +314,7 @@ typedef struct { const char *name; const char *desc; } ai_label;
 /* ---- decisions: pick one label ----------------------------------------- */
 
 #define AI__ENUM(n, d)  n,
+#define AI__ONE(n, d)   +1
 #define AI__LABEL(n, d) { #n, d },
 
 /* AI_CHOICE(name, question, OPTIONS) defines enum name, one constant per label in order,
@@ -326,7 +327,8 @@ typedef struct { const char *name; const char *desc; } ai_label;
  *   AI_CHOICE(team, "Which team should handle this?", TEAM)
  */
 #define AI_CHOICE(name, question, OPTIONS)                                    \
-    enum name { OPTIONS(AI__ENUM) name##__count };                            \
+    enum name { OPTIONS(AI__ENUM) };                                          \
+    enum { name##__count = 0 OPTIONS(AI__ONE) };                              \
     struct name##_answer { int ok; enum name value; double confidence;        \
                            double p[name##__count]; };                        \
     static inline struct name##_answer name##__choose(const char *state,      \
@@ -358,7 +360,8 @@ typedef struct { const char *name; const char *desc; } ai_label;
  *   AI_SCALE(urgency, "How urgent is this?", URGENCY)
  */
 #define AI_SCALE(name, question, LEVELS)                                      \
-    enum name { LEVELS(AI__ENUM) name##__count };                             \
+    enum name { LEVELS(AI__ENUM) };                                           \
+    enum { name##__count = 0 LEVELS(AI__ONE) };                               \
     struct name##_answer { int ok; enum name level; double score;             \
                            double confidence; };                              \
     static inline struct name##_answer name##__rate(const char *state,        \

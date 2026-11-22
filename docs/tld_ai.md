@@ -5,7 +5,7 @@
 Local LLMs, decision models and embeddings through the Ollama server on this machine, called as ordinary C functions. Single header, builds on tld.h. Thread-safe.
 
 ```c
-char *s = ai_text("Summarise:\n%s", doc);
+const char *s = ai_text("Summarise:\n%s", doc);
 double p = ai_yesno("Is a refund being requested?", ticket);
 struct team_answer t = ai_choose(team, ticket);
 ai_fill(&fix, fix, "Propose a fix for:\n%s", ticket);
@@ -466,12 +466,12 @@ Run-time descriptions made by AI_STRUCT, AI_CHOICE and AI_SCALE: a member's type
 ```
 
 AI_STRUCT(name, FIELDS) defines struct name for ai_fill. FIELDS is an X-macro of
-X(kind, member, "description") entries; kind is str (char *), num (double), int
+X(kind, member, "description") entries; kind is str (const char *), num (double), int
 (long) or bool (int). The descriptions reach the model in a JSON schema.
 
 ```c
 #define FIX(X) X(str, title, "One-line summary") X(num, risk, "Risk 0 to 1")
-AI_STRUCT(fix, FIX)      // struct fix { char *title; double risk; };
+AI_STRUCT(fix, FIX)      // struct fix { const char *title; double risk; };
 ```
 
 <a id="mod-decisions-pick-one-label"></a>

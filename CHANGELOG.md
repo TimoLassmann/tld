@@ -151,6 +151,8 @@ tld.h to this. Old → new:
   bad host (AI_EHTTP, "expected http://host:port") instead of a shortened one; a model
   name over 291 bytes, a decision name over 291 bytes and a review directory too long
   for a path fail with AI_EARG instead of using a cut-off name.
+- `AI_CHOICE` and `AI_SCALE` no longer put a `name__count` constant into the caller's
+  enum, so a `switch` over the labels needs no `case name__count:` to satisfy -Wswitch.
 
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,

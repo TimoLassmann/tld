@@ -75,8 +75,6 @@ static int handle(const char *ticket) {
     case account:
         puts("forwarded to the access team");
         break;
-    case team__count:
-        break;
     }
     return 0;
 }
