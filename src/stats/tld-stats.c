@@ -181,25 +181,6 @@ ERROR:
 
 int tld_sigmoid(double x, double *out)
 {
-        double y;
-        ASSERT(out != NULL, "No output pointer");
-
-        ASSERT(isinf(x) == 0, "x is infinite");
-        ASSERT(isnan(x) == 0, "x is Nan");
-        if(x < 0.0){
-                y = exp(x);
-                y = y / (1.0 + y);
-        }else{
-                y = 1.0 / (1.0 + exp(-1.0 * x));
-        }
-        *out = y;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_sigmoid_safe(double x, double *out)
-{
         /* Define truncation limits based on double-precision floating point */
         const double MAX_X = 709.782712893384; /* Approximately log(DBL_MAX) */
         const double MIN_X = -709.782712893384; /* Approximately log(DBL_MIN) */

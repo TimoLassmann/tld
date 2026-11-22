@@ -32,9 +32,9 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [rng](#mod-rng): 13 symbols (`src/rng/tld-rng.h`)
 - [sort](#mod-sort): 24 symbols (`src/sort/tld-sort.h`)
 - [shuffle](#mod-shuffle): 12 symbols (`src/shuffle/tld-shuffle.h`)
-- [stats](#mod-stats): 13 symbols (`src/stats/tld-stats.h`)
+- [stats](#mod-stats): 12 symbols (`src/stats/tld-stats.h`)
 - [quantile](#mod-quantile): 1 symbol (`src/stats/tld-quantile.h`)
-- [auc](#mod-auc): 3 symbols (`src/stats/tld-auc.h`)
+- [auc](#mod-auc): 1 symbol (`src/stats/tld-auc.h`)
 - [logsum](#mod-logsum): 5 symbols (`src/logsum/tld-logsum.h`)
 - [kdtree](#mod-kdtree): 12 symbols (`src/kdtree/tld-kdtree.h`)
 - [tpool](#mod-tpool): 8 symbols (`src/tpool/tld-tpool.h`)
@@ -620,7 +620,7 @@ how a program was run.
 
 ## timing
 
-`src/timing/tld-timing.h`: One global wall-clock stopwatch that prints elapsed seconds to stderr.
+`src/timing/tld-timing.h`: One global wall-clock stopwatch that logs the elapsed seconds on stderr.
 
 <a id="TLD_START_TIMER"></a><a id="TLD_END_TIMER"></a>
 
@@ -1571,17 +1571,16 @@ TLD_API int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr);
 Pearson correlation of two arrays of n values, in [-1, 1]; 0 when either array is
 constant.
 
-<a id="tld_sigmoid"></a><a id="tld_sigmoid_safe"></a>
+<a id="tld_sigmoid"></a>
 
-### `tld_sigmoid`, `tld_sigmoid_safe`
+### `tld_sigmoid`
 
 ```c
 TLD_API int tld_sigmoid(double x, double *out);
-TLD_API int tld_sigmoid_safe(double x, double *out);
 ```
 
-1 / (1 + exp(-x)), computed without overflow. tld_sigmoid fails (FAIL) for an
-infinite or NaN x; tld_sigmoid_safe never fails: NaN gives NaN, +inf 1, -inf 0.
+1 / (1 + exp(-x)) into *out, computed without overflow, for every x: NaN gives NaN,
++inf 1 and -inf 0.
 
 <a id="tld_normal_pdf"></a>
 
@@ -1649,25 +1648,18 @@ share the mean of their positions. NaN is an error.
 ### `tld_auc`
 
 ```c
-TLD_API int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret);
+TLD_API int tld_auc(double *Y, double *Y_hat, int n, double *t, double *auc);
 ```
 
 ROC analysis of n samples: Y[i] is the label (1.0 positive; any other value in [0, 1]
 negative), Y_hat[i] the score (higher means more likely positive; no NaN). Both
-classes must occur. *ret is the AUC (trapezoids, tied scores form one step) and *t
-the score nearest the (0, 1) corner of the curve: call Y_hat >= *t positive.
-
-<a id="tld_auc_calculate"></a><a id="tld_auc_best_threshold"></a>
-
-### `tld_auc_calculate`, `tld_auc_best_threshold`
+classes must occur. *auc is the AUC (trapezoids, tied scores form one step) and *t
+the score nearest the (0, 1) corner of the curve: call Y_hat >= *t positive. Either
+output may be NULL when it is not wanted:
 
 ```c
-TLD_API int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret);
-TLD_API int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold);
+RUN(tld_auc(y, score, n, NULL, &auc));
 ```
-
-tld_auc giving only the AUC (tld_auc_calculate) or only the threshold
-(tld_auc_best_threshold).
 
 <a id="mod-logsum"></a>
 
@@ -2008,8 +2000,6 @@ is ignored.
 | [`SECTION_MSG`](#SECTION_MSG) | macro | [core](#mod-core) |
 | [`TLD_API`](#TLD_API) | macro | [core](#mod-core) |
 | [`tld_auc`](#tld_auc) | function | [auc](#mod-auc) |
-| [`tld_auc_best_threshold`](#tld_auc_best_threshold) | function | [auc](#mod-auc) |
-| [`tld_auc_calculate`](#tld_auc_calculate) | function | [auc](#mod-auc) |
 | [`tld_bitfield`](#tld_bitfield) | type | [bitfield](#mod-bitfield) |
 | [`tld_bitfield_alloc`](#tld_bitfield_alloc) | function | [bitfield](#mod-bitfield) |
 | [`tld_bitfield_clear`](#tld_bitfield_clear) | function | [bitfield](#mod-bitfield) |
@@ -2147,7 +2137,6 @@ is ignored.
 | [`tld_shuffle_uint64_t`](#tld_shuffle_uint64_t) | function | [shuffle](#mod-shuffle) |
 | [`tld_shuffle_uint8_t`](#tld_shuffle_uint8_t) | function | [shuffle](#mod-shuffle) |
 | [`tld_sigmoid`](#tld_sigmoid) | function | [stats](#mod-stats) |
-| [`tld_sigmoid_safe`](#tld_sigmoid_safe) | function | [stats](#mod-stats) |
 | [`TLD_SORT_ASC`](#TLD_SORT_ASC) | macro | [sort](#mod-sort) |
 | [`tld_sort_asc_char`](#tld_sort_asc_char) | function | [sort](#mod-sort) |
 | [`tld_sort_asc_double`](#tld_sort_asc_double) | function | [sort](#mod-sort) |

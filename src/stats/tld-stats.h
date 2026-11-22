@@ -28,10 +28,9 @@ TLD_API int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov)
  * constant. */
 TLD_API int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr);
 
-/* 1 / (1 + exp(-x)), computed without overflow. tld_sigmoid fails (FAIL) for an
- * infinite or NaN x; tld_sigmoid_safe never fails: NaN gives NaN, +inf 1, -inf 0. */
+/* 1 / (1 + exp(-x)) into *out, computed without overflow, for every x: NaN gives NaN,
+ * +inf 1 and -inf 0. */
 TLD_API int tld_sigmoid(double x, double *out);
-TLD_API int tld_sigmoid_safe(double x, double *out);
 
 /* Density at x of the normal distribution with mean mu and standard deviation
  * sigma (> 0). */

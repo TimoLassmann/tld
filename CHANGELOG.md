@@ -101,6 +101,14 @@ tld.h to this. Old → new:
 - tests: `regress-json strict`, `regress-json top-level-roundtrip`; `unit-json`'s second
   sample reply had raw newlines in a string (invalid JSON) and is now escaped.
 
+### API cleanups
+- stats: `tld_auc(Y, Y_hat, n, &t, &auc)` takes NULL for an output that is not wanted and
+  replaces `tld_auc_calculate` (`tld_auc(Y, Y_hat, n, NULL, &auc)`) and `tld_auc_best_threshold`
+  (`tld_auc(Y, Y_hat, n, &t, NULL)`).
+- stats: one sigmoid. `tld_sigmoid` is the former `tld_sigmoid_safe` (NaN gives NaN, +inf 1,
+  -inf 0); the old `tld_sigmoid`, which failed on those, is gone.
+- timing: `TLD_END_TIMER` writes a LOG line ("exec time: 1.23s").
+
 ### Safety: interface changes that turn silent memory errors into compile errors
 - core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,
   OK_MSG, DEBUG_MSG) requires a string-literal format, and the format is checked against the

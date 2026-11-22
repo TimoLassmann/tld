@@ -525,12 +525,12 @@ TLD_API int tld_cmdline_capture(tld_strbuf **cmdline, const int argc, char *cons
 
 #endif
 /* ---- src/timing/tld-timing.h ---- */
-/* timing: one global wall-clock stopwatch that prints elapsed seconds to stderr. */
+/* timing: one global wall-clock stopwatch that logs the elapsed seconds on stderr. */
 #ifndef TLD_TIMING_H
 #define TLD_TIMING_H
 
-/* end 0 starts the stopwatch; 1 prints "\nexec time: 1.23s\n" and 2 prints "1.23s" to
- * stderr. One global timer (static state, not thread-safe). */
+/* end 0 starts the stopwatch; 1 logs "exec time: 1.23s" (a LOG line on stderr). One
+ * global timer (static state, not thread-safe). */
 TLD_API void tld__timer(int end);
 
 /* Complete statements (they include the semicolon): TLD_START_TIMER starts the
@@ -1090,10 +1090,9 @@ TLD_API int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov)
  * constant. */
 TLD_API int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr);
 
-/* 1 / (1 + exp(-x)), computed without overflow. tld_sigmoid fails (FAIL) for an
- * infinite or NaN x; tld_sigmoid_safe never fails: NaN gives NaN, +inf 1, -inf 0. */
+/* 1 / (1 + exp(-x)) into *out, computed without overflow, for every x: NaN gives NaN,
+ * +inf 1 and -inf 0. */
 TLD_API int tld_sigmoid(double x, double *out);
-TLD_API int tld_sigmoid_safe(double x, double *out);
 
 /* Density at x of the normal distribution with mean mu and standard deviation
  * sigma (> 0). */
@@ -1133,14 +1132,13 @@ TLD_API int tld_quantile_normalise(double** data, int n, int m);
 
 /* ROC analysis of n samples: Y[i] is the label (1.0 positive; any other value in [0, 1]
  * negative), Y_hat[i] the score (higher means more likely positive; no NaN). Both
- * classes must occur. *ret is the AUC (trapezoids, tied scores form one step) and *t
- * the score nearest the (0, 1) corner of the curve: call Y_hat >= *t positive. */
-TLD_API int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret);
-
-/* tld_auc giving only the AUC (tld_auc_calculate) or only the threshold
- * (tld_auc_best_threshold). */
-TLD_API int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret);
-TLD_API int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold);
+ * classes must occur. *auc is the AUC (trapezoids, tied scores form one step) and *t
+ * the score nearest the (0, 1) corner of the curve: call Y_hat >= *t positive. Either
+ * output may be NULL when it is not wanted:
+ *
+ *   RUN(tld_auc(y, score, n, NULL, &auc));
+ */
+TLD_API int tld_auc(double *Y, double *Y_hat, int n, double *t, double *auc);
 #endif
 /* ---- src/logsum/tld-logsum.h ---- */
 /* logsum: arithmetic on probabilities stored as logarithms (log-sum-exp via a lookup
@@ -2072,6 +2070,7 @@ ERROR:
 #include <sys/time.h>
 #include <stdio.h>
 
+
 static int tld__timeval_subtract(struct timeval *result, struct timeval end, struct timeval start);
 
 int tld__timeval_subtract(struct timeval *result, struct timeval end, struct timeval start)
@@ -2102,10 +2101,7 @@ void tld__timer(int end)
         if (end) {
                 gettimeofday(&time_end, NULL);
                 if (tld__timeval_subtract(&time_diff, time_end, time_start) == 0) {
-                        if (end == 1)
-                                fprintf(stderr,"\nexec time: %1.2fs\n",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
-                        else if (end == 2)
-                                fprintf(stderr,"%1.2fs",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
+                        LOG_MSG("exec time: %1.2fs", time_diff.tv_sec + (time_diff.tv_usec / 1000000.0));
                 }
                 return;
         }
@@ -5984,25 +5980,6 @@ ERROR:
 
 int tld_sigmoid(double x, double *out)
 {
-        double y;
-        ASSERT(out != NULL, "No output pointer");
-
-        ASSERT(isinf(x) == 0, "x is infinite");
-        ASSERT(isnan(x) == 0, "x is Nan");
-        if(x < 0.0){
-                y = exp(x);
-                y = y / (1.0 + y);
-        }else{
-                y = 1.0 / (1.0 + exp(-1.0 * x));
-        }
-        *out = y;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_sigmoid_safe(double x, double *out)
-{
         /* Define truncation limits based on double-precision floating point */
         const double MAX_X = 709.782712893384; /* Approximately log(DBL_MAX) */
         const double MIN_X = -709.782712893384; /* Approximately log(DBL_MIN) */
@@ -6519,42 +6496,19 @@ ERROR:
         return FAIL;
 }
 
-/* Function to compute AUC and determine the best threshold */
-int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret)
+/* The best threshold is the score closest to the (0,1) corner of the ROC curve;
+   samples with Y_hat >= threshold are called positive. */
+int tld_auc(double *Y, double *Y_hat, int n, double *t, double *auc)
 {
         double thres = 0.0;
-        double auc = 0.0;
-        ASSERT(t != NULL, "No output pointer");
-        ASSERT(ret != NULL, "No output pointer");
-        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
-        *t = thres;
-        *ret = auc;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
-{
-        double thres = 0.0;
-        double auc = 0.0;
-        ASSERT(ret != NULL, "No output pointer");
-        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
-        *ret = auc;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-/* The best threshold is the score closest to the (0,1) corner of the
-   ROC curve; samples with Y_hat >= threshold are called positive. */
-int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold)
-{
-        double thres = 0.0;
-        double auc = 0.0;
-        ASSERT(best_threshold != NULL, "No output pointer");
-        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
-        *best_threshold = thres;
+        double area = 0.0;
+        RUN(tld__auc_sweep(Y, Y_hat, n, &area, &thres));
+        if(t){
+                *t = thres;
+        }
+        if(auc){
+                *auc = area;
+        }
         return OK;
 ERROR:
         return FAIL;

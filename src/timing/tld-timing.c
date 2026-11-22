@@ -1,5 +1,7 @@
 #include <sys/time.h>
-#include "stdio.h"
+#include <stdio.h>
+
+#include "tld-timing.h"
 
 static int tld__timeval_subtract(struct timeval *result, struct timeval end, struct timeval start);
 
@@ -31,10 +33,7 @@ void tld__timer(int end)
         if (end) {
                 gettimeofday(&time_end, NULL);
                 if (tld__timeval_subtract(&time_diff, time_end, time_start) == 0) {
-                        if (end == 1)
-                                fprintf(stderr,"\nexec time: %1.2fs\n",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
-                        else if (end == 2)
-                                fprintf(stderr,"%1.2fs",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
+                        LOG_MSG("exec time: %1.2fs", time_diff.tv_sec + (time_diff.tv_usec / 1000000.0));
                 }
                 return;
         }

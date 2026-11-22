@@ -121,42 +121,19 @@ ERROR:
         return FAIL;
 }
 
-/* Function to compute AUC and determine the best threshold */
-int tld_auc(double *Y, double *Y_hat, int n, double *t, double *ret)
+/* The best threshold is the score closest to the (0,1) corner of the ROC curve;
+   samples with Y_hat >= threshold are called positive. */
+int tld_auc(double *Y, double *Y_hat, int n, double *t, double *auc)
 {
         double thres = 0.0;
-        double auc = 0.0;
-        ASSERT(t != NULL, "No output pointer");
-        ASSERT(ret != NULL, "No output pointer");
-        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
-        *t = thres;
-        *ret = auc;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_auc_calculate(double *Y, double *Y_hat, int n, double *ret)
-{
-        double thres = 0.0;
-        double auc = 0.0;
-        ASSERT(ret != NULL, "No output pointer");
-        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
-        *ret = auc;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-/* The best threshold is the score closest to the (0,1) corner of the
-   ROC curve; samples with Y_hat >= threshold are called positive. */
-int tld_auc_best_threshold(double *Y, double *Y_hat, int n, double *best_threshold)
-{
-        double thres = 0.0;
-        double auc = 0.0;
-        ASSERT(best_threshold != NULL, "No output pointer");
-        RUN(tld__auc_sweep(Y, Y_hat, n, &auc, &thres));
-        *best_threshold = thres;
+        double area = 0.0;
+        RUN(tld__auc_sweep(Y, Y_hat, n, &area, &thres));
+        if(t){
+                *t = thres;
+        }
+        if(auc){
+                *auc = area;
+        }
         return OK;
 ERROR:
         return FAIL;

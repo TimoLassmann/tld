@@ -24,8 +24,8 @@ static int demo(int n, char **args)
         }
         KV_MSG("positives", "%d", n_pos);
         KV_MSG("negatives", "%d", n - n_pos);
-        RUN(tld_auc_calculate(labels, pred, n, &auc));
-        RUN(tld_auc_best_threshold(labels, pred, n, &thres));
+        RUN(tld_auc(labels, pred, n, NULL, &auc));
+        RUN(tld_auc(labels, pred, n, &thres, NULL));
         fprintf(stdout, "AUC:       %f\n", auc);
         fprintf(stdout, "threshold: %f\n", thres);
         OK_MSG("done");
@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 {
         test_init(&argc, argv, "[LABEL:SCORE ...]",
                   "With no arguments: computes the AUC and best threshold of fixed data sets with\n"
-                  "tld_auc, tld_auc_calculate and tld_auc_best_threshold, and scans 10^6\n"
+                  "tld_auc (both outputs, and each alone), and scans 10^6\n"
                   "thresholds.\n"
                   "With LABEL:SCORE: LABEL is 1 (positive) or 0 (negative), SCORE the prediction;\n"
                   "prints the AUC and the best threshold.\n"
@@ -126,8 +126,8 @@ int auc_test(void)
         double thres = 0.0;
         tld_auc(labels, pred, n,&thres, &auc);
         KV_MSG("AUC", "%f threshold %f", auc, thres);
-        tld_auc_calculate(labels, pred, n, &auc);
-        tld_auc_best_threshold(labels, pred, n,&thres);
+        tld_auc(labels, pred, n, NULL, &auc);
+        tld_auc(labels, pred, n, &thres, NULL);
         KV_MSG("AUC", "%f threshold %f", auc, thres);
         for(int i = 0; i  < n; i++){
                 int c=  i%3;
@@ -144,8 +144,8 @@ int auc_test(void)
         }
         tld_auc(labels, pred, n,&thres, &auc);
         KV_MSG("AUC", "%f threshold %f", auc, thres);
-        tld_auc_calculate(labels, pred, n, &auc);
-        tld_auc_best_threshold(labels, pred, n,&thres);
+        tld_auc(labels, pred, n, NULL, &auc);
+        tld_auc(labels, pred, n, &thres, NULL);
         KV_MSG("AUC", "%f threshold %f", auc, thres);
 
         int n_error = 0;

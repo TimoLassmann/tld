@@ -230,14 +230,8 @@ ERROR:
         \
         X(NUL, 0, FAILS(tld_auc(NULL, YH, 4, &D, &D2))) \
         X(NUL, 0, FAILS(tld_auc(Y, NULL, 4, &D, &D2))) \
-        X(NUL, 0, FAILS(tld_auc(Y, YH, 4, NULL, &D2))) \
-        X(NUL, 0, FAILS(tld_auc(Y, YH, 4, &D, NULL))) \
-        X(NUL, 0, FAILS(tld_auc_calculate(NULL, YH, 4, &D))) \
-        X(NUL, 0, FAILS(tld_auc_calculate(Y, NULL, 4, &D))) \
-        X(NUL, 0, FAILS(tld_auc_calculate(Y, YH, 4, NULL))) \
-        X(NUL, 0, FAILS(tld_auc_best_threshold(NULL, YH, 4, &D))) \
-        X(NUL, 0, FAILS(tld_auc_best_threshold(Y, NULL, 4, &D))) \
-        X(NUL, 0, FAILS(tld_auc_best_threshold(Y, YH, 4, NULL))) \
+        X(OPT, 0, NONE(tld_auc(Y, YH, 4, NULL, &D2))) \
+        X(OPT, 0, NONE(tld_auc(Y, YH, 4, &D, NULL))) \
         X(NUL, 0, FAILS(tld_quantile_normalise(NULL, 2, 2))) \
         X(NUL, 0, FAILS(tld_shannon(NULL, 4, &D))) \
         X(NUL, 0, FAILS(tld_shannon(V, 4, NULL))) \
@@ -260,7 +254,6 @@ ERROR:
         X(NUL, 0, FAILS(tld_pearson_corr(V, NULL, 4, &D))) \
         X(NUL, 0, FAILS(tld_pearson_corr(V, V, 4, NULL))) \
         X(NUL, 0, FAILS(tld_sigmoid(0.0, NULL))) \
-        X(NUL, 0, FAILS(tld_sigmoid_safe(0.0, NULL))) \
         X(NUL, 0, FAILS(tld_normal_pdf(0.0, 0.0, 1.0, NULL))) \
         X(NUL, 0, FAILS(tld_kde_pdf(NULL, 4, 10, &OUTM))) \
         X(NUL, 0, FAILS(tld_kde_pdf(V, 4, 10, NULL))) \

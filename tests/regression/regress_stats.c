@@ -37,19 +37,19 @@ int test_auc_logit_threshold(void)
         double t = 0.0;
         double auc = 0.0;
 
-        RUN(tld_auc_best_threshold(y1, s1, 4, &t));
+        RUN(tld_auc(y1, s1, 4, &t, NULL));
         CHECK(t == 1.5, "best threshold %f, expected 1.5", t);
         RUN(tld_auc(y1, s1, 4, &t, &auc));
         CHECK(t == 1.5, "tld_auc threshold %f, expected 1.5", t);
         CHECK(close_to(auc, 1.0, 1e-12), "AUC %f, expected 1.0", auc);
 
-        RUN(tld_auc_best_threshold(y2, s2, 4, &t));
+        RUN(tld_auc(y2, s2, 4, &t, NULL));
         CHECK(t == 3.2, "best threshold %f, expected 3.2", t);
 
         /* Score equal to 0.0 must be selectable as the threshold */
         double y3[4] = {1, 1, 0, 0};
         double s3[4] = {0.5, 0.0, -1.0, -2.0};
-        RUN(tld_auc_best_threshold(y3, s3, 4, &t));
+        RUN(tld_auc(y3, s3, 4, &t, NULL));
         CHECK(t == 0.0, "best threshold %f, expected 0.0", t);
         return OK;
 ERROR:
@@ -66,14 +66,17 @@ int test_auc_single_class(void)
 
         CHECK(tld_auc(pos, s, 3, &t, &auc) == FAIL, "tld_auc accepted single-class input");
         CHECK(tld_auc(neg, s, 3, &t, &auc) == FAIL, "tld_auc accepted single-class input");
-        CHECK(tld_auc_calculate(pos, s, 3, &auc) == FAIL, "tld_auc_calculate accepted single-class input");
-        CHECK(tld_auc_calculate(neg, s, 3, &auc) == FAIL, "tld_auc_calculate accepted single-class input");
-        CHECK(tld_auc_best_threshold(pos, s, 3, &t) == FAIL, "tld_auc_best_threshold accepted single-class input");
-        CHECK(tld_auc_best_threshold(neg, s, 3, &t) == FAIL, "tld_auc_best_threshold accepted single-class input");
+        CHECK(tld_auc(pos, s, 3, NULL, &auc) == FAIL, "tld_auc (AUC only) accepted single-class input");
+        CHECK(tld_auc(neg, s, 3, NULL, &auc) == FAIL, "tld_auc (AUC only) accepted single-class input");
+        CHECK(tld_auc(pos, s, 3, &t, NULL) == FAIL, "tld_auc (threshold only) accepted single-class input");
+        CHECK(tld_auc(neg, s, 3, &t, NULL) == FAIL, "tld_auc (threshold only) accepted single-class input");
+
+        /* both outputs NULL: the input is still checked */
+        CHECK(tld_auc(pos, s, 3, NULL, NULL) == FAIL, "tld_auc (no outputs) accepted single-class input");
 
         /* Out-of-range label still fails, without touching uninitialised memory */
         double bad[3] = {1, -0.5, 0};
-        CHECK(tld_auc_calculate(bad, s, 3, &auc) == FAIL, "out-of-range label accepted");
+        CHECK(tld_auc(bad, s, 3, NULL, &auc) == FAIL, "out-of-range label accepted");
         return OK;
 ERROR:
         return FAIL;
@@ -84,13 +87,13 @@ int test_auc_ties(void)
         double y[5] = {1, 1, 0, 0, 0};
         double s[5] = {0.6125478, 0.3642710, 0.4321361, 0.1402911, 0.3848959};
         double auc = 0.0;
-        RUN(tld_auc_calculate(y, s, 5, &auc));
+        RUN(tld_auc(y, s, 5, NULL, &auc));
         CHECK(close_to(auc, 4.0 / 6.0, 1e-12), "AUC %f, expected 0.6667", auc);
 
         /* All scores tied: AUC 0.5 */
         double s2[4] = {0.3, 0.3, 0.3, 0.3};
         double y2[4] = {1, 0, 1, 0};
-        RUN(tld_auc_calculate(y2, s2, 4, &auc));
+        RUN(tld_auc(y2, s2, 4, NULL, &auc));
         CHECK(close_to(auc, 0.5, 1e-12), "AUC %f, expected 0.5", auc);
         return OK;
 ERROR:
