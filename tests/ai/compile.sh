@@ -13,6 +13,6 @@ $CC $F tests/ai/compile_impl.c tests/ai/compile_use.c -o "$OUT/ai-compile-two" -
 $CC $F tests/ai/compile_early.c tests/ai/compile_tld.c -o "$OUT/ai-compile-early" -lm -lpthread || fail=1
 [ $fail = 0 ] || { echo "FAIL  tld_ai.h does not compile cleanly"; exit 1; }
 PORT=$(perl -MIO::Socket::INET -e '$s=IO::Socket::INET->new(Listen=>1,LocalAddr=>"127.0.0.1:0") or die; print $s->sockport')
-export AI_HOST=http://127.0.0.1:$PORT AI_DB=off AI_REVIEWS=$OUT/ai-compile-reviews
+export TLD_AI_HOST=http://127.0.0.1:$PORT TLD_AI_DB=off TLD_AI_REVIEWS=$OUT/ai-compile-reviews
 "$OUT/ai-compile-two" && "$OUT/ai-compile-early" || { echo "FAIL  compiled programs"; exit 1; }
 echo "PASS  tld_ai.h compiles warning-free (two TUs; after strict system headers)"

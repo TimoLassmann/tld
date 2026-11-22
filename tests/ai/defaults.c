@@ -4,7 +4,7 @@
  *                                      validation; SRC is "defaults", or "env" when
  *                                      run.sh sets the AI_* variables (they must win)
  *   defaults reset HOST                a later call replaces the defaults, NULL resets
- *                                      (AI_HOST must point at the mock)
+ *                                      (TLD_AI_HOST must point at the mock)
  *   defaults timeout HOST              a 1 s default timeout against a slow mock
  *   defaults stress HOST               8 threads calling while defaults change (TSan)
  *   defaults afterexit                 a call after tld_ai.h's exit cleanup fails cleanly
@@ -33,10 +33,10 @@ static void expect(int cond, const char *what) {
     if (!cond) bad = 1;
 }
 
-/* Never let a test call reach a real server: the host in force (AI_HOST wins over the
+/* Never let a test call reach a real server: the host in force (TLD_AI_HOST wins over the
  * defaults) must be a local mock. */
 static int safe_host(const char *host) {
-    const char *h = getenv("AI_HOST");
+    const char *h = getenv("TLD_AI_HOST");
     if (!h || !*h) h = host;
     if (!h || strncmp(h, "http://127.0.0.1:", 17) || !strcmp(h + 17, "11434")) {
         fprintf(stderr, "defaults: refusing to run against %s\n", h ? h : "(none)");
@@ -94,7 +94,7 @@ static int mode_set(const char *host, const char *db, const char *reviews, const
 }
 
 static int mode_reset(const char *host) {
-    if (!safe_host(NULL)) return 1; /* AI_HOST must be the mock: the reset drops .host */
+    if (!safe_host(NULL)) return 1; /* TLD_AI_HOST must be the mock: the reset drops .host */
     expect(ai_defaults(AI_CONFIG(.host = host, .llm = "alt-llm", .embed_dimensions = AI_I(64),
                                  .opts = AI_OPTS(.system = "RESET-SYS"))) == 0,
            "ai_defaults llm, embed_dimensions, opts");

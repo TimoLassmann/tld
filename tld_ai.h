@@ -28,19 +28,20 @@
  *
  * ENVIRONMENT (all optional; read once, at the first call into tld_ai.h, so a later
  * setenv() has no effect)
- *   AI_HOST      Ollama base URL                      default http://localhost:11434
+ *   TLD_AI_HOST      Ollama base URL                      default http://localhost:11434
  *                (plain http only; https:// fails with AI_EHTTP)
- *   AI_LLM       default LLM                          default inkling-2-mini:latest
- *   AI_DECIDER   default decision model               default autotrust-jev:latest
- *   AI_EMBEDDER  default embedding model              default embeddinggemma-2:latest
- *   AI_NUM_CTX   context length sent with every LLM and embedding call that does not
+ *   TLD_AI_LLM       default LLM                          default inkling-2-mini:latest
+ *   TLD_AI_DECIDER   default decision model               default autotrust-jev:latest
+ *   TLD_AI_EMBEDDER  default embedding model              default embeddinggemma-2:latest
+ *   TLD_AI_NUM_CTX   context length sent with every LLM and embedding call that does not
  *                set .num_ctx                         default: not sent (server decides)
- *   AI_TIMEOUT   seconds per HTTP request             default 300
- *   AI_FRESH     1 = ignore the cache                 default 0
- *   AI_DB        cache file (JSON lines)              default ai.cache, "off" = no cache
- *   AI_REVIEWS   directory for ai_review files        default ai-reviews
- *   AI_FRESH accepts 1/0, true/false, yes/no, on/off (any case); AI_NUM_CTX and
- *   AI_TIMEOUT must be positive integers. A value that does not parse is ignored with a
+ *   TLD_AI_TIMEOUT   seconds per HTTP request             default 300
+ *   TLD_AI_FRESH     1 = ignore the cache                 default 0
+ *   TLD_AI_DB        cache file (JSON lines)              default: no cache; "off" turns
+ *                    off a cache set with ai_defaults(.db = ...)
+ *   TLD_AI_REVIEWS   directory for ai_review files        default ai-reviews
+ *   TLD_AI_FRESH accepts 1/0, true/false, yes/no, on/off (any case); TLD_AI_NUM_CTX and
+ *   TLD_AI_TIMEOUT must be positive integers. A value that does not parse is ignored with a
  *   warning.
  *
  * DEFAULTS SET IN CODE
@@ -75,21 +76,21 @@
  *   Opt-in only. A cloud model is one whose /api/tags entry has "remote_host"; it is
  *   reached through the local server like any other (tld_ai.h does no HTTPS). The defaults
  *   are local models, so prompts leave the machine only when a cloud model is named in
- *   AI_LLM, AI_DECIDER, AI_EMBEDDER or .model. A server that is not signed in answers
+ *   TLD_AI_LLM, TLD_AI_DECIDER, TLD_AI_EMBEDDER or .model. A server that is not signed in answers
  *   with an HTTP error, which comes back as AI_EHTTP with the server's message.
  *
  * CACHE AND REPLAY
- *   Every answered request is appended to AI_DB as one JSON line
+ *   Every answered request is appended to TLD_AI_DB as one JSON line
  *   {key, endpoint, model, digest, request, response, seconds, created}, under
  *   flock(LOCK_EX), so several processes can share the file. The key is FNV-1a 64 of
  *   endpoint, model digest and request body, plus "#n" for the n-th identical request
  *   in the process; a rerun therefore replays finished calls in order, and a retry is
  *   a new call. n advances only when an answer is obtained, so a transient failure
  *   does not shift the replay. The digest stops an updated model from replaying old
- *   answers. AI_FRESH=1 or .fresh = 1 skips the lookup (the answer is still stored).
+ *   answers. TLD_AI_FRESH=1 or .fresh = 1 skips the lookup (the answer is still stored).
  *
  * HUMAN REVIEW
- *   ai_review(what, payload) writes AI_REVIEWS/<key>.json =
+ *   ai_review(what, payload) writes TLD_AI_REVIEWS/<key>.json =
  *   {"what":..., "payload":..., "status":"open", "answer":null} and returns NULL (with
  *   ai_status() == AI_OK) while the review is open. A person edits the file, sets
  *   "status" to "done" and "answer" to a string; the next run returns that answer.
@@ -136,7 +137,7 @@ extern "C" {
 
 enum {
     AI_OK = 0,
-    AI_ENOSERVER, /* no Ollama server answers at AI_HOST                       */
+    AI_ENOSERVER, /* no Ollama server answers at TLD_AI_HOST                       */
     AI_EHTTP,     /* https host, timeout, truncated reply, HTTP error status    */
     AI_EPARSE,    /* the reply is not valid JSON or lacks the expected fields   */
     AI_ESCHEMA,   /* valid JSON that does not fit the struct, labels or range   */
@@ -154,7 +155,7 @@ typedef struct { int set; long   v; } ai_i;   /* optional integer */
 #define AI_I(x) ((ai_i){1, (x)})
 
 typedef struct {
-    const char *model;            /* overrides AI_LLM / AI_DECIDER / AI_EMBEDDER */
+    const char *model;            /* overrides TLD_AI_LLM / TLD_AI_DECIDER / TLD_AI_EMBEDDER */
     const char *system;           /* system prompt (LLM calls) */
     ai_f temperature, top_p, min_p;
     ai_i top_k, seed, num_ctx, num_predict;
@@ -177,15 +178,15 @@ typedef struct {
 /* Precedence, per setting: per-call options > environment > ai_defaults() > built-in.
  * The environment is read once, at the first call into tld_ai.h. */
 typedef struct {
-    const char *host;      /* AI_HOST      e.g. "http://192.168.1.20:11434" (http:// only) */
-    const char *llm;       /* AI_LLM       text model: ai_text, ai_fill                  */
-    const char *decider;   /* AI_DECIDER   decision model: ai_yesno, ai_choose, ai_rate  */
-    const char *embedder;  /* AI_EMBEDDER  embedding model: ai_embed, ai_embed_all       */
-    const char *db;        /* AI_DB        cache file, or "off"                          */
-    const char *reviews;   /* AI_REVIEWS   review directory                              */
-    ai_i num_ctx;          /* AI_NUM_CTX   context length for LLM and embedding calls    */
-    ai_i timeout;          /* AI_TIMEOUT   seconds per request                           */
-    ai_i fresh;            /* AI_FRESH     1 = ignore the cache                          */
+    const char *host;      /* TLD_AI_HOST      e.g. "http://192.168.1.20:11434" (http:// only) */
+    const char *llm;       /* TLD_AI_LLM       text model: ai_text, ai_fill                  */
+    const char *decider;   /* TLD_AI_DECIDER   decision model: ai_yesno, ai_choose, ai_rate  */
+    const char *embedder;  /* TLD_AI_EMBEDDER  embedding model: ai_embed, ai_embed_all       */
+    const char *db;        /* TLD_AI_DB        cache file, or "off"                          */
+    const char *reviews;   /* TLD_AI_REVIEWS   review directory                              */
+    ai_i num_ctx;          /* TLD_AI_NUM_CTX   context length for LLM and embedding calls    */
+    ai_i timeout;          /* TLD_AI_TIMEOUT   seconds per request                           */
+    ai_i fresh;            /* TLD_AI_FRESH     1 = ignore the cache                          */
     ai_i embed_dimensions; /* default output dimensions for embeddings, if the model allows */
     const ai_opts *opts;   /* default per-call options (system, temperature, seed, top_p,
                               stop, think, keep_alive, retries, ...) applied to every call */
@@ -679,7 +680,7 @@ static const char *const ai__s_name[AI__NSTR + AI__NNUM] = {
     "fresh", "embed_dimensions"};
 static const char *const ai__s_builtin[AI__NSTR] = {
     "http://localhost:11434", "inkling-2-mini:latest", "autotrust-jev:latest",
-    "embeddinggemma-2:latest", "ai.cache", "ai-reviews"};
+    "embeddinggemma-2:latest", "off", "ai-reviews"};
 
 /* One layer of settings. Strings are owned; NULL / .set == 0 = not set here. */
 typedef struct {
@@ -696,7 +697,7 @@ typedef struct ai__conf {
     int fresh;
     long dims;           /* default embedding dimensions, 0 = not sent */
     ai_opts *opts;       /* the defaults' per-call options (deep copy), or NULL */
-    /* AI_HOST taken apart */
+    /* TLD_AI_HOST taken apart */
     char name[256], port[16], authority[300], base[256];
     int https, bad_host, cache_on;
 } ai__conf;
@@ -805,8 +806,8 @@ static int ai__icase(const char *a, const char *b) { /* equal, ignoring ASCII ca
 /* The environment, read once. Values that do not parse are ignored with a warning. */
 static int ai__env_read(ai__layer *l) {
     static const char *const names[AI__NSTR + 3] = {
-        "AI_HOST", "AI_LLM", "AI_DECIDER", "AI_EMBEDDER", "AI_DB", "AI_REVIEWS",
-        "AI_NUM_CTX", "AI_TIMEOUT", "AI_FRESH"};
+        "TLD_AI_HOST", "TLD_AI_LLM", "TLD_AI_DECIDER", "TLD_AI_EMBEDDER", "TLD_AI_DB", "TLD_AI_REVIEWS",
+        "TLD_AI_NUM_CTX", "TLD_AI_TIMEOUT", "TLD_AI_FRESH"};
     static const char *const yes[] = {"1", "true", "yes", "on"}, *const no[] = {"0", "false",
                                                                               "no", "off"};
     memset(l, 0, sizeof *l);
@@ -909,7 +910,7 @@ static ai__conf *ai__resolve(const ai__layer *env, const ai__layer *def) {
         const ai_f *e = &env->num[i], *d = &def->num[i];
         num[i] = e->set ? e->v : d->set ? d->v : builtin_num[i];
     }
-    /* AI_NUM_CTX > config.num_ctx > config.opts->num_ctx */
+    /* TLD_AI_NUM_CTX > config.num_ctx > config.opts->num_ctx */
     if (!env->num[0].set && !def->num[0].set && def->opts && def->opts->num_ctx.set &&
         def->opts->num_ctx.v > 0)
         num[0] = (double)def->opts->num_ctx.v;
@@ -1148,18 +1149,18 @@ static int ai__noserver(const char *why) {
     ai__probe_down(why);
     return ai__fail(AI_ENOSERVER,
                     "no Ollama server at %s: %s (start it with `ollama serve`, or set "
-                    "AI_HOST)",
+                    "TLD_AI_HOST)",
                     AI__HOST(ai__c), why);
 }
 
 static int ai__host_ok(void) {
     if (ai__c->https)
         return ai__fail(AI_EHTTP,
-                        "AI_HOST=%s: https is not supported; tld_ai.h talks plain http to the "
+                        "TLD_AI_HOST=%s: https is not supported; tld_ai.h talks plain http to the "
                         "local Ollama server (cloud models are reached through it)",
                         AI__HOST(ai__c));
     if (ai__c->bad_host)
-        return ai__fail(AI_EHTTP, "AI_HOST=%s: expected http://host:port", AI__HOST(ai__c));
+        return ai__fail(AI_EHTTP, "TLD_AI_HOST=%s: expected http://host:port", AI__HOST(ai__c));
     return 0;
 }
 
@@ -1338,7 +1339,7 @@ static int ai__http(const char *method, const char *path, const char *body,
         goto nomem;
     if (ai__send_all(fd, TLD_STR(req), (size_t)req->len, deadline)) {
         if (errno == ETIMEDOUT)
-            ai__fail(AI_EHTTP, "%s %s: timed out after %g s (AI_TIMEOUT)", method, path,
+            ai__fail(AI_EHTTP, "%s %s: timed out after %g s (TLD_AI_TIMEOUT)", method, path,
                      timeout);
         else
             ai__fail(AI_EHTTP, "%s %s: send failed: %s", method, path, strerror(errno));
@@ -1352,7 +1353,7 @@ static int ai__http(const char *method, const char *path, const char *body,
     for (;;) {
         int w = ai__wait(fd, POLLIN, deadline);
         if (w == 0) {
-            ai__fail(AI_EHTTP, "%s %s: timed out after %g s (AI_TIMEOUT)", method, path,
+            ai__fail(AI_EHTTP, "%s %s: timed out after %g s (TLD_AI_TIMEOUT)", method, path,
                      timeout);
             goto done;
         }
@@ -1481,7 +1482,7 @@ static int ai__server_up(void) {
     if (up == 0 && ai__now() - at < AI__REPROBE)
         return ai__fail(AI_ENOSERVER,
                         "no Ollama server at %s: %s (start it with `ollama serve`, or set "
-                        "AI_HOST)",
+                        "TLD_AI_HOST)",
                         AI__HOST(ai__c), why);
     tld_strbuf *b = NULL;
     if (ai__http("GET", "/api/version", NULL, AI__MIN(ai__c->timeout, AI__CONNECT_MAX),
@@ -1796,7 +1797,7 @@ static int ai__add_images(tld_json_obj **obj, const ai_opts *o) {
     return ai__put(obj, JA("images", a));
 }
 
-/* Model options, plus AI_NUM_CTX when the caller did not set num_ctx. */
+/* Model options, plus TLD_AI_NUM_CTX when the caller did not set num_ctx. */
 static int ai__add_options(tld_json_obj **req, const ai_opts *o) {
     tld_json_obj *op = NULL;
     int rc = 0;

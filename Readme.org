@@ -79,21 +79,21 @@ Build with =cc -std=c11 -I. prog.c -lpthread -lm=. Larger examples: =examples/tr
 
 ** Settings
 
-Every setting is decided on its own, highest first: per-call options (=AI_OPTS(...)=), environment variable, =ai_defaults()=, built-in. The environment is read once, at the first call; a value that does not parse (=AI_FRESH= takes 1/0, true/false, yes/no, on/off; =AI_NUM_CTX= and =AI_TIMEOUT= take positive integers) is ignored with a warning. Each =ai_defaults()= call replaces the previous one; =ai_defaults(NULL)= resets to the built-ins.
+Every setting is decided on its own, highest first: per-call options (=AI_OPTS(...)=), environment variable, =ai_defaults()=, built-in. The environment is read once, at the first call; a value that does not parse (=TLD_AI_FRESH= takes 1/0, true/false, yes/no, on/off; =TLD_AI_NUM_CTX= and =TLD_AI_TIMEOUT= take positive integers) is ignored with a warning. Each =ai_defaults()= call replaces the previous one; =ai_defaults(NULL)= resets to the built-ins.
 
-| Variable    | Built-in default          | Meaning                                       |
-|-------------+---------------------------+-----------------------------------------------|
-| AI_HOST     | http://localhost:11434    | Ollama server (plain http only)               |
-| AI_LLM      | inkling-2-mini:latest     | text model: ai_text, ai_fill                  |
-| AI_DECIDER  | autotrust-jev:latest      | decision model: ai_yesno, ai_choose, ai_rate  |
-| AI_EMBEDDER | embeddinggemma-2:latest   | embedding model: ai_embed, ai_embed_all       |
-| AI_NUM_CTX  | not sent                  | context length for LLM and embedding calls    |
-| AI_TIMEOUT  | 300                       | seconds per request                           |
-| AI_FRESH    | 0                         | 1 = ignore the cache                          |
-| AI_DB       | ai.cache                  | cache file (JSON lines), =off= = no cache     |
-| AI_REVIEWS  | ai-reviews                | directory of review files (=ai_review=)       |
+| Variable        | Built-in default        | Meaning                                      |
+|-----------------+-------------------------+----------------------------------------------|
+| TLD_AI_HOST     | http://localhost:11434  | Ollama server (plain http only)              |
+| TLD_AI_LLM      | inkling-2-mini:latest   | text model: ai_text, ai_fill                 |
+| TLD_AI_DECIDER  | autotrust-jev:latest    | decision model: ai_yesno, ai_choose, ai_rate |
+| TLD_AI_EMBEDDER | embeddinggemma-2:latest | embedding model: ai_embed, ai_embed_all      |
+| TLD_AI_NUM_CTX  | not sent                | context length for LLM and embedding calls   |
+| TLD_AI_TIMEOUT  | 300                     | seconds per request                          |
+| TLD_AI_FRESH    | 0                       | 1 = ignore the cache                         |
+| TLD_AI_DB       | (no cache)              | cache file (JSON lines); =off= = no cache    |
+| TLD_AI_REVIEWS  | ai-reviews              | directory of review files (=ai_review=)      |
 
-Every answered call is appended to the cache, so a rerun replays finished calls in order and costs nothing. A review is a file =AI_REVIEWS/<key>.json=; set its ="status"= to ="done"=, fill in ="answer"=, and rerun. Vectors from different embedding models are not comparable; store the embedder's name next to any vectors you save.
+With a cache file set (=ai_defaults(AI_CONFIG(.db = "ai.cache"))= or =TLD_AI_DB=), every answered call is appended to it, so a rerun replays finished calls in order and costs nothing. A review is a file =TLD_AI_REVIEWS/<key>.json=; set its ="status"= to ="done"=, fill in ="answer"=, and rerun. Vectors from different embedding models are not comparable; store the embedder's name next to any vectors you save.
 
 ** Memory
 
@@ -101,7 +101,7 @@ On a machine that can hold only one model, start Ollama with =OLLAMA_MAX_LOADED_
 
 ** Cloud models
 
-Cloud models (those whose =/api/tags= entry has =remote_host=) are reached through the local server. They are opt-in only: the defaults are local, so a prompt leaves the machine only when a cloud model is named in =AI_LLM=, =AI_DECIDER=, =AI_EMBEDDER=, =ai_defaults()= or =.model=. A server that is not signed in answers with an HTTP error, reported as =AI_EHTTP=.
+Cloud models (those whose =/api/tags= entry has =remote_host=) are reached through the local server. They are opt-in only: the defaults are local, so a prompt leaves the machine only when a cloud model is named in =TLD_AI_LLM=, =TLD_AI_DECIDER=, =TLD_AI_EMBEDDER=, =ai_defaults()= or =.model=. A server that is not signed in answers with an HTTP error, reported as =AI_EHTTP=.
 
 ** Tests and the live run
 
@@ -111,7 +111,7 @@ Cloud models (those whose =/api/tags= entry has =remote_host=) are reached throu
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 ollama ps                                   # must list no model
 build/tests/ai-hello                         # one call to the default LLM
-AI_DB=build/live.cache build/tests/ai-triage tests/ai/ticket.txt
-AI_DB=build/live.cache build/tests/ai-par 4
+TLD_AI_DB=build/live.cache build/tests/ai-triage tests/ai/ticket.txt
+TLD_AI_DB=build/live.cache build/tests/ai-par 4
 ollama ps                                   # models unload after keep_alive (5 min)
 #+end_src

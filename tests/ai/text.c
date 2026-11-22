@@ -1,4 +1,4 @@
-/* tests/ai/text.c - one ai_text call with AI_LLM; prints the reply, or the status name
+/* tests/ai/text.c - one ai_text call with TLD_AI_LLM; prints the reply, or the status name
  * and message on stderr. Exit 0 on success, 1 on failure. */
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION

@@ -4,7 +4,7 @@
 # documented Ollama shapes. They check requests, caching, replay, review, threads,
 # options, the HTTP client and ai_defaults; they say nothing about how real models
 # answer. Run from the repository root (ctest does). Never contacts a real
-# Ollama: every program gets AI_HOST pointing at a mock on a random free port, or at a
+# Ollama: every program gets TLD_AI_HOST pointing at a mock on a random free port, or at a
 # closed port.
 #
 # GROUP: plumbing noserver http json cache defaults sanitize tsan all
@@ -32,8 +32,8 @@ fi
 
 # Safety net: nothing below may reach a real server by accident.
 CLOSED=$("$PY" -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1])')
-export AI_HOST=http://127.0.0.1:$CLOSED AI_DB=$T/default.cache AI_REVIEWS=$T/reviews
-unset AI_LLM AI_DECIDER AI_EMBEDDER AI_NUM_CTX AI_TIMEOUT AI_FRESH
+export TLD_AI_HOST=http://127.0.0.1:$CLOSED TLD_AI_DB=$T/default.cache TLD_AI_REVIEWS=$T/reviews
+unset TLD_AI_LLM TLD_AI_DECIDER TLD_AI_EMBEDDER TLD_AI_NUM_CTX TLD_AI_TIMEOUT TLD_AI_FRESH
 
 free_port() { "$PY" -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1])'; }
 
@@ -66,24 +66,24 @@ limit() { s=$1; shift; perl -e 'alarm shift; exec @ARGV or exit 127' "$s" "$@"; 
 
 group_plumbing() {
     start_mock a 0.93
-    export AI_HOST=$HOST
-    AI_DB=$T/a.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/out1.txt"; rc=$?
+    export TLD_AI_HOST=$HOST
+    TLD_AI_DB=$T/a.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/out1.txt"; rc=$?
     n1=$(reqs a)
     [ $rc = 0 ] && [ "$n1" = 5 ]; check "triage first run sends 5 requests" $? "rc=$rc requests=$n1"
 
-    AI_DB=$T/a.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/out2.txt"
+    TLD_AI_DB=$T/a.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/out2.txt"
     n2=$(reqs a)
     [ "$n2" = "$n1" ] && cmp -s "$T/out1.txt" "$T/out2.txt"
     check "triage rerun replays from cache" $? "new requests=$((n2 - n1))"
 
-    AI_DB=$T/a.cache AI_FRESH=On limit 60 "$B/ai-triage" tests/ai/ticket.txt >/dev/null
+    TLD_AI_DB=$T/a.cache TLD_AI_FRESH=On limit 60 "$B/ai-triage" tests/ai/ticket.txt >/dev/null
     n3=$(reqs a)
-    [ "$n3" -gt "$n2" ]; check "AI_FRESH=On bypasses the cache" $? "no new requests"
+    [ "$n3" -gt "$n2" ]; check "TLD_AI_FRESH=On bypasses the cache" $? "no new requests"
 
-    AI_DB=$T/b.cache limit 60 "$B/ai-triage" tests/ai/t2.txt >"$T/out3.txt"
+    TLD_AI_DB=$T/b.cache limit 60 "$B/ai-triage" tests/ai/t2.txt >"$T/out3.txt"
     grep -q 'Mock reply' "$T/out3.txt"; check "billing branch returns text" $? "$(cat "$T/out3.txt")"
 
-    AI_DB=$T/o.cache limit 60 "$B/ai-opts" tests/ai/img.png >"$T/opts.txt"; rc=$?
+    TLD_AI_DB=$T/o.cache limit 60 "$B/ai-opts" tests/ai/img.png >"$T/opts.txt"; rc=$?
     "$PY" - "$T/o.cache" <<'EOF'
 import json, sys
 r = json.loads(open(sys.argv[1]).readline())["request"]
@@ -98,7 +98,7 @@ EOF
     [ $? = 0 ] && [ $rc = 0 ] && grep -q 'tokens 40/12 cache 0' "$T/opts.txt"
     check "all options reach the request body" $? "rc=$rc $(cat "$T/opts.txt")"
 
-    AI_DB=$T/c.cache AI_NUM_CTX=16384 limit 60 "$B/ai-par" 4 >/dev/null
+    TLD_AI_DB=$T/c.cache TLD_AI_NUM_CTX=16384 limit 60 "$B/ai-par" 4 >/dev/null
     "$PY" - "$T/c.cache" <<'EOF'
 import json, sys
 seen = {}
@@ -108,15 +108,15 @@ for line in open(sys.argv[1]):
 ok = seen["/api/chat"] == {16384} and seen["/api/embed"] == {16384} and seen["/v1/systemone"] == {None}
 sys.exit(0 if ok else 1)
 EOF
-    check "AI_NUM_CTX goes to chat and embed, not decisions" $? "unexpected num_ctx values"
+    check "TLD_AI_NUM_CTX goes to chat and embed, not decisions" $? "unexpected num_ctx values"
 
     start_mock p 0.93
-    export AI_HOST=$HOST
-    AI_DB=$T/p.cache limit 60 "$B/ai-par" 8 >"$T/par.txt"
+    export TLD_AI_HOST=$HOST
+    TLD_AI_DB=$T/p.cache limit 60 "$B/ai-par" 8 >"$T/par.txt"
     p1=$(reqs p)
     grep -q '16/16 ok' "$T/par.txt" && [ "$p1" = 34 ]
     check "par: 16 parallel jobs, 34 requests" $? "requests=$p1, $(head -1 "$T/par.txt")"
-    AI_DB=$T/p.cache limit 60 "$B/ai-par" 8 >/dev/null
+    TLD_AI_DB=$T/p.cache limit 60 "$B/ai-par" 8 >/dev/null
     p2=$(reqs p)
     [ "$p2" = "$p1" ]; check "par rerun on 8 threads replays from cache" $? "new requests=$((p2 - p1))"
     grep -q 'dim 8, nearest: \[Variant' "$T/par.txt"
@@ -124,12 +124,12 @@ EOF
     echo "      timing: $(head -1 "$T/par.txt")"
 
     start_mock r 0.55
-    export AI_HOST=$HOST
-    AI_DB=$T/r.cache AI_REVIEWS=$T/rev limit 60 "$B/ai-triage" tests/ai/ticket.txt >/dev/null 2>"$T/rev1.txt"; rc=$?
+    export TLD_AI_HOST=$HOST
+    TLD_AI_DB=$T/r.cache TLD_AI_REVIEWS=$T/rev limit 60 "$B/ai-triage" tests/ai/ticket.txt >/dev/null 2>"$T/rev1.txt"; rc=$?
     f=$(ls "$T"/rev/*.json 2>/dev/null | head -1)
     [ $rc = 3 ] && [ -n "$f" ] && grep -q '"status": "open"' "$f"
     check "low confidence opens a review file (exit 3)" $? "rc=$rc file=$f"
-    AI_DB=$T/r.cache AI_REVIEWS=$T/rev limit 60 "$B/ai-triage" tests/ai/ticket.txt >/dev/null 2>&1; rc=$?
+    TLD_AI_DB=$T/r.cache TLD_AI_REVIEWS=$T/rev limit 60 "$B/ai-triage" tests/ai/ticket.txt >/dev/null 2>&1; rc=$?
     [ $rc = 3 ]; check "an open review stays open on rerun" $? "rc=$rc"
     "$PY" - "$f" <<'EOF'
 import json, sys
@@ -139,58 +139,58 @@ r["status"], r["answer"] = "done", "billing"
 json.dump(r, open(sys.argv[1], "w"), indent=2)
 EOF
     before=$(reqs r)
-    AI_DB=$T/r.cache AI_REVIEWS=$T/rev limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/rev.txt" 2>&1; rc=$?
+    TLD_AI_DB=$T/r.cache TLD_AI_REVIEWS=$T/rev limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/rev.txt" 2>&1; rc=$?
     after=$(reqs r)
     [ $rc = 0 ] && grep -q 'reviewer chose billing' "$T/rev.txt" && [ "$after" = "$before" ]
     check "answered review resumes with no new requests" $? "rc=$rc new requests=$((after - before))"
 }
 
 group_noserver() {
-    AI_HOST=http://127.0.0.1:$CLOSED limit 20 "$B/ai-apis" AI_ENOSERVER 3 >"$T/ns.txt"; rc=$?
+    TLD_AI_HOST=http://127.0.0.1:$CLOSED limit 20 "$B/ai-apis" AI_ENOSERVER 3 >"$T/ns.txt"; rc=$?
     [ $rc = 0 ]; check "no server: every API fails fast with AI_ENOSERVER" $? "rc=$rc
 $(cat "$T/ns.txt")"
-    AI_HOST=http://127.0.0.1:$CLOSED limit 20 "$B/ai-text" hi 2>"$T/ns2.txt"; rc=$?
+    TLD_AI_HOST=http://127.0.0.1:$CLOSED limit 20 "$B/ai-text" hi 2>"$T/ns2.txt"; rc=$?
     [ $rc = 1 ] && grep -q 'AI_ENOSERVER: no Ollama server' "$T/ns2.txt"
     check "no server: the message names the problem" $? "$(cat "$T/ns2.txt")"
-    AI_HOST=http://127.0.0.1:$CLOSED AI_TIMEOUT=5s AI_NUM_CTX=12x AI_FRESH=maybe \
+    TLD_AI_HOST=http://127.0.0.1:$CLOSED TLD_AI_TIMEOUT=5s TLD_AI_NUM_CTX=12x TLD_AI_FRESH=maybe \
         limit 20 "$B/ai-text" hi 2>"$T/env.txt"; rc=$?
-    [ $rc = 1 ] && grep -q 'ignoring AI_TIMEOUT=5s' "$T/env.txt" &&
-        grep -q 'ignoring AI_NUM_CTX=12x' "$T/env.txt" && grep -q 'ignoring AI_FRESH=maybe' "$T/env.txt"
+    [ $rc = 1 ] && grep -q 'ignoring TLD_AI_TIMEOUT=5s' "$T/env.txt" &&
+        grep -q 'ignoring TLD_AI_NUM_CTX=12x' "$T/env.txt" && grep -q 'ignoring TLD_AI_FRESH=maybe' "$T/env.txt"
     check "environment values that do not parse are ignored with a warning" $? "$(cat "$T/env.txt")"
 }
 
 group_http() {
     start_mock ch 0.93 --chunked
-    AI_HOST=$HOST AI_DB=$T/ch.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/ch1.txt"; rc=$?
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/ch.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/ch1.txt"; rc=$?
     [ $rc = 0 ] && [ "$(reqs ch)" = 5 ] && grep -q '^fix: mock title' "$T/ch1.txt"
     check "chunked replies: triage" $? "rc=$rc $(cat "$T/ch1.txt")"
-    AI_HOST=$HOST AI_DB=$T/ch2.cache limit 60 "$B/ai-par" 8 >"$T/ch2.txt"; rc=$?
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/ch2.cache limit 60 "$B/ai-par" 8 >"$T/ch2.txt"; rc=$?
     [ $rc = 0 ] && grep -q '16/16 ok' "$T/ch2.txt" && grep -q 'dim 8, nearest: \[Variant' "$T/ch2.txt"
     check "chunked replies: par and embeddings" $? "rc=$rc $(cat "$T/ch2.txt")"
 
     start_mock slow 0.93 --slow 3
     t0=$(date +%s)
-    AI_HOST=$HOST AI_TIMEOUT=1 limit 20 "$B/ai-text" hi 2>"$T/slow.txt"; rc=$?
+    TLD_AI_HOST=$HOST TLD_AI_TIMEOUT=1 limit 20 "$B/ai-text" hi 2>"$T/slow.txt"; rc=$?
     t1=$(date +%s)
     [ $rc = 1 ] && grep -q 'AI_EHTTP: .*timed out' "$T/slow.txt" && [ $((t1 - t0)) -le 2 ]
-    check "AI_TIMEOUT=1: a slow reply fails with AI_EHTTP in time" $? "rc=$rc $((t1 - t0)) s $(cat "$T/slow.txt")"
-    (unset AI_HOST; limit 20 "$B/ai-defaults" timeout "$HOST") >"$T/dslow.txt"; rc=$?
+    check "TLD_AI_TIMEOUT=1: a slow reply fails with AI_EHTTP in time" $? "rc=$rc $((t1 - t0)) s $(cat "$T/slow.txt")"
+    (unset TLD_AI_HOST; limit 20 "$B/ai-defaults" timeout "$HOST") >"$T/dslow.txt"; rc=$?
     [ $rc = 0 ]; check "ai_defaults timeout: a slow reply fails in time" $? "$(cat "$T/dslow.txt")"
 
-    AI_HOST=https://127.0.0.1:$CLOSED limit 20 "$B/ai-apis" AI_EHTTP 3 >"$T/https.txt"; rc=$?
+    TLD_AI_HOST=https://127.0.0.1:$CLOSED limit 20 "$B/ai-apis" AI_EHTTP 3 >"$T/https.txt"; rc=$?
     [ $rc = 0 ] && grep -q 'https is not supported' "$T/https.txt"
     check "https host: every API fails with AI_EHTTP" $? "rc=$rc
 $(cat "$T/https.txt")"
 
     start_mock nm 0.93
-    AI_HOST=$HOST AI_LLM=not-installed limit 20 "$B/ai-text" hi 2>"$T/nm.txt"; rc=$?
+    TLD_AI_HOST=$HOST TLD_AI_LLM=not-installed limit 20 "$B/ai-text" hi 2>"$T/nm.txt"; rc=$?
     [ $rc = 1 ] && grep -q 'AI_ENOMODEL' "$T/nm.txt" && [ "$(reqs nm)" = 0 ]
     check "a model that is not installed gives AI_ENOMODEL" $? "$(cat "$T/nm.txt")"
 }
 
 group_json() {
     start_mock js 0.93
-    AI_HOST=$HOST AI_DB=$T/js.cache limit 60 "$B/ai-special" "$T/sp" >"$T/sp.txt" 2>&1; rc=$?
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/js.cache limit 60 "$B/ai-special" "$T/sp" >"$T/sp.txt" 2>&1; rc=$?
     [ $rc = 0 ]; check "special characters round-trip through the reply" $? "$(cat "$T/sp.txt")"
     "$PY" - "$T/js.log" "$T/sp" <<'EOF'
 import json, sys
@@ -211,19 +211,19 @@ EOF
 
 group_cache() {
     start_mock tf 0.93 --fail-first /api/chat:1
-    AI_HOST=$HOST AI_DB=$T/tf.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/tf1.txt" 2>&1; rc=$?
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/tf.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/tf1.txt" 2>&1; rc=$?
     n1=$(reqs tf)
     [ $rc = 0 ] && [ "$(count '^fail:' tf)" = 1 ] && [ "$n1" = 5 ]
     check "transient failure: the retry succeeds" $? "rc=$rc calls=$n1 $(cat "$T/tf1.txt")"
-    AI_HOST=$HOST AI_DB=$T/tf.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/tf2.txt" 2>&1
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/tf.cache limit 60 "$B/ai-triage" tests/ai/ticket.txt >"$T/tf2.txt" 2>&1
     n2=$(reqs tf)
     [ "$n2" = "$n1" ] && cmp -s "$T/tf1.txt" "$T/tf2.txt"
     check "transient failure: rerun replays without new requests" $? "new requests=$((n2 - n1))"
 
     start_mock cc 0.93
-    AI_HOST=$HOST AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >"$T/cc1.txt" 2>&1 &
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >"$T/cc1.txt" 2>&1 &
     a=$!
-    AI_HOST=$HOST AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >"$T/cc2.txt" 2>&1 &
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >"$T/cc2.txt" 2>&1 &
     b=$!
     wait $a; ra=$?
     wait $b; rb=$?
@@ -240,15 +240,15 @@ EOF
     [ $? = 0 ] && [ $ra = 0 ] && [ $rb = 0 ]
     check "two processes append to one cache: 68 valid lines" $? "rc=$ra/$rb"
     before=$(reqs cc)
-    AI_HOST=$HOST AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >/dev/null 2>&1; rc=$?
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >/dev/null 2>&1; rc=$?
     [ $rc = 0 ] && [ "$(reqs cc)" = "$before" ]
     check "the shared cache replays" $? "rc=$rc new requests=$(( $(reqs cc) - before ))"
 
     printf '{"key": "trunc' >>"$T/cc.cache"
-    AI_HOST=$HOST AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >/dev/null 2>"$T/dmg.txt"; rc=$?
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/cc.cache limit 60 "$B/ai-par" 8 >/dev/null 2>"$T/dmg.txt"; rc=$?
     [ $rc = 0 ] && [ "$(reqs cc)" = "$before" ] && grep -q 'skipped 1 damaged line' "$T/dmg.txt"
     check "a damaged last line is skipped with a warning" $? "rc=$rc $(tail -3 "$T/dmg.txt")"
-    AI_HOST=$HOST AI_DB=$T/cc.cache AI_FRESH=1 limit 60 "$B/ai-text" after >/dev/null 2>&1
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/cc.cache TLD_AI_FRESH=1 limit 60 "$B/ai-text" after >/dev/null 2>&1
     "$PY" -c "
 import json,sys
 ls=open(sys.argv[1]).read().split('\n')
@@ -258,7 +258,7 @@ json.loads(ls[-2])" "$T/cc.cache"
 
 group_defaults() {
     start_mock d1 0.93
-    (unset AI_HOST AI_DB AI_REVIEWS
+    (unset TLD_AI_HOST TLD_AI_DB TLD_AI_REVIEWS
      limit 60 "$B/ai-defaults" set "$HOST" "$T/d1.cache" "$T/d1rev" defaults) >"$T/d1.txt" 2>"$T/d1.err"; rc=$?
     [ $rc = 0 ]; check "ai_defaults: calls and validation" $? "rc=$rc
 $(grep -v '^ok' "$T/d1.txt") $(cat "$T/d1.err")"
@@ -288,8 +288,8 @@ EOF
     check "ai_defaults: cache path and review directory" $? "files missing"
 
     start_mock d2 0.93
-    AI_HOST=$HOST AI_LLM=inkling-2-mini:latest AI_DECIDER=autotrust-jev:latest \
-        AI_EMBEDDER=embeddinggemma-2:latest AI_DB=$T/d2.cache AI_REVIEWS=$T/d2rev AI_TIMEOUT=5 \
+    TLD_AI_HOST=$HOST TLD_AI_LLM=inkling-2-mini:latest TLD_AI_DECIDER=autotrust-jev:latest \
+        TLD_AI_EMBEDDER=embeddinggemma-2:latest TLD_AI_DB=$T/d2.cache TLD_AI_REVIEWS=$T/d2rev TLD_AI_TIMEOUT=5 \
         limit 60 "$B/ai-defaults" set "http://127.0.0.1:$CLOSED" "$T/d2.cache" "$T/d2rev" env >"$T/d2.txt" 2>"$T/d2.err"; rc=$?
     [ $rc = 0 ]; check "environment overrides ai_defaults (calls and validation)" $? "rc=$rc
 $(grep -v '^ok' "$T/d2.txt") $(cat "$T/d2.err")"
@@ -305,7 +305,7 @@ EOF
     check "environment overrides ai_defaults (host, models, cache, reviews)" $? "logged requests or files differ"
 
     start_mock d4 0.93
-    AI_HOST=$HOST AI_DB=$T/d4.cache limit 60 "$B/ai-defaults" reset "$HOST" >"$T/d4.txt" 2>&1; rc=$?
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/d4.cache limit 60 "$B/ai-defaults" reset "$HOST" >"$T/d4.txt" 2>&1; rc=$?
     [ $rc = 0 ] && "$PY" - "$T/d4.log" <<'EOF'
 import json, sys
 reqs = [(l.split(" ", 2)[1], json.loads(l.split(" ", 2)[2])) for l in open(sys.argv[1]) if l.startswith("mock: ")]
@@ -319,7 +319,7 @@ EOF
     check "ai_defaults: a later call replaces the defaults, NULL resets" $? "rc=$rc $(grep -v '^ok' "$T/d4.txt")"
 
     start_mock d3 0.93
-    (unset AI_HOST; limit 60 "$B/ai-defaults" stress "$HOST") >"$T/d3.txt" 2>&1; rc=$?
+    (unset TLD_AI_HOST; limit 60 "$B/ai-defaults" stress "$HOST") >"$T/d3.txt" 2>&1; rc=$?
     [ $rc = 0 ]; check "defaults changing while 8 threads call" $? "rc=$rc $(cat "$T/d3.txt")"
 
     limit 20 "$B/ai-defaults" afterexit >"$T/d5.txt" 2>&1; rc=$?
@@ -328,11 +328,11 @@ EOF
 
 group_sanitize() { # the examples as built (an ASAN build type adds the sanitizers)
     start_mock sa 0.93
-    export AI_HOST=$HOST
+    export TLD_AI_HOST=$HOST
     for run in first replay; do
-        AI_DB=$T/sa.cache limit 120 "$B/ai-triage" tests/ai/ticket.txt >/dev/null 2>"$T/as1.txt"; r1=$?
-        AI_DB=$T/sp.cache limit 120 "$B/ai-par" 8 >/dev/null 2>"$T/as2.txt"; r2=$?
-        AI_DB=$T/sd.cache limit 120 "$B/ai-defaults" stress "$HOST" >/dev/null 2>"$T/as3.txt"; r3=$?
+        TLD_AI_DB=$T/sa.cache limit 120 "$B/ai-triage" tests/ai/ticket.txt >/dev/null 2>"$T/as1.txt"; r1=$?
+        TLD_AI_DB=$T/sp.cache limit 120 "$B/ai-par" 8 >/dev/null 2>"$T/as2.txt"; r2=$?
+        TLD_AI_DB=$T/sd.cache limit 120 "$B/ai-defaults" stress "$HOST" >/dev/null 2>"$T/as3.txt"; r3=$?
         n=$(cat "$T/as1.txt" "$T/as2.txt" "$T/as3.txt" | grep -c -E 'runtime error|AddressSanitizer|LeakSanitizer')
         [ $r1 = 0 ] && [ $r2 = 0 ] && [ $r3 = 0 ] && [ "$n" = 0 ]
         check "sanitizers, $run run: triage, par, defaults stress" $? "rc=$r1/$r2/$r3 reports=$n"
@@ -342,8 +342,8 @@ group_sanitize() { # the examples as built (an ASAN build type adds the sanitize
 
 group_tsan() {
     start_mock ts 0.93
-    AI_HOST=$HOST AI_DB=$T/ts.cache AI_FRESH=1 limit 300 "$B/ai-par-tsan" 8 >/dev/null 2>"$T/tsan.txt"; r1=$?
-    AI_HOST=$HOST AI_DB=$T/ts2.cache limit 300 "$B/ai-defaults-tsan" stress "$HOST" >/dev/null 2>"$T/tsan2.txt"; r2=$?
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/ts.cache TLD_AI_FRESH=1 limit 300 "$B/ai-par-tsan" 8 >/dev/null 2>"$T/tsan.txt"; r1=$?
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/ts2.cache limit 300 "$B/ai-defaults-tsan" stress "$HOST" >/dev/null 2>"$T/tsan2.txt"; r2=$?
     n=$(cat "$T/tsan.txt" "$T/tsan2.txt" | grep -c 'WARNING: ThreadSanitizer')
     [ "$n" -eq 0 ] && [ $r1 = 0 ] && [ $r2 = 0 ]
     check "ThreadSanitizer: par on 8 threads, defaults stress" $? "rc=$r1/$r2, $n warnings"

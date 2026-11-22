@@ -12,7 +12,7 @@ int compile_use(void);
 int main(void) {
     char *s = ai_fmt("%d-%s", 7, "x");
     if (!s || strcmp(s, "7-x")) return 1;
-    /* AI_HOST points at a closed port in the test, so this fails fast */
+    /* TLD_AI_HOST points at a closed port in the test, so this fails fast */
     if (ai_text("hi") != NULL || ai_status() != AI_ENOSERVER) return 1;
     if (compile_use()) return 1;
     ai_reset();
