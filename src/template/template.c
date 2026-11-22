@@ -49,14 +49,12 @@ tld_internal  int parse_template(Parser *parser, template_node **node);
 tld_internal  int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* out);
 
 tld_internal  int get_vars(template_node *node, tld_hash* h);
-tld_internal void print_tree(template_node *node, int depth);
 tld_internal  int parse_text(Parser *parser, template_node **node);
 tld_internal  int parse_tag(Parser *parser, template_node **node);
 
 tld_internal  int is_end_of_input(Parser *parser);
 tld_internal char peek(Parser *parser);
 tld_internal char parser_next(Parser *parser);
-tld_internal void skip_whitespace(Parser *parser);
 
 tld_internal  int template_node_add_child(template_node *parent, template_node *child);
 tld_internal  int template_node_create(template_node **node, template_node_type type, char *content);
@@ -83,7 +81,6 @@ int tld_template_extract_var(tld_strbuf *txt, tld_hash **hash)
 
         RUN(tld_hash_alloc(&h,1024));
 
-        /* print_tree(root, 0); */
 
         RUN(get_vars(root, h));
 
@@ -131,7 +128,6 @@ int tld_template_apply(tld_strbuf *txt, tld_hash *hash)
         if (parser.error[0] != '\0') {
                 ERROR_MSG("Error parsing template: %s",parser.error);
         }
-        /* print_tree(root, 0); */
         RUN(tld_strbuf_alloc(&out, 256));
         RUN(process_tree(root, hash, stdout,out));
         RUN(tld_strbuf_copy(txt, out));
@@ -346,45 +342,12 @@ int get_vars(template_node *node, tld_hash* h)
 
         for(int i = 0; i < node->n; i++){
                 RUN(get_vars(node->children[i], h));
-                /* print_tree(node->children[i], depth + 1); */
         }
         return OK;
 ERROR:
         return FAIL;
 }
 
-
-void print_tree(template_node *node, int depth)
-{
-        for(int i = 0; i < depth; i++){
-                printf("  ");
-        }
-
-        switch(node->type){
-        case NODE_ROOT:
-                printf("ROOT\n");
-                break;
-        case NODE_TEXT:
-                printf("TEXT: %s\n", TLD_STR(node->content));
-                break;
-        case NODE_VARIABLE:
-                printf("VARIABLE: %s\n", TLD_STR(node->content));
-                break;
-        case NODE_IF:
-                printf("IF: %s\n", TLD_STR(node->content));
-                break;
-        case NODE_ELSE:
-                printf("ELSE\n");
-                break;
-        case NODE_ENDIF:
-                printf("ENDIF\n");
-                break;
-        }
-
-        for(int i = 0; i < node->n; i++){
-                print_tree(node->children[i], depth + 1);
-        }
-}
 
 int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* out)
 {
@@ -531,9 +494,3 @@ char parser_next(Parser *parser)
         return parser->input[parser->position++];
 }
 
-void skip_whitespace(Parser *parser)
-{
-        while(isspace(peek(parser))){
-                parser_next(parser);
-        }
-}
