@@ -1,4 +1,4 @@
-/* regress-json: tests for the JSON fixes and additions (modernisation, PRD 5.5). */
+/* regress-json: tests for the JSON fixes and additions. */
 #include "tld.h"
 #include "test.h"
 
@@ -1162,7 +1162,7 @@ int main(int argc, char *argv[])
 {
         const int n_checks = (int) (sizeof checks / sizeof checks[0]);
         test_init(&argc, argv, "[CHECK ...]",
-                  "Checks for the JSON fixes and additions (modernisation, PRD 5.5).\n"
+                  "Checks for the JSON fixes and additions.\n"
                   "\n"
                   "CHECK names (default: all, in this order):\n"
                   "  roundtrip-prompts  prompt-like strings survive dump/parse\n"

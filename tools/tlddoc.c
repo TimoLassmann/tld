@@ -151,6 +151,44 @@ ERROR:
         return FAIL;
 }
 
+/* Append a declaration as the manual shows it: a leading "TLD_API" (the linkage macro,
+   documented once in its own entry) and the spaces after it are dropped from each line. */
+static int append_code(tld_strbuf *b, const char *code)
+{
+        const char *p = code;
+        while(*p){
+                const char *nl = strchr(p, '\n');
+                size_t len = nl ? (size_t)(nl - p + 1) : strlen(p);
+                if(strncmp(p, "TLD_API ", 8) == 0){
+                        size_t skip = 7;
+                        while(skip < len && p[skip] == ' '){
+                                skip++;
+                        }
+                        p += skip;
+                        len -= skip;
+                }
+                RUN(tld_strbuf_append_n(b, p, len));
+                p += len;
+        }
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+/* Capitalise the first letter of a sentence, unless its first word is an identifier
+   (contains '_' or a digit, e.g. tld_strbuf), which keeps its spelling. */
+static void cap_first(char *s)
+{
+        size_t i = 0;
+        while(isalnum((unsigned char)s[i]) || s[i] == '_'){
+                if(s[i] == '_' || isdigit((unsigned char)s[i])){
+                        return;
+                }
+                i++;
+        }
+        s[0] = (char)toupper((unsigned char)s[0]);
+}
+
 /* ------------------------------------------------------------------------ */
 /* the parsed header                                                        */
 /* ------------------------------------------------------------------------ */
@@ -1203,7 +1241,7 @@ static int set_module_comment(module *m, const char *text)
         m->desc = xstrdup(text);
         ASSERT(m->desc != NULL, "Out of memory");
         if(m->desc[0]){
-                m->desc[0] = (char)toupper((unsigned char)m->desc[0]);
+                cap_first(m->desc);
         }
         /* one paragraph: join the lines */
         for(char *p = m->desc; *p; p++){
@@ -1692,7 +1730,7 @@ static int split_top(const char *top, char **title, char **overview, char **prea
                 *overview = xstrdup(ov);
                 ASSERT(*title != NULL && *overview != NULL, "Out of memory");
                 if((*overview)[0]){
-                        (*overview)[0] = (char)toupper((unsigned char)(*overview)[0]);
+                        cap_first(*overview);
                 }
         }
         /* preamble: up to the first heading */
@@ -1868,7 +1906,7 @@ static int render(header *h, const char *impl_macro, tld_strbuf *o)
                                 }
                         }
                         RUN(tld_strbuf_append(o, "\n\n```c\n"));
-                        RUN(tld_strbuf_append(o, TLD_STR(e->code)));
+                        RUN(append_code(o, TLD_STR(e->code)));
                         RUN(tld_strbuf_append(o, "\n```\n\n"));
                         if(e->doc){
                                 RUN(render_text(o, e->doc, 0));

@@ -1,4 +1,4 @@
-/* tests/ai/defaults.c - ai_defaults() (PRD 6.10).
+/* tests/ai/defaults.c - ai_defaults().
  *
  *   defaults set HOST DB REVIEWS SRC   set every default, call each endpoint, check
  *                                      validation; SRC is "defaults", or "env" when

@@ -1,4 +1,4 @@
-# tld_ai.h tests (PRD 6.9/6.10). Programs are built from ./tld_ai.h and ./tld.h only, with the
+# tld_ai.h tests. Programs are built from ./tld_ai.h and ./tld.h only, with the
 # same compile flags as everything else in this build; tests/ai/run.sh drives them
 # against tests/ai/mock_ollama.py. No test ever talks to a real Ollama server.
 find_package(Threads REQUIRED)

@@ -10,6 +10,7 @@
 | `null/`        | `null-args`, `null-args-covered`    | every public function with NULL in each pointer argument, each call in a child process: the failure value and an ERROR line, or a normal return where NULL is allowed (`null-args -h`); `covered.sh` fails when a function has no case |
 | `names/`       | `names`                             | every symbol, macro and documented name of `tld.h` is `tld_`/`TLD_` (internals `tld__`/`TLD__`) or an idiom name such as `RUN`; `clash.c`, a program reusing common names after the implementation, compiles (`names/check.sh CC SRC_DIR`) |
 | `misuse/`      | `misuse-rejected`                   | the compiler rejects the mistakes the headers are designed to catch (`err_*.c`, `warn_*.c`); `ok_usage.c` compiles cleanly |
+| `fuzz/`        | none (`fuzz-json`, `fuzz-template`, `fuzz-ai`, `fuzz-http` programs) | libFuzzer targets for JSON, templates and tld_ai.h replies, built with clang and `-DTLD_FUZZ=ON`, run by `fuzz/run.sh SECONDS BUILD_DIR` from the seeds in `fuzz/seeds/` |
 
 `test.h` is the small command-line helper every test program uses (not part of the
 library). `CMakeLists.txt` builds all programs into `build/tests/`; `ai.cmake` holds the
