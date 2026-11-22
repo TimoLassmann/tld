@@ -40,7 +40,6 @@ int tld_mean(double *vec, int n, double *mean)
                 m += vec[i];
         }
         m /= (double) n;
-        /* LOG_MSG("Mean: %f",m); */
         *mean = m;
         return OK;
 ERROR:
@@ -93,7 +92,7 @@ int tld_standardise(double *vec, int n, double *mean, double *stdev)
 
         s = sqrt(variance);
         if(s == 0.0){
-                ERROR_MSG("Standard deviation is zero!");
+                ERROR_MSG("Standard deviation is zero");
         }
         for(int i = 0; i < n;i++){
                 vec[i] = (vec[i] -m) / s;
@@ -192,19 +191,17 @@ ERROR:
 
 int tld_sigmoid_safe(double x, double *out)
 {
-        // Define truncation limits based on double-precision floating point
-        const double MAX_X = 709.782712893384;   // Approximately log(DBL_MAX)
-        const double MIN_X = -709.782712893384;  // Approximately log(DBL_MIN)
+        /* Define truncation limits based on double-precision floating point */
+        const double MAX_X = 709.782712893384; /* Approximately log(DBL_MAX) */
+        const double MIN_X = -709.782712893384; /* Approximately log(DBL_MIN) */
         double y;
-        // Handle NaN
         if(isnan(x)){
                 y = NAN;
                 *out = y;
                 return OK;
-                /* return NAN; */
         }
 
-        // Handle positive and negative infinity
+        /* Handle positive and negative infinity */
         if(isinf(x)){
                 if (x > 0){
                         y = 1.0;
@@ -218,7 +215,7 @@ int tld_sigmoid_safe(double x, double *out)
                 }
         }
 
-        // Truncate x to prevent overflow
+        /* Truncate x to prevent overflow */
         if(x > MAX_X){
                 y = 1.0;
                 *out = y;
@@ -229,7 +226,7 @@ int tld_sigmoid_safe(double x, double *out)
                 return OK;
         }
 
-        // Compute sigmoid in a numerically stable way
+        /* Compute sigmoid in a numerically stable way */
 
         if(x < 0.0){
                 y = exp(x);

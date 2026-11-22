@@ -18,7 +18,6 @@ static int checks(void)
         double* d = NULL;
 
         SECTION_MSG("1D galloc / gfree");
-        /* galloc(&f, 19); */
         galloc(&f, 1 << 24);           /* 64 MB: large, but sanitizer builds can run it */
         DEBUG_MSG("pointer: %p", (void *)f);
         for(int i = 0; i < 19;i++){

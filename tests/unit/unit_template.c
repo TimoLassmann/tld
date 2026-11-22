@@ -67,7 +67,6 @@ int main(int argc, char *argv[])
         OK_MSG("variables extracted");
         return EXIT_SUCCESS;
 ERROR:
-        /* LOG_MSG("FAIL"); */
         return EXIT_FAILURE;
 }
 
@@ -138,12 +137,9 @@ int test_get_vars_template(void)
         tld_strbuf* template = NULL;
         RUN(tld_strbuf_alloc(&template, 64));
 
-        /* tld_hash_init(&map, identifiers, replacements, 4); */
-        /* num_test_templates = 2; */
         for (int i = 0; i < num_test_templates; i++) {
                 tld_strbuf_clear(template);
                 RUN(tld_append(template, test_templates[i]));
-                /* const char *template = test_templates[i]; */
                 KV_MSG("template", "%s", TLD_STR(template));
                 if(tld_template_extract_var(template, &h) == OK){
                         RUN(tld_hash_iter_init(h));
@@ -151,7 +147,6 @@ int test_get_vars_template(void)
                         const char* value = NULL;
                         while(tld_hash_iterator_next(h, &key, &value) == OK){
                                 DEBUG_MSG("key %s value %s", key, value);
-                                /* LOG_MSG("Key: %s Value: %s", key, value); */
                         }
                         tld_hash_free(h);
 
@@ -160,7 +155,6 @@ int test_get_vars_template(void)
 
         }
         tld_strbuf_free(template);
-
 
         return OK;
 ERROR:
@@ -240,12 +234,9 @@ int test_new_template(void)
         RUN(tld_hash_add(&h, "is_student", "yes"));
         RUN(tld_hash_add(&h, "major", "Computer Science"));
 
-        /* tld_hash_init(&map, identifiers, replacements, 4); */
-        /* num_test_templates = 2; */
         for (int i = 0; i < num_test_templates; i++) {
                 tld_strbuf_clear(template);
                 RUN(tld_append(template, test_templates[i]));
-                /* const char *template = test_templates[i]; */
                 KV_MSG("template", "%s", TLD_STR(template));
                 if(tld_template_apply(template, h) != OK){
                         DEBUG_MSG("template %d rejected (some test templates are malformed on purpose)", i);

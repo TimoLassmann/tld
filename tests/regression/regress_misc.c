@@ -142,7 +142,6 @@ static int test_dir_create_tmp(void)
         return test_dir_create(tmp_dir);
 }
 
-
 /* The checks, in the order a plain run does them; arguments select by name. */
 static const struct {
         const char *name;

@@ -2,8 +2,6 @@
 #include "test.h"
 #include <stdio.h>
 
-
-
 int test_standardisation(void);
 int test_covariance(void);
 
@@ -88,7 +86,6 @@ int main(int argc, char *argv[])
         KV_MSG("var", "%f", var);
         gfree(vec);
 
-
         SECTION_MSG("standardisation");
         test_standardisation();
         SECTION_MSG("covariance");
@@ -127,20 +124,15 @@ ERROR:
 
 }
 
-
 int test_covariance(void)
 {
 
         struct rng_state* rng = NULL;
 
-
         double* v1 = NULL;
         double* v2 = NULL;
         double cov;
         int n = 10;
-
-
-
 
         RUN(init_rng(&rng, 43));
         galloc(&v1, n);
@@ -151,7 +143,6 @@ int test_covariance(void)
         }
 
         tld_pop_covariance(v1, v2, n, &cov);
-
 
         KV_MSG("pop cov", "%f", cov);
         tld_sample_covariance(v1, v2, n, &cov);
@@ -171,12 +162,10 @@ int test_covariance(void)
         DEBUG_MSG("vec_b <- c(%s)", line);
         DEBUG_MSG("cov(x = vec_a, y = vec_b)");
 
-
         gfree(v2);
         gfree(v1);
 
         free_rng(rng);
-
 
         return OK;
 ERROR:

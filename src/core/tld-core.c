@@ -11,8 +11,6 @@
 
 #define AT __FILE__ " line " tld_tostring(__LINE__)
 
-/* #define AT __FILE__ " line " tld_tostring(__LINE__) */
-
 tld_internal void vlog(uint8_t type,FILE* f_ptr,const char *file, int line,const char *format,  va_list argp);
 
 tld_internal int get_time(char* time_ptr, int size);
@@ -65,22 +63,14 @@ void vlog( uint8_t type, FILE* f_ptr,const char *file, int line,const char *form
 
 int get_time(char* time_ptr, int size)
 {
-        /* time_t timer = 0; */
-        /* struct tm* tm_info = NULL; */
-
-        /* timer = time(NULL); */
-        /* localtime_r(&timer, tm_info); */
 
         struct tm newtime;
         time_t ltime = 0;
-        /* char buf[50]; */
 
         ltime=time(&ltime);
         localtime_r(&ltime, &newtime);
 
-
         if(!strftime(time_ptr, size, "[%F %H:%M:%S] ", &newtime)){
-                /* ERROR_MSG("write failed"); */
                 fprintf(stderr,"%*s: ",TYPE_MARGIN,"ERROR ");
                 fprintf(stderr, "Could not get the time");
                 fprintf(stderr," (%s)\n",AT);

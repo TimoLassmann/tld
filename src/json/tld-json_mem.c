@@ -218,11 +218,9 @@ void tld_json_val_free(tld_json_val* n)
                         break;
                 case TLD_JSON_ARR:
                         tld_json_arr_free(n->value.arr);
-                        /* free space here !! */
                         break;
                 case TLD_JSON_OBJ:
                         tld_json_obj_free(n->value.obj);
-                        /* free object space here  */
                         break;
                 case TLD_JSON_UNDEF:
                         break;

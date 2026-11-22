@@ -5,7 +5,7 @@
 /* unit-logsum P ...: sum probabilities in scaled log space. */
 static int demo(int n, char **args)
 {
-        float acc = prob2scaledprob(0.0f);
+        float acc = -INFINITY;      /* log(0) */
         double direct = 0.0;
         SECTION_MSG("logsum over %d probabilities", n);
         for(int i = 0; i < n; i++){
@@ -14,13 +14,13 @@ static int demo(int n, char **args)
                 if(end == args[i] || *end || p < 0.0){
                         ERROR_MSG("not a probability: %s", args[i]);
                 }
-                float s = prob2scaledprob((float)p);
+                float s = logf((float)p);
                 acc = logsum(acc, s);
                 direct += p;
                 KV_MSG(args[i], "scaled %f", s);
-                DEBUG_MSG("running sum %f", scaledprob2prob(acc));
+                DEBUG_MSG("running sum %f", expf(acc));
         }
-        fprintf(stdout, "logsum:  %f\n", scaledprob2prob(acc));
+        fprintf(stdout, "logsum:  %f\n", expf(acc));
         fprintf(stdout, "direct:  %f\n", direct);
         OK_MSG("done");
         return OK;
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 {
         test_init(&argc, argv, "[P ...]",
                   "With no arguments: adds 0.4 + 0.4 with logsum in scaled log space.\n"
-                  "With P ...: converts each probability with prob2scaledprob, sums them with\n"
+                  "With P ...: converts each probability with logf, sums them with\n"
                   "logsum and prints the result next to the plain sum.\n"
                   "Example: unit-logsum 0.1 0.25 0.3");
         init_logsum();
@@ -45,10 +45,10 @@ int main(int argc, char *argv[])
         ASSERT(1 != 0,"How odd");
 
         SECTION_MSG("logsum(0.4, 0.4)");
-        a = prob2scaledprob(0.4f);
-        b = prob2scaledprob(0.4f);
+        a = logf(0.4f);
+        b = logf(0.4f);
 
-        KV_MSG("sum", "%f", scaledprob2prob(logsum(a, b)));
+        KV_MSG("sum", "%f", expf(logsum(a, b)));
         OK_MSG("done");
         return EXIT_SUCCESS;
 ERROR:

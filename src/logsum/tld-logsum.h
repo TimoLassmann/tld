@@ -13,12 +13,6 @@ tld_external void init_logsum(void);
  * more. */
 tld_external float logsum(const float a,const float b);
 
-/* log(p), with -INFINITY for p == 0. */
-tld_external float prob2scaledprob(float p);
-
-/* exp(p), with 0 for p == -INFINITY. */
-tld_external float scaledprob2prob(float p);
-
 /* 1 if a and b are equal up to a relative difference of FLT_EPSILON / DBL_EPSILON (an
  * absolute one when either is 0 or both are tiny), else 0. */
 tld_external int nearly_equal_float(float a, float b);

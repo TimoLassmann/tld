@@ -72,7 +72,6 @@ ERROR:
         return EXIT_FAILURE;
 }
 
-
 int auc_test(void)
 {
         double pred[] = {
@@ -149,7 +148,6 @@ int auc_test(void)
         tld_auc_best_threshold(labels, pred, n,&thres);
         KV_MSG("AUC", "%f threshold %f", auc, thres);
 
-
         int n_error = 0;
         int n_error_test  = 0;
         struct rng_state* rng = NULL;
@@ -174,7 +172,6 @@ int auc_test(void)
                         }
                 }
                 if(n_error_test < n_error){
-                        /* LOG_MSG("Threshold %f is better", t); */
                 }
         }
         free_rng(rng);

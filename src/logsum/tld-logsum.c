@@ -42,28 +42,6 @@ float logsum(const float a,const float b)
         return  max+ logsum_lookup[(int)((max-min)*SCALE)];
 }
 
-float prob2scaledprob(float p)
-{
-        float r = 0.0F;
-        if( TLSAFE_EQ(p, 0.0F)){
-                r = -INFINITY;
-        }else{
-                r = logf(p);
-        }
-        return r;
-}
-
-float scaledprob2prob(float p)
-{
-        float r = 0.0F;
-        if( TLSAFE_EQ(p, -INFINITY)){
-                r = 0.0F;
-        }else{
-                r = expf(p);
-        }
-        return r;
-}
-
 int nearly_equal_float(float a, float b)
 {
         const float min = FLT_MIN;

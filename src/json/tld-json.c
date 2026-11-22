@@ -41,7 +41,6 @@ static int json_val_set_str(tld_json_val *v, const char *s, int len);
 static void json_val_set_int64(tld_json_val *v, long long x);
 static int json_val_from_decoration(tld_json_val *v, tld_json_decoration *d);
 
-static int print_val(tld_json_val *val, FILE *out);
 static int search(tld_json_obj *n, char *key, tld_json_obj* r);
 
 /* parser */
@@ -1557,86 +1556,4 @@ int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b,int indent)
         return OK;
 ERROR:
         return FAIL;
-}
-
-int print_val(tld_json_val *val, FILE *out)
-{
-        if(out == NULL){
-                out = stdout;
-        }
-        switch (val->type) {
-        case TLD_JSON_DBL:
-                fprintf(out,"%f\n",val->value.d_num);
-                break;
-        case TLD_JSON_INT:
-                fprintf(out,"%d\n",val->value.i_num);
-                break;
-        case TLD_JSON_BOOL_TRUE:
-                fprintf(out,"%s","TRUE");
-                break;
-        case TLD_JSON_BOOL_FALSE:
-                fprintf(out,"%s","FALSE");
-                break;
-        case TLD_JSON_STR:
-                fprintf(out,"%s", TLD_STR(val->value.str));
-                break;
-        case TLD_JSON_UNDEF:
-                fprintf(out,"%s","null");
-                break;
-        case TLD_JSON_ARR:
-                ERROR_MSG("This should never happen - ARR");
-                break;
-        case TLD_JSON_OBJ:
-                ERROR_MSG("This should never happen - OBJ");
-                break;
-        }
-        return OK;
-ERROR:
-        return FAIL;
-}
-
-int tld_json_obj_print(tld_json_obj *n, FILE *out)
-{
-        if(out == NULL){
-                out = stdout;
-        }
-        if(n){
-                fprintf(out,"Object:\n");
-                for(int i = 0; i < n->n;i++){
-                        fprintf(out,"NAME: %s\n",TLD_STR(n->key[i]));
-                        if(n->v[i]->type == TLD_JSON_ARR){
-                                tld_json_arr_print(n->v[i]->value.arr, out);
-                        }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                tld_json_obj_print(n->v[i]->value.obj, out);
-                        }else{
-
-                                fprintf(out,"  %s : ", TLD_STR(n->key[i]));
-                                print_val(n->v[i],out);
-                                fprintf(out,"\n");
-                        }
-                }
-        }
-        return OK;
-}
-
-int tld_json_arr_print(tld_json_arr *n, FILE *out)
-{
-        if(out == NULL){
-                out = stdout;
-        }
-        if(n){
-
-                fprintf(out,"ARRAY:\n");
-                for(int i = 0; i < n->n;i++){
-                        if(n->v[i]->type == TLD_JSON_ARR){
-                                tld_json_arr_print(n->v[i]->value.arr, out);
-                        }else if(n->v[i]->type == TLD_JSON_OBJ){
-                                tld_json_obj_print(n->v[i]->value.obj, out);
-                        }else{
-                                print_val(n->v[i],out);;
-                                fprintf(out,"\n");
-                        }
-                }
-        }
-        return OK;
 }

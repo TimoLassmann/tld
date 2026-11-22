@@ -44,12 +44,12 @@ ERROR:
 static int test_logsum_values(void)
 {
         /* deliberately no init_logsum() before this point */
-        float h = prob2scaledprob(0.5F);
+        float h = logf(0.5F);
         float r = logsum(h, h);
         ASSERT(fabsf(r) < 1e-3F, "logsum(log .5, log .5) = %f, expected 0", (double)r);
 
-        r = logsum(prob2scaledprob(0.25F), prob2scaledprob(0.5F));
-        ASSERT(fabsf(scaledprob2prob(r) - 0.75F) < 1e-3F, "0.25 + 0.5 = %f", (double)scaledprob2prob(r));
+        r = logsum(logf(0.25F), logf(0.5F));
+        ASSERT(fabsf(expf(r) - 0.75F) < 1e-3F, "0.25 + 0.5 = %f", (double)expf(r));
 
         init_logsum();
         init_logsum();
@@ -69,7 +69,7 @@ ERROR:
 static void *thread_fn(void *arg)
 {
         int *ok = arg;
-        float h = prob2scaledprob(0.5F);
+        float h = logf(0.5F);
         *ok = 1;
         for (int i = 0; i < 1000; i++) {
                 init_logsum();

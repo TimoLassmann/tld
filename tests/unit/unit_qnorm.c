@@ -65,7 +65,6 @@ ERROR:
         return EXIT_FAILURE;
 }
 
-
 int qnorm_test(void)
 {
         double** data = NULL;
@@ -110,7 +109,6 @@ ERROR:
 int qnorm_big_test(void)
 {
         struct rng_state* rng = NULL;
-
 
         double** data = NULL;
 

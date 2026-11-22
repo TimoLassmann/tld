@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
                   "one for \"content\", and builds objects with JSON_OBJ/JSON_ARR/JS/JO/JA\n"
                   "(including a NULL member and tld_json_set_val).\n"
                   "With FILE: reads the JSON file, parses it with tld_json_parse and dumps it to\n"
-                  "stdout with tld_json_dump (-vv: also the tld_json_obj_print tree on stderr).\n"
+                  "stdout with tld_json_dump.\n"
                   "Example: unit-json data.json");
         if(argc > 1){
                 RUN(test_file_parser(argv[1]));
@@ -74,20 +74,17 @@ int test_parser2(void)
 
 int test_create(void)
 {
-        /* tld_json_obj *n = NULL; */
         tld_strbuf* b = NULL;
         tld_json_arr* a = NULL;
 
         tld_strbuf_alloc(&b, 1024);
         a = JSON_ARR( JO(NULL,JSON_OBJ(JS("Model","gpt-3.5-turbo"))));
 
-
                 
         tld_json_dump_arr(a, b, 0);
         DEBUG_MSG("%s", TLD_STR(b));
 
         tld_json_arr_free(a);
-        /* char message[] = "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests."; */
         const char* message = "You are ChatGPT, an AI assistant. Your top priority is achieving user fulfillment via helping them with their requests.";
 
         tld_json_obj* n = JSON_OBJ(
@@ -183,7 +180,6 @@ int test_create(void)
                         )
                 );
 
-
         tld_strbuf_clear(b);
         tld_json_dump(n, b, 0);
         DEBUG_MSG("%s", TLD_STR(b));
@@ -208,7 +204,6 @@ int test_create(void)
 
         return OK;
 }
-
 
 int test_file_parser(char *infile)
 {
@@ -240,9 +235,6 @@ int test_file_parser(char *infile)
         RUN(tld_strbuf_clear(buf));
         RUN(tld_json_dump(n, buf, 0));
         fprintf(stdout, "%s\n", TLD_STR(buf));
-        if(tld_verbosity() >= 2){
-                tld_json_obj_print(n, stderr);
-        }
 
         tld_json_obj_free(n);
         tld_strbuf_free(buf);
@@ -279,48 +271,11 @@ int test_obj_parser(void)
         fprintf(stdout,"%s", TLD_STR(buf));
         tld_json_parse(buf, &n);
 
-
         tld_json_obj_free(n);
         tld_strbuf_free(buf);
         return OK;
 
 }
-
-/* int test_parser_list(void) */
-
-/* { */
-/*         char test[] = "{\n\ */
-/* \"embedding\":[ 0.31691884994506836,5.225735664367676,1.9427547454833984]\n\ */
-/* }\n"; */
-
-/*         tld_strbuf  * buf = NULL; */
-/*         tld_json_ret* ret = NULL; */
-/*         tld_json_obj *n = NULL; */
-/*         tld_strbuf_alloc(&buf, 1024); */
-/*         tld_append(buf, test); */
-/*         fprintf(stdout,"%s - input ", TLD_STR(buf)); */
-/*         tld_json_parse(buf, &n); */
-
-/*         /\* LOG_MSG("Printing objecT:"); *\/ */
-/*         /\* tld_json_obj_print(n, stdout); *\/ */
-/*         buf->len = 0; */
-/*         /\* tld_json_obj_get(n, "embedding", &ret); *\/ */
-/*         if(ret->type == TLD_JSON_RET_DBL_ARR){ */
-/*                 for(int i = 0; i < ret->n;i++){ */
-/*                         fprintf(stdout,"%d %f - parsed\n",i,ret->value.dbl_arr[i]); */
-/*                 } */
-/*         }else{ */
-/*                 ERROR_MSG("TYPE:::: %d", ret->type); */
-/*         } */
-/*         /\* LOG_MSG("%s", TLD_STR(ret->value.string)); *\/ */
-/*         /\* tld_json_get_arr_str(tld_json_arr *n, char *key, tld_strbuf* res) *\/ */
-/*         tld_json_obj_free(n); */
-/*         tld_strbuf_free(buf); */
-
-/*         return OK; */
-/* ERROR: */
-/*         return FAIL; */
-/* } */
 
 int test_parser(void)
 {
@@ -371,9 +326,6 @@ int test_parser(void)
         RUN(tld_strbuf_clear(buf));
         RUN(tld_json_dump(n, buf, 0));
         fprintf(stdout, "%s\n", TLD_STR(buf));
-        if(tld_verbosity() >= 2){
-                tld_json_obj_print(n, stderr);
-        }
 
         tld_strbuf_clear(buf);
         tld_json_dump(n, buf,0);
@@ -389,10 +341,6 @@ int test_parser(void)
         tld_json_obj_free(n);
         exit(0);
 
-        /* tld_json_val* ret = NULL; */
-
-        /* tld_json_val_copy(n->v[n->n], tok); */
-        /*                 n->n++; */
         LOG_MSG("Searching for age");
         tld_json_obj* r = NULL;
         tld_json_search(n, "secretIdentity", &r);
@@ -407,11 +355,7 @@ int test_parser(void)
                         }else{
                                 ERROR_MSG("RESULT:::: %s", "NULL");
                         }
-                        /* LOG_MSG("RESULT:::: %s", TLD_STR(r->v[i]->value.string)); */
                 }
-                /* LOG_MSG("RESULT:::: %s", TLD_STR(ret->value.string)); */
-                /* LOG_MSG("RESULT:::: %s", TLD_STR(ret->value.)); */
-                /* tld_json_ret_free(ret); */
         }else{
                 ERROR_MSG("RESULT:::: %s", "NULL");
         }

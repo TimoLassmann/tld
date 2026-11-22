@@ -47,7 +47,6 @@ int tld_hash_alloc(tld_hash **hash, int size)
            error path never walks a missing table */
         h->table_size = 0;
         h->table = NULL;
-        // Initialize the map with a default size
 
         h->n = 0;
 
@@ -55,7 +54,7 @@ int tld_hash_alloc(tld_hash **hash, int size)
         h->cur_entry = NULL;
 
         MMALLOC(h->table, sizeof(tld_hash_entry*) * new_size);
-        h->table_size = new_size; // Choose an appropriate size
+        h->table_size = new_size;
         for (int i = 0; i < h->table_size; i++) {
                 h->table[i] = NULL;
         }
@@ -135,12 +134,12 @@ int tld_hash_resize(tld_hash *h)
         MMALLOC(new_table, sizeof(tld_hash_entry*) * new_size);
         if (!new_table) return FAIL;
 
-        // Initialize new table
+        /* Initialize new table */
         for (int i = 0; i < new_size; i++) {
                 new_table[i] = NULL;
         }
 
-        // Rehash all existing entries
+        /* Rehash all existing entries */
         for (int i = 0; i < h->table_size; i++) {
                 tld_hash_entry *entry = h->table[i];
                 while (entry) {
@@ -152,11 +151,11 @@ int tld_hash_resize(tld_hash *h)
                 }
         }
 
-        // Replace old table with new table
+        /* Replace old table with new table */
         MFREE(h->table);
         h->table = new_table;
         h->table_size = new_size;
-        h->n_rep++; // Optionally track number of resizes
+        h->n_rep++;
         return OK;
 ERROR:
         return FAIL;
@@ -201,16 +200,15 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
 
         ASSERT(h != NULL, "No Map");
 
-        // Check load factor
         double load_factor = (double)h->n / (double)h->table_size;
 
         if (load_factor > LOAD_FACTOR_THRESHOLD) {
-                RUN(tld_hash_resize(h)); // Double the table size
+                RUN(tld_hash_resize(h));
         }
 
         unsigned int index = fnv1a_hash(key, h->table_size);
 
-        // Check if key already exists
+        /* Check if key already exists */
         tld_hash_entry* current = h->table[index];
         while (current) {
                 if (strcmp(TLD_STR(current->key), key) == 0) {
@@ -220,7 +218,7 @@ int tld_hash_add(tld_hash **hash, const char *key, const char *val)
                 current = current->next;
         }
 
-        // Key does not exist, create a new entry
+        /* Key does not exist, create a new entry */
         RUN(tld_hash_entry_alloc(&new_entry));
 
         RUN(tld_append(new_entry->key, key));
@@ -242,7 +240,7 @@ ERROR:
 
 int tld_hash_get(tld_hash *h, const char *key, const char **val)
 {
-        ASSERT(h != NULL, "No Map!!");
+        ASSERT(h != NULL, "No hash");
         ASSERT(key != NULL, "No key");
 
         unsigned int index = fnv1a_hash(key, h->table_size);
@@ -256,7 +254,7 @@ int tld_hash_get(tld_hash *h, const char *key, const char **val)
                 entry = entry->next;
         }
 
-        *val = NULL; // Key not found
+        *val = NULL;
         return FAIL;
 ERROR:
         return FAIL;
@@ -264,7 +262,7 @@ ERROR:
 
 int tld_hash_del(tld_hash *h, const char *key)
 {
-        ASSERT(h != NULL, "No Map!!");
+        ASSERT(h != NULL, "No hash");
         ASSERT(key != NULL, "No key");
 
         unsigned int index = fnv1a_hash(key, h->table_size);
@@ -278,11 +276,7 @@ int tld_hash_del(tld_hash *h, const char *key)
                         }else{
                                 h->table[index] = entry->next;
                         }
-                        // Free the entry
                         tld_hash_entry_free(entry);
-                        /* tld_strbuf_free(entry->key); */
-                        /* tld_strbuf_free(entry->value); */
-                        /* MFREE(entry); */
                         h->n--;
                         return OK;
                 }
@@ -290,14 +284,14 @@ int tld_hash_del(tld_hash *h, const char *key)
                 entry = entry->next;
         }
 
-        return FAIL; // Key not found
+        return FAIL;
 ERROR:
         return FAIL;
 }
 
 int tld_hash_rename(tld_hash *h, const char *key, const char *new_key) {
         tld_strbuf* tmp = NULL;
-        ASSERT(h != NULL, "No Map!!");
+        ASSERT(h != NULL, "No hash");
         ASSERT(key != NULL, "No key");
         ASSERT(new_key != NULL, "No new key");
 
@@ -321,7 +315,7 @@ int tld_hash_rename(tld_hash *h, const char *key, const char *new_key) {
                 entry = entry->next;
         }
 
-        return FAIL; // Key not found
+        return FAIL;
 ERROR:
         tld_strbuf_free(tmp);
         return FAIL;
@@ -336,7 +330,7 @@ int tld_hash_iter_init(tld_hash *h)
                 h->cur_index++;
         }
 
-        // Set current_entry to the first non-null entry if found.
+        /* Set current_entry to the first non-null entry if found. */
         if(h->cur_index < h->table_size){
                 h->cur_entry = h->table[h->cur_index];
         }
@@ -351,20 +345,19 @@ int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value)
         ASSERT(key != NULL, "Key pointer is NULL");
         ASSERT(value != NULL, "Value pointer is NULL");
 
-        // If there is no current entry, return 0 (no more entries).
+        /* If there is no current entry, return 0 (no more entries). */
         if (h->cur_entry == NULL) {
                 return FAIL;
         }
 
-        // Set the output key and value.
         *key = TLD_STR(h->cur_entry->key);
         *value = TLD_STR(h->cur_entry->value);
 
-        // Move to the next entry in the current linked list.
+        /* Move to the next entry in the current linked list. */
         h->cur_entry = h->cur_entry->next;
 
 
-        // If the current entry is NULL, move to the next index in the table.
+        /* If the current entry is NULL, move to the next index in the table. */
         while(h->cur_entry == NULL && h->cur_index + 1 < h->table_size){
                 h->cur_index++;
                 h->cur_entry = h->table[h->cur_index];
@@ -373,20 +366,6 @@ int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value)
         return OK;
 ERROR:
         return FAIL;
-}
-
-int tld_hash_print(tld_hash *h)
-{
-        if(h){
-                for(int i = 0; i < h->table_size; i++){
-                        tld_hash_entry* entry = h->table[i];
-                        while(entry){
-                                fprintf(stdout,"%s: %s\n", TLD_STR(entry->key), TLD_STR(entry->value));
-                                entry = entry->next;
-                        }
-                }
-        }
-        return OK;
 }
 
 #undef LOAD_FACTOR_THRESHOLD

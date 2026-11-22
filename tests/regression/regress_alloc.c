@@ -268,7 +268,6 @@ ERROR:
         return FAIL;
 }
 
-
 /* MACRO_MIN / MACRO_MAX evaluate each argument once (they used to evaluate the
  * chosen one twice), keep the usual arithmetic conversions, and nest. */
 static int test_minmax(void)

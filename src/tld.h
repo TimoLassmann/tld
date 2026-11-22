@@ -17,7 +17,7 @@
 #ifndef TLD_H
 #define TLD_H
 
-/* Let's include a number of standard headers I commonly use  */
+/* Standard headers the library and most programs using it need. */
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>

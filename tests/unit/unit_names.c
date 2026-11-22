@@ -1,7 +1,8 @@
 /* unit-names: every public function and macro of tld (as of 961795c, minus the removed
  * seq/ and hdf5/ modules) must still exist. This file fails to compile or link if one is
  * lost or renamed. Generated from scratch/modernisation/baseline; edit by hand when a name
- * is deliberately ADDED (names are never removed). */
+ * is deliberately added or removed (the unused tld_str type, its functions and the debug
+ * printers were removed on the modernisation branch). */
 #include "tld.h"
 #include "test.h"
 #include <stdio.h>
@@ -167,12 +168,6 @@ static const struct name_fn fns[] = {
         F(init_logsum),
         F(init_rng),
         F(init_rng_from_rng),
-        F(is_close_arr),
-        F(is_close_obj),
-        F(is_colon),
-        F(is_comma),
-        F(is_open_arr),
-        F(is_open_obj),
         F(json_arr_add_multiple),
         F(json_obj_add_multiple),
         F(kddist_euclidian),
@@ -180,8 +175,6 @@ static const struct name_fn fns[] = {
         F(kdtree_alloc),
         F(kdtree_bf_search),
         F(kdtree_build),
-        F(kdtree_debug_chk),
-        F(kdtree_debug_print),
         F(kdtree_free),
         F(kdtree_insert),
         F(kdtree_nn_search),
@@ -191,8 +184,6 @@ static const struct name_fn fns[] = {
         F(nearly_equal_double),
         F(nearly_equal_float),
         F(norm_quantile),
-        F(prob2scaledprob),
-        F(scaledprob2prob),
         F(set_exec_time),
         F(sort_asc_char),
         F(sort_asc_double),
@@ -238,7 +229,6 @@ static const struct name_fn fns[] = {
         F(tld_auc_best_threshold),
         F(tld_auc_calculate),
         F(tld_capture_cmd_line),
-        F(tld_char_to_str),
         F(tld_dir_create),
         F(tld_dir_exists),
         F(tld_file_exists),
@@ -253,13 +243,11 @@ static const struct name_fn fns[] = {
         F(tld_hash_get),
         F(tld_hash_iter_init),
         F(tld_hash_iterator_next),
-        F(tld_hash_print),
         F(tld_hash_rename),
         F(tld_json_arr_alloc),
         F(tld_json_arr_chk_space),
         F(tld_json_arr_copy),
         F(tld_json_arr_free),
-        F(tld_json_arr_print),
         F(tld_json_arr_realloc),
         F(tld_json_dump),
         F(tld_json_dump_arr),
@@ -267,7 +255,6 @@ static const struct name_fn fns[] = {
         F(tld_json_obj_chk_space),
         F(tld_json_obj_copy),
         F(tld_json_obj_free),
-        F(tld_json_obj_print),
         F(tld_json_obj_realloc),
         F(tld_json_parse),
         F(tld_json_search),
@@ -283,7 +270,6 @@ static const struct name_fn fns[] = {
         F(tld_pearson_corr),
         F(tld_pop_covariance),
         F(tld_pop_variance),
-        F(tld_prefix_match),
         F(tld_prepend),
         F(tld_rng_set_seed),
         F(tld_sample_covariance),
@@ -303,15 +289,10 @@ static const struct name_fn fns[] = {
         F(tld_sigmoid),
         F(tld_sigmoid_safe),
         F(tld_standardise),
-        F(tld_str_alloc),
-        F(tld_str_free),
         F(tld_strbuf_alloc),
         F(tld_strbuf_clear),
         F(tld_strbuf_copy),
         F(tld_strbuf_free),
-        F(tld_strbuf_to_str),
-        F(tld_strmk),
-        F(tld_suffix_match),
         F(tld_template_apply),
         F(tld_template_extract_var),
         F(tld_thread_pool_add),
@@ -326,7 +307,7 @@ int main(int argc, char *argv[])
         const size_t nf = sizeof fns / sizeof fns[0];
         (void)vars;
         test_init(&argc, argv, "[PATTERN ...]",
-                  "With no arguments: checks that all 158 public functions and 48 public macros\n"
+                  "With no arguments: checks that all 138 public functions and 48 public macros\n"
                   "of tld exist (a lost or renamed one fails the compile or the link).\n"
                   "With PATTERNs: lists the public functions whose name contains any PATTERN.\n"
                   "Example: unit-names hash json_parse");
@@ -351,8 +332,8 @@ int main(int argc, char *argv[])
         }
         KV_MSG("functions", "%d", n);
         KV_MSG("macros", "48");
-        if (n != 158) {
-                fprintf(stderr, "unit-names: %d functions, expected 158\n", n);
+        if (n != 138) {
+                fprintf(stderr, "unit-names: %d functions, expected 138\n", n);
                 return EXIT_FAILURE;
         }
         OK_MSG("%d functions and 48 macros present", n);

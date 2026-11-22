@@ -20,15 +20,15 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [Licence](#sec-licence)
 - [core](#mod-core): 30 symbols (`src/core/tld-core.h`)
 - [alloc](#mod-alloc): 19 symbols (`src/alloc/tld-alloc.h`)
-- [string](#mod-string): 18 symbols (`src/string/str.h`)
+- [string](#mod-string): 10 symbols (`src/string/str.h`)
 - [misc](#mod-misc): 7 symbols (`src/misc/misc.h`)
 - [timing](#mod-timing): 3 symbols (`src/timing/tld-timing.h`)
 - [bitfield](#mod-bitfield): 10 symbols (`src/data/bitfield.h`)
-- [hash](#mod-hash): 10 symbols (`src/hash/hash.h`)
+- [hash](#mod-hash): 9 symbols (`src/hash/hash.h`)
 - [json types](#mod-json-types): 5 symbols (`src/json/tld-json_struct.h`)
 - [json memory](#mod-json-memory): 13 symbols (`src/json/tld-json_mem.h`)
-- [json](#mod-json): 25 symbols (`src/json/tld-json.h`)
-- [json misc](#mod-json-misc): 7 symbols (`src/json/tld-json_misc.h`)
+- [json](#mod-json): 23 symbols (`src/json/tld-json.h`)
+- [json misc](#mod-json-misc): 1 symbol (`src/json/tld-json_misc.h`)
 - [template](#mod-template): 2 symbols (`src/template/template.h`)
 - [rng](#mod-rng): 13 symbols (`src/rng/tld-rng.h`)
 - [sort](#mod-sort): 25 symbols (`src/sort/tld-sort.h`)
@@ -36,8 +36,8 @@ Every public symbol of tld.h is documented below, module by module, with its dec
 - [stats](#mod-stats): 13 symbols (`src/stats/basic.h`)
 - [norm_quantile](#mod-norm_quantile): 1 symbol (`src/stats/norm_quantile.h`)
 - [auc](#mod-auc): 3 symbols (`src/stats/auc.h`)
-- [logsum](#mod-logsum): 7 symbols (`src/logsum/tld-logsum.h`)
-- [kdtree](#mod-kdtree): 14 symbols (`src/kdtree/tld-kdtree.h`)
+- [logsum](#mod-logsum): 5 symbols (`src/logsum/tld-logsum.h`)
+- [kdtree](#mod-kdtree): 12 symbols (`src/kdtree/tld-kdtree.h`)
 - [tpool](#mod-tpool): 8 symbols (`src/tpool/tpool.h`)
 - [Index](#index)
 
@@ -575,22 +575,7 @@ Dispatch from galloc to XGALLOC_ARGS_<number of arguments>. Use galloc.
 
 ## string
 
-`src/string/str.h`: Tld_strbuf, a growable NUL-terminated byte buffer (append, prepend, copy), and tld_str, a pointer-and-length string with prefix and suffix tests. Inspired by the rayfork str code by Sas Luca.
-
-<a id="tld_str"></a>
-
-### `tld_str`
-
-```c
-typedef struct tld_string {
-        uint8_t* str;
-        int32_t len;
-} tld_str;
-```
-
-A string as pointer and length: len bytes at str. Owned when made by tld_strmk or
-tld_str_alloc (free with tld_str_free); a borrowed view when made by
-tld_strbuf_to_str or tld_char_to_str (never free).
+`src/string/str.h`: Tld_strbuf, a growable NUL-terminated byte buffer (append, prepend, copy). Inspired by the rayfork str code by Sas Luca.
 
 <a id="tld_strbuf"></a>
 
@@ -619,8 +604,8 @@ with an error and leaves the buffer unchanged.
 #define TLD_STRLEN(X) (X)->len
 ```
 
-TLD_STR(x): the contents of a tld_strbuf * or tld_str * as char *; TLD_STRLEN(x): its
-length in bytes.
+TLD_STR(b): the contents of the tld_strbuf * b as char *; TLD_STRLEN(b): its length in
+bytes.
 
 <a id="tld_strbuf_alloc"></a>
 
@@ -642,38 +627,6 @@ tld_external void tld_strbuf_free(tld_strbuf *b);
 ```
 
 Free a buffer; NULL is ignored.
-
-<a id="tld_str_alloc"></a>
-
-### `tld_str_alloc`
-
-```c
-tld_external int tld_str_alloc(tld_str **string, int size);
-```
-
-A new tld_str in *string with a zeroed buffer of size bytes and len = size. Free
-with tld_str_free.
-
-<a id="tld_str_free"></a>
-
-### `tld_str_free`
-
-```c
-tld_external void tld_str_free(tld_str *a);
-```
-
-Free a tld_str made by tld_strmk or tld_str_alloc; NULL is ignored.
-
-<a id="tld_strmk"></a>
-
-### `tld_strmk`
-
-```c
-tld_external int tld_strmk(tld_str **string,const char *src);
-```
-
-A new tld_str in *string holding a NUL-terminated copy of src (len = strlen(src)).
-Free with tld_str_free.
 
 <a id="tld_strbuf_clear"></a>
 
@@ -724,38 +677,6 @@ tld_external int tld_prepend(tld_strbuf *b, const char *content);
 ```
 
 Insert the NUL-terminated string content at the start of b.
-
-<a id="tld_suffix_match"></a><a id="tld_prefix_match"></a>
-
-### `tld_suffix_match`, `tld_prefix_match`
-
-```c
-tld_external int tld_suffix_match(tld_str t, tld_str s);
-tld_external int tld_prefix_match(tld_str t, tld_str s);
-```
-
-1 if t ends with s (tld_suffix_match) or starts with s (tld_prefix_match), else 0.
-A boolean, not OK/FAIL.
-
-<a id="tld_strbuf_to_str"></a>
-
-### `tld_strbuf_to_str`
-
-```c
-tld_external tld_str tld_strbuf_to_str(tld_strbuf s);
-```
-
-A borrowed tld_str view of the buffer's current contents: tld_strbuf_to_str(*b).
-
-<a id="tld_char_to_str"></a>
-
-### `tld_char_to_str`
-
-```c
-tld_external tld_str tld_char_to_str(char* s);
-```
-
-A borrowed tld_str view of the C string s (len = strlen(s)).
 
 <a id="mod-misc"></a>
 
@@ -1074,16 +995,6 @@ RUN(tld_hash_iter_init(h));
 while(tld_hash_iterator_next(h, &k, &v) == OK){ ... }
 ```
 
-<a id="tld_hash_print"></a>
-
-### `tld_hash_print`
-
-```c
-tld_external  int tld_hash_print(tld_hash *h);
-```
-
-Print every entry as "key: value" lines to stdout.
-
 <a id="mod-json-types"></a>
 
 ## json types
@@ -1142,7 +1053,6 @@ typedef struct tld_json_obj{
         int n;
         int n_alloc;
 
-        /* tld_json_node* next; */
 } tld_json_obj;
 ```
 
@@ -1460,22 +1370,11 @@ Append n as JSON text to b (b is not cleared): 4 spaces of indentation per level
 top of indent (pass 0), strings escaped, doubles with the fewest of 15 to 17 significant
 digits that read back exactly, inf/nan as null. A NULL n appends nothing.
 
-<a id="tld_json_obj_print"></a><a id="tld_json_arr_print"></a>
-
-### `tld_json_obj_print`, `tld_json_arr_print`
-
-```c
-EXTERN int tld_json_obj_print(tld_json_obj *n, FILE *out);
-EXTERN int tld_json_arr_print(tld_json_arr *n, FILE *out);
-```
-
-Debug listing of the tree (not JSON) to out, or stdout when out is NULL.
-
 <a id="mod-json-misc"></a>
 
 ## json misc
 
-`src/json/tld-json_misc.h`: Type guessing for unquoted text (used by JS) and token tests kept from the old tokenising parser.
+`src/json/tld-json_misc.h`: Type guessing for unquoted text (used by JS).
 
 <a id="detect_type"></a>
 
@@ -1489,22 +1388,6 @@ The JSON type the len characters at s would get from JS, into *type: TLD_JSON_IN
 TLD_JSON_DBL when the whole text is a number ([+-]digits[.digits][e[+-]digits]),
 TLD_JSON_BOOL_TRUE / _FALSE for true, True, TRUE / false, False, FALSE, otherwise
 TLD_JSON_STR (also for empty text). Always OK.
-
-<a id="is_open_obj"></a><a id="is_close_obj"></a><a id="is_open_arr"></a><a id="is_close_arr"></a><a id="is_colon"></a><a id="is_comma"></a>
-
-### `is_open_obj`, `is_close_obj`, `is_open_arr`, `is_close_arr`, `is_colon`, `is_comma`
-
-```c
-EXTERN int is_open_obj(tld_json_val *v);
-EXTERN int is_close_obj(tld_json_val *v);
-EXTERN int is_open_arr(tld_json_val *v);
-EXTERN int is_close_arr(tld_json_val *v);
-EXTERN int is_colon(tld_json_val *v);
-EXTERN int is_comma(tld_json_val *v);
-```
-
-1 if v is a string value consisting of exactly that one character ({, }, [, ], :
-or ,), else 0.
 
 <a id="mod-template"></a>
 
@@ -2006,26 +1889,6 @@ log(exp(a) + exp(b)) for log-space values, from a table with steps of 0.001. NaN
 either is NaN; -INFINITY acts as log(0); returns max(a, b) when they differ by 15.7 or
 more.
 
-<a id="prob2scaledprob"></a>
-
-### `prob2scaledprob`
-
-```c
-tld_external float prob2scaledprob(float p);
-```
-
-log(p), with -INFINITY for p == 0.
-
-<a id="scaledprob2prob"></a>
-
-### `scaledprob2prob`
-
-```c
-tld_external float scaledprob2prob(float p);
-```
-
-exp(p), with 0 for p == -INFINITY.
-
 <a id="nearly_equal_float"></a><a id="nearly_equal_double"></a>
 
 ### `nearly_equal_float`, `nearly_equal_double`
@@ -2067,7 +1930,6 @@ typedef struct kd_node {
         double* p;
         struct kd_node* left;
         struct kd_node* right;
-        /* int split; */
         uint32_t id;
         int n;
 } kd_node;
@@ -2081,7 +1943,6 @@ A tree node: p is the point (n doubles, owned by the tree), id the caller's id.
 
 ```c
 typedef struct kdtree {
-        /* kd_node* root; */
         kd_node* root;
         struct kdyard* yard;
         int(*fptr_cmp)(double*, double*, int, double*);
@@ -2210,19 +2071,6 @@ OK when the squared distance between a and b along dimension cd is below min_dis
 (the far side of the splitting plane may hold a nearer point), FAIL otherwise. The
 default fptr_plane.
 
-<a id="kdtree_debug_chk"></a><a id="kdtree_debug_print"></a>
-
-### `kdtree_debug_chk`, `kdtree_debug_print`
-
-```c
-tld_external void kdtree_debug_chk(kd_node *n, int depth);
-tld_external void kdtree_debug_print(kd_node *n, int depth);
-```
-
-Debugging: print the subtree under n (pass t->root, depth 0) to stderr, as split
-values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). A NULL
-n prints nothing.
-
 <a id="mod-tpool"></a>
 
 ## tpool
@@ -2265,7 +2113,6 @@ typedef struct tld_thread_pool {
         int64_t* thread_id_map;
         int thread_id_idx;
         int n_working;
-        /* int n_work; */
         int stop;
         double maxtime;
         time_t internal_time;
@@ -2350,12 +2197,6 @@ is ignored.
 | [`init_logsum`](#init_logsum) | function | [logsum](#mod-logsum) |
 | [`init_rng`](#init_rng) | function | [rng](#mod-rng) |
 | [`init_rng_from_rng`](#init_rng_from_rng) | function | [rng](#mod-rng) |
-| [`is_close_arr`](#is_close_arr) | function | [json misc](#mod-json-misc) |
-| [`is_close_obj`](#is_close_obj) | function | [json misc](#mod-json-misc) |
-| [`is_colon`](#is_colon) | function | [json misc](#mod-json-misc) |
-| [`is_comma`](#is_comma) | function | [json misc](#mod-json-misc) |
-| [`is_open_arr`](#is_open_arr) | function | [json misc](#mod-json-misc) |
-| [`is_open_obj`](#is_open_obj) | function | [json misc](#mod-json-misc) |
 | [`JA`](#JA) | macro | [json](#mod-json) |
 | [`JBOOL`](#JBOOL) | macro | [json](#mod-json) |
 | [`JINT`](#JINT) | macro | [json](#mod-json) |
@@ -2375,8 +2216,6 @@ is ignored.
 | [`kdtree_alloc`](#kdtree_alloc) | function | [kdtree](#mod-kdtree) |
 | [`kdtree_bf_search`](#kdtree_bf_search) | function | [kdtree](#mod-kdtree) |
 | [`kdtree_build`](#kdtree_build) | function | [kdtree](#mod-kdtree) |
-| [`kdtree_debug_chk`](#kdtree_debug_chk) | function | [kdtree](#mod-kdtree) |
-| [`kdtree_debug_print`](#kdtree_debug_print) | function | [kdtree](#mod-kdtree) |
 | [`kdtree_free`](#kdtree_free) | function | [kdtree](#mod-kdtree) |
 | [`kdtree_insert`](#kdtree_insert) | function | [kdtree](#mod-kdtree) |
 | [`kdtree_nn_search`](#kdtree_nn_search) | function | [kdtree](#mod-kdtree) |
@@ -2400,11 +2239,9 @@ is ignored.
 | [`norm_quantile`](#norm_quantile) | function | [norm_quantile](#mod-norm_quantile) |
 | [`OK`](#OK) | macro | [core](#mod-core) |
 | [`OK_MSG`](#OK_MSG) | macro | [core](#mod-core) |
-| [`prob2scaledprob`](#prob2scaledprob) | function | [logsum](#mod-logsum) |
 | [`rng_dist`](#rng_dist) | type | [rng](#mod-rng) |
 | [`rng_state`](#rng_state) | type | [rng](#mod-rng) |
 | [`RUN`](#RUN) | macro | [core](#mod-core) |
-| [`scaledprob2prob`](#scaledprob2prob) | function | [logsum](#mod-logsum) |
 | [`SECTION_MSG`](#SECTION_MSG) | macro | [core](#mod-core) |
 | [`set_exec_time`](#set_exec_time) | function | [timing](#mod-timing) |
 | [`SHUFFLE_HEADER`](#SHUFFLE_HEADER) | macro | [shuffle](#mod-shuffle) |
@@ -2454,7 +2291,6 @@ is ignored.
 | [`tld_auc_best_threshold`](#tld_auc_best_threshold) | function | [auc](#mod-auc) |
 | [`tld_auc_calculate`](#tld_auc_calculate) | function | [auc](#mod-auc) |
 | [`tld_capture_cmd_line`](#tld_capture_cmd_line) | function | [misc](#mod-misc) |
-| [`tld_char_to_str`](#tld_char_to_str) | function | [string](#mod-string) |
 | [`tld_debug`](#tld_debug) | function | [core](#mod-core) |
 | [`tld_dir_create`](#tld_dir_create) | function | [misc](#mod-misc) |
 | [`tld_dir_exists`](#tld_dir_exists) | function | [misc](#mod-misc) |
@@ -2476,7 +2312,6 @@ is ignored.
 | [`tld_hash_get`](#tld_hash_get) | function | [hash](#mod-hash) |
 | [`tld_hash_iter_init`](#tld_hash_iter_init) | function | [hash](#mod-hash) |
 | [`tld_hash_iterator_next`](#tld_hash_iterator_next) | function | [hash](#mod-hash) |
-| [`tld_hash_print`](#tld_hash_print) | function | [hash](#mod-hash) |
 | [`tld_hash_rename`](#tld_hash_rename) | function | [hash](#mod-hash) |
 | [`tld_internal`](#tld_internal) | macro | [core](#mod-core) |
 | [`TLD_JSON_ARR`](#tld_json_type) | constant | [json types](#mod-json-types) |
@@ -2485,7 +2320,6 @@ is ignored.
 | [`tld_json_arr_chk_space`](#tld_json_arr_chk_space) | function | [json memory](#mod-json-memory) |
 | [`tld_json_arr_copy`](#tld_json_arr_copy) | function | [json memory](#mod-json-memory) |
 | [`tld_json_arr_free`](#tld_json_arr_free) | function | [json memory](#mod-json-memory) |
-| [`tld_json_arr_print`](#tld_json_arr_print) | function | [json](#mod-json) |
 | [`tld_json_arr_realloc`](#tld_json_arr_realloc) | function | [json memory](#mod-json-memory) |
 | [`TLD_JSON_BOOL_FALSE`](#tld_json_type) | constant | [json types](#mod-json-types) |
 | [`TLD_JSON_BOOL_TRUE`](#tld_json_type) | constant | [json types](#mod-json-types) |
@@ -2506,7 +2340,6 @@ is ignored.
 | [`tld_json_obj_chk_space`](#tld_json_obj_chk_space) | function | [json memory](#mod-json-memory) |
 | [`tld_json_obj_copy`](#tld_json_obj_copy) | function | [json memory](#mod-json-memory) |
 | [`tld_json_obj_free`](#tld_json_obj_free) | function | [json memory](#mod-json-memory) |
-| [`tld_json_obj_print`](#tld_json_obj_print) | function | [json](#mod-json) |
 | [`tld_json_obj_realloc`](#tld_json_obj_realloc) | function | [json memory](#mod-json-memory) |
 | [`tld_json_parse`](#tld_json_parse) | function | [json](#mod-json) |
 | [`tld_json_search`](#tld_json_search) | function | [json](#mod-json) |
@@ -2529,7 +2362,6 @@ is ignored.
 | [`tld_pearson_corr`](#tld_pearson_corr) | function | [stats](#mod-stats) |
 | [`tld_pop_covariance`](#tld_pop_covariance) | function | [stats](#mod-stats) |
 | [`tld_pop_variance`](#tld_pop_variance) | function | [stats](#mod-stats) |
-| [`tld_prefix_match`](#tld_prefix_match) | function | [string](#mod-string) |
 | [`tld_prepend`](#tld_prepend) | function | [string](#mod-string) |
 | [`tld_progress`](#tld_progress) | function | [core](#mod-core) |
 | [`tld_rng_set_seed`](#tld_rng_set_seed) | function | [rng](#mod-rng) |
@@ -2556,19 +2388,13 @@ is ignored.
 | [`tld_standardise`](#tld_standardise) | function | [stats](#mod-stats) |
 | [`TLD_START_TIMER`](#TLD_START_TIMER) | macro | [timing](#mod-timing) |
 | [`TLD_STR`](#TLD_STR) | macro | [string](#mod-string) |
-| [`tld_str`](#tld_str) | type | [string](#mod-string) |
-| [`tld_str_alloc`](#tld_str_alloc) | function | [string](#mod-string) |
-| [`tld_str_free`](#tld_str_free) | function | [string](#mod-string) |
 | [`tld_strbuf`](#tld_strbuf) | type | [string](#mod-string) |
 | [`tld_strbuf_alloc`](#tld_strbuf_alloc) | function | [string](#mod-string) |
 | [`tld_strbuf_clear`](#tld_strbuf_clear) | function | [string](#mod-string) |
 | [`tld_strbuf_copy`](#tld_strbuf_copy) | function | [string](#mod-string) |
 | [`tld_strbuf_free`](#tld_strbuf_free) | function | [string](#mod-string) |
-| [`tld_strbuf_to_str`](#tld_strbuf_to_str) | function | [string](#mod-string) |
 | [`tld_stringify`](#tld_stringify) | macro | [core](#mod-core) |
 | [`TLD_STRLEN`](#TLD_STRLEN) | macro | [string](#mod-string) |
-| [`tld_strmk`](#tld_strmk) | function | [string](#mod-string) |
-| [`tld_suffix_match`](#tld_suffix_match) | function | [string](#mod-string) |
 | [`tld_template_apply`](#tld_template_apply) | function | [template](#mod-template) |
 | [`tld_template_extract_var`](#tld_template_extract_var) | function | [template](#mod-template) |
 | [`tld_term_color`](#tld_term_color) | function | [core](#mod-core) |

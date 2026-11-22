@@ -19,7 +19,6 @@ int test_overwrite(void);
 int test_deletion(void);
 int test_collision_handling(void);
 int test_dynamic_resizing(void);
-/* int test_iteration(); */
 int test_stress(void);
 
 /* unit-hash KEY=VALUE ... [KEY ...]: add pairs, look up keys, list the map. */
@@ -110,7 +109,6 @@ int test_initialization(void)
                 fprintf(stderr, "Error: Hash initialization failed!\n");
                 return -1;
         }
-        /* LOG_MSG("Hash table size: %d", hash->table_size); */
         ASSERT_TEST(hash != NULL, "Hash should not be NULL after initialization.");
         ASSERT_TEST(hash->table_size == 53, "Hash table size mismatch.");
         ASSERT_TEST(hash->n == 0, "Hash should be empty after initialization.");
@@ -233,7 +231,6 @@ int test_dynamic_resizing(void)
                 snprintf(val, sizeof(val), "resize_val%d", i);
                 ASSERT_TEST(tld_hash_add(&hash, key, val) == OK, "Failed to add key for resizing.");
         }
-        /* LOG_MSG("Table size after resizing: %d before: %d", hash->table_size, initial_size); */
         // Check if the table has resized
         ASSERT_TEST(hash->table_size > initial_size, "Hash table did not resize as expected.");
 
@@ -251,43 +248,6 @@ int test_dynamic_resizing(void)
         tld_hash_free(hash);
         return 0;
 }
-
-// Test 7: Iteration Over Entries
-/* int test_iteration() { */
-/*         tld_hash *hash = NULL; */
-/*         tld_hash_alloc(&hash, 53); */
-
-/*         // Add multiple entries */
-/*         tld_hash_add(&hash, "iter_key1", "iter_val1"); */
-/*         tld_hash_add(&hash, "iter_key2", "iter_val2"); */
-/*         tld_hash_add(&hash, "iter_key3", "iter_val3"); */
-
-/*         // Initialize iterator */
-/*         tld_hash_iterator iter; */
-/*         ASSERT_TEST(tld_hash_iterator_init(hash, &iter) == OK, "Failed to initialize iterator."); */
-
-/*         // Collect entries */
-/*         int count = 0; */
-/*         char *key, *value; */
-/*         while (tld_hash_iterator_next(&iter, &key, &value) == OK) { */
-/*                 if (strcmp(key, "iter_key1") == 0) { */
-/*                         ASSERT_TEST(strcmp(value, "iter_val1") == 0, "Incorrect value for iter_key1."); */
-/*                 } else if (strcmp(key, "iter_key2") == 0) { */
-/*                         ASSERT_TEST(strcmp(value, "iter_val2") == 0, "Incorrect value for iter_key2."); */
-/*                 } else if (strcmp(key, "iter_key3") == 0) { */
-/*                         ASSERT_TEST(strcmp(value, "iter_val3") == 0, "Incorrect value for iter_key3."); */
-/*                 } else { */
-/*                         fprintf(stderr, "Unexpected key found during iteration: %s\n", key); */
-/*                         return -1; */
-/*                 } */
-/*                 count++; */
-/*         } */
-
-/*         ASSERT_TEST(count == 3, "Iterator did not traverse all entries."); */
-
-/*         tld_hash_free(hash); */
-/*         return 0; */
-/* } */
 
 // Test 8: Stress Test with Large Data
 int test_stress(void) {

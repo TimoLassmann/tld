@@ -7,7 +7,6 @@
 static int sc_str(void)
 {
         tld_strbuf *a = NULL, *b = NULL;
-        tld_str *s = NULL;
         RUN(tld_strbuf_alloc(&a, 8));
         for(int i = 0; i < 12; i++){
                 RUN(tld_append(a, "0123456789"));
@@ -16,11 +15,11 @@ static int sc_str(void)
         RUN(tld_prepend(a, "start:"));
         RUN(tld_strbuf_alloc(&b, 4));
         RUN(tld_strbuf_copy(b, a));
-        RUN(tld_strmk(&s, TLD_STR(b)));
-        tld_str_free(s); tld_strbuf_free(a); tld_strbuf_free(b);
+        RUN(tld_append(b, TLD_STR(b)));
+        tld_strbuf_free(a); tld_strbuf_free(b);
         return OK;
 ERROR:
-        tld_str_free(s); tld_strbuf_free(a); tld_strbuf_free(b);
+        tld_strbuf_free(a); tld_strbuf_free(b);
         return FAIL;
 }
 

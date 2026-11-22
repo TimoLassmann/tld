@@ -45,7 +45,4 @@ tld_external  int tld_hash_iter_init(tld_hash *h);
  */
 tld_external  int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value);
 
-/* Print every entry as "key: value" lines to stdout. */
-tld_external  int tld_hash_print(tld_hash *h);
-
 #endif

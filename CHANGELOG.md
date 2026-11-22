@@ -59,6 +59,13 @@ changes listed here fix bugs.
 
 ### Removed
 - core: `H1_MSG`, `H2_MSG`, `H3_MSG` and `tld_heading` (unused; they wrote colour codes to stdout even when it was not a terminal).
+- Unused names with no users in tld, agp, kalign or samstat: the `tld_str` type with `tld_strmk`,
+  `tld_str_alloc`, `tld_str_free`, `tld_strbuf_to_str`, `tld_char_to_str`, `tld_prefix_match` and
+  `tld_suffix_match`; the debug printers `tld_hash_print`, `tld_json_obj_print`,
+  `tld_json_arr_print`, `kdtree_debug_chk` and `kdtree_debug_print`; the JSON token tests
+  `is_open_obj`, `is_close_obj`, `is_open_arr`, `is_close_arr`, `is_colon` and `is_comma` (left from the
+  old tokenising parser); `prob2scaledprob` and `scaledprob2prob` (use `logf` and `expf`); and the
+  rng's unused `long_jump`. Commented-out code is gone from src/ and the tests.
 - seq/ (FASTA/FASTQ/SAM IO, alphabets, reverse complement) and hdf5/. tld now depends only on
   libc, libm and pthreads.
 

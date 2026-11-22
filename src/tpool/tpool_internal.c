@@ -44,26 +44,7 @@ int work_queue_push(struct work_queue *q, void (*func_ptr)(tld_thread_pool*, voi
                 q->tail->next = new;
                 q->tail = q->tail->next;
         }
-        /* new->next = q->head; */
 
-        /* q->head = new; */
-        /* if(q->tail == NULL){ */
-                /* q->tail = q->head; */
-        /* } */
-        /* q->head  */
-
-        /* q->n++; */
-
-        /* if(q->n == q->n_alloc){ */
-        /*         RUN(work_queue_expand(q, 0)); */
-        /* } */
-        /* tmp = q->l[q->n]; */
-
-        /* tmp->data = data; */
-        /* tmp->func_ptr = func_ptr; */
-        /* tmp->status = WORK_TODO; */
-        /* LOG_MSG("Added: %d", q->n); */
-        /* LOG_MSG("Added %5d : %p %p", q->n, tmp->func_ptr, tmp->data); */
         return OK;
 ERROR:
         return FAIL;
@@ -72,17 +53,14 @@ ERROR:
 int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*,void *, int64_t, int64_t , int), void **data,int64_t* start, int64_t* end)
 {
 
-
         struct work_item* tmp = NULL;
 
         if(q->head == NULL){
-                WARNING_MSG("Queue is empty!");
+                WARNING_MSG("Queue is empty");
                 return OK;
         }
 
         tmp = q->head;
-
-
 
         *func_ptr = tmp->func_ptr;
         *data = tmp->data;
@@ -92,22 +70,9 @@ int work_queue_pop(struct work_queue *q, void (**func_ptr)(tld_thread_pool*,void
 
         tmp->next = q->store;
         q->store = tmp;
-        /* work_item_free(tmp); */
 
-        /* q->head =  */
-
-
-        /* if(q->n >= 0){ */
-        /*         tmp = q->l[q->n]; */
-        /*         *func_ptr = tmp->func_ptr; */
-        /*         *data = tmp->data; */
-        /*         /\* LOG_MSG("taking:  %5d : %p %p", q->n, tmp->func_ptr, tmp->data); *\/ */
-        /*         q->n--; */
-        /* } */
-        /* LOG_MSG("Taking on work %d", q->n+1); */
         return OK;
 }
-
 
 int work_queue_add_storage(struct work_queue *q, int size)
 {
@@ -142,12 +107,6 @@ int work_queue_alloc(struct work_queue **queue, int size)
 
         RUN(work_queue_add_storage(q, q->n_alloc));
 
-        /* MMALLOC(q->l, sizeof(struct work_item*) * q->n_alloc); */
-        /* for(int i = 0; i < q->n_alloc;i++){ */
-        /*         q->l[i] = NULL; */
-        /*         RUN(work_item_alloc(&q->l[i])); */
-        /* } */
-
         *queue = q;
         return OK;
 ERROR:
@@ -162,7 +121,6 @@ int work_queue_expand(struct work_queue *q, int add)
         if(add == 0){
                 add = q->n_alloc/ 2;
         }
-
 
         old_size = q->n_alloc;
         q->n_alloc += add;
@@ -197,10 +155,6 @@ void work_queue_free(struct work_queue *q)
                         work_item_free(tmp);
                 }
 
-                /* for(int i = 0; i < q->n_alloc;i++){ */
-                /*         work_item_free(q->l[i]); */
-                /* } */
-                /* MFREE(q->l); */
                 MFREE(q);
         }
 }

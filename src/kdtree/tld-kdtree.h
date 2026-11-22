@@ -12,7 +12,6 @@ typedef struct kd_node {
         double* p;
         struct kd_node* left;
         struct kd_node* right;
-        /* int split; */
         uint32_t id;
         int n;
 } kd_node;
@@ -24,7 +23,6 @@ struct kdyard;
  * kdplane_check_euclidian), and rebalance_at (insertions between balance checks, default
  * 10000). The rest is internal. */
 typedef struct kdtree {
-        /* kd_node* root; */
         kd_node* root;
         struct kdyard* yard;
         int(*fptr_cmp)(double*, double*, int, double*);
@@ -76,11 +74,5 @@ tld_external  int kddist_euclidian(double *a, double *b, int vec_len, double *di
  * (the far side of the splitting plane may hold a nearer point), FAIL otherwise. The
  * default fptr_plane. */
 tld_external  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
-
-/* Debugging: print the subtree under n (pass t->root, depth 0) to stderr, as split
- * values (kdtree_debug_chk) or as an indented list of ids (kdtree_debug_print). A NULL
- * n prints nothing. */
-tld_external void kdtree_debug_chk(kd_node *n, int depth);
-tld_external void kdtree_debug_print(kd_node *n, int depth);
 
 #endif

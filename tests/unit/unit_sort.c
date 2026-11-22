@@ -90,7 +90,6 @@ int main(int argc, char *argv[])
 
         gfree(x_char);
 
-
         free_rng(rng);
         OK_MSG("sorted");
 

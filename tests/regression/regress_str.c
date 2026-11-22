@@ -1,6 +1,4 @@
 /* Regression tests for the string fixes.
- * - tld_strmk wrote one byte past its buffer (ASan heap-buffer-overflow) and
- *   counted the NUL in len.
  * - tld_strbuf_resize never updated alloc_len, so every append after the first
  *   growth reallocated and copied the whole buffer.
  * - Growing a buffer near 1-2 GB overflowed its int size, returned OK and wrote past
@@ -9,28 +7,6 @@
 #include "tld.h"
 #include "test.h"
 #include <string.h>
-
-static int test_strmk(void)
-{
-        tld_str *s = NULL;
-        tld_str *e = NULL;
-        RUN(tld_strmk(&s, "hello"));
-        ASSERT(s->len == 5, "len is %d, expected 5", s->len);
-        ASSERT(strcmp(TLD_STR(s), "hello") == 0, "wrong content");
-        ASSERT(TLD_STR(s)[5] == 0, "not terminated");
-        tld_str_free(s);
-        s = NULL;
-
-        RUN(tld_strmk(&e, ""));
-        ASSERT(e->len == 0, "len is %d, expected 0", e->len);
-        ASSERT(TLD_STR(e)[0] == 0, "not terminated");
-        tld_str_free(e);
-        return OK;
-ERROR:
-        tld_str_free(s);
-        tld_str_free(e);
-        return FAIL;
-}
 
 static int test_strbuf_growth(void)
 {
@@ -128,7 +104,6 @@ static const struct {
         int (*fn)(void);
         const char *about;
 } checks[] = {
-        {"strmk", test_strmk, "tld_strmk stays in its buffer and does not count the NUL"},
         {"growth", test_strbuf_growth, "tld_strbuf grows geometrically (alloc_len updated)"},
         {"limit", test_strbuf_limit, "an append past INT32_MAX fails instead of overflowing"},
         {"self", test_self_append, "append, prepend and copy of a buffer's own text"},
@@ -141,12 +116,11 @@ int main(int argc, char *argv[])
                   "Regression checks for the string fixes.\n"
                   "\n"
                   "CHECK names (default: all, in this order):\n"
-                  "  strmk   tld_strmk stays in its buffer and does not count the NUL\n"
                   "  growth  tld_strbuf grows geometrically (alloc_len updated)\n"
                   "  limit   an append past INT32_MAX fails instead of overflowing\n"
                   "  self    append, prepend and copy of a buffer's own text\n"
                   "\n"
-                  "Example: regress-str strmk");
+                  "Example: regress-str growth");
         for(int i = 1; i < argc; i++){
                 int k = 0;
                 while(k < n_checks && strcmp(argv[i], checks[k].name) != 0){

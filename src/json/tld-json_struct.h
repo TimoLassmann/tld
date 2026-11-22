@@ -52,7 +52,6 @@ typedef struct tld_json_obj{
         int n;
         int n_alloc;
 
-        /* tld_json_node* next; */
 } tld_json_obj;
 
 /* A JSON array of n values v[0..n-1] (read_head is unused). Made by JSON_ARR or

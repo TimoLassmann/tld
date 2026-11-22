@@ -26,14 +26,14 @@ ERROR:
         return FAIL;
 }
 
-/* unit-str TEXT [AFFIX ...]: the string functions on the user's text. */
-static int demo(int n, char **args)
+/* unit-str TEXT: the string functions on the user's text. */
+static int demo(const char *text)
 {
         tld_strbuf *b = NULL;
         tld_strbuf *c = NULL;
-        SECTION_MSG("tld_strbuf on '%s'", args[0]);
+        SECTION_MSG("tld_strbuf on '%s'", text);
         RUN(tld_strbuf_alloc(&b, 4));
-        for(const char *p = args[0]; *p; p++){
+        for(const char *p = text; *p; p++){
                 RUN(tld_append_char(b, *p));
         }
         DEBUG_MSG("appended char by char: len %d, allocated %d", b->len, b->alloc_len);
@@ -45,13 +45,6 @@ static int demo(int n, char **args)
         fprintf(stdout, "text:      %s\n", TLD_STR(b));
         fprintf(stdout, "length:    %d\n", TLD_STRLEN(b));
         fprintf(stdout, "wrapped:   %s\n", TLD_STR(c));
-        tld_str whole = tld_strbuf_to_str(*b);
-        for(int i = 1; i < n; i++){
-                tld_str a = tld_char_to_str(args[i]);
-                fprintf(stdout, "'%s': prefix %s, suffix %s\n", args[i],
-                        tld_prefix_match(whole, a) ? "yes" : "no",
-                        tld_suffix_match(whole, a) ? "yes" : "no");
-        }
         OK_MSG("done");
         tld_strbuf_free(b);
         tld_strbuf_free(c);
@@ -64,14 +57,13 @@ ERROR:
 
 int main(int argc, char *argv[])
 {
-        test_init(&argc, argv, "[TEXT [AFFIX ...]]",
+        test_init(&argc, argv, "[TEXT]",
                   "With no arguments: checks tld_append/tld_prepend on a growing buffer.\n"
                   "With TEXT: builds a tld_strbuf from it, prints it, its length and a\n"
-                  "prepended/appended copy; for each AFFIX says whether it is a prefix or a\n"
-                  "suffix of TEXT (tld_prefix_match, tld_suffix_match).\n"
-                  "Example: unit-str \"hello world\" hello world lo");
+                  "prepended/appended copy.\n"
+                  "Example: unit-str \"hello world\"");
         if(argc > 1){
-                RUN(demo(argc - 1, argv + 1));
+                RUN(demo(argv[1]));
         } else {
                 RUN(checks());
         }

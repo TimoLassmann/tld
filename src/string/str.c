@@ -41,46 +41,6 @@ void tld_strbuf_free(tld_strbuf *b)
         }
 }
 
-int tld_str_alloc(tld_str **string, int size)
-{
-        tld_str* a = NULL;
-        MMALLOC(a, sizeof(tld_str));
-        a->len = size;
-        a->str = NULL;
-        galloc(&a->str, a->len);
-        *string = a;
-        return OK;
-ERROR:
-        tld_str_free(a);
-        return FAIL;
-}
-
-void tld_str_free(tld_str *a)
-{
-        if(a){
-                if(a->str){
-                        gfree(a->str);
-                }
-                MFREE(a);
-        }
-}
-
-int tld_strmk(tld_str **string,const char *src)
-{
-        size_t size = strlen(src);
-        tld_str* a = NULL;
-        ASSERT(size < (size_t)INT32_MAX, "String of %zu bytes is too long", size);
-        /* buffer holds the characters plus the terminating NUL; len excludes the NUL */
-        RUN(tld_str_alloc(&a,(int)size + 1));
-        memcpy(a->str,src, size + 1);
-        a->len = (int32_t)size;
-
-        *string = a;
-        return OK;
-ERROR:
-        return FAIL;
-}
-
 int tld_strbuf_clear(tld_strbuf *b)
 {
         ASSERT(b != NULL,"No buffer");
@@ -211,38 +171,4 @@ int tld_prepend(tld_strbuf *b, const char *content)
         return OK;
 ERROR:
         return FAIL;
-}
-
-int tld_suffix_match(tld_str t, tld_str s)
-{
-
-        if (t.len < s.len) return 0;
-        int offset = t.len - s.len;
-        int cmp = memcmp(t.str + offset, s.str, s.len);
-        return cmp == 0;
-}
-
-int tld_prefix_match(tld_str t, tld_str s)
-{
-        if (t.len < s.len) return 0;
-        int cmp = memcmp(t.str, s.str, s.len);
-        return cmp == 0;
-}
-
-tld_str tld_strbuf_to_str(tld_strbuf s)
-{
-    tld_str r = {0};
-    r.str = s.str;
-    r.len = s.len;
-    return r;
-}
-
-tld_str tld_char_to_str(char* s)
-{
-        int size = strlen(s);
-        tld_str r = {
-                .str = (uint8_t*) s,
-                .len = size,
-        };
-        return r;
 }

@@ -109,8 +109,6 @@ int main(int argc, char *argv[])
 
         MFREE(values);
 
-
-
         SECTION_MSG("Double");
         for(int i = 0; i < 10;i++){
                 double r = tl_random_double( rng);
@@ -125,7 +123,6 @@ int main(int argc, char *argv[])
 ERROR:
         return EXIT_FAILURE;
 }
-
 
 int rng_dist_test(void)
 {
@@ -167,7 +164,6 @@ ERROR:
         gfree(out);
         return FAIL;
 }
-
 
 /* from RosettaCode */
 // https://rosettacode.org/wiki/Statistics/Normal_distribution#C

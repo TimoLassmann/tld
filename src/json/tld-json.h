@@ -100,10 +100,6 @@ EXTERN tld_json_arr *json_arr_add_multiple(tld_json_arr *arr, tld_json_decoratio
 EXTERN int tld_json_dump(tld_json_obj *n, tld_strbuf *b,int indent);
 EXTERN int tld_json_dump_arr(tld_json_arr *n, tld_strbuf *b, int indent);
 
-/* Debug listing of the tree (not JSON) to out, or stdout when out is NULL. */
-EXTERN int tld_json_obj_print(tld_json_obj *n, FILE *out);
-EXTERN int tld_json_arr_print(tld_json_arr *n, FILE *out);
-
 #undef TLD_JSON_IMPORT
 #undef EXTERN
 

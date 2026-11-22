@@ -31,7 +31,7 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>. */
 /* Sebastiano Vigna (vigna@acm.org) */
 /* David Blackman */
 
-/* code for sampling from varius distributions was taken from  */
+/* Code for sampling from various distributions was taken from: */
 
 /* Copyright 2005 Robert Kern (robert.kern@gmail.com)
  *
@@ -83,7 +83,6 @@ struct rng_dist{
 static inline uint64_t rotl(uint64_t x,  uint64_t k);
 static uint64_t next(struct rng_state* s);
 void jump(struct rng_state* s);
-void long_jump(struct rng_state* s);
 
 static uint64_t choose_arbitrary_seed(void);
 
@@ -94,8 +93,6 @@ static double tl_gauss(struct rng_state* rng);
 int init_rng(struct rng_state** rng,uint64_t seed)
 {
         struct rng_state* s = NULL;
-        /* uint64_t z = 0U; */
-        /* uint64_t sanity = 0U; */
 
         MMALLOC_ALIGNED(s, sizeof(struct rng_state), _Alignof(struct rng_state));
         s->gen = 0;
@@ -109,41 +106,6 @@ int init_rng(struct rng_state** rng,uint64_t seed)
 
         tld_rng_set_seed(s, seed);
 
-        /* sanity = 0; */
-
-        /* while(!sanity){ */
-        /*         sanity = 0; */
-        /*         z = (seed += 0x9e3779b97f4a7c15); */
-        /*         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9; */
-        /*         z = (z ^ (z >> 27U)) * 0x94d049bb133111eb; */
-        /*         s->s[0] = z ^ (z >> 31U); */
-        /*         if(s->s[0]){ */
-        /*                 sanity++; */
-        /*         } */
-        /*         z = (seed += 0x9e3779b97f4a7c15); */
-        /*         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9; */
-        /*         z = (z ^ (z >> 27U)) * 0x94d049bb133111eb; */
-        /*         s->s[1] = z ^ (z >> 31U); */
-        /*         if(s->s[1]){ */
-        /*                 sanity++; */
-        /*         } */
-
-        /*         z = (seed += 0x9e3779b97f4a7c15); */
-        /*         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9; */
-        /*         z = (z ^ (z >> 27U)) * 0x94d049bb133111eb; */
-        /*         s->s[2] = z ^ (z >> 31U); */
-        /*         if(s->s[2]){ */
-        /*                 sanity++; */
-        /*         } */
-
-        /*         z = (seed += 0x9e3779b97f4a7c15); */
-        /*         z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9; */
-        /*         z = (z ^ (z >> 27U)) * 0x94d049bb133111eb; */
-        /*         s->s[3] = z ^ (z >> 31U); */
-        /*         if(s->s[3]){ */
-        /*                 sanity++; */
-        /*         } */
-        /* } */
         *rng = s;
         return OK;
 ERROR:
@@ -326,40 +288,6 @@ static uint64_t choose_arbitrary_seed(void)
         return mix64(seed);
 }
 
-/* This is the long-jump function for the generator. It is equivalent to
-   2^192 calls to next(); it can be used to generate 2^64 starting points,
-   from each of which jump() will generate 2^64 non-overlapping
-   subsequences for parallel distributed computations. */
-
-void long_jump(struct rng_state* s)
-{
-        static const uint64_t LONG_JUMP[] = { 0x76e15d3efefdcbbf,
-                                              0xc5004e441c522fb3,
-                                              0x77710069854ee241,
-                                              0x39109bb02acbe635 };
-
-        uint64_t s0 = 0U;
-        uint64_t s1 = 0U;
-        uint64_t s2 = 0U;
-        uint64_t s3 = 0U;
-        for(uint64_t i = 0; i < sizeof LONG_JUMP / sizeof *LONG_JUMP; i++){
-                for(uint64_t b = 0; b < 64; b++) {
-                        if (LONG_JUMP[i] & UINT64_C(1) << b) {
-                                s0 ^= s->s[0];
-                                s1 ^= s->s[1];
-                                s2 ^= s->s[2];
-                                s3 ^= s->s[3];
-                        }
-                        next(s);
-                }
-        }
-
-        s->s[0] = s0;
-        s->s[1] = s1;
-        s->s[2] = s2;
-        s->s[3] = s3;
-}
-
 /* Uniform on the open interval (0,1): the top 53 bits of a draw give a
    multiple of 2^-53 in [0, 1 - 2^-53]; zero is rejected. */
 double tl_random_double(struct rng_state* rng)
@@ -372,7 +300,7 @@ double tl_random_double(struct rng_state* rng)
 }
 
 /* from:  */
-//https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform
+/* https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform */
 double tl_random_gaussian(struct rng_state* rng, double mu, double sigma)
 {
         double u1 = 0.0;
@@ -385,12 +313,10 @@ double tl_random_gaussian(struct rng_state* rng, double mu, double sigma)
                 return rng->z1 * sigma + mu;
         }
 
-
         do{
-                u1 = tl_random_double(rng);//  rand() * (1.0 / RAND_MAX);
-                u2 = tl_random_double(rng);//rand() * (1.0 / RAND_MAX);
+                u1 = tl_random_double(rng);
+                u2 = tl_random_double(rng);
         } while (u1 <= DBL_EPSILON);
-
 
         z0 = sqrt(n2 * log(u1)) * cos(M_2PI * u2);
         rng->z1 = sqrt(n2 * log(u1)) * sin(M_2PI * u2);
@@ -467,7 +393,6 @@ double tl_gauss(struct rng_state* rng)
                 rng->gauss = 0;
                 rng->has_gauss = 0;
                 r = tmp;
-                /* return tmp; */
         } else {
                 double f = 0.0;
                 double x1 = 0.0;
@@ -539,7 +464,6 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
         galloc(&d->a, d->n);
         RUN( init_rng(&d->rng, seed));
 
-
         galloc(&p,n);
         galloc(&s,n);
         galloc(&l,n);
@@ -575,7 +499,6 @@ int tl_random_sdist_init(struct rng_dist** rng_dist,double* w, int n,int seed)
                 a = s[n_s];
                 n_l--;
                 g = l[n_l];
-
 
                 d->p[a] = p[a];
                 d->a[a] = g;
