@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
     }
     int bad = 0;
     SECTION_MSG("special characters round trip");
-    char *s = ai_text_with(AI_OPTS(.system = prompt), "%s", prompt);
+    const char *s = ai_text_with(AI_OPTS(.system = prompt), "%s", prompt);
     show_call("ai_text_with (prompt and system full of special characters)", s != NULL);
     if (!s || strncmp(s, "Mock reply to: ", 15) || strcmp(s + 15, prompt)) {
         fprintf(stderr, "special: reply did not round-trip: %s\n", s ? s : ai_error());

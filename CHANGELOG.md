@@ -2,9 +2,53 @@
 
 ## modernisation branch (unreleased)
 
-Interface promise: public function names and signatures, struct layouts and macro names are
-unchanged, except that the seq/ and hdf5/ modules were removed. Behaviour changes listed
-here fix bugs.
+Interface promise: public function names and struct layouts are unchanged, except that the
+seq/ and hdf5/ modules were removed and the small signature changes under "Safety" below,
+made so the compiler catches mistakes that used to corrupt memory silently. Behaviour
+changes listed here fix bugs.
+
+### Safety: interface changes that turn silent memory errors into compile errors
+- core: every message macro (LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT, SECTION_MSG, KV_MSG,
+  OK_MSG, DEBUG_MSG) requires a string-literal format, and the format is checked against the
+  arguments (`format(printf)` on tld_message and friends). `LOG_MSG(text)` is a compile error;
+  write `LOG_MSG("%s", text)`. A `%` in text used as a format reads or writes random memory.
+- core: MACRO_MIN and MACRO_MAX evaluate each argument once (statement expressions, gcc and
+  clang); `MACRO_MAX(i++, n)` used to increment twice. They no longer work in constant
+  expressions (array sizes, case labels, static initialisers).
+- alloc: `gfree(p)` sets p to NULL, so a second gfree is harmless instead of a double free.
+  p must be the pointer variable itself: `gfree(&p)` is now a compile error (it freed the
+  address of a local).
+- hash: `tld_hash_get` and `tld_hash_iterator_next` hand out `const char *` (they point into
+  the table); `tld_hash_add`, `_del` and `_rename` take `const char *`. Declare
+  `const char *v` at call sites.
+- string: `tld_append` and `tld_prepend` take `const char *`.
+- tpool: `tld_thread_pool_wait` returns int: OK when every job ran, FAIL when a time limit or
+  `tld_global_stop_run` refused or abandoned jobs (it returned void, and jobs vanished
+  silently). `tld_thread_pool_add` returns FAIL after a stop; the data is still the caller's.
+- tld_ai.h: `ai_text`, `ai_text_with` and `ai_fmt` return `const char *`, and string fields of
+  AI_STRUCT types are `const char *`, so passing them to free() warns. Prompts and `ai_fmt`
+  require a literal, checked printf format, like the message macros (`(ai_text)(fmt, ...)`
+  calls the function directly).
+- tld_ai.h: 100000 results kept without `ai_reset()` print one warning to stderr (memory grows
+  with every call until ai_reset).
+
+### Fixed: memory errors found by the safety audit
+- string: a buffer growing past about 1 GB overflowed its int size, returned OK and wrote
+  past the end of the block. Sizes are computed in size_t; a buffer holds at most
+  INT32_MAX - 1 bytes and an append past that fails, leaving the buffer unchanged.
+- tld_ai.h: the chunked-reply decoder could wrap a size check on 32-bit systems and read past
+  the reply.
+
+### Tests
+- `misuse-rejected`: the compiler rejects text as a format, gfree(&p), free() on tld_ai.h
+  results, writable pointers into a hash and mismatched format arguments.
+- `regress-str limit`, `regress-alloc minmax`, `ai-arena`, and new tpool checks for refused
+  and abandoned jobs.
+- tests/fuzz: libFuzzer targets for JSON, templates and tld_ai.h replies (decoding and the
+  whole HTTP exchange), with seeds; `-DTLD_FUZZ=ON`, run with `tests/fuzz/run.sh`.
+- CI: MemorySanitizer, ThreadSanitizer and 60 s per fuzz target on every push.
+- unit-alloc allocates 64 MB instead of 4.7 GB, so it runs under the sanitizers;
+  tests/ai/compile.sh uses python3 instead of perl.
 
 ### Removed
 - core: `H1_MSG`, `H2_MSG`, `H3_MSG` and `tld_heading` (unused; they wrote colour codes to stdout even when it was not a terminal).

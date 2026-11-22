@@ -90,5 +90,10 @@ else()
   endif()
 endif()
 
+# The compiler rejects the mistakes the headers are designed to catch (text as a
+# printf format, free() on library memory, writable pointers into a hash, gfree(&p)).
+add_test(NAME misuse-rejected
+  COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/misuse/check.sh ${CMAKE_C_COMPILER} ${CMAKE_SOURCE_DIR})
+
 # tld_ai.h: mock-server tests, compile checks, sanitizer runs
 include(${CMAKE_CURRENT_SOURCE_DIR}/ai.cmake)

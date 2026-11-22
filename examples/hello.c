@@ -15,7 +15,7 @@ int main(void) {
 
     SECTION_MSG("tld_ai hello");
     KV_MSG("prompt", "%s", prompt);
-    char *s = ai_text("%s", prompt);
+    const char *s = ai_text("%s", prompt);
     const ai_info *in = ai_last();
     KV_MSG("host", "%s", in->host ? in->host : "?");
     KV_MSG("model", "%s", in->model ? in->model : "?");

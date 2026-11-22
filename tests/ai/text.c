@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     const char *prompt = argc > 1 ? argv[1] : "Say hello";
     SECTION_MSG("ai_text");
     KV_MSG("prompt", "%s", prompt);
-    char *s = ai_text("%s", prompt);
+    const char *s = ai_text("%s", prompt);
     show_call("ai_text", s != NULL);
     if (!s) {
         fprintf(stderr, "text: %s: %s\n", status_name(ai_status()), ai_error());

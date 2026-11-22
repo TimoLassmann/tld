@@ -171,6 +171,7 @@ int tld_thread_pool_create(tld_thread_pool **pool, double max_time, int n_thread
         p->maxtime = max_time;
         p->n_working = 0;
         p->stop = 0;
+        p->n_dropped = 0;
 
         p->thread_id_map = NULL;
         p->threads = NULL;
@@ -232,11 +233,15 @@ int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,vo
         if(tld_global_stop_run == 1 && !p->stop){
                 pool_set_stop_locked(p);
         }
-        if(!p->stop){
-                status = work_queue_push(p->work, func_ptr, data, start, end);
-                if(status == OK){
-                        pthread_cond_broadcast(&p->work_cond);
-                }
+        if(p->stop){
+                /* refused: the job will not run, so data is still the caller's */
+                p->n_dropped++;
+                pthread_mutex_unlock(&p->lock);
+                return FAIL;
+        }
+        status = work_queue_push(p->work, func_ptr, data, start, end);
+        if(status == OK){
+                pthread_cond_broadcast(&p->work_cond);
         }
         pthread_mutex_unlock(&p->lock);
         RUN(status);
@@ -245,8 +250,9 @@ ERROR:
         return FAIL;
 }
 
-void tld_thread_pool_wait(tld_thread_pool *p)
+int tld_thread_pool_wait(tld_thread_pool *p)
 {
+        int dropped = 0;
         if(p){
                 pthread_mutex_lock(&p->lock);
                 while(1){
@@ -261,15 +267,26 @@ void tld_thread_pool_wait(tld_thread_pool *p)
                         }
                         pthread_cond_wait(&p->working_cond, &p->lock);
                 }
+                /* Count (and discard) the jobs a stop left in the queue. */
+                while(p->stop && work_queue_haswork(p->work)){
+                        void (*fn)(tld_thread_pool*, void *,int64_t, int64_t, int) = NULL;
+                        void* data = NULL;
+                        int64_t s = 0;
+                        int64_t e = 0;
+                        work_queue_pop(p->work, &fn, &data, &s, &e);
+                        p->n_dropped++;
+                }
+                dropped = p->n_dropped;
                 pthread_mutex_unlock(&p->lock);
         }
+        return dropped ? FAIL : OK;
 }
 
 void tld_thread_pool_free(tld_thread_pool *p)
 {
         if(p){
                 /* Run everything already queued before stopping. */
-                tld_thread_pool_wait(p);
+                (void)tld_thread_pool_wait(p);
                 pool_shutdown(p, p->n_threads);
         }
 }

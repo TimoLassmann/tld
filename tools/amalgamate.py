@@ -50,7 +50,7 @@ TOP = """\
  *               tld_strbuf *b = NULL;
  *               ASSERT(path != NULL, "No path");
  *               RUN(tld_strbuf_alloc(&b, 256));
- *               RUN(tld_append(b, (char *)path));
+ *               RUN(tld_append(b, path));
  *               *out = b;
  *               return OK;
  *       ERROR:
@@ -61,14 +61,21 @@ TOP = """\
  *   Initialise every pointer to NULL: MMALLOC refuses a non-NULL pointer, and the
  *   cleanup after ERROR: may run before an allocation happened.
  *
+ *   LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT and the rich-output calls take a printf
+ *   format, checked by the compiler. Print text from users or files with "%s", never as
+ *   the format itself: LOG_MSG("%s", line), not LOG_MSG(line).
+ *
  * MEMORY
  *   Objects come from an allocator (tld_strbuf_alloc(&b, ...), tld_hash_alloc,
  *   kdtree_alloc, init_rng, tld_json_parse, JSON_OBJ, ...) and belong to the caller,
  *   who frees them with the matching free function (tld_strbuf_free, tld_hash_free,
  *   kdtree_free, free_rng, tld_json_obj_free, ...); every free function accepts NULL.
- *   galloc memory is freed with gfree, MMALLOC memory with MFREE. Pointers handed out
- *   by an object (TLD_STR(b), tld_hash_get, tld_json_get_str, ...) are borrowed: valid
- *   until that object changes or is freed.
+ *   galloc memory is freed with gfree, MMALLOC memory with MFREE, never with free();
+ *   both set the pointer to NULL, so freeing again on an error path is harmless.
+ *   Pointers handed out by an object (tld_hash_get, tld_json_get_str, ...) are borrowed
+ *   and const: valid until that object changes or is freed; never write through them
+ *   or free them. Sizes are int-based: a string buffer holds at most INT32_MAX - 1 bytes
+ *   and refuses to grow past that.
  *
  * THREADS
  *   Objects have no locks: use each one from one thread at a time. The tld_thread_pool_*

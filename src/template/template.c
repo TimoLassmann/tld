@@ -105,7 +105,7 @@ int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* o
 
         case NODE_VARIABLE:
         {
-                char* replacement = NULL;
+                const char* replacement = NULL;
                 tld_hash_get(hash, TLD_STR(node->content), &replacement);
                 if(replacement){
                         RUN(tld_append(out, replacement));
@@ -116,7 +116,7 @@ int process_tree(template_node *node, tld_hash *hash, FILE *output,tld_strbuf* o
 
         case NODE_IF:
         {
-                char* condition_value = NULL;
+                const char* condition_value = NULL;
 
                 tld_hash_get(hash, TLD_STR(node->content), &condition_value);
                 int condition_met = (condition_value != NULL && strcmp(condition_value, "") != 0);

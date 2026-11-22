@@ -4,7 +4,7 @@
 int single_use(void)
 {
         tld_hash *h = NULL;
-        char *v = NULL;
+        const char *v = NULL;
         RUN(tld_hash_alloc(&h, 16));
         RUN(tld_hash_add(&h, "key", "value"));
         RUN(tld_hash_get(h, "key", &v));

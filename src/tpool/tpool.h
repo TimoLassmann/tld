@@ -40,7 +40,7 @@ typedef struct tld_thread_pool {
         double maxtime;
         time_t internal_time;
         time_t stop_watch;
-        /* void (*function_ptr)(void*); */
+        int n_dropped;          /* jobs refused or abandoned after a stop */
 
 } tld_thread_pool;
 
@@ -52,12 +52,16 @@ tld_external int  tld_thread_pool_create(tld_thread_pool **pool, double max_time
 /* Queue a job: a worker calls func_ptr(p, data, start, end, thread_id), thread_id in
  * [0, n_threads). start and end are passed through (e.g. a slice of an index range).
  * Thread-safe; may be called from inside a job. Once the pool has stopped (time limit
- * or tld_global_stop_run) the job is dropped and OK is still returned. */
+ * or tld_global_stop_run) the job is refused: FAIL without a message, and data is still
+ * the caller's to free. */
 tld_external int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_thread_pool*,void *,int64_t, int64_t,int), void *data, int64_t start, int64_t end);
 
 /* Block until the queue is empty and no job is running (after a stop: until every
- * worker has exited). The pool can take more jobs afterwards. NULL is ignored. */
-tld_external void tld_thread_pool_wait(tld_thread_pool *p);
+ * worker has exited). OK when every job added to the pool has run; FAIL, without a
+ * message, when a stop refused or abandoned jobs (they did not run, so whatever they
+ * would have done or freed did not happen). A running pool can take more jobs
+ * afterwards. NULL is ignored (OK). */
+tld_external int tld_thread_pool_wait(tld_thread_pool *p);
 
 /* Run every job still queued, then stop and join the workers and free the pool. NULL
  * is ignored. */

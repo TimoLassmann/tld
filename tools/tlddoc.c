@@ -961,7 +961,7 @@ ERROR:
 static int is_invocation(header *h, const char *line, char *name, size_t nn, char *arg, size_t an)
 {
         const char *p = skip_ws(line);
-        char *v = NULL;
+        const char *v = NULL;
         if(ident_at(p, name, nn) != OK){
                 return 0;
         }
@@ -1076,7 +1076,7 @@ static int lex(header *h, int begin, int end, item **out, int *n_out)
                         char name[256];
                         char arg[256];
                         if(is_invocation(h, s, name, sizeof name, arg, sizeof arg)){
-                                char *tmpl = NULL;
+                                const char *tmpl = NULL;
                                 tld_strbuf *code = NULL;
                                 char generic[300];
                                 strlist names = {0};
@@ -1298,7 +1298,7 @@ static int parse_module(header *h, const char *name, int begin, int end)
         int n_held = 0;
         int balance = 0;
         strlist undef = {0};
-        char *v = NULL;
+        const char *v = NULL;
         const char *base;
 
         MMALLOC(m, sizeof(module));

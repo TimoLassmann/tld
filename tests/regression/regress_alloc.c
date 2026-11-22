@@ -221,8 +221,16 @@ static int test_galloc_2d(void)
         ASSERT(c == NULL, "c was set on failure");
 #endif
 
-        /* gfree(NULL) is a no-op, like free(NULL) */
-        gfree(NULL);
+        /* gfree of a NULL pointer is a no-op, like free(NULL); gfree clears its
+           argument, so a second gfree of the same pointer is harmless too */
+        {
+                double *z = NULL;
+                gfree(z);
+                galloc(&z, 8);
+                gfree(z);
+                ASSERT(z == NULL, "gfree did not clear the pointer");
+                gfree(z);
+        }
         return OK;
 ERROR:
         if (m) {
@@ -261,6 +269,25 @@ ERROR:
 }
 
 
+/* MACRO_MIN / MACRO_MAX evaluate each argument once (they used to evaluate the
+ * chosen one twice), keep the usual arithmetic conversions, and nest. */
+static int test_minmax(void)
+{
+        int i = 0;
+        int n = 5;
+        int m = MACRO_MAX(i++, n);
+        ASSERT(i == 1 && m == 5, "MACRO_MAX(i++, n): i = %d, result %d", i, m);
+        m = MACRO_MIN(n--, 10);
+        ASSERT(n == 4 && m == 5, "MACRO_MIN(n--, 10): n = %d, result %d", n, m);
+        double d = MACRO_MAX(1, 2.5);           /* int and double: double */
+        ASSERT(d == 2.5, "mixed types gave %g", d);
+        m = MACRO_MAX(MACRO_MIN(i, 3), MACRO_MAX(n, 2));
+        ASSERT(m == 4, "nested gave %d", m);
+        return OK;
+ERROR:
+        return FAIL;
+}
+
 /* The checks, in the order a plain run does them; arguments select by name. */
 static const struct {
         const char *name;
@@ -271,6 +298,7 @@ static const struct {
         {"messages", test_messages, "library messages go to stderr, MFREE(NULL) is silent"},
         {"galloc-2d", test_galloc_2d, "2D galloc sets every row and checks its size"},
         {"error-symbol", test_error_symbol, "a program may define its own error()"},
+        {"minmax", test_minmax, "MACRO_MIN/MACRO_MAX evaluate each argument once"},
 };
 
 int main(int argc, char *argv[])
@@ -285,6 +313,7 @@ int main(int argc, char *argv[])
                   "  messages      library messages go to stderr, MFREE(NULL) is silent\n"
                   "  galloc-2d     2D galloc sets every row and checks its size\n"
                   "  error-symbol  a program may define its own error()\n"
+                  "  minmax        MACRO_MIN/MACRO_MAX evaluate each argument once\n"
                   "\n"
                   "Example: regress-alloc galloc-2d");
         for(int i = 1; i < argc; i++){

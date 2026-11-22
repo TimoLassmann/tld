@@ -28,7 +28,7 @@ static const char *abstracts[16] = {"Variant calling in 60 families",
                                     "Imaging 3",
                                     "Variant 4",
                                     "Imaging 4"};
-static char *summary[16];
+static const char *summary[16];
 static struct topic_answer label[16];
 
 static void work(int i, void *ctx) {

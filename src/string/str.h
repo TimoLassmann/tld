@@ -17,7 +17,9 @@ typedef struct tld_string {
 
 /* A growable byte buffer: len bytes at str, always followed by a NUL, in alloc_len
  * bytes. TLD_STR(b) gives it as char *. Appending may move str, so do not keep that
- * pointer across changes. Create with tld_strbuf_alloc, free with tld_strbuf_free. */
+ * pointer across changes. Create with tld_strbuf_alloc, free with tld_strbuf_free.
+ * A buffer holds at most INT32_MAX - 1 bytes; an append that would pass that fails
+ * with an error and leaves the buffer unchanged. */
 typedef struct tld_string_buffer {
         uint8_t* str;
         int32_t len;
@@ -54,13 +56,13 @@ tld_external int tld_strbuf_clear(tld_strbuf *b);
 tld_external int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s);
 
 /* Append the NUL-terminated string content to b; b grows as needed. */
-tld_external int tld_append(tld_strbuf *b, char *content);
+tld_external int tld_append(tld_strbuf *b, const char *content);
 
 /* Append the single character c to b. */
 tld_external int tld_append_char(tld_strbuf *b, char c);
 
 /* Insert the NUL-terminated string content at the start of b. */
-tld_external int tld_prepend(tld_strbuf *b, char *content);
+tld_external int tld_prepend(tld_strbuf *b, const char *content);
 
 /* 1 if t ends with s (tld_suffix_match) or starts with s (tld_prefix_match), else 0.
  * A boolean, not OK/FAIL. */

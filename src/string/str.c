@@ -5,10 +5,8 @@
 #include <stdint.h>
 #include <string.h>
 
-tld_internal inline int tld_strbuf_free_space(tld_strbuf *b);
-
 tld_internal int tld_strbuf_resize(tld_strbuf *b, int new_size);
-tld_internal int tld_strbuf_ensure_size(tld_strbuf *b, int size);
+tld_internal int tld_strbuf_ensure_size(tld_strbuf *b, size_t size);
 
 int tld_strbuf_alloc(tld_strbuf **buffer, int size)
 {
@@ -67,12 +65,13 @@ void tld_str_free(tld_str *a)
 
 int tld_strmk(tld_str **string,const char *src)
 {
-        int size = strlen(src);
+        size_t size = strlen(src);
         tld_str* a = NULL;
+        ASSERT(size < (size_t)INT32_MAX, "String of %zu bytes is too long", size);
         /* buffer holds the characters plus the terminating NUL; len excludes the NUL */
-        RUN(tld_str_alloc(&a,size + 1));
+        RUN(tld_str_alloc(&a,(int)size + 1));
         memcpy(a->str,src, size + 1);
-        a->len = size;
+        a->len = (int32_t)size;
 
         *string = a;
         return OK;
@@ -112,18 +111,22 @@ ERROR:
         return FAIL;
 }
 
-inline int tld_strbuf_free_space(tld_strbuf *b)
+/* Make room for size more bytes and the NUL. Sizes are size_t so nothing wraps; a
+   buffer cannot grow past INT32_MAX bytes (len and alloc_len are int32_t). */
+int tld_strbuf_ensure_size(tld_strbuf *b, size_t size)
 {
-        int space = b->alloc_len - b->len;
-        return space;
-}
-
-int tld_strbuf_ensure_size(tld_strbuf *b, int size)
-{
-        int space = tld_strbuf_free_space(b);
-        if(space <= size){
-                int new_size = MACRO_MAX(b->alloc_len*2, b->alloc_len + (size - space) + 1);
-                RUN(tld_strbuf_resize(b, new_size));
+        ASSERT(b->len >= 0 && size <= (size_t)INT32_MAX - (size_t)b->len - 1,
+               "String buffer would exceed %d bytes", INT32_MAX);
+        size_t need = (size_t)b->len + size + 1;
+        if(need > (size_t)b->alloc_len){
+                size_t grow = (size_t)b->alloc_len * 2;
+                if(grow < need){
+                        grow = need;
+                }
+                if(grow > (size_t)INT32_MAX){
+                        grow = (size_t)INT32_MAX;
+                }
+                RUN(tld_strbuf_resize(b, (int)grow));
         }
         return OK;
 ERROR:
@@ -133,7 +136,7 @@ ERROR:
 int tld_strbuf_copy(tld_strbuf *t, tld_strbuf *s)
 {
         /* tld_strbuf_ensure_size(t, s->len); */
-        RUN(tld_strbuf_ensure_size(t,s->len));
+        RUN(tld_strbuf_ensure_size(t,(size_t)s->len));
 
         memcpy(t->str, s->str, s->len);
         t->len = s->len;
@@ -143,14 +146,14 @@ ERROR:
         return FAIL;
 }
 
-int tld_append(tld_strbuf *b, char *content)
+int tld_append(tld_strbuf *b, const char *content)
 {
-        int size = strlen(content);
+        size_t size = strlen(content);
 
         RUN(tld_strbuf_ensure_size(b, size));
 
         memcpy(b->str+b->len,content, size);
-        b->len += size;
+        b->len += (int32_t)size;
         b->str[b->len] = 0;
 
         return OK;
@@ -172,14 +175,14 @@ ERROR:
         return FAIL;
 }
 
-int tld_prepend(tld_strbuf *b, char *content)
+int tld_prepend(tld_strbuf *b, const char *content)
 {
-        int size = strlen(content);
+        size_t size = strlen(content);
 
         RUN(tld_strbuf_ensure_size(b, size));
         memmove(b->str + size, b->str, b->len);
         memcpy(b->str, content, size);
-        b->len += size;
+        b->len += (int32_t)size;
         b->str[b->len] = 0;
         return OK;
 ERROR:

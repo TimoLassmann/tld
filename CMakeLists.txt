@@ -64,6 +64,11 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   add_subdirectory(tests)
   # tlddoc and the docs target (the manuals in docs/)
   add_subdirectory(tools)
+  # libFuzzer targets (clang only): -DTLD_FUZZ=ON, then tests/fuzz/run.sh
+  option(TLD_FUZZ "Build the libFuzzer targets in tests/fuzz (clang)" OFF)
+  if(TLD_FUZZ)
+    add_subdirectory(tests/fuzz)
+  endif()
 endif()
 
   

@@ -1,0 +1,4 @@
+HTTP/1.1 200 OK
+Content-Length: 78
+
+{"score": 0.7, "legend": {"0": "no", "1": "yes"}, "probabilities": [0.3, 0.7]}

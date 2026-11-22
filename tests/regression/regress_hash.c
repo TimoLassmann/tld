@@ -15,7 +15,7 @@
 static int test_hash_add_errors(void)
 {
         tld_hash *h = NULL;
-        char *v = NULL;
+        const char *v = NULL;
 
         /* new table + failure: nothing handed back */
         ASSERT(tld_hash_add(&h, NULL, "v") == FAIL, "NULL key accepted");
@@ -41,7 +41,7 @@ ERROR:
 static int test_hash_rename(void)
 {
         tld_hash *h = NULL;
-        char *v = NULL;
+        const char *v = NULL;
 
         RUN(tld_hash_add(&h, "a", "1"));
         RUN(tld_hash_add(&h, "b", "2"));
@@ -77,7 +77,7 @@ static int test_hash_alloc_size(void)
 
         /* many entries: exercise resize */
         char key[32];
-        char *v = NULL;
+        const char *v = NULL;
         for (int i = 0; i < 5000; i++) {
                 snprintf(key, sizeof(key), "key%d", i);
                 RUN(tld_hash_add(&h, key, key));

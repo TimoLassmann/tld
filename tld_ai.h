@@ -101,11 +101,17 @@
  *   ai_status() == AI_OK) while the review is open. A person edits the file, sets
  *   "status" to "done" and "answer" to a string; the next run returns that answer.
  *
+ * RETURNED MEMORY
+ *   Strings, vectors and the strings in an AI_STRUCT belong to the library: they are
+ *   const, so the compiler warns when one is passed to free(). They stay valid until
+ *   ai_reset() or exit, which means memory grows with every call. A program that calls
+ *   in a loop should call ai_reset() each round, once it has used or copied that round's
+ *   results. When 100000 values are kept without an ai_reset(), the library prints a
+ *   warning to stderr.
+ *
  * THREADS
- *   Every function may be called from any thread. Strings and vectors returned by the
- *   library live until ai_reset() or exit; never free() them. Call ai_reset() only when
- *   no thread still uses returned values. Error text, status and ai_last() are
- *   per thread.
+ *   Every function may be called from any thread. Call ai_reset() only when no thread
+ *   still uses returned values. Error text, status and ai_last() are per thread.
  *
  * LICENCE: MIT, see the end of tld_ai.h.
  */
@@ -135,6 +141,20 @@
 
 /* Version of tld_ai.h. */
 #define AI_VERSION "0.3.0"
+
+/* Prompts and ai_fmt take printf formats. The compiler checks the arguments, and the
+ * macros below check that the format is a string literal: a compile error at
+ * AI__LITERAL means text was passed as the format, which would read or write random
+ * memory if it contained a %. Pass text with "%s": ai_text("%s", prompt). */
+#define AI__LITERAL_FIRST(f, ...) f
+#define AI__LITERAL(...) ((void)sizeof("" AI__LITERAL_FIRST(__VA_ARGS__, ~)))
+
+/* printf-style checking of format arguments (gcc, clang). */
+#if defined(__GNUC__) || defined(__clang__)
+#define AI__PRINTF(f, a) __attribute__((format(printf, f, a)))
+#else
+#define AI__PRINTF(f, a)
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -224,8 +244,8 @@ int ai_defaults(const ai_config *c);
 /* Text from the LLM (TLD_AI_LLM, or o->model) for the printf-style prompt fmt. The
  * string is library memory, valid until ai_reset() (never free it); NULL on failure.
  * ai_text_with takes per-call options (o may be NULL). */
-char       *ai_text(const char *fmt, ...);
-char       *ai_text_with(const ai_opts *o, const char *fmt, ...);
+const char *ai_text(const char *fmt, ...) AI__PRINTF(1, 2);
+const char *ai_text_with(const ai_opts *o, const char *fmt, ...) AI__PRINTF(2, 3);
 
 /* Probability in [0, 1] that the answer to question about state is yes, from the
  * decision model (TLD_AI_DECIDER, or o->model); -1 on failure. A state that starts
@@ -272,7 +292,7 @@ typedef struct { const char *name; ai_kind kind; size_t off; const char *desc; }
 typedef struct { const char *name; size_t size; const ai_field *f; int n; } ai_type;
 typedef struct { const char *name; const char *desc; } ai_label;
 
-#define AI__CT_str  char *
+#define AI__CT_str  const char *
 #define AI__CT_num  double
 #define AI__CT_int  long
 #define AI__CT_bool int
@@ -366,9 +386,9 @@ typedef struct { const char *name; const char *desc; } ai_label;
  * on failure with s zeroed. Strings in s are library memory until ai_reset(); never free
  * them. ai_fill_with(o, &s, T, fmt, ...) takes per-call options. */
 #define ai_fill(out, T, ...) \
-    ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__)
+    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
 #define ai_fill_with(o, out, T, ...) \
-    ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__)
+    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
 
 /* ai_choose(T, state): ask the decision model which label of the choice T (AI_CHOICE)
  * fits state; returns struct T_answer (struct team_answer for T = team): .ok (0 on
@@ -419,7 +439,13 @@ const ai_info *ai_last(void);
 
 /* sprintf into library memory: the formatted string, valid until ai_reset() (never free
  * it); NULL on failure. */
-char       *ai_fmt(const char *fmt, ...);
+const char *ai_fmt(const char *fmt, ...) AI__PRINTF(1, 2);
+
+/* ai_text, ai_text_with and ai_fmt are also macros that require a literal format (see
+ * AI__LITERAL); (ai_text)(fmt, ...) calls the function itself. */
+#define ai_text(...) (AI__LITERAL(__VA_ARGS__), (ai_text)(__VA_ARGS__))
+#define ai_text_with(o, ...) (AI__LITERAL(__VA_ARGS__), (ai_text_with)((o), __VA_ARGS__))
+#define ai_fmt(...) (AI__LITERAL(__VA_ARGS__), (ai_fmt)(__VA_ARGS__))
 
 /* Free every string and vector the library has returned, in all threads. Call it only
  * when no thread still uses them; the library keeps working afterwards. */
@@ -433,7 +459,7 @@ void        ai_reset(void);
 void ai_parallel(int n, int threads, void (*fn)(int i, void *ctx), void *ctx);
 
 /* internals used by the macros */
-int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...);
+int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...) AI__PRINTF(4, 5);
 int ai__choose(const char *name, const char *question, const ai_label *L, int n,
                const char *state, const ai_opts *o, double *confidence, double *p);
 int ai__rate(const char *name, const char *question, const ai_label *L, int n,
@@ -582,6 +608,7 @@ static uint64_t ai__fnv(uint64_t h, const char *s) {
     return h * 1099511628211ULL; /* the separator: h ^= 0, then multiply */
 }
 #define AI__FNV0 1469598103934665603ULL
+#define AI__KEEP_WARN 100000 /* kept results before the one-time warning */
 
 /* ---- arena: every string and vector handed to the caller lives here ---- */
 
@@ -610,7 +637,12 @@ static void *ai__keep(void *p) {
         ai__arena_cap = cap;
     }
     ai__arena[ai__arena_n++] = p;
+    int warn = ai__arena_n == AI__KEEP_WARN;
     pthread_mutex_unlock(&ai__mem_mu);
+    if (warn)
+        fprintf(stderr, "tld_ai: %d results are kept in memory; call ai_reset() when they "
+                        "are no longer needed (see RETURNED MEMORY in tld_ai.h)\n",
+                AI__KEEP_WARN);
     return p;
 }
 
@@ -631,7 +663,7 @@ void ai_reset(void) {
     pthread_mutex_unlock(&ai__mem_mu);
 }
 
-char *ai_fmt(const char *fmt, ...) {
+const char *(ai_fmt)(const char *fmt, ...) {
     ai__begin();
     if (!fmt) {
         ai__fail(AI_EARG, "ai_fmt: NULL format");
@@ -1387,7 +1419,7 @@ static int ai__dechunk(const char *s, size_t n, tld_strbuf *out) {
         if (i >= n) return 0;
         i++;
         if (sz == 0) return 1; /* trailers are ignored */
-        if (n - i < sz + 2) return 0;
+        if (sz > n - i || n - i - sz < 2) return 0; /* no sz + 2: it wraps on 32-bit */
         char save = s[i + sz];
         ((char *)s)[i + sz] = 0;
         int rc = tld_append(out, (char *)s + i);
@@ -1622,7 +1654,8 @@ static void ai__hkey(const char *norm, char *out, size_t n) {
 }
 
 static int ai__dig_lookup(const char *norm, char *digest, size_t dn) {
-    char *v = NULL, hk[900];
+    const char *v = NULL;
+    char hk[900];
     int found = 0;
     ai__hkey(norm, hk, sizeof hk);
     pthread_mutex_lock(&ai__dig_mu);
@@ -1688,7 +1721,8 @@ static void ai__iso_now(char out[64]) {
 
 /* Reserve the next occurrence of base. Caller holds ai__cache_mu. */
 static int ai__seen_next(const char *base) {
-    char *v = NULL, s[24];
+    const char *v = NULL;
+    char s[24];
     int n = 0;
     if (ai__seen && tld_hash_get(ai__seen, (char *)base, &v) == OK && v) n = atoi(v);
     snprintf(s, sizeof s, "%d", n + 1);
@@ -1701,7 +1735,8 @@ static int ai__seen_next(const char *base) {
  * meanwhile, the number is left as it is: identical requests are interchangeable,
  * so the gap only costs one extra request on a rerun. */
 static void ai__seen_release(const char *base, int occ) {
-    char *v = NULL, s[24];
+    const char *v = NULL;
+    char s[24];
     pthread_mutex_lock(&ai__cache_mu);
     if (ai__seen && tld_hash_get(ai__seen, (char *)base, &v) == OK && v && atoi(v) == occ) {
         snprintf(s, sizeof s, "%d", occ - 1);
@@ -1803,7 +1838,7 @@ static tld_json_obj *ai__call(const char *ep, const char *model, tld_json_obj *r
     int occ = ai__seen_next(base);
     if (occ > 0) {
         snprintf(key, sizeof key, "%s#%d", base, occ);
-        char *v = NULL;
+        const char *v = NULL;
         if (!fresh && !ai__c->fresh && ai__c->cache_on && ai__cache &&
             tld_hash_get(ai__cache, key, &v) == OK && v && !(hit = ai__strdup(v)))
             occ = -1;
@@ -2069,7 +2104,7 @@ static char *ai__text(const ai_opts *o, const char *fmt, va_list ap) {
     return ai__keep(r);
 }
 
-char *ai_text_with(const ai_opts *o, const char *fmt, ...) {
+const char *(ai_text_with)(const ai_opts *o, const char *fmt, ...) {
     ai__begin();
     va_list ap;
     va_start(ap, fmt);
@@ -2078,7 +2113,7 @@ char *ai_text_with(const ai_opts *o, const char *fmt, ...) {
     return r;
 }
 
-char *ai_text(const char *fmt, ...) {
+const char *(ai_text)(const char *fmt, ...) {
     ai__begin();
     va_list ap;
     va_start(ap, fmt);
@@ -2142,7 +2177,7 @@ static int ai__unpack(void *out, const ai_type *t, const char *text) {
         case AI_T_str:
             if (tld_json_get_str(j, f->name, &s) != OK)
                 rc = -1;
-            else if (!(*(char **)dst = ai__strdup(s)))
+            else if (!(*(const char **)dst = ai__strdup(s)))
                 rc = ai__nomem();
             break;
         case AI_T_num:
@@ -2170,8 +2205,8 @@ static int ai__unpack(void *out, const ai_type *t, const char *text) {
 static void ai__free_strs(void *s, const ai_type *t) {
     for (int i = 0; i < t->n; i++)
         if (t->f[i].kind == AI_T_str) {
-            char **p = (char **)((char *)s + t->f[i].off);
-            free(*p);
+            const char **p = (const char **)((char *)s + t->f[i].off);
+            free((void *)*p);
             *p = NULL;
         }
 }
@@ -2228,8 +2263,8 @@ int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...
     if (!rc) { /* move the strings into the arena; the struct is complete */
         for (int i = 0; i < t->n; i++)
             if (t->f[i].kind == AI_T_str) {
-                char **p = (char **)((char *)tmp + t->f[i].off);
-                if (!ai__keep(*p)) rc = -1;
+                const char **p = (const char **)((char *)tmp + t->f[i].off);
+                if (!ai__keep((void *)*p)) rc = -1;
                 if (rc) *p = NULL;
             }
         if (!rc) memcpy(out, tmp, t->size);

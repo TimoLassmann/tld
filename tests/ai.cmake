@@ -18,6 +18,8 @@ ai_program(ai-text ai/text.c)
 ai_program(ai-apis ai/apis.c)
 ai_program(ai-special ai/special.c)
 ai_program(ai-defaults ai/defaults.c)
+ai_program(ai-arena ai/arena.c)
+add_test(NAME ai-arena COMMAND ai-arena)
 
 set(AI_RUN sh ${CMAKE_CURRENT_SOURCE_DIR}/ai/run.sh)
 foreach(group plumbing noserver http json cache defaults)

@@ -16,7 +16,7 @@ int main(int argc, char **argv) {
     const char *stops[] = {"END", NULL}, *imgs[] = {img, NULL};
     SECTION_MSG("ai_text_with, every option set");
     KV_MSG("image", "%s", img);
-    char *s = ai_text_with(AI_OPTS(.model = "inkling-2-mini", .system = "Be brief.",
+    const char *s = ai_text_with(AI_OPTS(.model = "inkling-2-mini", .system = "Be brief.",
                                    .temperature = AI_F(0), .seed = AI_I(7), .stop = stops,
                                    .think = "high", .keep_alive = "10m", .images = imgs,
                                    .extra_options = "{\"repeat_penalty\":1.1,\"seed\":7}"),

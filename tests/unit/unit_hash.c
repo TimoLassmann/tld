@@ -26,8 +26,8 @@ int test_stress(void);
 static int demo(int n, char **args)
 {
         tld_hash *hash = NULL;
-        char *key = NULL;
-        char *value = NULL;
+        const char *key = NULL;
+        const char *value = NULL;
         RUN(tld_hash_alloc(&hash, 4));
         SECTION_MSG("add");
         for (int i = 0; i < n; i++) {
@@ -131,7 +131,7 @@ int test_add_and_get(void)
         ASSERT_TEST(tld_hash_add(&hash, "key3", "value3") == OK, "Failed to add key3.");
 
         // Retrieving and verifying values
-        char *value = NULL;
+        const char *value = NULL;
         ASSERT_TEST(tld_hash_get(hash, "key1", &value) == OK && strcmp(value, "value1") == 0, "Incorrect value for key1.");
         ASSERT_TEST(tld_hash_get(hash, "key2", &value) == OK && strcmp(value, "value2") == 0, "Incorrect value for key2.");
         ASSERT_TEST(tld_hash_get(hash, "key3", &value) == OK && strcmp(value, "value3") == 0, "Incorrect value for key3.");
@@ -152,7 +152,7 @@ int test_overwrite(void) {
         ASSERT_TEST(tld_hash_add(&hash, "key1", "new_value1") == OK, "Failed to overwrite key1.");
 
         // Verify the new value
-        char *value = NULL;
+        const char *value = NULL;
         ASSERT_TEST(tld_hash_get(hash, "key1", &value) == OK && strcmp(value, "new_value1") == 0, "Overwrite failed for key1.");
 
         tld_hash_free(hash);
@@ -172,7 +172,7 @@ int test_deletion(void) {
         ASSERT_TEST(tld_hash_del(hash, "key2") == OK, "Failed to delete key2.");
 
         // Verify deletion
-        char *value = NULL;
+        const char *value = NULL;
         ASSERT_TEST(tld_hash_get(hash, "key2", &value) == FAIL, "key2 should have been deleted.");
 
         // Ensure key1 still exists
@@ -198,7 +198,7 @@ int test_collision_handling(void) {
         }
 
         // Verify all keys
-        char *value = NULL;
+        const char *value = NULL;
         for (int i = 0; i < 10; i++) {
                 char key[32];
                 snprintf(key, sizeof(key), "key%d", i);
@@ -238,7 +238,7 @@ int test_dynamic_resizing(void)
         ASSERT_TEST(hash->table_size > initial_size, "Hash table did not resize as expected.");
 
         // Verify all entries
-        char *value = NULL;
+        const char *value = NULL;
         for (int i = 0; i < entries_to_add; i++) {
                 char key[32];
                 snprintf(key, sizeof(key), "resize_key%d", i);
@@ -308,7 +308,7 @@ int test_stress(void) {
         for (int i = 0; i < total_entries; i += 1000) { // Check every 1000th entry
                 snprintf(key, sizeof(key), "stress_key_%d", i);
                 snprintf(val, sizeof(val), "stress_val_%d", i);
-                char *retrieved_val = NULL;
+                const char *retrieved_val = NULL;
                 ASSERT_TEST(tld_hash_get(hash, key, &retrieved_val) == OK, "Failed to retrieve key during stress test.");
                 ASSERT_TEST(strcmp(retrieved_val, val) == 0, "Incorrect value during stress test.");
         }

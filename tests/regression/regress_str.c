@@ -3,6 +3,8 @@
  *   counted the NUL in len.
  * - tld_strbuf_resize never updated alloc_len, so every append after the first
  *   growth reallocated and copied the whole buffer.
+ * - Growing a buffer near 1-2 GB overflowed its int size, returned OK and wrote past
+ *   the end; now the append fails.
  */
 #include "tld.h"
 #include "test.h"
@@ -61,6 +63,34 @@ ERROR:
         return FAIL;
 }
 
+/* A buffer near the int32_t size limit refuses to grow instead of wrapping its size
+ * and writing past the end. Only the bookkeeping is faked (the real block is 64
+ * bytes): the old arithmetic wrapped, returned OK and copied past the block, which
+ * ASan reports as a heap overflow. Prints one expected ERROR line. */
+static int test_strbuf_limit(void)
+{
+        tld_strbuf *b = NULL;
+        int32_t real_alloc = 0;
+        RUN(tld_strbuf_alloc(&b, 64));
+        real_alloc = b->alloc_len;
+        b->alloc_len = INT32_MAX - 8;        /* as if it had grown to 2 GB ... */
+        b->len = INT32_MAX - 20;             /* ... and was nearly full */
+        int rc = tld_append(b, "0123456789012345678901234567890123456789");
+        ASSERT(rc == FAIL, "append past INT32_MAX succeeded");
+        ASSERT(b->len == INT32_MAX - 20, "len changed to %d", b->len);
+        b->alloc_len = real_alloc;
+        b->len = 0;
+        tld_strbuf_free(b);
+        return OK;
+ERROR:
+        if (b) {
+                b->alloc_len = real_alloc;
+                b->len = 0;
+        }
+        tld_strbuf_free(b);
+        return FAIL;
+}
+
 /* The checks, in the order a plain run does them; arguments select by name. */
 static const struct {
         const char *name;
@@ -69,6 +99,7 @@ static const struct {
 } checks[] = {
         {"strmk", test_strmk, "tld_strmk stays in its buffer and does not count the NUL"},
         {"growth", test_strbuf_growth, "tld_strbuf grows geometrically (alloc_len updated)"},
+        {"limit", test_strbuf_limit, "an append past INT32_MAX fails instead of overflowing"},
 };
 
 int main(int argc, char *argv[])
@@ -80,6 +111,7 @@ int main(int argc, char *argv[])
                   "CHECK names (default: all, in this order):\n"
                   "  strmk   tld_strmk stays in its buffer and does not count the NUL\n"
                   "  growth  tld_strbuf grows geometrically (alloc_len updated)\n"
+                  "  limit   an append past INT32_MAX fails instead of overflowing\n"
                   "\n"
                   "Example: regress-str strmk");
         for(int i = 1; i < argc; i++){

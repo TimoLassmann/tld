@@ -19,7 +19,7 @@ static int checks(void)
 
         SECTION_MSG("1D galloc / gfree");
         /* galloc(&f, 19); */
-        galloc(&f, 1186718291);
+        galloc(&f, 1 << 24);           /* 64 MB: large, but sanitizer builds can run it */
         DEBUG_MSG("pointer: %p", (void *)f);
         for(int i = 0; i < 19;i++){
                 f[i] = i;
@@ -27,7 +27,7 @@ static int checks(void)
         galloc(&d, 1900);
         gfree(f);
         gfree(d);
-        OK_MSG("allocated and freed 1186718291 ints and 1900 doubles");
+        OK_MSG("allocated and freed %d ints and 1900 doubles", 1 << 24);
 
         SECTION_MSG("2D galloc / gfree");
         float** mat = NULL;

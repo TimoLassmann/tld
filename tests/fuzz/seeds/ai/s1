@@ -1,0 +1,1 @@
+{"model": "m", "message": {"role": "assistant", "content": "{\"name\":\"x\",\"count\":3}"}, "done": true, "prompt_eval_count": 3, "eval_count": 4}

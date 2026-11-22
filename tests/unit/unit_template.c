@@ -12,8 +12,8 @@ static int demo(int argc, char **argv)
         tld_hash *h = NULL;
         tld_hash *vars = NULL;
         tld_strbuf *t = NULL;
-        char *key = NULL;
-        char *value = NULL;
+        const char *key = NULL;
+        const char *value = NULL;
         RUN(tld_strbuf_alloc(&t, 64));
         RUN(tld_append(t, argv[1]));
         RUN(tld_hash_alloc(&h, 16));
@@ -147,8 +147,8 @@ int test_get_vars_template(void)
                 KV_MSG("template", "%s", TLD_STR(template));
                 if(tld_template_extract_var(template, &h) == OK){
                         RUN(tld_hash_iter_init(h));
-                        char* key = NULL;
-                        char* value = NULL;
+                        const char* key = NULL;
+                        const char* value = NULL;
                         while(tld_hash_iterator_next(h, &key, &value) == OK){
                                 DEBUG_MSG("key %s value %s", key, value);
                                 /* LOG_MSG("Key: %s Value: %s", key, value); */

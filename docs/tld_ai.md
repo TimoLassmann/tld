@@ -26,6 +26,7 @@ Every public symbol of tld_ai.h is documented below, module by module, with its 
 - [Cloud models](#sec-cloud-models)
 - [Cache and replay](#sec-cache-and-replay)
 - [Human review](#sec-human-review)
+- [Returned memory](#sec-returned-memory)
 - [Threads](#sec-threads)
 - [Licence](#sec-licence)
 - [general](#mod-general): 1 symbol
@@ -166,14 +167,23 @@ ai_review(what, payload) writes TLD_AI_REVIEWS/<key>.json =
 ai_status() == AI_OK) while the review is open. A person edits the file, sets
 "status" to "done" and "answer" to a string; the next run returns that answer.
 
+<a id="sec-returned-memory"></a>
+
+## Returned memory
+
+Strings, vectors and the strings in an AI_STRUCT belong to the library: they are
+const, so the compiler warns when one is passed to free(). They stay valid until
+ai_reset() or exit, which means memory grows with every call. A program that calls
+in a loop should call ai_reset() each round, once it has used or copied that round's
+results. When 100000 values are kept without an ai_reset(), the library prints a
+warning to stderr.
+
 <a id="sec-threads"></a>
 
 ## Threads
 
-Every function may be called from any thread. Strings and vectors returned by the
-library live until ai_reset() or exit; never free() them. Call ai_reset() only when
-no thread still uses returned values. Error text, status and ai_last() are
-per thread.
+Every function may be called from any thread. Call ai_reset() only when no thread
+still uses returned values. Error text, status and ai_last() are per thread.
 
 <a id="sec-licence"></a>
 
@@ -331,8 +341,8 @@ http://, empty name, number <= 0) changes nothing. Calls in flight keep their se
 ### `ai_text`, `ai_text_with`
 
 ```c
-char       *ai_text(const char *fmt, ...);
-char       *ai_text_with(const ai_opts *o, const char *fmt, ...);
+const char *ai_text(const char *fmt, ...) AI__PRINTF(1, 2);
+const char *ai_text_with(const ai_opts *o, const char *fmt, ...) AI__PRINTF(2, 3);
 ```
 
 Text from the LLM (TLD_AI_LLM, or o->model) for the printf-style prompt fmt. The
@@ -524,9 +534,9 @@ AI_SCALE(urgency, "How urgent is this?", URGENCY)
 
 ```c
 #define ai_fill(out, T, ...) \
-    ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__)
+    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
 #define ai_fill_with(o, out, T, ...) \
-    ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__)
+    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
 ```
 
 ai_fill(&s, T, fmt, ...): ask the LLM to fill s, a struct T made by AI_STRUCT, for the
@@ -642,7 +652,7 @@ Details of the last request this thread sent (or tried to send) to the server.
 ### `ai_fmt`
 
 ```c
-char       *ai_fmt(const char *fmt, ...);
+const char *ai_fmt(const char *fmt, ...) AI__PRINTF(1, 2);
 ```
 
 sprintf into library memory: the formatted string, valid until ai_reset() (never free

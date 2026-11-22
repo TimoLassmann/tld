@@ -76,7 +76,7 @@ int load(const char *path, tld_strbuf **out)
         tld_strbuf *b = NULL;
         ASSERT(path != NULL, "No path");
         RUN(tld_strbuf_alloc(&b, 256));
-        RUN(tld_append(b, (char *)path));
+        RUN(tld_append(b, path));
         *out = b;
         return OK;
 ERROR:
@@ -88,6 +88,10 @@ ERROR:
 Initialise every pointer to NULL: MMALLOC refuses a non-NULL pointer, and the
 cleanup after ERROR: may run before an allocation happened.
 
+LOG_MSG, WARNING_MSG, ERROR_MSG, ASSERT and the rich-output calls take a printf
+format, checked by the compiler. Print text from users or files with "%s", never as
+the format itself: LOG_MSG("%s", line), not LOG_MSG(line).
+
 <a id="sec-memory"></a>
 
 ## Memory
@@ -96,9 +100,12 @@ Objects come from an allocator (tld_strbuf_alloc(&b, ...), tld_hash_alloc,
 kdtree_alloc, init_rng, tld_json_parse, JSON_OBJ, ...) and belong to the caller,
 who frees them with the matching free function (tld_strbuf_free, tld_hash_free,
 kdtree_free, free_rng, tld_json_obj_free, ...); every free function accepts NULL.
-galloc memory is freed with gfree, MMALLOC memory with MFREE. Pointers handed out
-by an object (TLD_STR(b), tld_hash_get, tld_json_get_str, ...) are borrowed: valid
-until that object changes or is freed.
+galloc memory is freed with gfree, MMALLOC memory with MFREE, never with free();
+both set the pointer to NULL, so freeing again on an error path is harmless.
+Pointers handed out by an object (tld_hash_get, tld_json_get_str, ...) are borrowed
+and const: valid until that object changes or is freed; never write through them
+or free them. Sizes are int-based: a string buffer holds at most INT32_MAX - 1 bytes
+and refuses to grow past that.
 
 <a id="sec-threads"></a>
 
@@ -199,11 +206,14 @@ failure. Compare with == OK; do not use the result as a boolean.
 ### `MACRO_MIN`, `MACRO_MAX`
 
 ```c
-#define MACRO_MIN(a,b)          (((a)<(b))?(a):(b))
-#define MACRO_MAX(a,b)          (((a)>(b))?(a):(b))
+#define MACRO_MIN(a,b)          TLD__MINMAX(<, a, b, __COUNTER__)
+#define MACRO_MAX(a,b)          TLD__MINMAX(>, a, b, __COUNTER__)
 ```
 
-Smaller / larger of a and b. Arguments are evaluated twice: no side effects.
+Smaller / larger of a and b, with the usual arithmetic conversions (int and double
+give double). Each argument is evaluated exactly once, so MACRO_MAX(i++, n) is safe.
+A GNU statement expression (gcc, clang): not for constant expressions such as a
+file-scope array size.
 
 <a id="MESSAGE_TYPE_MSG"></a><a id="MESSAGE_TYPE_WARNING"></a><a id="MESSAGE_TYPE_ERROR"></a>
 
@@ -222,7 +232,8 @@ Message types for tld_message and tld_message_at.
 ### `tld_message`
 
 ```c
-tld_external void tld_message(uint8_t type, const char *format, ...);
+tld_external void tld_message(uint8_t type, const char *format, ...)
+        __attribute__((format(printf, 2, 3)));
 ```
 
 Print a timestamped message of type MESSAGE_TYPE_* (printf-style, newline added) to
@@ -244,8 +255,8 @@ Like tld_message; an ERROR line also names file and line. Used by the macros.
 ### `LOG_MSG`, `WARNING_MSG`
 
 ```c
-#define LOG_MSG(...) (tld_message(MESSAGE_TYPE_MSG, __VA_ARGS__ ))
-#define WARNING_MSG(...) (tld_message(MESSAGE_TYPE_WARNING, __VA_ARGS__ ))
+#define LOG_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_message(MESSAGE_TYPE_MSG, __VA_ARGS__))
+#define WARNING_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_message(MESSAGE_TYPE_WARNING, __VA_ARGS__))
 ```
 
 LOG_MSG(fmt, ...) / WARNING_MSG(fmt, ...): print a timestamped LOG or WARNING line
@@ -257,6 +268,7 @@ LOG_MSG(fmt, ...) / WARNING_MSG(fmt, ...): print a timestamped LOG or WARNING li
 
 ```c
 #define ERROR_MSG(...) do {                                     \
+                TLD__LITERAL(__VA_ARGS__);                      \
                 tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
                 goto ERROR;                                     \
         }while (0)
@@ -296,13 +308,7 @@ Function "EXP" failed. as an ERROR line with file and line and goto ERROR.
 ### `ASSERT`
 
 ```c
-#define ASSERT(TEST,...) do {                                   \
-                if(!(TEST)) {                                   \
-                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, "Assertion failed: %s", #TEST); \
-                        tld_message_at(MESSAGE_TYPE_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
-                        goto ERROR;                             \
-                }                                               \
-        } while (0)
+#define ASSERT(TEST,...) ...
 ```
 
 ASSERT(TEST, fmt, ...): if TEST is false, print "Assertion failed: TEST" and the
@@ -336,10 +342,10 @@ not "dumb"; 0 otherwise.
 ### `SECTION_MSG`, `KV_MSG`, `OK_MSG`, `DEBUG_MSG`
 
 ```c
-#define SECTION_MSG(...) tld_section(__VA_ARGS__)
-#define KV_MSG(KEY, ...) tld_kv(KEY, __VA_ARGS__)
-#define OK_MSG(...) tld_ok(__VA_ARGS__)
-#define DEBUG_MSG(...) tld_debug(__VA_ARGS__)
+#define SECTION_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_section(__VA_ARGS__))
+#define KV_MSG(KEY, ...) (TLD__LITERAL(__VA_ARGS__), tld_kv(KEY, __VA_ARGS__))
+#define OK_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_ok(__VA_ARGS__))
+#define DEBUG_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld_debug(__VA_ARGS__))
 ```
 
 Rich terminal output. Everything goes to stderr, so stdout keeps only a program's
@@ -463,11 +469,16 @@ the dimensions back.
 ### `gfree`
 
 ```c
-#define gfree(a) tld_free(a)
+#define gfree(a)                                                        \
+        do {                                                            \
+                tld_free(a);                                            \
+                (a) = NULL;                                             \
+        } while (0)
 ```
 
-gfree(p): free memory from galloc (1D or 2D). A NULL p is fine; p is not set to
-NULL. Never pass galloc memory to free() or MFREE.
+gfree(p): free memory from galloc (1D or 2D) and set p to NULL, like MFREE, so a
+second gfree(p) on an error path is harmless. p must be an lvalue (a variable, field
+or element); a NULL p is fine. Never pass galloc memory to free() or MFREE.
 
 <a id="get_dim1"></a><a id="get_dim2"></a>
 
@@ -596,6 +607,8 @@ typedef struct tld_string_buffer {
 A growable byte buffer: len bytes at str, always followed by a NUL, in alloc_len
 bytes. TLD_STR(b) gives it as char *. Appending may move str, so do not keep that
 pointer across changes. Create with tld_strbuf_alloc, free with tld_strbuf_free.
+A buffer holds at most INT32_MAX - 1 bytes; an append that would pass that fails
+with an error and leaves the buffer unchanged.
 
 <a id="TLD_STR"></a><a id="TLD_STRLEN"></a>
 
@@ -687,7 +700,7 @@ Replace the contents of t with a copy of s; t grows as needed.
 ### `tld_append`
 
 ```c
-tld_external int tld_append(tld_strbuf *b, char *content);
+tld_external int tld_append(tld_strbuf *b, const char *content);
 ```
 
 Append the NUL-terminated string content to b; b grows as needed.
@@ -707,7 +720,7 @@ Append the single character c to b.
 ### `tld_prepend`
 
 ```c
-tld_external int tld_prepend(tld_strbuf *b, char *content);
+tld_external int tld_prepend(tld_strbuf *b, const char *content);
 ```
 
 Insert the NUL-terminated string content at the start of b.
@@ -995,7 +1008,7 @@ Free the map and every key and value; NULL is ignored.
 ### `tld_hash_add`
 
 ```c
-tld_external  int tld_hash_add(tld_hash **hash, char *key, char *val);
+tld_external  int tld_hash_add(tld_hash **hash, const char *key, const char *val);
 ```
 
 Insert key -> val (both copied), replacing the value if key exists. When *hash is NULL
@@ -1006,11 +1019,11 @@ a map is allocated first and stored in *hash.
 ### `tld_hash_get`
 
 ```c
-tld_external  int tld_hash_get(tld_hash *h, char *key, char **val);
+tld_external  int tld_hash_get(tld_hash *h, const char *key, const char **val);
 ```
 
-Look up key: *val points to the stored value (borrowed; valid until the entry changes
-or the map is freed). Returns FAIL, without a message, and sets *val to NULL when key
+Look up key: *val points to the stored value (borrowed and read-only: do not write
+to it or free it; valid until the entry changes or the map is freed). Returns FAIL, without a message, and sets *val to NULL when key
 is absent.
 
 <a id="tld_hash_del"></a>
@@ -1018,7 +1031,7 @@ is absent.
 ### `tld_hash_del`
 
 ```c
-tld_external  int tld_hash_del(tld_hash *h, char *key);
+tld_external  int tld_hash_del(tld_hash *h, const char *key);
 ```
 
 Remove key. Returns FAIL, without a message, when key is absent.
@@ -1028,7 +1041,7 @@ Remove key. Returns FAIL, without a message, when key is absent.
 ### `tld_hash_rename`
 
 ```c
-tld_external  int tld_hash_rename(tld_hash *h, char *key, char* new_key);
+tld_external  int tld_hash_rename(tld_hash *h, const char *key, const char *new_key);
 ```
 
 Move the value stored under key to new_key (replacing any value there). Returns FAIL
@@ -1049,14 +1062,14 @@ Start iterating over the map (entries come in no particular order).
 ### `tld_hash_iterator_next`
 
 ```c
-tld_external  int tld_hash_iterator_next(tld_hash* h, char **key,char **value);
+tld_external  int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value);
 ```
 
-Next entry: *key and *value point into the map (borrowed). Returns FAIL, without a
+Next entry: *key and *value point into the map (borrowed and read-only). Returns FAIL, without a
 message, when there are no more entries. Do not add or delete while iterating.
 
 ```c
-char *k, *v;
+const char *k, *v;
 RUN(tld_hash_iter_init(h));
 while(tld_hash_iterator_next(h, &k, &v) == OK){ ... }
 ```
@@ -2253,7 +2266,7 @@ typedef struct tld_thread_pool {
         double maxtime;
         time_t internal_time;
         time_t stop_watch;
-        /* void (*function_ptr)(void*); */
+        int n_dropped;          /* jobs refused or abandoned after a stop */
 
 } tld_thread_pool;
 ```
@@ -2284,18 +2297,22 @@ tld_external int tld_thread_pool_add(tld_thread_pool *p, void (*func_ptr)(tld_th
 Queue a job: a worker calls func_ptr(p, data, start, end, thread_id), thread_id in
 [0, n_threads). start and end are passed through (e.g. a slice of an index range).
 Thread-safe; may be called from inside a job. Once the pool has stopped (time limit
-or tld_global_stop_run) the job is dropped and OK is still returned.
+or tld_global_stop_run) the job is refused: FAIL without a message, and data is still
+the caller's to free.
 
 <a id="tld_thread_pool_wait"></a>
 
 ### `tld_thread_pool_wait`
 
 ```c
-tld_external void tld_thread_pool_wait(tld_thread_pool *p);
+tld_external int tld_thread_pool_wait(tld_thread_pool *p);
 ```
 
 Block until the queue is empty and no job is running (after a stop: until every
-worker has exited). The pool can take more jobs afterwards. NULL is ignored.
+worker has exited). OK when every job added to the pool has run; FAIL, without a
+message, when a stop refused or abandoned jobs (they did not run, so whatever they
+would have done or freed did not happen). A running pool can take more jobs
+afterwards. NULL is ignored (OK).
 
 <a id="tld_thread_pool_free"></a>
 

@@ -85,9 +85,14 @@
  * the dimensions back. */
 #define galloc(...) GALLOC_ARGS(__VA_ARGS__)
 
-/* gfree(p): free memory from galloc (1D or 2D). A NULL p is fine; p is not set to
- * NULL. Never pass galloc memory to free() or MFREE. */
-#define gfree(a) tld_free(a)
+/* gfree(p): free memory from galloc (1D or 2D) and set p to NULL, like MFREE, so a
+ * second gfree(p) on an error path is harmless. p must be an lvalue (a variable, field
+ * or element); a NULL p is fine. Never pass galloc memory to free() or MFREE. */
+#define gfree(a)                                                        \
+        do {                                                            \
+                tld_free(a);                                            \
+                (a) = NULL;                                             \
+        } while (0)
 
 /* Dimensions of a galloc block: rows (n) into *d, and columns (k, 0 for a 1D array)
  * into *d. FAIL if ptr is NULL. Only valid for memory from galloc. */

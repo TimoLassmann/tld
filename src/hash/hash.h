@@ -19,31 +19,31 @@ tld_external void tld_hash_free(tld_hash *h);
 
 /* Insert key -> val (both copied), replacing the value if key exists. When *hash is NULL
  * a map is allocated first and stored in *hash. */
-tld_external  int tld_hash_add(tld_hash **hash, char *key, char *val);
+tld_external  int tld_hash_add(tld_hash **hash, const char *key, const char *val);
 
-/* Look up key: *val points to the stored value (borrowed; valid until the entry changes
- * or the map is freed). Returns FAIL, without a message, and sets *val to NULL when key
+/* Look up key: *val points to the stored value (borrowed and read-only: do not write
+ * to it or free it; valid until the entry changes or the map is freed). Returns FAIL, without a message, and sets *val to NULL when key
  * is absent. */
-tld_external  int tld_hash_get(tld_hash *h, char *key, char **val);
+tld_external  int tld_hash_get(tld_hash *h, const char *key, const char **val);
 
 /* Remove key. Returns FAIL, without a message, when key is absent. */
-tld_external  int tld_hash_del(tld_hash *h, char *key);
+tld_external  int tld_hash_del(tld_hash *h, const char *key);
 
 /* Move the value stored under key to new_key (replacing any value there). Returns FAIL
  * when key is absent. */
-tld_external  int tld_hash_rename(tld_hash *h, char *key, char* new_key);
+tld_external  int tld_hash_rename(tld_hash *h, const char *key, const char *new_key);
 
 /* Start iterating over the map (entries come in no particular order). */
 tld_external  int tld_hash_iter_init(tld_hash *h);
 
-/* Next entry: *key and *value point into the map (borrowed). Returns FAIL, without a
+/* Next entry: *key and *value point into the map (borrowed and read-only). Returns FAIL, without a
  * message, when there are no more entries. Do not add or delete while iterating.
  *
- *   char *k, *v;
+ *   const char *k, *v;
  *   RUN(tld_hash_iter_init(h));
  *   while(tld_hash_iterator_next(h, &k, &v) == OK){ ... }
  */
-tld_external  int tld_hash_iterator_next(tld_hash* h, char **key,char **value);
+tld_external  int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value);
 
 /* Print every entry as "key: value" lines to stdout. */
 tld_external  int tld_hash_print(tld_hash *h);

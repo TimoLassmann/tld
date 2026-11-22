@@ -113,7 +113,7 @@ static int mode_timeout(const char *host) {
     expect(ai_defaults(AI_CONFIG(.host = host, .timeout = AI_I(1), .db = "off")) == 0,
            "ai_defaults timeout 1");
     clock_gettime(CLOCK_MONOTONIC, &t0);
-    char *s = ai_text("slow");
+    const char *s = ai_text("slow");
     clock_gettime(CLOCK_MONOTONIC, &t1);
     double dt = (double)(t1.tv_sec - t0.tv_sec) + (double)(t1.tv_nsec - t0.tv_nsec) / 1e9;
     expect(!s && ai_status() == AI_EHTTP && strstr(ai_error(), "timed out"),

@@ -120,7 +120,7 @@ static void test_errors(void)
         tld_append(b, "{{IF a}}{{b}}{{ELSE}}{{c}}{{ENDIF}}");
         CHECK(tld_template_extract_var(b, &h) == OK);
         {
-                char* v = NULL;
+                const char* v = NULL;
                 CHECK(h != NULL);
                 CHECK(tld_hash_get(h, "a", &v) == OK && v != NULL);
                 v = NULL;

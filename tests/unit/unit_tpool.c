@@ -61,11 +61,11 @@ static int test_wait(void)
                 for(int i = 0; i < n; i++){
                         RUN(tld_thread_pool_add(pool, inc_job, NULL, i, i + 1));
                 }
-                tld_thread_pool_wait(pool);
+                RUN(tld_thread_pool_wait(pool));        /* every job ran: OK */
                 ASSERT(atomic_load(&counter) == n, "round %d: wait returned with %d of %d jobs done", round, atomic_load(&counter), n);
         }
         /* wait on an idle pool returns at once */
-        tld_thread_pool_wait(pool);
+        RUN(tld_thread_pool_wait(pool));
         tld_thread_pool_free(pool);
         return OK;
 ERROR:
@@ -103,13 +103,30 @@ static int test_maxtime(void)
         /* One job: the other three workers are idle on the work condition
            when the time limit is hit and must be woken to exit. */
         RUN(tld_thread_pool_add(pool, slow_job, NULL, 0, 1));
-        tld_thread_pool_wait(pool);
+        /* the limit passed after the only job: nothing was lost, so OK */
+        RUN(tld_thread_pool_wait(pool));
         ASSERT(atomic_load(&counter) == 1, "slow job did not run");
         ASSERT(pool->stop == 1, "pool not stopped after maxtime");
-        /* Adding to a stopped pool is accepted but nothing runs. */
-        RUN(tld_thread_pool_add(pool, inc_job, NULL, 0, 1));
-        tld_thread_pool_wait(pool);
+        /* A stopped pool refuses jobs, and wait reports that work was lost. */
+        ASSERT(tld_thread_pool_add(pool, inc_job, NULL, 0, 1) == FAIL,
+               "a stopped pool accepted a job");
+        ASSERT(tld_thread_pool_wait(pool) == FAIL, "wait hid a refused job");
         ASSERT(atomic_load(&counter) == 1, "job ran on a stopped pool");
+        tld_thread_pool_free(pool);
+        pool = NULL;
+
+        /* Jobs still queued when the limit passes are abandoned: wait says so. */
+        RUN(tld_thread_pool_create(&pool, 1e-9, 2));
+        atomic_store(&counter, 0);
+        RUN(tld_thread_pool_add(pool, slow_job, NULL, 0, 1));
+        RUN(tld_thread_pool_add(pool, slow_job, NULL, 0, 1));
+        for(int i = 0; i < 50; i++){
+                if(tld_thread_pool_add(pool, inc_job, NULL, 0, 1) != OK){
+                        break;                  /* already stopped: refused, also counted */
+                }
+        }
+        ASSERT(tld_thread_pool_wait(pool) == FAIL, "wait hid abandoned jobs");
+        ASSERT(atomic_load(&counter) < 52, "every job ran despite the time limit");
         tld_thread_pool_free(pool);
         return OK;
 ERROR:
@@ -123,8 +140,9 @@ static int test_global_stop(void)
         RUN(tld_thread_pool_create(&pool, 0.0, 4));
         atomic_store(&counter, 0);
         tld_global_stop_run = 1;
-        RUN(tld_thread_pool_add(pool, inc_job, NULL, 0, 1));
-        tld_thread_pool_wait(pool);
+        ASSERT(tld_thread_pool_add(pool, inc_job, NULL, 0, 1) == FAIL,
+               "job accepted after tld_global_stop_run was set");
+        ASSERT(tld_thread_pool_wait(pool) == FAIL, "wait hid a refused job");
         ASSERT(atomic_load(&counter) == 0, "job ran after tld_global_stop_run was set");
         tld_thread_pool_free(pool);
         tld_global_stop_run = 0;

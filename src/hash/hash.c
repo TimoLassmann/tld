@@ -13,7 +13,7 @@
 tld_internal  int tld_hash_entry_alloc(tld_hash_entry **entry);
 tld_internal void tld_hash_entry_free(tld_hash_entry *n);
 
-tld_internal unsigned int fnv1a_hash(char *str, int table_size);
+tld_internal unsigned int fnv1a_hash(const char *str, int table_size);
 tld_internal int tld_hash_resize(tld_hash *h);
 
 /* The smallest table size in the prime list that is larger than size; 0 if none is. */
@@ -94,7 +94,7 @@ void tld_hash_free(tld_hash *h)
         }
 }
 
-static unsigned int fnv1a_hash(char *str, int table_size)
+static unsigned int fnv1a_hash(const char *str, int table_size)
 {
         unsigned int hash = 2166136261u;
         int c;
@@ -163,7 +163,7 @@ ERROR:
 
 }
 
-int tld_hash_add(tld_hash **hash, char *key, char *val)
+int tld_hash_add(tld_hash **hash, const char *key, const char *val)
 {
         tld_hash* h = NULL;
         tld_hash_entry* new_entry = NULL;
@@ -222,7 +222,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_hash_get(tld_hash *h, char *key, char **val)
+int tld_hash_get(tld_hash *h, const char *key, const char **val)
 {
         ASSERT(h != NULL, "No Map!!");
         ASSERT(key != NULL, "No key");
@@ -244,7 +244,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_hash_del(tld_hash *h, char *key)
+int tld_hash_del(tld_hash *h, const char *key)
 {
         ASSERT(h != NULL, "No Map!!");
         ASSERT(key != NULL, "No key");
@@ -277,7 +277,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_hash_rename(tld_hash *h, char *key, char* new_key) {
+int tld_hash_rename(tld_hash *h, const char *key, const char *new_key) {
         tld_strbuf* tmp = NULL;
         ASSERT(h != NULL, "No Map!!");
         ASSERT(key != NULL, "No key");
@@ -327,7 +327,7 @@ ERROR:
         return FAIL;
 }
 
-int tld_hash_iterator_next(tld_hash* h, char **key,char **value)
+int tld_hash_iterator_next(tld_hash* h, const char **key, const char **value)
 {
         ASSERT(h != NULL, "Iterator is NULL");
         ASSERT(key != NULL, "Key pointer is NULL");
