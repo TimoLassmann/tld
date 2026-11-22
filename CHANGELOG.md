@@ -78,6 +78,7 @@ changes listed here fix bugs.
 - sort, kdtree, stats: qsort comparators return 0 for equal elements.
 - shuffle: shuffles are uniform (`j = i + tl_random_int(rng, n - i)`); seeded output changes.
 - logsum: `nearly_equal_float`/`nearly_equal_double` compare relative to |a|+|b|; they used to behave like ==. The lookup table is set up thread-safely, and on first use if `init_logsum()` was never called. NaN input returns NaN.
+- rng: seed 0 (`init_rng(&r, 0)`, `tl_random_sdist_init(..., 0)`) takes 64 bits from /dev/urandom, mixed with the time in nanoseconds, the process id and a counter. It was made from the time in seconds and `clock()` only, in 32 bits (the process id was never mixed in), so generators made in one loop, or jobs started in the same second, often got the same stream.
 - rng: `tl_random_double` returns 53-bit values in the open interval (0,1). `tl_random_int` is unbiased (rejection sampling) and returns 0 for a <= 1. Seeded sequences change.
 - rng: `tl_random_sdist_init` no longer prints its table, rejects n <= 0 and NaN or negative weights, and frees on error. `init_rng_from_rng` no longer copies the parent's cached gaussian.
 - tpool: `tld_thread_pool_wait` waits until the queue is empty and no job is running; it could return with jobs still queued. `tld_thread_pool_free` runs every queued job before stopping; it used to drop them.

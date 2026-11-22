@@ -3,8 +3,10 @@
 
 #include <math.h>
 #include <float.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <time.h>
+#include <unistd.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -84,7 +86,6 @@ void jump(struct rng_state* s);
 void long_jump(struct rng_state* s);
 
 static uint64_t choose_arbitrary_seed(void);
-static uint32_t jenkins_mix3(uint32_t a, uint32_t b, uint32_t c);
 
 static double tl_standard_gamma(struct rng_state* rng, double shape);
 static double tl_standard_exponential(struct rng_state* rng);
@@ -286,44 +287,43 @@ ERROR:
         return FAIL;
 }
 
-/* jenkins_mix3()
- *
- * from Bob Jenkins: given a,b,c, generate a number that's distributed
- * reasonably uniformly on the interval 0..2^32-1 even for closely
- * spaced choices of a,b,c.
- */
-static uint32_t jenkins_mix3(uint32_t a, uint32_t b, uint32_t c)
-{
-        a -= b; a -= c; a ^= (c>>13U);
-        b -= c; b -= a; b ^= (a<<8U);
-        c -= a; c -= b; c ^= (b>>13U);
-        a -= b; a -= c; a ^= (c>>12U);
-        b -= c; b -= a; b ^= (a<<16U);
-        c -= a; c -= b; c ^= (b>>5U);
-        a -= b; a -= c; a ^= (c>>3U);
-        b -= c; b -= a; b ^= (a<<10U);
-        c -= a; c -= b; c ^= (b>>15U);
-        return c;
-}
-
 void free_rng(struct rng_state* rng)
 {
         if(rng){
                 MFREE(rng);
         }
 }
-/* Taken from easel library (by Sean Eddy) */
+/* The splitmix64 output function: spreads the bits of z over all 64 bits. */
+static uint64_t mix64(uint64_t z)
+{
+        z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+        z = (z ^ (z >> 27U)) * 0x94d049bb133111ebULL;
+        return z ^ (z >> 31U);
+}
+
+/* The seed init_rng uses for seed 0: 64 bits from /dev/urandom, mixed with the time in
+ * nanoseconds, the process id and a count of the seeds made so far. Generators made
+ * in one loop, or by jobs started at the same moment, therefore get different seeds,
+ * even if /dev/urandom cannot be read. */
 static uint64_t choose_arbitrary_seed(void)
 {
-        uint32_t a = (uint32_t) time ((time_t *) NULL);
-        uint32_t b = 87654321;	 // we'll use getpid() below, if we can
-        uint32_t c = (uint32_t) clock();  // clock() gives time since process invocation, in msec at least, if not usec
+        static _Atomic uint64_t n_made = 0;
+        struct timespec now = {0};
         uint64_t seed = 0U;
-#ifdef HAVE_GETPID
-        b  = (uint32_t) getpid();	 // preferable b choice, if we have POSIX getpid()
-#endif
-        seed = jenkins_mix3(a,b,c);    // try to decorrelate closely spaced choices of pid/times
-        return (seed == 0) ? 42 : seed; /* 42 is entirely arbitrary, just to avoid seed==0. */
+        FILE *f = fopen("/dev/urandom", "rb");
+
+        if(f){
+                if(fread(&seed, sizeof seed, 1, f) != 1){
+                        seed = 0U;
+                }
+                fclose(f);
+        }
+        if(timespec_get(&now, TIME_UTC) != TIME_UTC){
+                now.tv_sec = time(NULL);
+        }
+        seed ^= mix64((uint64_t) now.tv_sec * 1000000000ULL + (uint64_t) now.tv_nsec);
+        seed ^= mix64(((uint64_t) getpid() << 32U) ^ atomic_fetch_add(&n_made, 1));
+        return mix64(seed);
 }
 
 /* This is the long-jump function for the generator. It is equivalent to

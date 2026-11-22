@@ -4,6 +4,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 /* regress-rng: regression tests for the rng fixes.
@@ -230,6 +231,56 @@ ERROR:
         return FAIL;
 }
 
+/* Seed 0 used to be made from the time in seconds and clock() only (the process id
+   was never mixed in), so generators created in one loop, or by jobs started in the
+   same second, often produced the same stream. */
+static int test_seed0_distinct(void)
+{
+        enum { N_RNG = 64, N_PROC = 16 };
+        struct rng_state *r[N_RNG] = {NULL};
+        uint64_t first[N_RNG + N_PROC];
+        int fd[2] = {-1, -1};
+
+        for(int i = 0; i < N_RNG; i++){
+                RUN(init_rng(&r[i], 0));
+                first[i] = (uint64_t) (tl_random_double(r[i]) * 9007199254740992.0);
+        }
+        ASSERT(pipe(fd) == 0, "pipe failed");
+        for(int i = 0; i < N_PROC; i++){
+                pid_t pid = fork();
+                ASSERT(pid >= 0, "fork failed");
+                if(pid == 0){
+                        struct rng_state *c = NULL;
+                        uint64_t v = 0;
+                        if(init_rng(&c, 0) == OK){
+                                v = (uint64_t) (tl_random_double(c) * 9007199254740992.0);
+                        }
+                        _exit(write(fd[1], &v, sizeof v) == (ssize_t) sizeof v ? 0 : 1);
+                }
+                ASSERT(read(fd[0], &first[N_RNG + i], sizeof first[0]) == (ssize_t) sizeof first[0],
+                       "child %d did not report", i);
+                waitpid(pid, NULL, 0);
+        }
+        for(int i = 0; i < N_RNG + N_PROC; i++){
+                for(int j = i + 1; j < N_RNG + N_PROC; j++){
+                        ASSERT(first[i] != first[j], "seed 0: generators %d and %d start alike", i, j);
+                }
+        }
+        close(fd[0]);
+        close(fd[1]);
+        for(int i = 0; i < N_RNG; i++){
+                free_rng(r[i]);
+        }
+        return OK;
+ERROR:
+        if(fd[0] >= 0) close(fd[0]);
+        if(fd[1] >= 0) close(fd[1]);
+        for(int i = 0; i < N_RNG; i++){
+                free_rng(r[i]);
+        }
+        return FAIL;
+}
+
 /* Runs tl_random_sdist_init with stdout sent to a temporary file and
    returns the number of bytes it wrote there. */
 static int sdist_init_quiet(struct rng_dist **d, double *w, int n, long *n_bytes)
@@ -330,6 +381,7 @@ static const struct {
         {"exponential", test_exponential_finite, "the exponential deviate is finite"},
         {"child-gauss", test_child_gauss, "a child rng does not inherit the cached gaussian"},
         {"seed", test_seed_reproducible, "the same seed gives the same sequence"},
+        {"seed0", test_seed0_distinct, "seed 0 gives every generator and process its own stream"},
         {"sdist", test_sdist, "tl_random_sdist samples in proportion, prints nothing"},
         {"sdist-errors", test_sdist_errors, "tl_random_sdist_init rejects bad weights"},
 };
@@ -349,6 +401,7 @@ int main(int argc, char *argv[])
                   "  exponential   the exponential deviate is finite\n"
                   "  child-gauss   a child rng does not inherit the cached gaussian\n"
                   "  seed          the same seed gives the same sequence\n"
+                  "  seed0         seed 0 gives every generator and process its own stream\n"
                   "  sdist         tl_random_sdist samples in proportion, prints nothing\n"
                   "  sdist-errors  tl_random_sdist_init rejects bad weights\n"
                   "\n"

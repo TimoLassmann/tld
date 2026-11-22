@@ -1579,8 +1579,9 @@ tld_external int init_rng(struct rng_state **rng, uint64_t seed);
 ```
 
 Allocate a generator in *rng seeded with seed; the same seed gives the same sequence.
-seed 0 picks an arbitrary seed from the time and clock (differs between runs). Free
-with free_rng.
+seed 0 picks a seed from /dev/urandom, mixed with the time, the process id and a
+counter, so every generator made with seed 0 has its own stream, also across jobs
+started at the same moment. Free with free_rng.
 
 <a id="init_rng_from_rng"></a>
 
