@@ -1,7 +1,7 @@
 /* tests/ai/opts.c - every option reaches the request body (run.sh checks the cache). */
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
-#include "ai.h"
+#include "tld_ai.h"
 #include <stdio.h>
 
 int main(int argc, char **argv) {

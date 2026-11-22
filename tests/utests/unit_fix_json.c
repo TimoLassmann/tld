@@ -761,7 +761,7 @@ static void test_set_val(void)
 
 static void test_build_request(void)
 {
-        /* the shape ai.h sends to /api/chat */
+        /* the shape tld_ai.h sends to /api/chat */
         tld_strbuf* b = NULL;
         tld_json_obj* p = NULL;
         const char* s = NULL;

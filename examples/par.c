@@ -1,10 +1,10 @@
 /* examples/par.c - parallel calls, embeddings, nearest neighbours.
  *   cc -std=c11 -I. examples/par.c -o par -lpthread -lm
  *   ./par 8          (number of threads, default 8) */
-#define _POSIX_C_SOURCE 200809L /* clock_gettime; ai.h adds what it needs itself */
+#define _POSIX_C_SOURCE 200809L /* clock_gettime; tld_ai.h adds what it needs itself */
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
-#include "ai.h"
+#include "tld_ai.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

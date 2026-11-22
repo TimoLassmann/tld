@@ -1,6 +1,6 @@
 #!/bin/sh
 # tests/ai/run.sh GROUP BIN_DIR
-# ai.h tests against tests/ai/mock_ollama.py, which returns canned answers in the
+# tld_ai.h tests against tests/ai/mock_ollama.py, which returns canned answers in the
 # documented Ollama shapes. They check requests, caching, replay, review, threads,
 # options, the HTTP client and ai_defaults; they say nothing about how real models
 # answer. Run from the repository root (ctest does). Never contacts a real

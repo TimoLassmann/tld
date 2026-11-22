@@ -1,5 +1,5 @@
 /* tests/ai/compile_use.c - TU 2 of 2: declarations only, every macro expanded. */
-#include "ai.h"
+#include "tld_ai.h"
 
 #define TEAM(X) X(red, "Red team") X(blue, "Blue team")
 AI_CHOICE(team, "Which team?", TEAM)

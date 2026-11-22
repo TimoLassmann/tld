@@ -7,13 +7,13 @@
  *                                      (AI_HOST must point at the mock)
  *   defaults timeout HOST              a 1 s default timeout against a slow mock
  *   defaults stress HOST               8 threads calling while defaults change (TSan)
- *   defaults afterexit                 a call after ai.h's exit cleanup fails cleanly
+ *   defaults afterexit                 a call after tld_ai.h's exit cleanup fails cleanly
  *
  * run.sh checks the logged requests (models per endpoint, options, dimensions). */
 #define _POSIX_C_SOURCE 200809L
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
-#include "ai.h"
+#include "tld_ai.h"
 #include "status_name.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,7 +49,7 @@ static int mode_set(const char *host, const char *db, const char *reviews, const
     const char *stops[] = {"DEFAULT-STOP", NULL};
     int env = !strcmp(src, "env");
     if (!safe_host(host)) return 1;
-    /* the caller's storage may be temporary: ai.h copies. With the environment set,
+    /* the caller's storage may be temporary: tld_ai.h copies. With the environment set,
      * the defaults name paths that must never be used. */
     char tmpdb[1024], revdef[1024];
     snprintf(tmpdb, sizeof tmpdb, "%s%s", db, env ? ".unused" : "");
@@ -153,7 +153,7 @@ static int mode_stress(const char *host) {
     return bad;
 }
 
-/* Registered before ai.h's own exit handler, so it runs after it. */
+/* Registered before tld_ai.h's own exit handler, so it runs after it. */
 static void after_exit(void) {
     int ok = ai_text("after exit") == NULL && ai_status() == AI_EARG &&
              ai_defaults(AI_CONFIG(.llm = "x")) == -1 && ai_status() == AI_EARG &&

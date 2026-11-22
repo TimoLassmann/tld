@@ -1,4 +1,4 @@
-"""Stand-in for Ollama, used only to test ai.h's plumbing (HTTP, requests, parsing,
+"""Stand-in for Ollama, used only to test tld_ai.h's plumbing (HTTP, requests, parsing,
 caching, replay, ai_defaults). It returns canned answers in the documented shapes; it
 is not a model, and it never talks to a real Ollama.
 

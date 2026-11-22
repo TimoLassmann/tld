@@ -1,4 +1,4 @@
-/* ai.h - local LLMs, decision models and embeddings through the Ollama server on this
+/* tld_ai.h - local LLMs, decision models and embeddings through the Ollama server on this
  * machine, called as ordinary C functions. Single header, builds on tld.h. Thread-safe.
  *
  *   char *s = ai_text("Summarise:\n%s", doc);
@@ -12,21 +12,21 @@
  *
  *       #define TLD_IMPLEMENTATION      // unless another file already compiles tld.h
  *       #define AI_IMPLEMENTATION
- *       #include "ai.h"                 // includes "tld.h" itself if TLD_H is not defined
+ *       #include "tld_ai.h"                 // includes "tld.h" itself if TLD_H is not defined
  *
- *   and plain #include "ai.h" everywhere else. The program must compile
- *   TLD_IMPLEMENTATION in some file (ai.h uses tld's JSON, strings and hash map).
+ *   and plain #include "tld_ai.h" everywhere else. The program must compile
+ *   TLD_IMPLEMENTATION in some file (tld_ai.h uses tld's JSON, strings and hash map).
  *   Build: cc -std=c11 prog.c -lpthread -lm. Nothing else: no libcurl, no SQLite, no
  *   cJSON (HTTP, JSON, cache and reviews are done here and in tld.h).
  *
  *   C11 plus POSIX (sockets, poll, flock, pthreads); macOS and Linux. In the
- *   AI_IMPLEMENTATION file ai.h asks for POSIX.1-2008 itself (it defines
+ *   AI_IMPLEMENTATION file tld_ai.h asks for POSIX.1-2008 itself (it defines
  *   _POSIX_C_SOURCE, _DEFAULT_SOURCE and _DARWIN_C_SOURCE when they are not set), so
- *   nothing needs -D flags. That works when ai.h comes before every system header in
- *   that file; if a system header came first, ai.h supplies the few declarations a
+ *   nothing needs -D flags. That works when tld_ai.h comes before every system header in
+ *   that file; if a system header came first, tld_ai.h supplies the few declarations a
  *   strict -std=c11 build hides.
  *
- * ENVIRONMENT (all optional; read once, at the first call into ai.h, so a later
+ * ENVIRONMENT (all optional; read once, at the first call into tld_ai.h, so a later
  * setenv() has no effect)
  *   AI_HOST      Ollama base URL                      default http://localhost:11434
  *                (plain http only; https:// fails with AI_EHTTP)
@@ -73,7 +73,7 @@
  *
  * CLOUD MODELS
  *   Opt-in only. A cloud model is one whose /api/tags entry has "remote_host"; it is
- *   reached through the local server like any other (ai.h does no HTTPS). The defaults
+ *   reached through the local server like any other (tld_ai.h does no HTTPS). The defaults
  *   are local models, so prompts leave the machine only when a cloud model is named in
  *   AI_LLM, AI_DECIDER, AI_EMBEDDER or .model. A server that is not signed in answers
  *   with an HTTP error, which comes back as AI_EHTTP with the server's message.
@@ -175,7 +175,7 @@ typedef struct {
 
 /* ---- program-set defaults ---------------------------------------------- */
 /* Precedence, per setting: per-call options > environment > ai_defaults() > built-in.
- * The environment is read once, at the first call into ai.h. */
+ * The environment is read once, at the first call into tld_ai.h. */
 typedef struct {
     const char *host;      /* AI_HOST      e.g. "http://192.168.1.20:11434" (http:// only) */
     const char *llm;       /* AI_LLM       text model: ai_text, ai_fill                  */
@@ -343,7 +343,7 @@ int ai__rate(const char *name, const char *question, const ai_label *L, int n,
 #define AI__IMPLEMENTED
 
 #ifdef __cplusplus
-#error "ai.h: the implementation is C only; define AI_IMPLEMENTATION in a .c file"
+#error "tld_ai.h: the implementation is C only; define AI_IMPLEMENTATION in a .c file"
 #endif
 
 #include <ctype.h>
@@ -368,7 +368,7 @@ int ai__rate(const char *name, const char *question, const ai_label *L, int n,
 #include <unistd.h>
 
 /* Declarations that a strict ISO C build hides when a system header was included
- * before ai.h (so the feature macros at the top came too late). */
+ * before tld_ai.h (so the feature macros at the top came too late). */
 #ifndef LOCK_EX
 #define LOCK_SH 1
 #define LOCK_EX 2
@@ -535,7 +535,7 @@ char *ai_fmt(const char *fmt, ...) {
 
 /* ---- JSON helpers on top of tld_json ----------------------------------- */
 /* JSON_OBJ/json_obj_add_multiple swallow allocation failures once the object
- * exists, so ai.h adds one entry at a time and checks that the count grew. */
+ * exists, so tld_ai.h adds one entry at a time and checks that the count grew. */
 
 static void ai__drop(tld_json_decoration d) {
     if (!d.value) return;
@@ -939,7 +939,7 @@ static int ai__init(void) {
 }
 
 static int ai__gone(void) {
-    return ai__fail(AI_EARG, "ai.h was already shut down (called after exit cleanup)");
+    return ai__fail(AI_EARG, "tld_ai.h was already shut down (called after exit cleanup)");
 }
 
 /* Every public call that uses settings runs between ai__enter and ai__leave. */
@@ -967,7 +967,7 @@ static void ai__leave(void) {
 
 static int ai__valid_config(const ai_config *c) {
     if (c->host && strncmp(c->host, "http://", 7))
-        return ai__fail(AI_EHTTP, "ai_defaults: host %s must start with http:// (ai.h "
+        return ai__fail(AI_EHTTP, "ai_defaults: host %s must start with http:// (tld_ai.h "
                         "talks plain http to the local server)", c->host);
     const char *s[AI__NSTR] = {c->host, c->llm, c->decider, c->embedder, c->db, c->reviews};
     for (int i = 0; i < AI__NSTR; i++)
@@ -1155,7 +1155,7 @@ static int ai__noserver(const char *why) {
 static int ai__host_ok(void) {
     if (ai__c->https)
         return ai__fail(AI_EHTTP,
-                        "AI_HOST=%s: https is not supported; ai.h talks plain http to the "
+                        "AI_HOST=%s: https is not supported; tld_ai.h talks plain http to the "
                         "local Ollama server (cloud models are reached through it)",
                         AI__HOST(ai__c));
     if (ai__c->bad_host)
@@ -1324,7 +1324,7 @@ static int ai__http(const char *method, const char *path, const char *body,
     char line[1024];
     size_t blen = body ? strlen(body) : 0;
     snprintf(line, sizeof line,
-             "%s %s%s HTTP/1.1\r\nHost: %s\r\nUser-Agent: ai.h/" AI_VERSION
+             "%s %s%s HTTP/1.1\r\nHost: %s\r\nUser-Agent: tld_ai.h/" AI_VERSION
              "\r\nAccept: application/json\r\nConnection: close\r\n",
              method, ai__c->base, path, ai__c->authority);
     if (tld_strbuf_alloc(&req, (int)(blen + 512)) != OK || tld_append(req, line) != OK)

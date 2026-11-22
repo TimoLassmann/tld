@@ -4,7 +4,7 @@
 #define _POSIX_C_SOURCE 200809L
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
-#include "ai.h"
+#include "tld_ai.h"
 #include "status_name.h"
 #include <stdio.h>
 #include <string.h>

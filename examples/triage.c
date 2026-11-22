@@ -5,7 +5,7 @@
  * Exit codes: 0 done, 1 error, 2 usage, 3 waiting for a review (rerun once answered). */
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
-#include "ai.h"
+#include "tld_ai.h"
 #include <stdio.h>
 #include <stdlib.h>
 

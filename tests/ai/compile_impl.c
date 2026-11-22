@@ -1,9 +1,9 @@
-/* tests/ai/compile_impl.c - TU 1 of 2: ai.h and tld.h implementations, compiled with
+/* tests/ai/compile_impl.c - TU 1 of 2: tld_ai.h and tld.h implementations, compiled with
  * -std=c11 -Wall -Wextra -pedantic -Werror. Links with compile_use.c. */
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
-#include "ai.h"
-#include "ai.h" /* a second include must be harmless */
+#include "tld_ai.h"
+#include "tld_ai.h" /* a second include must be harmless */
 #include <stdio.h>
 #include <string.h>
 

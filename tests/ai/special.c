@@ -3,7 +3,7 @@
  * them with the logged requests) and checks that the echoed reply decodes back. */
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
-#include "ai.h"
+#include "tld_ai.h"
 #include <stdio.h>
 #include <string.h>
 

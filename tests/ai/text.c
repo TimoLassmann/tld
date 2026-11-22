@@ -2,7 +2,7 @@
  * and message on stderr. Exit 0 on success, 1 on failure. */
 #define TLD_IMPLEMENTATION
 #define AI_IMPLEMENTATION
-#include "ai.h"
+#include "tld_ai.h"
 #include "status_name.h"
 #include <stdio.h>
 

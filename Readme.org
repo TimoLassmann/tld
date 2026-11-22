@@ -53,14 +53,14 @@ make
 make test
 #+end_src
 
-* ai.h: local models as C functions
+* tld_ai.h: local models as C functions
 
-=ai.h= is a second single-header library, built on =tld.h=. It calls the LLMs, decision models and embedding models served by the Ollama server on this machine as ordinary C functions: HTTP, JSON, schemas, caching and replay are hidden. It needs nothing beyond libc, libm and pthreads (no libcurl, SQLite or cJSON).
+=tld_ai.h= is a second single-header library, built on =tld.h=. It calls the LLMs, decision models and embedding models served by the Ollama server on this machine as ordinary C functions: HTTP, JSON, schemas, caching and replay are hidden. It needs nothing beyond libc, libm and pthreads (no libcurl, SQLite or cJSON).
 
 #+begin_src C :eval never
 #define TLD_IMPLEMENTATION          /* in one .c file, before any other #include */
 #define AI_IMPLEMENTATION
-#include "ai.h"
+#include "tld_ai.h"
 
 #define TEAM(X) X(bug, "A software defect") X(billing, "Payments and refunds")
 AI_CHOICE(team, "Which team should handle this ticket?", TEAM)
@@ -105,12 +105,13 @@ Cloud models (those whose =/api/tags= entry has =remote_host=) are reached throu
 
 ** Tests and the live run
 
-=ctest= runs the ai.h tests against =tests/ai/mock_ollama.py= (started with =uv run python=, or =python3=); they never contact a real server. A run against the real models is manual, for the owner only, with no other model loaded (=ollama ps= shows nothing):
+=ctest= runs the tld_ai.h tests against =tests/ai/mock_ollama.py= (started with =uv run python=, or =python3=); they never contact a real server. A run against the real models is manual, for the owner only, with no other model loaded (=ollama ps= shows nothing):
 
 #+begin_src bash :eval never
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 ollama ps                                   # must list no model
+build/tests/ai-hello                         # one call to the default LLM
 AI_DB=build/live.cache build/tests/ai-triage tests/ai/ticket.txt
 AI_DB=build/live.cache build/tests/ai-par 4
-ollama ps                                   # ai.h leaves at most one model loaded
+ollama ps                                   # models unload after keep_alive (5 min)
 #+end_src

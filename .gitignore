@@ -15,7 +15,7 @@
 !val_build.sh
 !CHANGELOG.md
 !tld.h
-!ai.h
+!tld_ai.h
 !tools/
 !tools/**
 !examples/

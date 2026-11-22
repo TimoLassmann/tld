@@ -104,5 +104,5 @@ else()
   endif()
 endif()
 
-# ai.h: mock-server tests, compile checks, sanitizer runs
+# tld_ai.h: mock-server tests, compile checks, sanitizer runs
 include(${CMAKE_CURRENT_SOURCE_DIR}/ai.cmake)
