@@ -154,7 +154,7 @@
 #include <stddef.h>
 
 /* Version of tld_ai.h. */
-#define AI_VERSION "0.3.0"
+#define AI_VERSION "0.4.0"
 
 /* Prompts and ai_fmt take printf formats. The compiler checks the arguments, and the
  * macros below check that the format is a string literal (TLD__LITERAL, as in tld.h's
@@ -290,13 +290,17 @@ int    ai_nearest(ai_vec q, ai_vecs m, int k, int *idx, double *score);
 
 /* ---- typed structs filled by an LLM ------------------------------------ */
 
-/* Run-time descriptions made by AI_STRUCT, AI_CHOICE and AI_SCALE: a member's type
- * (ai_kind), one member (ai_field), a struct (ai_type) and one choice or scale label
- * (ai_label). Programs do not normally use them. */
+/* Descriptions of a record and of labels: a member's type (ai_kind), one member
+ * (ai_field), a record (ai_type), one choice or scale label (ai_label), and a question
+ * with its labels (ai_labels). AI_STRUCT, AI_CHOICE and AI_SCALE make them at compile
+ * time; a program that learns its schemas at run time (from a file, say) fills them
+ * itself and passes them to ai_fill_dyn, ai_choose_dyn and ai_rate_dyn. size and off
+ * place members in a C struct and are used only by ai_fill; ai_fill_dyn ignores them. */
 typedef enum { AI_T_str, AI_T_num, AI_T_int, AI_T_bool } ai_kind;
 typedef struct { const char *name; ai_kind kind; size_t off; const char *desc; } ai_field;
 typedef struct { const char *name; size_t size; const ai_field *f; int n; } ai_type;
 typedef struct { const char *name; const char *desc; } ai_label;
+typedef struct { const char *name; const char *question; const ai_label *labels; int n; } ai_labels;
 
 #define AI__CT_str  const char *
 #define AI__CT_num  double
@@ -345,9 +349,9 @@ typedef struct { const char *name; const char *desc; } ai_label;
     static inline struct name##_answer name##__choose(const char *state,      \
                                                       const ai_opts *o) {     \
         static const ai_label L[] = { OPTIONS(AI__LABEL) };                   \
+        static const ai_labels C = { #name, question, L, name##__count };     \
         struct name##_answer r = {0};                                         \
-        int i = ai__choose(#name, question, L, name##__count, state, o,       \
-                           &r.confidence, r.p);                               \
+        int i = ai__choose(&C, state, o, &r.confidence, r.p);                 \
         r.ok = i >= 0; r.value = (enum name)(i >= 0 ? i : 0);                 \
         return r;                                                             \
     }
@@ -378,9 +382,9 @@ typedef struct { const char *name; const char *desc; } ai_label;
     static inline struct name##_answer name##__rate(const char *state,        \
                                                     const ai_opts *o) {       \
         static const ai_label L[] = { LEVELS(AI__LABEL) };                    \
+        static const ai_labels C = { #name, question, L, name##__count };     \
         struct name##_answer r = {0};                                         \
-        int i = ai__rate(#name, question, L, name##__count, state, o,         \
-                         &r.score, &r.confidence);                            \
+        int i = ai__rate(&C, state, o, &r.score, &r.confidence);              \
         r.ok = i >= 0; r.level = (enum name)(i >= 0 ? i : 0);                 \
         return r;                                                             \
     }
@@ -412,6 +416,59 @@ typedef struct { const char *name; const char *desc; } ai_label;
  * options (model, images, fresh). */
 #define ai_rate(T, state)               T##__rate((state), NULL)
 #define ai_rate_with(o, T, state)       T##__rate((state), (o))
+
+/* ---- descriptions built at run time ------------------------------------ */
+
+/* ai_fill_dyn(t, fmt, ...): ai_fill for a record described at run time. t is an ai_type
+ * the program filled (size and each off are ignored); the result is the reply, checked
+ * against t, as compact JSON text: one object with exactly t's members, in t's order,
+ * typed as declared (str a string, num a number, int an integer, bool true/false).
+ * Library memory until ai_reset(); NULL on failure. The text can be passed on as the
+ * state of a decision, which sends it as JSON. Retries as ai_fill does.
+ *
+ * Checked before anything is sent (AI_EARG): t->name and every member name are
+ * non-empty and made of letters, digits, '_' and '-'; t->n >= 1; member names are
+ * distinct; every kind is one of ai_kind.
+ *
+ *   ai_field f[] = { {.name = "title", .kind = AI_T_str, .desc = "One-line summary"},
+ *                    {.name = "risk",  .kind = AI_T_num, .desc = "Risk 0 to 1"} };
+ *   ai_type t = { .name = "fix", .f = f, .n = 2 };
+ *   const char *j = ai_fill_dyn(&t, "Propose a fix for:\n%s", "The app crashes on start");
+ *   // j: {"title":"...","risk":0.2}, or NULL
+ *
+ * ai_fill_dyn_with(o, t, fmt, ...) takes per-call options, as ai_fill_with. */
+const char *ai_fill_dyn(const ai_type *t, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+const char *ai_fill_dyn_with(const ai_opts *o, const ai_type *t, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+
+/* The answer of ai_choose_dyn: .ok (0 on failure, when the rest is 0 and p NULL), the
+ * index of the chosen label in .value, .confidence, and one probability per label in p
+ * (n doubles, library memory until ai_reset()). */
+typedef struct { int ok; int value; double confidence; const double *p; } ai_pick;
+
+/* The answer of ai_rate_dyn: .ok (0 on failure), .score (0 for the first label to n-1
+ * for the last), .level (score rounded to the nearest level and clamped) and
+ * .confidence. */
+typedef struct { int ok; int level; double score; double confidence; } ai_rating;
+
+/* ai_choose_dyn(c, state): ai_choose for labels described at run time; c->name names the
+ * decision, c->question is asked, and c->labels[0..n-1] are the choices.
+ * ai_rate_dyn(c, state): ai_rate likewise, the labels ordered lowest to highest (the
+ * default decision model needs exactly 6; see AI_SCALE).
+ *
+ * Checked before anything is sent (AI_EARG): c->name and every label name are non-empty
+ * and made of letters, digits, '_' and '-'; label names are distinct; c->question and
+ * every description are non-NULL; c->n >= 2.
+ *
+ *   ai_label L[] = { {"bug", "A software defect"}, {"billing", "Payments and refunds"} };
+ *   ai_labels team = { .name = "team", .question = "Which team?", .labels = L, .n = 2 };
+ *   ai_pick a = ai_choose_dyn(&team, "The app crashes on start");
+ *   if (a.ok) printf("%s %.2f\n", L[a.value].name, a.confidence);
+ *
+ * The _with forms take options (model, images, fresh), as ai_choose_with. */
+ai_pick   ai_choose_dyn(const ai_labels *c, const char *state);
+ai_pick   ai_choose_dyn_with(const ai_opts *o, const ai_labels *c, const char *state);
+ai_rating ai_rate_dyn(const ai_labels *c, const char *state);
+ai_rating ai_rate_dyn_with(const ai_opts *o, const ai_labels *c, const char *state);
 
 /* ---- asking a person --------------------------------------------------- */
 
@@ -450,11 +507,14 @@ const ai_info *ai_last(void);
  * it); NULL on failure. */
 const char *ai_fmt(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
-/* ai_text, ai_text_with and ai_fmt are also macros that require a literal format (see
+/* ai_text, ai_text_with, ai_fmt, ai_fill_dyn and ai_fill_dyn_with are also macros that require a literal format (see
  * TLD__LITERAL); (ai_text)(fmt, ...) calls the function itself. */
 #define ai_text(...) (TLD__LITERAL(__VA_ARGS__), (ai_text)(__VA_ARGS__))
 #define ai_text_with(o, ...) (TLD__LITERAL(__VA_ARGS__), (ai_text_with)((o), __VA_ARGS__))
 #define ai_fmt(...) (TLD__LITERAL(__VA_ARGS__), (ai_fmt)(__VA_ARGS__))
+#define ai_fill_dyn(t, ...) (TLD__LITERAL(__VA_ARGS__), (ai_fill_dyn)((t), __VA_ARGS__))
+#define ai_fill_dyn_with(o, t, ...) \
+    (TLD__LITERAL(__VA_ARGS__), (ai_fill_dyn_with)((o), (t), __VA_ARGS__))
 
 /* Free every string and vector the library has returned, in all threads. Call it only
  * when no thread still uses them; the library keeps working afterwards. */
@@ -469,10 +529,10 @@ void ai_parallel(int n, int threads, void (*fn)(int i, void *ctx), void *ctx);
 
 /* internals used by the macros */
 int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...) __attribute__((format(printf, 4, 5)));
-int ai__choose(const char *name, const char *question, const ai_label *L, int n,
-               const char *state, const ai_opts *o, double *confidence, double *p);
-int ai__rate(const char *name, const char *question, const ai_label *L, int n,
-             const char *state, const ai_opts *o, double *score, double *confidence);
+int ai__choose(const ai_labels *c, const char *state, const ai_opts *o, double *confidence,
+               double *p);
+int ai__rate(const ai_labels *c, const char *state, const ai_opts *o, double *score,
+             double *confidence);
 
 #ifdef __cplusplus
 }
@@ -2120,11 +2180,13 @@ static tld_json_obj *ai__schema(const ai_type *t) {
     return s;
 }
 
-/* Unpack text into the scratch struct. Strings are malloc'd; the caller frees them
- * on failure and moves them into the arena on success. */
-static int ai__unpack(void *out, const ai_type *t, const char *text) {
-    tld_json_obj *j = NULL;
-    memset(out, 0, t->size);
+/* Check the reply text against t. With out (a scratch struct of t->size bytes), write
+ * the members into it: strings are malloc'd, and the caller frees them on failure and
+ * moves them into the arena on success. Without out, set *jo to a new object holding
+ * exactly t's members, in t's order (the caller frees it). */
+static int ai__unpack(void *out, tld_json_obj **jo, const ai_type *t, const char *text) {
+    tld_json_obj *j = NULL, *res = NULL;
+    if (out) memset(out, 0, t->size);
     if (ai__parse(text, &j)) {
         if (ai__t_st == AI_OK || ai__t_st == AI_EPARSE)
             ai__fail(AI_EPARSE, "%s: reply is not a JSON object", t->name);
@@ -2133,37 +2195,38 @@ static int ai__unpack(void *out, const ai_type *t, const char *text) {
     int rc = 0;
     for (int i = 0; i < t->n && !rc; i++) {
         const ai_field *f = &t->f[i];
-        char *dst = (char *)out + f->off;
+        char *dst = out ? (char *)out + f->off : NULL;
         const char *s;
         double d;
         int64_t v;
-        int b;
+        int b, bad = 0;
         switch (f->kind) {
         case AI_T_str:
-            if (tld_json_get_str(j, f->name, &s) != OK)
-                rc = -1;
-            else if (!(*(const char **)dst = strdup(s)))
-                rc = ai__nomem();
+            if (tld_json_get_str(j, f->name, &s) != OK) bad = 1;
+            else if (!dst) rc = ai__put(&res, TLD_JSTR(f->name, s));
+            else if (!(*(const char **)dst = strdup(s))) rc = ai__nomem();
             break;
         case AI_T_num:
-            if (tld_json_get_num(j, f->name, &d) != OK) rc = -1;
+            if (tld_json_get_num(j, f->name, &d) != OK) bad = 1;
+            else if (!dst) rc = ai__put(&res, TLD_JNUM(f->name, d));
             else *(double *)dst = d;
             break;
         case AI_T_int:
-            if (tld_json_get_int(j, f->name, &v) != OK || v < LONG_MIN || v > LONG_MAX)
-                rc = -1;
-            else
-                *(long *)dst = (long)v;
+            if (tld_json_get_int(j, f->name, &v) != OK || v < LONG_MIN || v > LONG_MAX) bad = 1;
+            else if (!dst) rc = ai__put(&res, TLD_JINT(f->name, (long)v));
+            else *(long *)dst = (long)v;
             break;
         case AI_T_bool:
-            if (tld_json_get_bool(j, f->name, &b) != OK) rc = -1;
+            if (tld_json_get_bool(j, f->name, &b) != OK) bad = 1;
+            else if (!dst) rc = ai__put(&res, TLD_JBOOL(f->name, b));
             else *(int *)dst = b;
             break;
         }
-        if (rc && ai__t_st != AI_ENOMEM)
-            ai__fail(AI_ESCHEMA, "%s.%s missing or wrong type", t->name, f->name);
+        if (bad) rc = ai__fail(AI_ESCHEMA, "%s.%s missing or wrong type", t->name, f->name);
     }
     tld_json_obj_free(j);
+    if (rc) tld_json_obj_free(res);
+    else if (jo) *jo = res;
     return rc;
 }
 
@@ -2176,33 +2239,24 @@ static void ai__free_strs(void *s, const ai_type *t) {
         }
 }
 
-int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...) {
-    ai__begin();
-    if (!out || !t) {
-        ai__fail(AI_EARG, "ai_fill: NULL argument");
-        return -1;
-    }
-    memset(out, 0, t->size);
-    if (!fmt) {
-        ai__fail(AI_EARG, "ai_fill: NULL format");
-        return -1;
-    }
-    if (ai__enter()) return -1;
+/* The work of ai_fill and ai_fill_dyn, between ai__enter and ai__leave: ask for t with
+ * the prompt fmt/ap, retrying replies that do not fit. With out, fill the struct at out
+ * (zeroed on failure); otherwise set *json to the checked reply as compact JSON text in
+ * library memory. 0 or -1. */
+static int ai__fill_run(void *out, const char **json, const ai_type *t, const ai_opts *o,
+                        const char *fmt, va_list ap) {
     ai_opts merged; /* retries and max_retries may come from the defaults */
     ai__merge(o, ai__c->opts, &merged);
     o = &merged;
-    va_list ap;
-    va_start(ap, fmt);
     char *task = ai__vfmt(fmt, ap);
-    va_end(ap);
-    tld_json_obj *sch = task ? ai__schema(t) : NULL;
-    tld_strbuf *sch_txt = NULL;
+    tld_json_obj *sch = task ? ai__schema(t) : NULL, *jo = NULL;
+    tld_strbuf *sch_txt = NULL, *jtxt = NULL;
     char *prompt = NULL;
     void *tmp = NULL;
     int rc = -1;
     if (!sch || ai__dump(sch, &sch_txt, 0)) goto out;
     size_t pn = strlen(task) + (size_t)sch_txt->len + 64;
-    if (!(prompt = malloc(pn)) || !(tmp = calloc(1, t->size))) {
+    if (!(prompt = malloc(pn)) || (out && !(tmp = calloc(1, t->size)))) {
         ai__nomem();
         goto out;
     }
@@ -2219,13 +2273,13 @@ int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...
         ai__begin();
         char *r = ai__chat(o, prompt, fmt_copy);
         if (r) {
-            rc = ai__unpack(tmp, t, r);
-            if (rc) ai__free_strs(tmp, t);
+            rc = ai__unpack(tmp, out ? NULL : &jo, t, r);
+            if (rc && tmp) ai__free_strs(tmp, t);
         }
         free(r);
         if (ai__t_st == AI_ENOMEM) break;
     }
-    if (!rc) { /* move the strings into the arena; the struct is complete */
+    if (!rc && out) { /* move the strings into the arena; the struct is complete */
         for (int i = 0; i < t->n; i++)
             if (t->f[i].kind == AI_T_str) {
                 const char **p = (const char **)((char *)tmp + t->f[i].off);
@@ -2233,15 +2287,101 @@ int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...
                 if (rc) *p = NULL;
             }
         if (!rc) memcpy(out, tmp, t->size);
+    } else if (!rc) {
+        char *s = NULL;
+        rc = ai__dump(jo, &jtxt, 0);
+        if (!rc && !(s = ai__kdup(TLD_STR(jtxt)))) rc = -1;
+        if (!rc) *json = s;
     }
 out:
     free(task);
     free(prompt);
     free(tmp);
     tld_strbuf_free(sch_txt);
+    tld_strbuf_free(jtxt);
     tld_json_obj_free(sch);
-    ai__leave();
+    tld_json_obj_free(jo);
     return rc ? -1 : 0;
+}
+
+int ai__fill(void *out, const ai_type *t, const ai_opts *o, const char *fmt, ...) {
+    ai__begin();
+    if (!out || !t) {
+        ai__fail(AI_EARG, "ai_fill: NULL argument");
+        return -1;
+    }
+    memset(out, 0, t->size);
+    if (!fmt) {
+        ai__fail(AI_EARG, "ai_fill: NULL format");
+        return -1;
+    }
+    if (ai__enter()) return -1;
+    va_list ap;
+    va_start(ap, fmt);
+    int rc = ai__fill_run(out, NULL, t, o, fmt, ap);
+    va_end(ap);
+    ai__leave();
+    return rc;
+}
+
+/* A name in a run-time description: non-empty; letters, digits, '_' and '-' (tld's JSON
+ * paths cannot address keys with '.' or '['). */
+static int ai__name_ok(const char *s) {
+    if (!s || !*s) return 0;
+    for (; *s; s++)
+        if (!isalnum((unsigned char)*s) && *s != '_' && *s != '-') return 0;
+    return 1;
+}
+
+static int ai__check_type(const ai_type *t) {
+    if (!t) return ai__fail(AI_EARG, "ai_fill_dyn: NULL type");
+    if (!ai__name_ok(t->name))
+        return ai__fail(AI_EARG, "ai_fill_dyn: bad type name '%.40s'", t->name ? t->name : "(null)");
+    if (t->n < 1 || !t->f) return ai__fail(AI_EARG, "%s: no members", t->name);
+    for (int i = 0; i < t->n; i++) {
+        const ai_field *f = &t->f[i];
+        if (!ai__name_ok(f->name))
+            return ai__fail(AI_EARG, "%s: bad member name '%.40s'", t->name,
+                            f->name ? f->name : "(null)");
+        if ((int)f->kind < (int)AI_T_str || (int)f->kind > (int)AI_T_bool)
+            return ai__fail(AI_EARG, "%s.%s: unknown kind %d", t->name, f->name, (int)f->kind);
+        for (int k = 0; k < i; k++)
+            if (!strcmp(t->f[k].name, f->name))
+                return ai__fail(AI_EARG, "%s: member '%s' appears twice", t->name, f->name);
+    }
+    return 0;
+}
+
+static const char *ai__fill_dyn_v(const ai_opts *o, const ai_type *t, const char *fmt,
+                                  va_list ap) {
+    if (ai__check_type(t)) return NULL;
+    if (!fmt) {
+        ai__fail(AI_EARG, "ai_fill_dyn: NULL format");
+        return NULL;
+    }
+    if (ai__enter()) return NULL;
+    const char *json = NULL;
+    ai__fill_run(NULL, &json, t, o, fmt, ap);
+    ai__leave();
+    return json;
+}
+
+const char *(ai_fill_dyn)(const ai_type *t, const char *fmt, ...) {
+    ai__begin();
+    va_list ap;
+    va_start(ap, fmt);
+    const char *r = ai__fill_dyn_v(NULL, t, fmt, ap);
+    va_end(ap);
+    return r;
+}
+
+const char *(ai_fill_dyn_with)(const ai_opts *o, const ai_type *t, const char *fmt, ...) {
+    ai__begin();
+    va_list ap;
+    va_start(ap, fmt);
+    const char *r = ai__fill_dyn_v(o, t, fmt, ap);
+    va_end(ap);
+    return r;
 }
 
 /* ---- public: decisions -------------------------------------------------- */
@@ -2381,22 +2521,86 @@ static double ai__yesno_impl(const ai_opts *o, const char *question, const char 
     return v;
 }
 
-int ai__choose(const char *name, const char *question, const ai_label *L, int n,
-               const char *state, const ai_opts *o, double *confidence, double *p) {
+int ai__choose(const ai_labels *c, const char *state, const ai_opts *o, double *confidence,
+               double *p) {
     ai__begin();
     if (ai__enter()) return -1;
-    int r = ai__choose_impl(name, question, L, n, state, o, confidence, p);
+    int r = ai__choose_impl(c->name, c->question, c->labels, c->n, state, o, confidence, p);
     ai__leave();
     return r;
 }
 
-int ai__rate(const char *name, const char *question, const ai_label *L, int n,
-             const char *state, const ai_opts *o, double *score, double *confidence) {
+int ai__rate(const ai_labels *c, const char *state, const ai_opts *o, double *score,
+             double *confidence) {
     ai__begin();
     if (ai__enter()) return -1;
-    int r = ai__rate_impl(name, question, L, n, state, o, score, confidence);
+    int r = ai__rate_impl(c->name, c->question, c->labels, c->n, state, o, score, confidence);
     ai__leave();
     return r;
+}
+
+static int ai__check_labels(const char *who, const ai_labels *c) {
+    if (!c) return ai__fail(AI_EARG, "%s: NULL labels", who);
+    if (!ai__name_ok(c->name))
+        return ai__fail(AI_EARG, "%s: bad name '%.40s'", who, c->name ? c->name : "(null)");
+    if (!c->question) return ai__fail(AI_EARG, "%s: NULL question", c->name);
+    if (c->n < 2 || !c->labels) return ai__fail(AI_EARG, "%s: fewer than 2 labels", c->name);
+    for (int i = 0; i < c->n; i++) {
+        const ai_label *l = &c->labels[i];
+        if (!ai__name_ok(l->name))
+            return ai__fail(AI_EARG, "%s: bad label name '%.40s'", c->name,
+                            l->name ? l->name : "(null)");
+        if (!l->desc) return ai__fail(AI_EARG, "%s.%s: NULL description", c->name, l->name);
+        for (int k = 0; k < i; k++)
+            if (!strcmp(c->labels[k].name, l->name))
+                return ai__fail(AI_EARG, "%s: label '%s' appears twice", c->name, l->name);
+    }
+    return 0;
+}
+
+ai_pick ai_choose_dyn_with(const ai_opts *o, const ai_labels *c, const char *state) {
+    ai_pick r = {0, 0, 0, NULL};
+    ai__begin();
+    if (ai__check_labels("ai_choose_dyn", c)) return r;
+    double *p = calloc((size_t)c->n, sizeof *p);
+    if (!p) {
+        ai__nomem();
+        return r;
+    }
+    if (ai__enter()) {
+        free(p);
+        return r;
+    }
+    int i = ai__choose_impl(c->name, c->question, c->labels, c->n, state, o, &r.confidence, p);
+    ai__leave();
+    if (i < 0 || !ai__keep(p)) { /* ai__keep frees p when it fails */
+        if (i < 0) free(p);
+        return (ai_pick){0, 0, 0, NULL};
+    }
+    r.ok = 1;
+    r.value = i;
+    r.p = p;
+    return r;
+}
+
+ai_pick ai_choose_dyn(const ai_labels *c, const char *state) {
+    return ai_choose_dyn_with(NULL, c, state);
+}
+
+ai_rating ai_rate_dyn_with(const ai_opts *o, const ai_labels *c, const char *state) {
+    ai_rating r = {0, 0, 0, 0};
+    ai__begin();
+    if (ai__check_labels("ai_rate_dyn", c) || ai__enter()) return r;
+    int i = ai__rate_impl(c->name, c->question, c->labels, c->n, state, o, &r.score, &r.confidence);
+    ai__leave();
+    if (i < 0) return (ai_rating){0, 0, 0, 0};
+    r.ok = 1;
+    r.level = i;
+    return r;
+}
+
+ai_rating ai_rate_dyn(const ai_labels *c, const char *state) {
+    return ai_rate_dyn_with(NULL, c, state);
 }
 
 double ai_yesno_with(const ai_opts *o, const char *question, const char *state) {

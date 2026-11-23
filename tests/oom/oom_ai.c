@@ -59,6 +59,35 @@ static int sc_fill(void)
         ai_reset();
         return ok ? 0 : 1;
 }
+static int sc_fill_dyn(void)
+{
+        ai_field f[] = {{.name = "title", .kind = AI_T_str, .desc = "One-line summary"},
+                        {.name = "risk", .kind = AI_T_num, .desc = "Risk 0 to 1"},
+                        {.name = "steps", .kind = AI_T_int, .desc = "Number of steps"},
+                        {.name = "db", .kind = AI_T_bool, .desc = "Schema change"}};
+        ai_type t = {.name = "fix", .f = f, .n = 4};
+        const char *j = ai_fill_dyn_with(AI_OPTS(.max_retries = AI_I(0)), &t, "Propose a fix for: %s", TICKET);
+        int ok = j != NULL;
+        ai_reset();
+        return ok ? 0 : 1;
+}
+static int sc_choose_dyn(void)
+{
+        ai_label L[] = {{"bug", "A software defect"}, {"billing", "Payments and refunds"}};
+        ai_labels c = {.name = "team", .question = "Which team?", .labels = L, .n = 2};
+        ai_pick p = ai_choose_dyn(&c, TICKET);
+        ai_reset();
+        return p.ok ? 0 : 1;
+}
+static int sc_rate_dyn(void)
+{
+        ai_label L[] = {{"l0", "none"}, {"l1", "someday"}, {"l2", "routine"},
+                        {"l3", "soon"}, {"l4", "urgent"}, {"l5", "critical"}};
+        ai_labels c = {.name = "urg", .question = "How urgent?", .labels = L, .n = 6};
+        ai_rating r = ai_rate_dyn(&c, TICKET);
+        ai_reset();
+        return r.ok ? 0 : 1;
+}
 static int sc_embed(void)
 {
         const char *texts[3] = {"one", "two", "three"};
@@ -84,6 +113,9 @@ static const struct oom_scenario scenarios[] = {
         {"rate", sc_rate, "ai_rate (AI_SCALE)", CACHE_WARNING},
         {"yesno", sc_yesno, "ai_yesno with a JSON state", CACHE_WARNING},
         {"fill", sc_fill, "ai_fill_with (AI_STRUCT)", CACHE_WARNING},
+        {"fill_dyn", sc_fill_dyn, "ai_fill_dyn_with (run-time ai_type)", CACHE_WARNING},
+        {"choose_dyn", sc_choose_dyn, "ai_choose_dyn (run-time ai_labels)", CACHE_WARNING},
+        {"rate_dyn", sc_rate_dyn, "ai_rate_dyn (run-time ai_labels)", CACHE_WARNING},
         {"embed", sc_embed, "ai_embed_all", CACHE_WARNING},
         {"review", sc_review, "ai_review", NULL},
 };

@@ -41,10 +41,11 @@ Every public symbol of tld_ai.h is documented below, module by module, with its 
 - [program-set defaults](#mod-program-set-defaults): 3 symbols
 - [plain calls](#mod-plain-calls): 4 symbols
 - [embeddings](#mod-embeddings): 9 symbols
-- [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm): 5 symbols
+- [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm): 6 symbols
 - [decisions: pick one label](#mod-decisions-pick-one-label): 1 symbol
 - [decisions: place on an ordered scale](#mod-decisions-place-on-an-ordered-scale): 1 symbol
 - [the calls a program makes](#mod-the-calls-a-program-makes): 6 symbols
+- [descriptions built at run time](#mod-descriptions-built-at-run-time): 8 symbols
 - [asking a person](#mod-asking-a-person): 1 symbol
 - [errors and the last call](#mod-errors-and-the-last-call): 4 symbols
 - [library memory](#mod-library-memory): 2 symbols
@@ -214,7 +215,7 @@ MIT, see the end of tld_ai.h.
 ### `AI_VERSION`
 
 ```c
-#define AI_VERSION "0.3.0"
+#define AI_VERSION "0.4.0"
 ```
 
 Version of tld_ai.h.
@@ -453,20 +454,24 @@ written (fewer than k when m has fewer rows; 0 on bad input).
 
 ## typed structs filled by an LLM
 
-<a id="ai_kind"></a><a id="ai_field"></a><a id="ai_type"></a><a id="ai_label"></a>
+<a id="ai_kind"></a><a id="ai_field"></a><a id="ai_type"></a><a id="ai_label"></a><a id="ai_labels"></a>
 
-### `ai_kind`, `ai_field`, `ai_type`, `ai_label`
+### `ai_kind`, `ai_field`, `ai_type`, `ai_label`, `ai_labels`
 
 ```c
 typedef enum { AI_T_str, AI_T_num, AI_T_int, AI_T_bool } ai_kind;
 typedef struct { const char *name; ai_kind kind; size_t off; const char *desc; } ai_field;
 typedef struct { const char *name; size_t size; const ai_field *f; int n; } ai_type;
 typedef struct { const char *name; const char *desc; } ai_label;
+typedef struct { const char *name; const char *question; const ai_label *labels; int n; } ai_labels;
 ```
 
-Run-time descriptions made by AI_STRUCT, AI_CHOICE and AI_SCALE: a member's type
-(ai_kind), one member (ai_field), a struct (ai_type) and one choice or scale label
-(ai_label). Programs do not normally use them.
+Descriptions of a record and of labels: a member's type (ai_kind), one member
+(ai_field), a record (ai_type), one choice or scale label (ai_label), and a question
+with its labels (ai_labels). AI_STRUCT, AI_CHOICE and AI_SCALE make them at compile
+time; a program that learns its schemas at run time (from a file, say) fills them
+itself and passes them to ai_fill_dyn, ai_choose_dyn and ai_rate_dyn. size and off
+place members in a C struct and are used only by ai_fill; ai_fill_dyn ignores them.
 
 <a id="AI_STRUCT"></a>
 
@@ -586,6 +591,93 @@ ai_rate(T, state): place state on the scale T (AI_SCALE); returns struct T_answe
 .ok (0 on failure), .score (the model's score), .level (score rounded to the nearest
 level and clamped to the scale) and .confidence. ai_rate_with(o, T, state) takes
 options (model, images, fresh).
+
+<a id="mod-descriptions-built-at-run-time"></a>
+
+## descriptions built at run time
+
+<a id="ai_fill_dyn"></a><a id="ai_fill_dyn_with"></a>
+
+### `ai_fill_dyn`, `ai_fill_dyn_with`
+
+```c
+const char *ai_fill_dyn(const ai_type *t, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+const char *ai_fill_dyn_with(const ai_opts *o, const ai_type *t, const char *fmt, ...) __attribute__((format(printf, 3, 4)));
+```
+
+ai_fill_dyn(t, fmt, ...): ai_fill for a record described at run time. t is an ai_type
+the program filled (size and each off are ignored); the result is the reply, checked
+against t, as compact JSON text: one object with exactly t's members, in t's order,
+typed as declared (str a string, num a number, int an integer, bool true/false).
+Library memory until ai_reset(); NULL on failure. The text can be passed on as the
+state of a decision, which sends it as JSON. Retries as ai_fill does.
+
+Checked before anything is sent (AI_EARG): t->name and every member name are
+non-empty and made of letters, digits, '_' and '-'; t->n >= 1; member names are
+distinct; every kind is one of ai_kind.
+
+```c
+ai_field f[] = { {.name = "title", .kind = AI_T_str, .desc = "One-line summary"},
+                 {.name = "risk",  .kind = AI_T_num, .desc = "Risk 0 to 1"} };
+ai_type t = { .name = "fix", .f = f, .n = 2 };
+const char *j = ai_fill_dyn(&t, "Propose a fix for:\n%s", "The app crashes on start");
+// j: {"title":"...","risk":0.2}, or NULL
+```
+
+ai_fill_dyn_with(o, t, fmt, ...) takes per-call options, as ai_fill_with.
+
+<a id="ai_pick"></a>
+
+### `ai_pick`
+
+```c
+typedef struct { int ok; int value; double confidence; const double *p; } ai_pick;
+```
+
+The answer of ai_choose_dyn: .ok (0 on failure, when the rest is 0 and p NULL), the
+index of the chosen label in .value, .confidence, and one probability per label in p
+(n doubles, library memory until ai_reset()).
+
+<a id="ai_rating"></a>
+
+### `ai_rating`
+
+```c
+typedef struct { int ok; int level; double score; double confidence; } ai_rating;
+```
+
+The answer of ai_rate_dyn: .ok (0 on failure), .score (0 for the first label to n-1
+for the last), .level (score rounded to the nearest level and clamped) and
+.confidence.
+
+<a id="ai_choose_dyn"></a><a id="ai_choose_dyn_with"></a><a id="ai_rate_dyn"></a><a id="ai_rate_dyn_with"></a>
+
+### `ai_choose_dyn`, `ai_choose_dyn_with`, `ai_rate_dyn`, `ai_rate_dyn_with`
+
+```c
+ai_pick   ai_choose_dyn(const ai_labels *c, const char *state);
+ai_pick   ai_choose_dyn_with(const ai_opts *o, const ai_labels *c, const char *state);
+ai_rating ai_rate_dyn(const ai_labels *c, const char *state);
+ai_rating ai_rate_dyn_with(const ai_opts *o, const ai_labels *c, const char *state);
+```
+
+ai_choose_dyn(c, state): ai_choose for labels described at run time; c->name names the
+decision, c->question is asked, and c->labels[0..n-1] are the choices.
+ai_rate_dyn(c, state): ai_rate likewise, the labels ordered lowest to highest (the
+default decision model needs exactly 6; see AI_SCALE).
+
+Checked before anything is sent (AI_EARG): c->name and every label name are non-empty
+and made of letters, digits, '_' and '-'; label names are distinct; c->question and
+every description are non-NULL; c->n >= 2.
+
+```c
+ai_label L[] = { {"bug", "A software defect"}, {"billing", "Payments and refunds"} };
+ai_labels team = { .name = "team", .question = "Which team?", .labels = L, .n = 2 };
+ai_pick a = ai_choose_dyn(&team, "The app crashes on start");
+if (a.ok) printf("%s %.2f\n", L[a.value].name, a.confidence);
+```
+
+The _with forms take options (model, images, fresh), as ai_choose_with.
 
 <a id="mod-asking-a-person"></a>
 
@@ -707,6 +799,8 @@ call tld_ai.h.
 |---|---|---|
 | [`AI_CHOICE`](#AI_CHOICE) | macro | [decisions: pick one label](#mod-decisions-pick-one-label) |
 | [`ai_choose`](#ai_choose) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
+| [`ai_choose_dyn`](#ai_choose_dyn) | function | [descriptions built at run time](#mod-descriptions-built-at-run-time) |
+| [`ai_choose_dyn_with`](#ai_choose_dyn_with) | function | [descriptions built at run time](#mod-descriptions-built-at-run-time) |
 | [`ai_choose_with`](#ai_choose_with) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
 | [`AI_CONFIG`](#AI_CONFIG) | macro | [program-set defaults](#mod-program-set-defaults) |
 | [`ai_config`](#ai_config) | type | [program-set defaults](#mod-program-set-defaults) |
@@ -729,6 +823,8 @@ call tld_ai.h.
 | [`ai_f`](#ai_f) | type | [options](#mod-options) |
 | [`ai_field`](#ai_field) | type | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |
 | [`ai_fill`](#ai_fill) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
+| [`ai_fill_dyn`](#ai_fill_dyn) | function | [descriptions built at run time](#mod-descriptions-built-at-run-time) |
+| [`ai_fill_dyn_with`](#ai_fill_dyn_with) | function | [descriptions built at run time](#mod-descriptions-built-at-run-time) |
 | [`ai_fill_with`](#ai_fill_with) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
 | [`ai_fmt`](#ai_fmt) | function | [library memory](#mod-library-memory) |
 | [`AI_I`](#AI_I) | macro | [options](#mod-options) |
@@ -736,14 +832,19 @@ call tld_ai.h.
 | [`ai_info`](#ai_info) | type | [errors and the last call](#mod-errors-and-the-last-call) |
 | [`ai_kind`](#ai_kind) | type | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |
 | [`ai_label`](#ai_label) | type | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |
+| [`ai_labels`](#ai_labels) | type | [typed structs filled by an LLM](#mod-typed-structs-filled-by-an-llm) |
 | [`ai_last`](#ai_last) | function | [errors and the last call](#mod-errors-and-the-last-call) |
 | [`ai_nearest`](#ai_nearest) | function | [embeddings](#mod-embeddings) |
 | [`AI_OK`](#AI_OK) | constant | [status codes (ai_status)](#mod-status-codes-ai_status) |
 | [`AI_OPTS`](#AI_OPTS) | macro | [options](#mod-options) |
 | [`ai_opts`](#ai_opts) | type | [options](#mod-options) |
 | [`ai_parallel`](#ai_parallel) | function | [parallel work](#mod-parallel-work) |
+| [`ai_pick`](#ai_pick) | type | [descriptions built at run time](#mod-descriptions-built-at-run-time) |
 | [`ai_rate`](#ai_rate) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
+| [`ai_rate_dyn`](#ai_rate_dyn) | function | [descriptions built at run time](#mod-descriptions-built-at-run-time) |
+| [`ai_rate_dyn_with`](#ai_rate_dyn_with) | function | [descriptions built at run time](#mod-descriptions-built-at-run-time) |
 | [`ai_rate_with`](#ai_rate_with) | macro | [the calls a program makes](#mod-the-calls-a-program-makes) |
+| [`ai_rating`](#ai_rating) | type | [descriptions built at run time](#mod-descriptions-built-at-run-time) |
 | [`ai_reset`](#ai_reset) | function | [library memory](#mod-library-memory) |
 | [`ai_review`](#ai_review) | function | [asking a person](#mod-asking-a-person) |
 | [`ai_row`](#ai_row) | macro | [embeddings](#mod-embeddings) |

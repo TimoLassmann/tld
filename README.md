@@ -153,6 +153,11 @@ them as `build/tests/ai-hello`, `ai-triage` and `ai-par`; each takes `-h`, shows
 step (answer, confidence, model, time, tokens) on stderr, and with `-vv` each request
 too.
 
+A program that learns its records and labels at run time (a workflow file, say) builds
+an `ai_type` or `ai_labels` itself and calls `ai_fill_dyn` (the answer comes back as
+typed JSON text), `ai_choose_dyn` or `ai_rate_dyn`; they send the same requests as the
+macro forms.
+
 Failures return NULL, -1 or `.ok = 0`; `ai_status()` gives the code (`AI_ENOSERVER`,
 `AI_ENOMODEL`, ...) and `ai_error()` the message. With no server running, every call
 fails at once with `AI_ENOSERVER`. Returned strings and vectors belong to the library

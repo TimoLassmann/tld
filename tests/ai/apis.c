@@ -49,6 +49,13 @@ int main(int argc, char **argv) {
     const ai_opts *o = AI_OPTS(.temperature = AI_F(0));
     const char *texts[] = {"a", "b"};
     struct rec r;
+    ai_field df[] = {{.name = "title", .kind = AI_T_str, .desc = "Title"}};
+    ai_type dt = {.name = "rec", .f = df, .n = 1};
+    ai_label dl[] = {{"alpha", "First"}, {"beta", "Second"}};
+    ai_labels dc = {.name = "pick", .question = "Which one?", .labels = dl, .n = 2};
+    ai_label sl[] = {{"l0", "None"}, {"l1", "Very low"}, {"l2", "Low"}, {"l3", "Mid"},
+                     {"l4", "High"}, {"l5", "Very high"}};
+    ai_labels ds = {.name = "level", .question = "How much?", .labels = sl, .n = 6};
 
     check("ai_text", ai_text("hello %d", 1) == NULL);
     check("ai_text_with", ai_text_with(o, "hello") == NULL);
@@ -60,6 +67,12 @@ int main(int argc, char **argv) {
     check("ai_choose_with", !ai_choose_with(o, pick, "state").ok);
     check("ai_rate", !ai_rate(level, "state").ok);
     check("ai_rate_with", !ai_rate_with(o, level, "state").ok);
+    check("ai_fill_dyn", ai_fill_dyn(&dt, "Make %s", "one") == NULL);
+    check("ai_fill_dyn_with", ai_fill_dyn_with(o, &dt, "x") == NULL);
+    check("ai_choose_dyn", !ai_choose_dyn(&dc, "state").ok);
+    check("ai_choose_dyn_with", !ai_choose_dyn_with(o, &dc, "state").ok);
+    check("ai_rate_dyn", !ai_rate_dyn(&ds, "state").ok);
+    check("ai_rate_dyn_with", !ai_rate_dyn_with(o, &ds, "state").ok);
     check("ai_embed", ai_embed("text").x == NULL);
     check("ai_embed_with", ai_embed_with(o, "text").x == NULL);
     check("ai_embed_all", ai_embed_all(texts, 2).x == NULL);

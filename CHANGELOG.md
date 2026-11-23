@@ -1,5 +1,30 @@
 # Changelog
 
+## tld_ai.h 0.4.0 (unreleased)
+
+### Added
+
+- tld_ai.h: descriptions built at run time, for programs that learn their records and
+  labels while running (a workflow file, say). `ai_fill_dyn(t, fmt, ...)` takes an
+  `ai_type` and returns the answer as compact JSON text holding exactly the described
+  members, in order and typed (NULL on failure). `ai_choose_dyn(c, state)` and
+  `ai_rate_dyn(c, state)` take the new `ai_labels` (name, question, labels, count) and
+  return `ai_pick` (value, confidence, one probability per label) and `ai_rating`
+  (level, score, confidence). Each has a `_with(o, ...)` form. They send the same
+  requests as `ai_fill`, `ai_choose` and `ai_rate`, so one cache file replays both.
+- The `_dyn` calls check a description before any request and fail with `AI_EARG` on
+  a NULL or empty description, a name with a character other than a letter, digit, `_`
+  or `-`, a name used twice, an unknown member kind, a NULL question or label
+  description, or fewer than 2 labels.
+- Tests: `tests/ai/dyn.c` (`ai-dyn`, compares each `_dyn` call with its macro twin and
+  checks the requests are identical); the `_dyn` calls are added to the no-server,
+  https and out-of-memory tests.
+
+### Changed
+
+- `AI_CHOICE` and `AI_SCALE` now build an `ai_labels` and go through the same code as
+  the `_dyn` calls; their behaviour and requests are unchanged. `AI_VERSION` is "0.4.0".
+
 ## modernisation branch (unreleased)
 
 This branch rebuilds tld as two single-header libraries: `tld.h`, generated from `src/`,

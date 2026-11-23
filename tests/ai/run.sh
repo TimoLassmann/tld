@@ -222,6 +222,24 @@ assert dec[0]["state"] == {"ticket": 'réfund "now"', "n": 42, "ok": True}, dec[
 assert dec[1]["state"] == state, "plain state changed"
 EOF
     check "special characters reach the server intact" $? "logged requests differ"
+
+    start_mock dy 0.93
+    TLD_AI_HOST=$HOST TLD_AI_DB=$T/dy.cache limit 60 "$B/ai-dyn" >"$T/dy.txt" 2>&1; rc=$?
+    [ $rc = 0 ]; check "run-time descriptions: ai_fill_dyn, ai_choose_dyn, ai_rate_dyn" $? "$(cat "$T/dy.txt")"
+    "$PY" - "$T/dy.log" <<'EOF2'
+import json, sys
+reqs = [json.loads(l.split(" ", 2)[2]) for l in open(sys.argv[1]) if l.startswith("mock: ")]
+chat = [r for r in reqs if "messages" in r]
+dec = [r for r in reqs if "questions" in r]
+# the dyn and macro forms send the same requests: fill (dyn, macro, dyn_with),
+# choose (dyn, macro, dyn_with), rate (dyn, macro, dyn_with); the 5-level rate is refused
+assert len(chat) == 3, len(chat)
+assert chat[0]["format"] == chat[1]["format"], "fill schemas differ"
+assert chat[0]["messages"] == chat[1]["messages"], "fill prompts differ"
+assert dec[0] == dec[1], "choose requests differ"
+assert dec[3] == dec[4], "rate requests differ"
+EOF2
+    check "run-time descriptions send the same requests as the macros" $? "logged requests differ"
 }
 
 group_cache() {
