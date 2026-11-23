@@ -15,7 +15,7 @@
  * top-level macro invocations and whole function definitions at file scope, the other
  * lines in a function that has the ERROR label RUN and ASSERT jump to, and a main.
  * Blocks with an #include (the USAGE lines) are skipped. tests/docs/examples.sh
- * compiles them (the doc-examples test).
+ * compiles and runs them (the doc-examples and doc-examples-ai-mock tests).
  *
  * Build: cc -std=c11 tools/tlddoc.c -o tlddoc -lm -lpthread (or the CMake target).
  *

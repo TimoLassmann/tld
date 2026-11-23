@@ -35,8 +35,9 @@ symbol has no doc comment.
   4 lines. Plain text; lines indented further than the text around them, or aligned with
   runs of spaces, are shown verbatim (use this for examples).
 - A code example is a block shown as C (a line ends in `;`, `{` or `}`, or is a
-  `#define`). The test `doc-examples` compiles each one as a program of its own, so it
-  must declare what it uses; a blank line ends it, and output it pictures goes after
+  `#define`). The tests `doc-examples` and `doc-examples-ai-mock` compile and run each
+  one as a program of its own (the `tld_ai.h` ones against a mock server), so it must
+  declare what it uses and succeed when run; a blank line ends it, and output it pictures goes after
   `//`. `#define` lines and top-level invocations such as `AI_CHOICE(...)` are placed at
   file scope, the rest in a function with an `ERROR:` label; blocks with an `#include`
   are not compiled.
