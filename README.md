@@ -111,6 +111,22 @@ with `"%s"`: `LOG_MSG("%s", line)`, not `LOG_MSG(line)`.
 
 ## Using tld_ai.h
 
+`tld_ai.h` talks to an [Ollama](https://ollama.com) server: install Ollama and start it
+(`ollama serve`). Out of the box it uses three models from the Ollama model library,
+pulled once:
+
+```sh
+ollama pull inkling-2-mini       # text: ai_text, ai_fill
+ollama pull autotrust-jev        # decisions: ai_yesno, ai_choose, ai_rate
+ollama pull embeddinggemma-2     # embeddings: ai_embed, ai_embed_all
+```
+
+These are defaults, not requirements. Any text or embedding model your server has can
+take their place: name it with `TLD_AI_LLM` or `TLD_AI_EMBEDDER`, with `ai_defaults()`,
+or per call with `.model` (see [Settings](#settings)). Decisions go to the server's
+`/v1/systemone` endpoint, so `TLD_AI_DECIDER` must name a decision model that answers it,
+such as `autotrust-jev`.
+
 ```c
 #define TLD_IMPLEMENTATION          /* in one .c file, before any other #include */
 #define AI_IMPLEMENTATION
