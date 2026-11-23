@@ -1,4 +1,5 @@
-[![CMake](https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml/badge.svg)](https://github.com/TimoLassmann/tld/actions/workflows/cmake.yml)
+[![Build and test](https://github.com/TimoLassmann/tld/actions/workflows/build.yml/badge.svg?branch=modernisation)](https://github.com/TimoLassmann/tld/actions/workflows/build.yml)
+[![Sanitizers and fuzzing](https://github.com/TimoLassmann/tld/actions/workflows/checks.yml/badge.svg?branch=modernisation)](https://github.com/TimoLassmann/tld/actions/workflows/checks.yml)
 
 # tld
 
@@ -134,11 +135,12 @@ Build with `cc -std=c11 -I. prog.c -lpthread -lm`. Larger examples:
 `examples/par.c` (parallel calls, embeddings, nearest neighbours). The build makes
 them as `build/tests/ai-hello`, `ai-triage` and `ai-par`; each takes `-h`, shows every
 step (answer, confidence, model, time, tokens) on stderr, and with `-vv` each request
-too. Failures return
-NULL, -1 or `.ok = 0`; `ai_status()` gives the code (`AI_ENOSERVER`, `AI_ENOMODEL`, ...)
-and `ai_error()` the message. With no server running, every call fails at once with
-`AI_ENOSERVER`. Returned strings and vectors belong to the library and stay valid until
-`ai_reset()`.
+too.
+
+Failures return NULL, -1 or `.ok = 0`; `ai_status()` gives the code (`AI_ENOSERVER`,
+`AI_ENOMODEL`, ...) and `ai_error()` the message. With no server running, every call
+fails at once with `AI_ENOSERVER`. Returned strings and vectors belong to the library
+and stay valid until `ai_reset()`.
 
 ### Settings
 
@@ -184,8 +186,7 @@ The manuals are generated from the header comments by `tools/tlddoc.c`:
   module, with an index.
 - [docs/tld_ai.md](docs/tld_ai.md): the same for `tld_ai.h`.
 
-`CHANGELOG.md` lists what changed on the `modernisation` branch, including every renamed
-function. To move a program from the old tld, run
+`CHANGELOG.md` lists what changed from the old tld, including every renamed function. To move a program from the old tld, run
 `uv run python tools/migrate.py --write src/` on it, then build it and fix what the
 migrator and the compiler report.
 

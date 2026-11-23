@@ -29,5 +29,7 @@
 !src/**
 !tests/**
 !cmake/**
+!.github/
+!.github/**
 # Local scratch area (not tracked)
 scratch/

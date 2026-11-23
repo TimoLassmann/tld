@@ -70,7 +70,9 @@ arguments changed, and lists every place that needs a person (see "Tests and too
 - CI: GitHub Actions builds with `-Wall -Wextra -Werror` and runs every test on Ubuntu
   x86-64 (gcc, clang), Ubuntu arm64 (gcc), macOS (clang) and Alpine (musl), plus
   ASan+UBSan (with leak checking), MemorySanitizer, ThreadSanitizer and 60 s per fuzz
-  target on every push.
+  target on every push, every pull request to main and every Monday. Two workflows, each
+  with a README badge: "Build and test" (`build.yml`) and "Sanitizers and fuzzing"
+  (`checks.yml`); both can also be started by hand from the Actions page.
 
 ### Renamed: one naming scheme
 
