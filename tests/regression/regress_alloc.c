@@ -181,6 +181,7 @@ ERROR:
         return FAIL;
 }
 
+#if TLD_FIX_HAVE_ASAN
 static int galloc_2d_char(char ***m, int a, int b)
 {
         galloc(m, a, b);
@@ -188,11 +189,11 @@ static int galloc_2d_char(char ***m, int a, int b)
 ERROR:
         return FAIL;
 }
+#endif
 
 static int test_galloc_2d(void)
 {
         double **m = NULL;
-        char **c = NULL;
         int i = 7;
         int j = 5;
         uint32_t d1 = 0;
@@ -216,17 +217,23 @@ static int test_galloc_2d(void)
         ASSERT(galloc_2d(&m, 0, 5) == FAIL, "2D galloc with 0 rows succeeded");
         ASSERT(m == NULL, "m was set on failure");
 
-        /* byte count does not fit in size_t: rejected before allocating anything */
-        ASSERT(galloc_2d_char(&c, (1 << 30) + 1, 2147483647) == FAIL, "overflowing 2D galloc succeeded");
-        ASSERT(c == NULL, "c was set on failure");
+        /* byte count does not fit in size_t (2^31 x 2^31 doubles = 2^65 bytes): rejected
+           before allocating anything. (A char matrix of 2^30 x 2^31 fits a 64-bit size_t,
+           so it allocated 8 GB of row pointers first, which a MemorySanitizer runner
+           could not survive.) */
+        ASSERT(galloc_2d(&m, 2147483647, 2147483647) == FAIL, "overflowing 2D galloc succeeded");
+        ASSERT(m == NULL, "m was set on failure");
 
 #if TLD_FIX_HAVE_ASAN
+        {
+        char **c = NULL;
         /* dim1 * dim2 overflows int (2^32; UB before the fix) but not size_t; the
            data block is above max_allocation_size_mb, so the data allocation fails
            and the call must fail cleanly. Only under ASan: elsewhere the system
            might really hand out 32 GB. */
         ASSERT(galloc_2d_char(&c, 65536, 65536) == FAIL, "huge 2D galloc succeeded");
         ASSERT(c == NULL, "c was set on failure");
+        }
 #endif
 
         /* gfree of a NULL pointer is a no-op, like free(NULL); gfree clears its
