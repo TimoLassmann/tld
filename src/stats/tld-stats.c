@@ -1,0 +1,230 @@
+#include "../core/tld-core.h"
+#include <math.h>
+#include "tld-stats.h"
+
+int tld_shannon(double *vec, int n, double *entropy)
+{
+        double t = 0.0;
+        double s = 0.0;
+        ASSERT(vec != NULL, "No vector");
+        ASSERT(entropy != NULL, "No output pointer");
+        ASSERT(n > 0, "Need at least one value");
+        for(int i = 0; i < n;i++){
+                ASSERT(vec[i] >= 0.0, "Value %d is negative or NaN", i);
+                t += vec[i];
+        }
+        if(t == 0.0){
+                *entropy = 0.0;
+                return OK;
+        }
+        for(int i = 0; i < n;i++){
+                if(vec[i]){
+                        double p = vec[i] / t;
+                        s += p * log2(p);
+                }
+        }
+
+        s = s * -1.0;
+        *entropy = s;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_mean(double *vec, int n, double *mean)
+{
+        ASSERT(vec != NULL, "No vector");
+        ASSERT(mean != NULL, "No output pointer");
+        ASSERT(n > 0, "Need at least one value");
+        double m = 0.0;
+        for(int i = 0; i < n;i++){
+                m += vec[i];
+        }
+        m /= (double) n;
+        *mean = m;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+/* sum of (a[i] - mean(a)) * (b[i] - mean(b)): n times the population covariance, and
+   with a == b n times the population variance. */
+static int tld__stats_codev(const double *a, const double *b, int n, double *sum)
+{
+        double mean_a = 0.0;
+        double mean_b = 0.0;
+        double c = 0.0;
+        RUN(tld_mean((double *) a, n, &mean_a));
+        RUN(tld_mean((double *) b, n, &mean_b));
+        for(int i = 0; i < n; i++){
+                c += (a[i] - mean_a) * (b[i] - mean_b);
+        }
+        *sum = c;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_pop_variance(double *vec, int n, double *variance)
+{
+        double v = 0.0;
+        ASSERT(variance != NULL, "No output pointer");
+        RUN(tld__stats_codev(vec, vec, n, &v));
+        *variance = v / (double) n;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_sample_variance(double *vec, int n, double *variance)
+{
+        double v = 0.0;
+        ASSERT(variance != NULL, "No output pointer");
+        ASSERT(n > 1, "Sample variance needs at least two values");
+        RUN(tld__stats_codev(vec, vec, n, &v));
+        *variance = v / (double) (n - 1);
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_standardise(double *vec, int n, double *mean, double *stdev)
+{
+        double m;
+        double variance;
+        double s;
+        ASSERT(mean != NULL, "No output pointer");
+        ASSERT(stdev != NULL, "No output pointer");
+
+        RUN(tld_mean(vec, n, &m));
+        RUN(tld_sample_variance(vec, n, &variance));
+
+        s = sqrt(variance);
+        if(s == 0.0){
+                ERROR_MSG("Standard deviation is zero");
+        }
+        for(int i = 0; i < n;i++){
+                vec[i] = (vec[i] -m) / s;
+        }
+
+        *mean = m;
+        *stdev = s;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_sample_covariance(double *vec_a, double *vec_b, int n, double *cov)
+{
+        double c = 0.0;
+        ASSERT(cov != NULL, "No output pointer");
+        ASSERT(n > 1, "Sample covariance needs at least two values");
+        RUN(tld__stats_codev(vec_a, vec_b, n, &c));
+        *cov = c / (double) (n - 1);
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_pop_covariance(double *vec_a, double *vec_b, int n, double *cov)
+{
+        double c = 0.0;
+        ASSERT(cov != NULL, "No output pointer");
+        RUN(tld__stats_codev(vec_a, vec_b, n, &c));
+        *cov = c / (double) n;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_pearson_corr(double *vec_a, double *vec_b, int n, double *corr)
+{
+        double var_a;
+        double var_b;
+
+        double cov;
+        double c;
+        ASSERT(corr != NULL, "No output pointer");
+        RUN(tld_pop_variance(vec_a, n, &var_a));
+        RUN(tld_pop_variance(vec_b, n, &var_b));
+
+        RUN(tld_pop_covariance(vec_a, vec_b, n, &cov));
+
+        c = sqrt(var_a * var_b);
+        if(c == 0){
+                c = 0;
+        }else{
+                c = cov / c;
+        }
+
+        *corr = c;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_sigmoid(double x, double *out)
+{
+        /* Define truncation limits based on double-precision floating point */
+        const double MAX_X = 709.782712893384; /* Approximately log(DBL_MAX) */
+        const double MIN_X = -709.782712893384; /* Approximately log(DBL_MIN) */
+        double y;
+        ASSERT(out != NULL, "No output pointer");
+        if(isnan(x)){
+                y = NAN;
+                *out = y;
+                return OK;
+        }
+
+        /* Handle positive and negative infinity */
+        if(isinf(x)){
+                if (x > 0){
+                        y = 1.0;
+                        *out = y;
+                        return OK;
+
+                }else{
+                        y = 0.0;
+                        *out = y;
+                        return OK;
+                }
+        }
+
+        /* Truncate x to prevent overflow */
+        if(x > MAX_X){
+                y = 1.0;
+                *out = y;
+                return OK;
+        }else if(x < MIN_X){
+                y = 0.0;
+                *out = y;
+                return OK;
+        }
+
+        /* Compute sigmoid in a numerically stable way */
+
+        if(x < 0.0){
+                y = exp(x);
+                y = y / (1.0 + y);
+        }else{
+                y = 1.0 / (1.0 + exp(-x));
+        }
+        *out = y;
+        return OK;
+ERROR:
+        return FAIL;
+}
+
+int tld_normal_pdf(double x, double mu, double sigma, double* p)
+{
+        double z;
+        ASSERT(p != NULL, "No output pointer");
+        ASSERT(sigma > 0.0, "stdev must be positive.");
+        z = (x - mu) / sigma;
+
+        *p = exp(-z*z*0.5) / (sigma * sqrt(2. * 3.14159265358979323846264338328));
+
+        return OK;
+ERROR:
+        return FAIL;
+}

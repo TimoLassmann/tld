@@ -1,42 +1,21 @@
-#include <sys/time.h>
-#include "stdio.h"
+#include <time.h>
+#include <stdio.h>
 
-static int timeval_subtract(struct timeval *result, struct timeval end, struct timeval start);
+#include "tld-timing.h"
 
-int timeval_subtract(struct timeval *result, struct timeval end, struct timeval start)
+void tld__timer(int end)
 {
-        if (start.tv_usec < end.tv_usec) {
-                int nsec = (end.tv_usec - start.tv_usec) / 1000000 + 1;
-                end.tv_usec -= 1000000 * nsec;
-                end.tv_sec += nsec;
+        static double time_start;
+        struct timespec now = {0};
+        double t = 0.0;
+
+        if(timespec_get(&now, TIME_UTC) != TIME_UTC){
+                now.tv_sec = time(NULL);
         }
-        if (start.tv_usec - end.tv_usec > 1000000) {
-                int nsec = (end.tv_usec - start.tv_usec) / 1000000;
-                end.tv_usec += 1000000 * nsec;
-                end.tv_sec -= nsec;
-        }
-
-        result->tv_sec = end.tv_sec - start.tv_sec;
-        result->tv_usec = end.tv_usec - start.tv_usec;
-
-        return end.tv_sec < start.tv_sec;
-}
-
-void set_exec_time(int end)
-{
-        static struct timeval time_start;
-        struct timeval time_end;
-        struct timeval time_diff;
-
-        if (end) {
-                gettimeofday(&time_end, NULL);
-                if (timeval_subtract(&time_diff, time_end, time_start) == 0) {
-                        if (end == 1)
-                                fprintf(stdout,"\nexec time: %1.2fs\n",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
-                        else if (end == 2)
-                                fprintf(stdout,"%1.2fs",time_diff.tv_sec + (time_diff.tv_usec / 1000000.0f));
-                }
+        t = (double) now.tv_sec + (double) now.tv_nsec / 1e9;
+        if(end){
+                LOG_MSG("exec time: %1.2fs", t - time_start);
                 return;
         }
-        gettimeofday(&time_start, NULL);
+        time_start = t;
 }

@@ -41,11 +41,6 @@ endif()
 #option(BUILD_SHARED_LIBS "Build all libraries as shared" OFF)
 
 
-list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
-
-# find_package(HTSlib)
-# find_package(ZLIB)
-# find_package(HDF5 COMPONENTS C HL)
 
 
 add_subdirectory(src)
@@ -55,7 +50,6 @@ add_subdirectory(src)
 #target_compile_features(tld PUBLIC c_std_99)
 # target_include_directories(tld-dev PUBLIC "src") # "src/core")
 # target_link_libraries(tld-dev PRIVATE m)
-# target_link_libraries(tld-dev PRIVATE ZLIB::ZLIB)
 #target_compile_definitions(rayfork-dev PUBLIC RAYFORK_GRAPHICS_BACKEND_DIRECTX)
 
 
@@ -68,6 +62,13 @@ add_subdirectory(src)
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   include(CTest)
   add_subdirectory(tests)
+  # tlddoc and the docs target (the manuals in docs/)
+  add_subdirectory(tools)
+  # libFuzzer targets (clang only): -DTLD_FUZZ=ON, then tests/fuzz/run.sh
+  option(TLD_FUZZ "Build the libFuzzer targets in tests/fuzz (clang)" OFF)
+  if(TLD_FUZZ)
+    add_subdirectory(tests/fuzz)
+  endif()
 endif()
 
   
@@ -79,7 +80,7 @@ set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/COPYING")
-set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/Readme.org")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
 set(CPACK_SOURCE_GENERATOR "TGZ;ZIP")
 set(CPACK_SOURCE_IGNORE_FILES
      /.git

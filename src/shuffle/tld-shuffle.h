@@ -1,26 +1,29 @@
-#ifndef SHUFFLE_H
-#define SHUFFLE_H
-
-
+/* shuffle: uniform random permutation (Fisher-Yates) in place of arrays of char,
+ * int8_t..int64_t, uint8_t..uint64_t, float and double; TLD_SHUFFLE picks the function
+ * from the array's type. */
+#ifndef TLD_SHUFFLE_H
+#define TLD_SHUFFLE_H
 
 #include "../rng/tld-rng.h"
 
-#define SHUFFLE_HEADER(type)                        \
-        int tld_shuffle_##type(type *a, int len, struct rng_state* rng);
+/* TLD__SHUFFLE_HEADER(type) declares tld_shuffle_<type>. */
+#define TLD__SHUFFLE_HEADER(type)                        \
+        int tld_shuffle_##type(type *a, int len, struct tld_rng* rng);
 
-SHUFFLE_HEADER(char)
-        SHUFFLE_HEADER(int8_t)
-        SHUFFLE_HEADER(uint8_t)
-        SHUFFLE_HEADER(int16_t)
-        SHUFFLE_HEADER(uint16_t)
-        SHUFFLE_HEADER(int32_t)
-        SHUFFLE_HEADER(uint32_t)
-        SHUFFLE_HEADER(int64_t)
-        SHUFFLE_HEADER(uint64_t)
-        SHUFFLE_HEADER(float)
-        SHUFFLE_HEADER(double)
+/* Shuffle len elements of a in place, drawing from rng (see tld_rng_alloc). Always OK. */
+TLD__SHUFFLE_HEADER(char)
+        TLD__SHUFFLE_HEADER(int8_t)
+        TLD__SHUFFLE_HEADER(uint8_t)
+        TLD__SHUFFLE_HEADER(int16_t)
+        TLD__SHUFFLE_HEADER(uint16_t)
+        TLD__SHUFFLE_HEADER(int32_t)
+        TLD__SHUFFLE_HEADER(uint32_t)
+        TLD__SHUFFLE_HEADER(int64_t)
+        TLD__SHUFFLE_HEADER(uint64_t)
+        TLD__SHUFFLE_HEADER(float)
+        TLD__SHUFFLE_HEADER(double)
 
-
+/* TLD_SHUFFLE(a, len, rng): tld_shuffle_<type>(a, len, rng) for a's element type. */
 #define TLD_SHUFFLE(A,N,R) _Generic((A),                                 \
                                     char* : tld_shuffle_char,             \
                                     int8_t* : tld_shuffle_int8_t,         \
@@ -34,5 +37,6 @@ SHUFFLE_HEADER(char)
                                     float* : tld_shuffle_float,           \
                                     double* : tld_shuffle_double)(A,N,R)
 
+#undef TLD__SHUFFLE_HEADER
 
 #endif

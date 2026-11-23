@@ -13,6 +13,15 @@
 !.gitattributes
 !.gitignore
 !val_build.sh
+!CHANGELOG.md
+!tld.h
+!tld_ai.h
+!tools/
+!tools/**
+!examples/
+!examples/**
+!docs/
+!docs/**
 !src/
 !tests/
 !cmake/
@@ -20,3 +29,7 @@
 !src/**
 !tests/**
 !cmake/**
+!.github/
+!.github/**
+# Local scratch area (not tracked)
+scratch/

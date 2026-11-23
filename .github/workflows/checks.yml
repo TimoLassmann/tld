@@ -1,0 +1,99 @@
+name: Sanitizers and fuzzing
+
+# The test suite under ASan + UBSan, MemorySanitizer and ThreadSanitizer, and 60 s of
+# fuzzing per target. A failure here can be a sanitizer report rather than a broken build.
+on:
+  push:
+    branches: [ "main", "modernisation" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:          # a "Run workflow" button on the Actions page
+  schedule:
+    - cron: "0 6 * * 1"       # every Monday, so the badge notices new compilers and images
+
+permissions:
+  contents: read
+
+concurrency:                  # a newer push cancels the run it replaces
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  asan:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Configure
+      run: cmake -B build -DCMAKE_BUILD_TYPE=ASAN -DCMAKE_C_FLAGS="-fsanitize=undefined -fno-sanitize-recover=undefined"
+
+    - name: Build
+      run: cmake --build build --parallel 4
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure --timeout 300
+
+  msan:
+    name: MemorySanitizer (uninitialised reads)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # the alloc tests ask for impossible sizes on purpose: get NULL, as from malloc
+      MSAN_OPTIONS: allocator_may_return_null=1
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Configure
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_C_FLAGS="-fsanitize=memory -fsanitize-memory-track-origins=2 -fno-omit-frame-pointer -O1" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=memory"
+
+    - name: Build
+      run: cmake --build build --parallel 4
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure --timeout 300
+
+  tsan:
+    name: ThreadSanitizer (data races)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TSAN_OPTIONS: allocator_may_return_null=1
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Allow ThreadSanitizer on newer Linux kernels
+      run: sudo sysctl vm.mmap_rnd_bits=28
+
+    - name: Configure
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_C_FLAGS="-fsanitize=thread -O1" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+
+    - name: Build
+      run: cmake --build build --parallel 4
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure --timeout 300
+
+  fuzz:
+    name: Fuzzing (JSON, templates, tld_ai.h replies)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Configure
+      run: cmake -B build -DTLD_FUZZ=ON -DCMAKE_C_COMPILER=clang
+
+    - name: Build
+      run: cmake --build build --parallel 4 --target fuzz-json fuzz-template fuzz-ai fuzz-http
+
+    - name: Fuzz 60 s per target
+      run: sh tests/fuzz/run.sh 60 build
+
+    - name: Keep crashing inputs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: fuzz-crashes
+        path: build/fuzz-crash-*

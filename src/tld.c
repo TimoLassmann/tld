@@ -1,52 +1,23 @@
 #include "tld.h"
 
 #include "core/tld-core.c"
-
 #include "alloc/tld-alloc.c"
-
-#include "rng/tld-rng.c"
-
-#include "kdtree/tld-kdtree.c"
-#include "hash/hash.c"
-
-#ifndef BOOT
-#include "seq/tld-seqbuffer.c"
-#include "seq/tld-seqio.c"
-#include "seq/tld-seqalphabet.c"
-#include "seq/tld-revcomp.c"
-#include "seq/tld-detect.c"
-#endif
-
-#include "logsum/tld-logsum.c"
-
-#if !defined(BOOT) && !defined(TLD_NO_HDF5)
-#include "hdf5/tld-hdf5.c"
-#include "hdf5/tld-hdf5_types.c"
-#include "hdf5/tld-hdf5_tree.c"
-#endif
-/* #include "hdf5/tld-hdf5_utils.c" */
-
-
-
-#include "tpool/tpool.c"
-
-/* #include "tpool/tpool_internal.c" */
-
-#include "json/tld-json.c"
-#include "json/tld-json_mem.c"
-#include "json/tld-json_misc.c"
-
+#include "string/tld-string.c"
+#include "path/tld-path.c"
 #include "timing/tld-timing.c"
-#include "string/str.c"
-#include "template/template.c"
-
+#include "bitfield/tld-bitfield.c"
+#include "hash/tld-hash.c"
+#include "json/tld-json_mem.c"
+#include "json/tld-json.c"
+#include "json/tld-json_misc.c"
+#include "template/tld-template.c"
+#include "rng/tld-rng.c"
 #include "sort/tld-sort.c"
 #include "shuffle/tld-shuffle.c"
-#include "stats/basic.c"
-#include "stats/kde.c"
-#include "stats/norm_quantile.c"
-#include "stats/auc.c"
-
-#include "data/bitfield.c"
-
-#include "misc/misc.c"
+#include "stats/tld-stats.c"
+#include "stats/tld-kde.c"
+#include "stats/tld-quantile.c"
+#include "stats/tld-auc.c"
+#include "logsum/tld-logsum.c"
+#include "kdtree/tld-kdtree.c"
+#include "tpool/tld-tpool.c"

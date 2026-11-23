@@ -1,0 +1,69 @@
+name: Build and test
+
+# Compile with warnings as errors and run the whole test suite on each platform.
+on:
+  push:
+    branches: [ "main", "modernisation" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:          # a "Run workflow" button on the Actions page
+  schedule:
+    - cron: "0 6 * * 1"       # every Monday, so the badge notices new compilers and images
+
+permissions:
+  contents: read
+
+concurrency:                  # a newer push cancels the run it replaces
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }} ${{ matrix.cc }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,    cc: gcc }
+          - { os: ubuntu-latest,    cc: clang }
+          - { os: ubuntu-24.04-arm, cc: gcc }
+          - { os: macos-latest,     cc: clang }
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Allow ThreadSanitizer on newer Linux kernels
+      # The ai-tsan test fails with "unexpected memory mapping" when the kernel uses more
+      # mmap randomisation bits than TSan supports.
+      if: runner.os == 'Linux'
+      run: sudo sysctl vm.mmap_rnd_bits=28
+
+    - name: Configure (warnings are errors)
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_C_FLAGS="-Wall -Wextra -Werror"
+
+    - name: Build
+      run: cmake --build build --parallel 4
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure --timeout 300
+
+  musl:
+    name: Alpine (musl libc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container: alpine:3.22
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install tools
+      run: apk add --no-cache build-base cmake python3 linux-headers
+
+    - name: Configure (warnings are errors)
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-Wall -Wextra -Werror"
+
+    - name: Build
+      run: cmake --build build --parallel 4
+
+    - name: Test
+      run: ctest --test-dir build --output-on-failure --timeout 300

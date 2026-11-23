@@ -1,49 +1,44 @@
+/* kdtree: a k-d tree of double vectors with caller-chosen ids for nearest-neighbour
+ * search by Euclidean distance; points can be built in bulk or inserted one at a time.
+ * Not locked: changing a tree (alloc, build, insert, rebalance, reset) needs it to
+ * itself, but searches only read it and may run at the same time. */
 #ifndef TLD_KDTREE_H
 #define TLD_KDTREE_H
 
 #include "../core/tld-core.h"
 
-typedef struct kd_node {
-        double* p;
-        struct kd_node* left;
-        struct kd_node* right;
-        /* int split; */
-        uint32_t id;
-        int n;
-} kd_node;
+/* Opaque tree; create with tld_kdtree_alloc, free with tld_kdtree_free. */
+typedef struct tld_kdtree tld_kdtree;
 
-struct kdyard;
+/* Allocate in *tree an empty tree for points of dim (> 0) doubles. Storage grows as
+ * points are added. Free with tld_kdtree_free. */
+TLD_API int tld_kdtree_alloc(tld_kdtree **tree, int dim);
 
-typedef struct kdtree {
-        /* kd_node* root; */
-        kd_node* root;
-        struct kdyard* yard;
-        int(*fptr_cmp)(double*, double*, int, double*);
-        int(*fptr_plane)(double*, double*, int, double);
-        int rebalance_at;
-        int n_step;
-        int depth;
-        int max_depth;
-        int min_depth;
-        int vec_len;
-} kdtree;
+/* Free the tree and all its points; NULL is ignored. */
+TLD_API void tld_kdtree_free(tld_kdtree *t);
 
-tld_external  int kdtree_bf_search(kdtree *t, double *x, uint32_t *id);
-tld_external  int kdtree_nn_search(kdtree *t, double *x, uint32_t *id);
+/* Remove every point and keep the memory for reuse. */
+TLD_API int tld_kdtree_reset(tld_kdtree *t);
 
-tld_external  int kdtree_build(kdtree *t, double **x,uint32_t* ids, int n, int size);
-/* tld_external int kdtree_insert(kdtree *t, double *x, int size); */
-tld_external  int kdtree_insert(kdtree* t, double *x,uint32_t id, int size);
-tld_external  int kdtree_rebalance(kdtree *t);
+/* Add n points x[i] (each of the tree's dim doubles) with ids[i] and rebuild the tree
+ * balanced. The points are copied; x and ids are not changed. On failure (no memory)
+ * the tree is unchanged. */
+TLD_API int tld_kdtree_build(tld_kdtree *t, double **x, uint32_t *ids, int n);
 
-tld_external  int kdtree_alloc(kdtree **tree, int size);
-tld_external  int kdtree_reset(kdtree *t);
-tld_external void kdtree_free(kdtree *t);
+/* Insert one point x (dim doubles) with id (copied). Every 10000 insertions the tree is
+ * rebuilt if its depth is more than 10 levels off the balanced depth. On failure (no
+ * memory) the tree is unchanged. */
+TLD_API int tld_kdtree_insert(tld_kdtree *t, double *x, uint32_t id);
 
-tld_external void kdtree_debug_chk(kd_node *n, int depth);
-tld_external void kdtree_debug_print(kd_node *n, int depth);
+/* Rebuild the tree balanced from the points it holds (allocates nothing). */
+TLD_API int tld_kdtree_rebalance(tld_kdtree *t);
 
+/* The id of the stored point nearest to x (dim doubles) into *id. FAIL (with an error)
+ * when the tree is empty. */
+TLD_API int tld_kdtree_nn_search(tld_kdtree *t, double *x, uint32_t *id);
 
-tld_external  int kddist_euclidian(double *a, double *b, int vec_len, double *dist);
-tld_external  int kdplane_check_euclidian(double *a, double *b, int cd, double min_dist);
+/* Brute force: the id of the stored point nearest to x, comparing every point; FAIL
+ * (with an error) when the tree is empty. For checking tld_kdtree_nn_search. */
+TLD_API int tld_kdtree_bf_search(tld_kdtree *t, double *x, uint32_t *id);
+
 #endif
