@@ -841,6 +841,8 @@ TLD_API int tld_json_set_val(tld_json_obj *n, const char *path, tld_json_val *v)
  *
  *   tld_json_obj *o = TLD_JSON_OBJECT(TLD_JSTR("name", "x"), TLD_JINT("n", 3),
  *                              TLD_JARR("v", TLD_JSON_ARRAY(TLD_JNUM(NULL, 0.5), TLD_JNUM(NULL, 2))));
+ *   ASSERT(o != NULL, "Could not build the object");
+ *   tld_json_obj_free(o);
  */
 #define TLD_JSON_OBJECT(...) tld__json_obj_build(NULL, (tld_json_decoration[]){__VA_ARGS__}, \
                                             sizeof((tld_json_decoration[]){__VA_ARGS__})/sizeof(tld_json_decoration))

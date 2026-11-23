@@ -1176,6 +1176,8 @@ freed too. Free the result with tld_json_obj_free / tld_json_arr_free.
 ```c
 tld_json_obj *o = TLD_JSON_OBJECT(TLD_JSTR("name", "x"), TLD_JINT("n", 3),
                            TLD_JARR("v", TLD_JSON_ARRAY(TLD_JNUM(NULL, 0.5), TLD_JNUM(NULL, 2))));
+ASSERT(o != NULL, "Could not build the object");
+tld_json_obj_free(o);
 ```
 
 <a id="tld_json_obj_add"></a><a id="tld_json_arr_add"></a>
