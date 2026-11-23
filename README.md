@@ -1,5 +1,5 @@
-[![Build and test](https://github.com/TimoLassmann/tld/actions/workflows/build.yml/badge.svg?branch=modernisation)](https://github.com/TimoLassmann/tld/actions/workflows/build.yml)
-[![Sanitizers and fuzzing](https://github.com/TimoLassmann/tld/actions/workflows/checks.yml/badge.svg?branch=modernisation)](https://github.com/TimoLassmann/tld/actions/workflows/checks.yml)
+[![Build and test](https://github.com/TimoLassmann/tld/actions/workflows/build.yml/badge.svg)](https://github.com/TimoLassmann/tld/actions/workflows/build.yml)
+[![Sanitizers and fuzzing](https://github.com/TimoLassmann/tld/actions/workflows/checks.yml/badge.svg)](https://github.com/TimoLassmann/tld/actions/workflows/checks.yml)
 
 # tld
 
