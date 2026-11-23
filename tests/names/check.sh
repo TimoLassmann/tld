@@ -24,7 +24,17 @@ printf '#define TLD_IMPLEMENTATION\n#include "tld.h"\n' > "$T/impl.c"
 printf '#include "tld.h"\n' > "$T/use.c"
 # baselines: the system headers tld.h includes, as a plain file sees them (use view)
 # and with the feature macros tld.h requests for the implementation (impl view)
-grep -h '^[[:space:]]*#[[:space:]]*include[[:space:]]*<' "$SRC/tld.h" | sort -u > "$T/sys_use.c"
+# The SIMD headers of the bpm module are included only on their own architecture, so
+# they keep the same conditions here as in src/bpm/tld-bpm.c.
+grep -h '^[[:space:]]*#[[:space:]]*include[[:space:]]*<' "$SRC/tld.h" | grep -vE '<(immintrin|arm_neon)\.h>' |
+        sort -u > "$T/sys_use.c"
+cat >> "$T/sys_use.c" <<'EOF'
+#if (defined(__x86_64__) || defined(__amd64__)) && (defined(__GNUC__) || defined(__clang__))
+#include <immintrin.h>
+#elif defined(__aarch64__) && defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
+EOF
 { printf '#define _POSIX_C_SOURCE 200809L\n#define _DEFAULT_SOURCE\n#define _DARWIN_C_SOURCE\n'
   cat "$T/sys_use.c"; } > "$T/sys_impl.c"
 

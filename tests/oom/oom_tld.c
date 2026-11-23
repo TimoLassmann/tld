@@ -347,6 +347,41 @@ ERROR:
         return FAIL;
 }
 
+static int sc_bpm(void)                 /* short and long patterns; matches past the first array */
+{
+        tld_bpm *a = NULL, *b = NULL;
+        tld_bpm_hit *hits = NULL;
+        tld_bpm_hit h;
+        int64_t n = 0;
+        int d = 0;
+        char text[600], pat[400];
+        for(int i = 0; i < 600; i++) text[i] = "abcab"[i % 5];
+        for(int i = 0; i < 400; i++) pat[i] = "abcab"[i % 5];
+        RUN(tld_bpm_alloc(&a, "abx", 3, TLD_BPM_NOCASE));
+        RUN(tld_bpm_find(a, text, 600, 1, &hits, &n));
+        MFREE(hits);
+        RUN(tld_bpm_best(a, text, 600, &h));
+        RUN(tld_bpm_alloc(&b, pat, 400, 0));
+        RUN(tld_bpm_find(b, text, 600, 3, &hits, &n));
+        MFREE(hits);
+        RUN(tld_bpm_best(b, text, 600, &h));
+        RUN(tld_bpm_distance(a, text, 600, &d));
+        {                       /* long enough for four stretches at once: their candidate lists */
+                static char big[9000];
+                for(int i = 0; i < 9000; i++) big[i] = "abcab"[i % 5];
+                RUN(tld_bpm_find(a, big, 9000, 1, &hits, &n));
+                MFREE(hits);
+                RUN(tld_bpm_best(a, big, 9000, &h));
+        }
+        RUN(tld_bpm_distance(b, text, 600, &d));
+        tld_bpm_free(a); tld_bpm_free(b);
+        return OK;
+ERROR:
+        MFREE(hits);
+        tld_bpm_free(a); tld_bpm_free(b);
+        return FAIL;
+}
+
 static const struct oom_scenario scenarios[] = {
         {"str", sc_str, "string buffer append, prepend, copy", NULL},
         {"hash", sc_hash, "hash add (growing values), replace, rename, delete, iterate", NULL},
@@ -359,6 +394,7 @@ static const struct oom_scenario scenarios[] = {
         {"kdtree", sc_kdtree, "inserts with rebalancing, reset, build, search", NULL},
         {"kdtree_reuse", sc_kdtree_reuse, "inserts that fail, then the tree is searched and freed", NULL},
         {"kdtree_grow", sc_kdtree_grow, "growing past the initial 1024 nodes; nn agrees with bf", NULL},
+        {"bpm", sc_bpm, "approximate search: short and long patterns, growing the match array, best, distance", NULL},
         {"rng", sc_rng, "generators and a sampling distribution", NULL},
         {"stats", sc_stats, "kde, quantile normalisation, auc", NULL},
         {"misc", sc_misc, "file names, command line, reading a file, bitfields", NULL},

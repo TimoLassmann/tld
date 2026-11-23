@@ -6,8 +6,8 @@
 Two single-header C libraries by Timo Lassmann.
 
 - **`tld.h`**: allocation and error-handling macros, terminal messages, strings, a hash
-  map, strict JSON, random numbers, statistics, sorting, a k-d tree, a thread pool, text
-  templates and file helpers.
+  map, strict JSON, random numbers, statistics, sorting, a k-d tree, approximate string
+  search (bit-parallel, AVX2/NEON), a thread pool, text templates and file helpers.
 - **`tld_ai.h`**: local LLMs, decision models and embeddings through the Ollama server
   on the same machine, called as ordinary C functions. It builds on `tld.h`.
 

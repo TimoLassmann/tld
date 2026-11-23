@@ -20,4 +20,5 @@
 #include "stats/tld-auc.c"
 #include "logsum/tld-logsum.c"
 #include "kdtree/tld-kdtree.c"
+#include "bpm/tld-bpm.c"
 #include "tpool/tld-tpool.c"

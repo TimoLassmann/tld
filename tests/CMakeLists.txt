@@ -40,7 +40,7 @@ function(tld_test TEST_NAME)
 endfunction()
 
 # unit/: unit-<module> from unit/unit_<module>.c
-foreach(m align alloc auc bitfield core hash json kdtree logsum misc pearson
+foreach(m align alloc auc bitfield bpm core hash json kdtree logsum misc pearson
           qnorm rng shuffle sigmoid sort stats str template timing)
   tld_test(unit-${m} unit/unit_${m}.c)
 endforeach()
@@ -49,6 +49,17 @@ add_executable(unit-tpool unit/unit_tpool.c)
 target_include_directories(unit-tpool PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(unit-tpool PRIVATE tld-dev Threads::Threads)
 add_test(NAME unit-tpool COMMAND unit-tpool)
+
+# unit-bpm-wave and unit-bpm-band: unit-bpm built from ./tld.h with the internal
+# thresholds changed (the SIMD wavefront from 2 words on; the cut-off always; short
+# stretches for the four-at-once scan), so every path is checked against the reference.
+foreach(v wave band)
+  add_executable(unit-bpm-${v} unit/unit_bpm_${v}.c)
+  target_include_directories(unit-bpm-${v} PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
+  set_target_properties(unit-bpm-${v} PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+  target_link_libraries(unit-bpm-${v} PRIVATE m Threads::Threads)
+  add_test(NAME unit-bpm-${v} COMMAND ${MEMORYCHECK_COMMAND} ${MEMORYCHECK_COMMAND_OPTIONS} $<TARGET_FILE:unit-bpm-${v}>)
+endforeach()
 
 # regression/: regress-<name> from regression/regress_<name>.c
 foreach(r alloc hash json json_build kdtree logsum misc msg rng shuffle sort_cmp

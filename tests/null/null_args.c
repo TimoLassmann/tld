@@ -31,6 +31,8 @@ static tld_json_arr *JA, *OUTA;
 static tld_json_val *JV, *JV2;
 static tld_bitfield *BF, *BF2, *BF3;
 static tld_kdtree *KD;
+static tld_bpm *BP, *OUTBP;
+static tld_bpm_hit HIT, *HITS;
 static struct tld_rng *R, *OUTR;
 static struct tld_rng_dist *D_, *OUTD;
 static tld_thread_pool *TP;
@@ -74,6 +76,7 @@ static int setup(int with_pool)
         RUN(tld_bitfield_alloc(&BF3, 64));
         RUN(tld_kdtree_alloc(&KD, 2));
         RUN(tld_kdtree_insert(KD, P2, 1));
+        RUN(tld_bpm_alloc(&BP, "ab", 2, 0));
         RUN(tld_rng_alloc(&R, 1));
         RUN(tld_rng_dist_alloc(&D_, V, 4));
         galloc(&G, 4);
@@ -195,6 +198,21 @@ ERROR:
         X(NUL, 0, FAILS(tld_kdtree_bf_search(NULL, P2, &U32))) \
         X(NUL, 0, FAILS(tld_kdtree_bf_search(KD, NULL, &U32))) \
         X(NUL, 0, FAILS(tld_kdtree_bf_search(KD, P2, NULL))) \
+        \
+        X(NUL, 0, FAILS(tld_bpm_alloc(NULL, "ab", 2, 0))) \
+        X(NUL, 0, FAILS(tld_bpm_alloc(&OUTBP, NULL, 2, 0))) \
+        X(FRE, 0, NONE(tld_bpm_free(NULL))) \
+        X(NUL, 0, FAILS(tld_bpm_best(NULL, "ab", 2, &HIT))) \
+        X(NUL, 0, FAILS(tld_bpm_best(BP, NULL, 2, &HIT))) \
+        X(NUL, 0, FAILS(tld_bpm_best(BP, "ab", 2, NULL))) \
+        X(NUL, 0, FAILS(tld_bpm_find(NULL, "ab", 2, 0, &HITS, &I64))) \
+        X(NUL, 0, FAILS(tld_bpm_find(BP, NULL, 2, 0, &HITS, &I64))) \
+        X(NUL, 0, FAILS(tld_bpm_find(BP, "ab", 2, 0, NULL, &I64))) \
+        X(NUL, 0, FAILS(tld_bpm_find(BP, "ab", 2, 0, &HITS, NULL))) \
+        X(NUL, 0, FAILS(tld_bpm_distance(NULL, "ab", 2, &I))) \
+        X(NUL, 0, FAILS(tld_bpm_distance(BP, NULL, 2, &I))) \
+        X(NUL, 0, FAILS(tld_bpm_distance(BP, "ab", 2, NULL))) \
+        X(NUL, 0, (tld_bpm_kernel(NULL) == NULL)) \
         \
         X(NUL, 0, (tld_path_exists(NULL) == 0)) \
         X(NUL, 0, (tld_path_is_dir(NULL) == 0)) \
