@@ -164,7 +164,6 @@ target_include_directories(oom-tld PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_S
 set_target_properties(oom-tld PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
 target_link_libraries(oom-tld PRIVATE m Threads::Threads)
 add_test(NAME oom-tld COMMAND oom-tld WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-set_tests_properties(oom-tld PROPERTIES TIMEOUT 600)
 
 # Every public function with NULL in each pointer argument: the failure value and an
 # ERROR line (null/null_args.c); covered.sh fails when a function has no case.

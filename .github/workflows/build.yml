@@ -46,7 +46,7 @@ jobs:
       run: cmake --build build --parallel 4
 
     - name: Test
-      run: ctest --test-dir build --output-on-failure --timeout 300
+      run: ctest --test-dir build --output-on-failure --timeout 60
 
   musl:
     name: Alpine (musl libc)
@@ -66,4 +66,4 @@ jobs:
       run: cmake --build build --parallel 4
 
     - name: Test
-      run: ctest --test-dir build --output-on-failure --timeout 300
+      run: ctest --test-dir build --output-on-failure --timeout 60
