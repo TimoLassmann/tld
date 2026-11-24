@@ -87,15 +87,16 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < n_tests; i++) {
                 SECTION_MSG("%s", tests[i].name);
                 if (tests[i].fn() == 0) {
-                        OK_MSG("%s: passed", tests[i].name);
+                        OK_MSG("passed");
                 } else {
                         fprintf(stderr, "Test %s: FAILED\n", tests[i].name);
                         failed++;
                 }
         }
 
-        KV_MSG("passed", "%d", n_tests - failed);
-        KV_MSG("failed", "%d", failed);
+        if(failed){
+                fprintf(stderr, "unit-hash: %d of %d tests failed\n", failed, n_tests);
+        }
         return (failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

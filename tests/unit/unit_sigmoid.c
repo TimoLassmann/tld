@@ -79,8 +79,8 @@ static int test_edge_values(void)
                 }else if(isinf(val)){
                         ASSERT(result == (val > 0 ? 1.0 : 0.0), "sigmoid(%g) = %g", val, result);
                 }
-                snprintf(key, sizeof key, "sigmoid(%g)", val);
-                KV_MSG(key, "%.10f", result);
+                snprintf(key, sizeof key, "x = %g", val);
+                KV_MSG(key, "sigmoid %.10f", result);
         }
         return OK;
 ERROR:

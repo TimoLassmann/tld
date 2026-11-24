@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
                 }
         }
         SECTION_MSG("allocating over-aligned structs");
-        KV_MSG("allocations", "%d per constructor", n);
+        KV_MSG("allocs", "%d per constructor", n);
         for (int i = 0; i < n; i++) {
                 RUN(tld_rng_alloc(&rng[i], (uint64_t)(i + 1)));
                 check(rng[i], 64, "tld_rng_alloc tld_rng", i);

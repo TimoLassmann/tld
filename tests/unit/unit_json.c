@@ -156,6 +156,7 @@ int test_create(void)
         DEBUG_MSG("%s", TLD_STR(b));
         tld_json_obj_free(n);
         LOG_MSG("Create a JSON OBJECT with a NULL schema");
+        test_expect_errors();
         n = TLD_JSON_OBJECT(
                 TLD_JOBJ("response_format",TLD_JSON_OBJECT(
                            TLD_JAUTO("type", "json_object"),
@@ -188,7 +189,6 @@ int test_create(void)
         tld_json_dump(n, b, 0);
         DEBUG_MSG("%s", TLD_STR(b));
 
-        LOG_MSG("Create a JSON OBJECT with a NULL schema - Done");
         tld_json_val* v = NULL;
         tld_json_val_alloc(&v);
         v->type = TLD_JSON_STR;
@@ -198,6 +198,7 @@ int test_create(void)
         tld_json_val_free(v);
         tld_json_dump(n, b, 0);
         DEBUG_MSG("%s", TLD_STR(b));
+        test_expect_errors_end();
 
         LOG_MSG("Create a JSON OBJECT with a NULL schema - Done");
 

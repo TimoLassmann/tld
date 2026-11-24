@@ -647,13 +647,25 @@ static void long_text(void)
                         }
                         CHECK(found, "long m=%d: copy %d at %lld not found", m, i, (long long)at[i]);
                 }
-                LOG_MSG("1 MB, m = %d, k = %d: %lld matches; %s and %s agree", m, k, (long long)nh[0], kern[0],
-                        kern[1]);
+                KV_MSG("1 MB", "m = %d, k = %d: %lld matches; %s and %s agree", m, k, (long long)nh[0], kern[0],
+                       kern[1]);
                 MFREE(hits[0]);
                 MFREE(hits[1]);
                 free(p);
         }
         free(t);
+}
+
+/* The OK line of a section: the checks since the last one, when none of them failed. */
+static void section_ok(void)
+{
+        static int checks_before = 0;
+        static int fails_before = 0;
+        if(n_fail == fails_before){
+                OK_MSG("%d checks passed", n_check - checks_before);
+        }
+        checks_before = n_check;
+        fails_before = n_fail;
 }
 
 static int run_args(int argc, char *argv[])
@@ -692,18 +704,25 @@ int main(int argc, char *argv[])
         }
         SECTION_MSG("hand-worked cases");
         hand_cases();
+        section_ok();
         SECTION_MSG("argument errors");
+        test_expect_errors();
         error_cases();
+        test_expect_errors_end();
+        section_ok();
         SECTION_MSG("random cases against the reference");
         random_cases();
+        section_ok();
         SECTION_MSG("matches at the chunk boundaries");
         chunk_edges();
+        section_ok();
         SECTION_MSG("a long text");
         long_text();
+        section_ok();
         if(n_fail){
                 fprintf(stderr, "unit-bpm: %d of %d checks failed\n", n_fail, n_check);
                 return EXIT_FAILURE;
         }
-        LOG_MSG("%d checks passed", n_check);
+        KV_MSG("total", "%d checks, 0 failed", n_check);
         return EXIT_SUCCESS;
 }

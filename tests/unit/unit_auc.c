@@ -62,8 +62,10 @@ int main(int argc, char *argv[])
         KV_MSG("AUC", "%f", auc);
 
         labels[3] = -0.000001;
-        KV_MSG("label", "-0.000001: tld_auc must reject it (the ERROR lines are expected)");
+        KV_MSG("label", "-0.000001: tld_auc must reject it");
+        test_expect_errors();
         tld_auc(labels, pred, 5,&thres, &auc);
+        test_expect_errors_end();
 
         RUN(auc_test());
         OK_MSG("done");
@@ -124,11 +126,12 @@ int auc_test(void)
         DEBUG_MSG("%d labels, %d predictions", n, m);
         double auc = 0.0;
         double thres = 0.0;
+        KV_MSG("scores", "%d distinct values", n);
         tld_auc(labels, pred, n,&thres, &auc);
-        KV_MSG("AUC", "%f threshold %f", auc, thres);
+        KV_MSG("one call", "AUC %f threshold %f", auc, thres);
         tld_auc(labels, pred, n, NULL, &auc);
         tld_auc(labels, pred, n, &thres, NULL);
-        KV_MSG("AUC", "%f threshold %f", auc, thres);
+        KV_MSG("two calls", "AUC %f threshold %f (each asked for on its own)", auc, thres);
         for(int i = 0; i  < n; i++){
                 int c=  i%3;
                 switch (c) {
@@ -142,11 +145,12 @@ int auc_test(void)
                         pred[i] = 0.9;
                 }
         }
+        KV_MSG("scores", "three tied values: 0.5, 0.730001, 0.9");
         tld_auc(labels, pred, n,&thres, &auc);
-        KV_MSG("AUC", "%f threshold %f", auc, thres);
+        KV_MSG("one call", "AUC %f threshold %f", auc, thres);
         tld_auc(labels, pred, n, NULL, &auc);
         tld_auc(labels, pred, n, &thres, NULL);
-        KV_MSG("AUC", "%f threshold %f", auc, thres);
+        KV_MSG("two calls", "AUC %f threshold %f (each asked for on its own)", auc, thres);
 
         int n_error = 0;
         int n_error_test  = 0;

@@ -44,3 +44,9 @@ build/tests/unit-sort -- 5 -3 9 # the module on your own input (results on stdou
 environment is used, and if that is unset the program runs with `TLD_VERBOSE=0` (only
 errors). Regression tests take the names of the sub-checks to run (`-h` lists them).
 The `ai/` programs take the mode arguments `run.sh` gives them; they also accept `-h`/`-v`.
+
+Checks that make the library fail on purpose put the calls between `test_expect_errors()`
+and `test_expect_errors_end()` (`test.h`): the library's `ERROR` lines are hidden, `-v`
+prints how many (`expected  16 ERROR lines hidden`), `-vv` shows them. Anything else
+written meanwhile is still printed, and when the program exits or a sanitizer stops it
+inside such a block, everything captured is printed.

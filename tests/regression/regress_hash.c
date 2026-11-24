@@ -197,7 +197,9 @@ int main(int argc, char *argv[])
                         continue;
                 }
                 SECTION_MSG("%s: %s", checks[k].name, checks[k].about);
+                test_expect_errors();
                 RUN(checks[k].fn());
+                test_expect_errors_end();
                 OK_MSG("%s passed", checks[k].name);
         }
         return EXIT_SUCCESS;

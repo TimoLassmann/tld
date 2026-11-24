@@ -127,7 +127,6 @@ static int test_dirname(void)
         RUN(check_filename("/a/b/file.txt", "file.txt"));
         RUN(check_filename("file.txt", "file.txt"));
         RUN(check_filename("/x", "x"));
-        fprintf(stderr, "regress-misc: expect three errors (no dirname, no filename twice):\n");
         ASSERT(tld_path_dirname("file.txt", &out) == FAIL, "dirname of a bare name succeeded");
         ASSERT(out == NULL, "out set on failure");
         ASSERT(tld_path_filename("/a/", &out) == FAIL, "filename of a directory path succeeded");
@@ -228,7 +227,6 @@ static int test_read(const char *dir)
         ASSERT(keep == kept && TLD_STRLEN(keep) == (int) sizeof big, "reused buffer: %d bytes", TLD_STRLEN(keep));
 
         snprintf(file, sizeof file, "%s/missing", dir);
-        fprintf(stderr, "regress-misc: expect errors about %s and about reading %s:\n", file, dir);
         ASSERT(tld_path_read(file, &keep) == FAIL, "reading a missing file succeeded");
         ASSERT(keep == kept, "*out changed on failure");
         ASSERT(tld_path_read(dir, &b) == FAIL, "reading a directory succeeded");
@@ -319,7 +317,9 @@ int main(int argc, char *argv[])
                         continue;
                 }
                 SECTION_MSG("%s: %s", checks[k].name, checks[k].about);
+                test_expect_errors();
                 RUN(checks[k].fn());
+                test_expect_errors_end();
                 OK_MSG("%s passed", checks[k].name);
         }
         rmdir(tmp_dir);

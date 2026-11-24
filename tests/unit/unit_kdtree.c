@@ -86,6 +86,7 @@ int main(int argc, char *argv[])
         for(int i = 1000; i < 1000000;i = i *10){
                 test_search_speed(i);
         }
+        OK_MSG("1000 searches timed on trees of 1000, 10000 and 100000 points");
 
         return EXIT_SUCCESS;
 ERROR:
@@ -122,7 +123,7 @@ int test_search_speed(int n)
                 uint32_t id_bf;
                 tld_kdtree_bf_search(kd,p,&id_bf);
         }
-        T_END("brute force")
+        T_END("brute")
         }
         tld_rng_set_seed(rng, 42);
         {
@@ -134,7 +135,7 @@ int test_search_speed(int n)
                 uint32_t id_nn;
                 tld_kdtree_nn_search(kd,p,&id_nn);
         }
-        T_END("k-d search")
+        T_END("k-d tree")
         }
 
         gfree(p);
