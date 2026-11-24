@@ -20,8 +20,13 @@ int LLVMFuzzerTestOneInput(const uint8_t *d, size_t n) {
                         tld_json_obj_free(j);
                 }
         } else if (mode == 2) {
+                /* both unpacking paths on the same reply: into a struct (ai_fill) and into
+                   a JSON object (ai_fill_dyn); the struct's strings are freed either way */
                 struct fz x; const ai_type *t = fz__type();
-                if (ai__unpack(&x, t, s) == 0 || 1) ai__free_strs(&x, t);
+                tld_json_obj *jo = NULL;
+                ai__unpack(&x, NULL, t, s);
+                ai__free_strs(&x, t);
+                if (ai__unpack(NULL, &jo, t, s) == 0) tld_json_obj_free(jo);
         } else {
                 if (!ai__cache) tld_hash_alloc(&ai__cache, 64);
                 tld_strbuf *l = NULL; tld_strbuf_alloc(&l, (int)n + 1); tld_strbuf_append(l, s);

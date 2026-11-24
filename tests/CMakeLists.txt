@@ -10,6 +10,7 @@ project(tld-tests LANGUAGES C)
 #   doc/          doc-eval           tld_doc.h on the evaluation set
 #   oom/          oom-tld, oom-ai    every allocation fails in turn (oom-tld covers tld_doc.h; oom-ai runs in ai.cmake)
 #   null/         null-args, null-args-doc   every public function with NULL pointer arguments
+#   fuzz/         fuzz-compile-*     the libFuzzer sources compile (the fuzzers themselves: -DTLD_FUZZ=ON)
 # Every program includes tests/test.h (-h/-v) and with no arguments runs its checks.
 
 find_program(MEMORYCHECK_COMMAND valgrind NO_CACHE)
@@ -190,6 +191,16 @@ add_test(NAME names
 # printf format, free() on library memory, writable pointers into a hash, gfree(&p)).
 add_test(NAME misuse-rejected
   COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/misuse/check.sh ${CMAKE_C_COMPILER} ${CMAKE_SOURCE_DIR})
+
+# The libFuzzer targets in fuzz/ are built only with -DTLD_FUZZ=ON and clang (CI), so a
+# change to an internal function they call would otherwise first fail there: compile
+# each one here, with the build's compiler and no libFuzzer (they define only
+# LLVMFuzzerTestOneInput).
+foreach(t json template ai http)
+  add_test(NAME fuzz-compile-${t}
+    COMMAND ${CMAKE_C_COMPILER} -std=gnu11 -D_GNU_SOURCE -Wall -Wextra -Werror -fsyntax-only
+            -I${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/fuzz/fuzz_${t}.c)
+endforeach()
 
 # tld_ai.h: mock-server tests, compile checks, sanitizer runs
 include(${CMAKE_CURRENT_SOURCE_DIR}/ai.cmake)
