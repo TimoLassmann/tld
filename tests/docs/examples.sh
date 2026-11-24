@@ -1,13 +1,14 @@
 #!/bin/sh
-# tests/docs/examples.sh TLDDOC CC SRC_DIR WORK_DIR tld|ai [CFLAGS]
-# Every code example in the doc comments of tld.h (tld) or tld_ai.h (ai) compiles,
-# links and runs without failing or crashing. tlddoc --examples writes each example as
-# its own program (WORK_DIR/tld-NN.c, WORK_DIR/tld_ai-NN.c). CFLAGS are the build's own
-# (a sanitizer build passes its -fsanitize flags).
+# tests/docs/examples.sh TLDDOC CC SRC_DIR WORK_DIR tld|ai|doc [CFLAGS]
+# Every code example in the doc comments of tld.h (tld), tld_ai.h (ai) or tld_doc.h
+# (doc) compiles, links and runs without failing or crashing. tlddoc --examples writes
+# each example as its own program (WORK_DIR/tld-NN.c, WORK_DIR/tld_ai-NN.c,
+# WORK_DIR/tld_doc-NN.c). CFLAGS are the build's own (a sanitizer build passes its
+# -fsanitize flags).
 #
 # The tld_ai.h examples run against tests/ai/mock_ollama.py, a MOCK server that returns
 # canned answers: this checks that the examples work as C programs, not what a real
-# model answers. They never contact a real Ollama.
+# model answers. They never contact a real Ollama. tld_doc.h needs no server.
 set -u
 TLDDOC=$1
 CC=$2
@@ -18,7 +19,8 @@ CFLAGS=${6:-}
 case $WHICH in
 tld) stem=tld; header=tld.h ;;
 ai) stem=tld_ai; header=tld_ai.h ;;
-*) echo "usage: examples.sh TLDDOC CC SRC_DIR WORK_DIR tld|ai"; exit 2 ;;
+doc) stem=tld_doc; header=tld_doc.h ;;
+*) echo "usage: examples.sh TLDDOC CC SRC_DIR WORK_DIR tld|ai|doc"; exit 2 ;;
 esac
 MOCK_PID=""
 cleanup() { [ -n "$MOCK_PID" ] && kill "$MOCK_PID" 2>/dev/null; wait 2>/dev/null; }
@@ -32,8 +34,10 @@ F="$CFLAGS -std=c11 -Wall -Wextra -Werror -Wno-unused-variable -Wno-unused-but-s
    -Wno-unused-label -Wno-unused-function -I$SRC"
 if [ "$WHICH" = tld ]; then
         printf '#define TLD_IMPLEMENTATION\n#include "tld.h"\n' >"$W/impl.c"
-else
+elif [ "$WHICH" = ai ]; then
         printf '#define TLD_IMPLEMENTATION\n#define AI_IMPLEMENTATION\n#include "tld_ai.h"\n' >"$W/impl.c"
+else
+        printf '#define TLD_IMPLEMENTATION\n#define TLD_DOC_IMPLEMENTATION\n#include "tld_doc.h"\n' >"$W/impl.c"
 fi
 # shellcheck disable=SC2086
 $CC $CFLAGS -std=c11 -I"$SRC" -c "$W/impl.c" -o "$W/impl.o" || exit 1

@@ -1,0 +1,76 @@
+# Evaluation set for tld_doc.h; doc-eval runs it (tests/doc/eval.c).
+# One question per line, tab-separated: id, kind, question, expected, note.
+# kind covered / partial: at least one expected name (comma-separated) must be among the
+# top 8 entries. kind off: tld does not do it (expected is "-"); doc-eval counts the
+# answers that name a word not found in the manuals.
+# A note starting "miss:" marks a known miss of a covered or partial question and says
+# why; doc-eval prints it.
+c01	covered	how do I read a JSON string?	tld_json_parse,tld_json_get_str	
+c02	covered	get a nested value out of a parsed json object by a path like "a.b[0]"	tld_json_get_str	
+c03	covered	tld_jsn_get_str	tld_json_get_str	typo of an identifier
+c04	covered	write a json object back out as text	tld_json_dump	
+c05	covered	build a json object with a string field and an integer field	TLD_JSON_OBJECT,TLD_JSTR,TLD_JINT,tld_json_obj_add	
+c06	covered	deep copy a json value	tld_json_val_copy,tld_json_obj_copy,tld_json_arr_copy	
+c07	covered	what are the type tags of a json value	tld_json_type,tld_json_val	
+c08	covered	allocate a zeroed 2D matrix of doubles	galloc	
+c09	covered	how do I resize memory I allocated with MMALLOC	MREALLOC	
+c10	covered	show a progress bar in the terminal	tld_progress	
+c11	covered	append text to a growable string buffer	tld_strbuf_append,tld_strbuf_append_n	
+c12	covered	read a whole file into memory	tld_path_read	
+c13	covered	check whether a directory exists	tld_path_is_dir,tld_path_exists	
+c14	covered	measure how long a piece of code takes to run	TLD_START_TIMER	miss: synonym: the manual calls the timer a stopwatch that logs elapsed time; it never says measure or how long
+c15	covered	set and test single bits in a bit set	tld_bitfield_set	
+c16	covered	store key value pairs in a hash map	tld_hash_add,tld_hash,tld_hash_alloc	
+c17	covered	fill in {{name}} placeholders in a text template	tld_template_apply	
+c18	covered	random number generator with a fixed seed	tld_rng_alloc,tld_rng_set_seed	
+c19	covered	pick a random index according to weights	tld_rng_dist_alloc,tld_rng_dist_sample	
+c20	covered	sort an array of doubles in descending order	TLD_SORT_DESC,tld_sort_desc_double	
+c21	covered	shuffle an array in random order	TLD_SHUFFLE,tld_shuffle_double	
+c22	covered	compute mean and standard deviation of a list of numbers	tld_mean,tld_sample_variance,tld_pop_variance,tld_standardise	
+c23	covered	correlation between two arrays	tld_pearson_corr	
+c24	covered	quantile normalisation of a matrix	tld_quantile_normalise	
+c25	covered	area under the ROC curve for my classifier scores	tld_auc	
+c26	covered	add probabilities stored as logs	tld_logsum	
+c27	covered	nearest neighbour search for points in 3D	tld_kdtree_nn_search,tld_kdtree_alloc,tld_kdtree_build	
+c28	covered	find a word in a text allowing a couple of typos	tld_bpm_find,tld_bpm_best	
+c29	covered	levenshtein distance between two strings	tld_bpm_distance	
+c30	covered	run work in parallel on a pool of threads	tld_thread_pool_alloc,tld_thread_pool_add,ai_parallel	
+c31	covered	ask a local LLM to summarise some text	ai_text	
+c32	covered	embed sentences and find the most similar one to a query	ai_embed,ai_embed_all,ai_nearest,ai_cosine	
+c33	covered	have the model fill a C struct with typed fields	ai_fill,AI_STRUCT	
+c34	covered	classify a support ticket into one of a few teams	AI_CHOICE,ai_choose
+c35	covered	rate the urgency of a message on a scale from low to high	AI_SCALE,ai_rate	
+c36	covered	the categories are only known at run time, read from a file	ai_choose_dyn,ai_fill_dyn,ai_labels	miss: synonym: categories vs labels; run, time and file are common words, so the missing words outweigh them
+c37	covered	why did my ai call fail	ai_error,ai_status	
+c38	covered	change the default model and ollama host for the whole program	ai_defaults,ai_config	
+c39	covered	set temperature and seed for a single call	ai_opts,AI_OPTS	
+c40	covered	memory keeps growing when I call ai_text in a loop	ai_reset	
+c41	covered	get a person to check the answer before using it	ai_review	
+c42	covered	how many tokens did the last request use	ai_last,ai_info	
+c43	covered	what does AI_ENOSERVER mean	AI_ENOSERVER	
+p01	partial	parse the JSON a weather web API returns	tld_json_parse	
+p02	partial	read a CSV file and compute the mean of each column	tld_path_read,tld_mean	
+p03	partial	fill an email template with the customer's name and send it	tld_template_apply	
+p04	partial	search for a DNA motif with mismatches in a FASTA file	tld_bpm_find,tld_bpm_best	miss: mismatches vs edits; the bpm entries share search only through their module description, while kdtree and json have it in their names
+p05	partial	cluster documents with k-means on their embeddings	ai_embed_all,ai_embed	
+p06	partial	classify the sentiment of tweets I download from twitter	AI_CHOICE,ai_choose,ai_choose_dyn	miss: synonym: classify vs choose; no word of the question is in the manuals
+p07	partial	train a logistic regression and report the AUC	tld_auc,tld_sigmoid	
+p08	partial	multithreaded web crawler that keeps visited urls in a hash map	tld_hash_add,tld_hash,tld_thread_pool_add	
+p09	partial	shuffle a deck of cards and send the hands over the network	TLD_SHUFFLE,tld_shuffle_int32_t	
+p10	partial	save json records into a sqlite database	tld_json_dump	miss: synonym: save vs dump or write; json matches 33 entries equally
+p11	partial	translate a document into french with a local model and save it as a pdf	ai_text	miss: pdf matches the density functions (tld_kde_pdf, tld_normal_pdf); translate vs text from the LLM
+o01	off	how do I find out the weather in paris?	-	
+o02	off	send an email	-	
+o03	off	draw a window on the screen	-	
+o04	off	connect to a postgres database	-	
+o05	off	play an mp3 file	-	
+o06	off	resize a jpeg image	-
+o07	off	compute the fast fourier transform of a signal	-	
+o08	off	parse an XML document	-
+o09	off	invert a matrix	-	
+o10	off	compress a file with gzip	-	
+o11	off	hash a password with bcrypt	-	
+o12	off	convert a date between time zones	-	
+o13	off	read a password from the keyboard without echo	-	
+o14	off	train a neural network on the GPU	-	
+o15	off	make an https request to a REST API	-

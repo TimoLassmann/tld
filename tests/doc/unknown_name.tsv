@@ -1,0 +1,3 @@
+# doc-eval-unknown-name: a covered question whose expected name is not in the corpus;
+# doc-eval must fail on it (a renamed entry must not pass as a marked miss).
+u01	covered	how do I write JSON text?	tld_json_dump,tld_json_dump_NO_SUCH_NAME	miss: marked, so only the name check can fail it

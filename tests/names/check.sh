@@ -7,6 +7,8 @@
 #                                      TLD_... / TLD__..., galloc, gfree, or one of the
 #                                      idiom names OK FAIL RUN ASSERT *_MSG MMALLOC ...
 #   types, constants and variables     tld_... / TLD_... (from the index of docs/tld.md)
+# the same rules for what tld_doc.h adds to tld.h, with the prefixes
+# tld_doc_ / tld__doc_ / TLD_DOC_ / TLD__DOC_ (index of docs/tld_doc.md),
 # and a program that defines common names (next, search, Parser, NODE_ROOT, AT, ...)
 # after the implementation compiles (tests/names/clash.c).
 set -u
@@ -70,6 +72,50 @@ if [ -f "$SRC/docs/tld.md" ]; then
                 grep -vE "^($(echo "$IDIOM" | tr -d '^$()')) " > "$T/badidx"
         if [ -s "$T/badidx" ]; then bad "documented names outside the rules:"; sed 's/^/        /' "$T/badidx"
         else echo "ok    $(wc -l < "$T/index" | tr -d ' ') documented names: tld_ / TLD_ or idiom"; fi
+fi
+
+# tld_doc.h: what it adds to tld.h follows the same rules with its own
+# prefix: global symbols tld_doc_ (internals tld__doc_), statics tld__doc_, macros
+# TLD_DOC_ / TLD__DOC_ (implementation-only ones #undef'd, except TLD__DOC_IMPLEMENTED),
+# and the names in the index of docs/tld_doc.md tld_doc_ / TLD_DOC_.
+if [ -f "$SRC/tld_doc.h" ]; then
+        printf '#define TLD_DOC_IMPLEMENTATION\n#include "tld_doc.h"\n' > "$T/doc_impl.c"
+        printf '#include "tld_doc.h"\n' > "$T/doc_use.c"
+        printf '#include "tld.h"\n' > "$T/doc_base.c"
+        printf '#define TLD_IMPLEMENTATION\n#include "tld.h"\n' > "$T/doc_base_impl.c"
+        printf '#define TLD_IMPLEMENTATION\n#define TLD_DOC_IMPLEMENTATION\n#include "tld_doc.h"\n' > "$T/doc_all_impl.c"
+        if $CC -std=c11 -c -I"$SRC" "$T/doc_impl.c" -o "$T/doc_impl.o" &&
+           $CC -std=c11 -c -I"$SRC" "$T/doc_base.c" -o "$T/doc_base.o"; then
+                syms() { $NM "$1" | awk 'NF == 3 && $2 ~ /^[TDBSRCtdbsrc]$/ {print $2, $3}' | sed 's/ _/ /' | sort -u; }
+                syms "$T/doc_base.o" > "$T/dsyms_base"
+                syms "$T/doc_impl.o" | comm -23 - "$T/dsyms_base" > "$T/dsyms"
+                awk '$1 ~ /^[TDBSRC]$/ && $2 !~ /^tld_doc_/ && $2 !~ /^tld__doc_/ {print "global " $2}' "$T/dsyms" > "$T/dbadsym"
+                awk '$1 ~ /^[tdbsrc]$/ && $2 !~ /^tld__doc_/ && $2 !~ /[.$]/ && $2 !~ /^(l_|ltmp|L|_)/ {print "static " $2}' "$T/dsyms" >> "$T/dbadsym"
+                if [ -s "$T/dbadsym" ]; then bad "tld_doc.h symbols outside tld_doc_ / tld__doc_:"; sed 's/^/        /' "$T/dbadsym"
+                else echo "ok    tld_doc.h: $(grep -c " tld" "$T/dsyms") symbols: globals tld_doc_, statics tld__doc_"; fi
+        else
+                bad "tld_doc.h implementation does not compile"
+        fi
+        macros "$T/doc_base.c" > "$T/dm_base_use"
+        macros "$T/doc_base_impl.c" > "$T/dm_base_impl"
+        macros "$T/doc_use.c" | comm -23 - "$T/dm_base_use" > "$T/dm_use"
+        macros "$T/doc_all_impl.c" | comm -23 - "$T/dm_base_impl" > "$T/dm_impl"
+        for view in use impl; do
+                grep -vE '^(TLD_DOC_|TLD__DOC_)' "$T/dm_$view" > "$T/dbadmac_$view"
+                if [ -s "$T/dbadmac_$view" ]; then bad "tld_doc.h macros outside TLD_DOC_ in the $view view:"; sed 's/^/        /' "$T/dbadmac_$view"
+                else echo "ok    tld_doc.h: $(wc -l < "$T/dm_$view" | tr -d ' ') macros in the $view view: TLD_DOC_ or TLD__DOC_"; fi
+        done
+        comm -23 "$T/dm_impl" "$T/dm_use" | grep -E '^TLD__DOC_' | grep -vE '^TLD__DOC_IMPLEMENTED$' > "$T/dleak"
+        if [ -s "$T/dleak" ]; then bad "tld_doc.h implementation-only macros not #undef'd:"; sed 's/^/        /' "$T/dleak"
+        else echo "ok    tld_doc.h: implementation-only macros are #undef'd"; fi
+        if [ -f "$SRC/docs/tld_doc.md" ]; then
+                sed -n 's/^| \[`\([^`]*\)`\]([^)]*) | \([a-z]*\) |.*/\1 \2/p' "$SRC/docs/tld_doc.md" > "$T/dindex"
+                awk '($2 == "macro" || $2 == "constant") && $1 !~ /^TLD_DOC_[A-Z0-9_]+$/ {print}
+                     ($2 == "type" || $2 == "function" || $2 == "variable") && $1 !~ /^tld_doc_[a-z0-9_]+$/ {print}' "$T/dindex" > "$T/dbadidx"
+                if [ ! -s "$T/dindex" ]; then bad "no index entries in docs/tld_doc.md"
+                elif [ -s "$T/dbadidx" ]; then bad "tld_doc.h documented names outside the rules:"; sed 's/^/        /' "$T/dbadidx"
+                else echo "ok    tld_doc.h: $(wc -l < "$T/dindex" | tr -d ' ') documented names: tld_doc_ / TLD_DOC_"; fi
+        fi
 fi
 
 # a program reusing common names

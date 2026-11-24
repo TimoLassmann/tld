@@ -7,11 +7,22 @@
  *   OPT  the pointer is documented as optional: the call returns normally.
  *   FRE  a free function: NULL is ignored, silently.
  *
- * check.sh also fails when a public function with a pointer argument has no case here. */
+ * covered.sh also fails when a public function with a pointer argument has no case here.
+ *
+ * Built with TLD_NULL_DOC defined (null-args-doc) the program checks tld_doc.h instead:
+ * it is built from the single headers ./tld_doc.h and ./tld.h and runs only the
+ * DOC_CASES. Every tld_doc function has a case; those without a pointer argument get
+ * their failure case (an index out of range) or a plain call. */
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #endif
+#ifdef TLD_NULL_DOC
+#define TLD_IMPLEMENTATION
+#define TLD_DOC_IMPLEMENTATION
+#include "tld_doc.h"
+#else
 #include "tld.h"
+#endif
 #include "test.h"
 
 #include <math.h>
@@ -23,6 +34,7 @@
 
 enum { NUL, OPT, FRE };
 
+#ifndef TLD_NULL_DOC
 /* fixtures, made in the child before its call */
 static tld_strbuf *SB, *SB2, *OUTB;
 static tld_hash *H, *OUTH;
@@ -87,6 +99,17 @@ static int setup(int with_pool)
 ERROR:
         return FAIL;
 }
+#else
+/* tld_doc.h fixtures: the answer and options (no setup needed) */
+static tld_doc_answer *DA;
+static tld_doc_opts DOPT = {.max_bytes = 1024};
+
+static int setup(int with_pool)
+{
+        (void) with_pool;
+        return OK;
+}
+#endif
 
 #define FAILS(call) ((call) == FAIL)
 #define NONE(call) ((call), 1)
@@ -302,19 +325,38 @@ ERROR:
         X(OPT, 0, NONE(tld_thread_pool_wait(NULL))) \
         X(FRE, 0, NONE(tld_thread_pool_free(NULL)))
 
+/* tld_doc.h (null-args-doc only). o NULL means every default. An index out of range is
+ * tld_doc_entry_at's failure case (NULL and an ERROR line). */
+#define DOC_CASES(X) \
+        X(NUL, 0, FAILS(tld_doc_ask(NULL, &DOPT, &DA))) \
+        X(NUL, 0, FAILS(tld_doc_ask("parse json", &DOPT, NULL))) \
+        X(OPT, 0, NONE(tld_doc_ask("parse json", NULL, &DA))) \
+        X(OPT, 0, NONE(tld_doc_ask("parse json", &DOPT, &DA))) \
+        X(FRE, 0, NONE(tld_doc_answer_free(NULL))) \
+        X(NUL, 0, (tld_doc_entry_at(-1) == NULL)) \
+        X(NUL, 0, (tld_doc_entry_at(tld_doc_n_entries()) == NULL)) \
+        X(OPT, 0, NONE(tld_doc_n_entries())) \
+        X(OPT, 0, NONE(tld_doc_corpus_id()))
+
+#ifdef TLD_NULL_DOC
+#define ALL_CASES(X) DOC_CASES(X)
+#else
+#define ALL_CASES(X) CASES(X)
+#endif
+
 #define TABLE(kind, pool, expr) {kind, pool, #expr},
 static const struct {
         int kind;
         int pool;
         const char *text;
-} cases[] = { CASES(TABLE) };
+} cases[] = { ALL_CASES(TABLE) };
 #undef TABLE
 
 static int run_case(int i)
 {
         int n = 0;
 #define RUN_CASE(kind, pool, expr) if(i == n++){ return (expr) ? 1 : 0; }
-        CASES(RUN_CASE)
+        ALL_CASES(RUN_CASE)
 #undef RUN_CASE
         return -1;
 }

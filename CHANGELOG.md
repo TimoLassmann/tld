@@ -1,5 +1,30 @@
 # Changelog
 
+## tld_doc.h 0.1.0 (unreleased)
+
+### Added
+
+- `tld_doc.h`, a new single header that builds on `tld.h`: live documentation for
+  `tld.h` and `tld_ai.h`. `tld_doc_ask(question, opts, &answer)` returns the manual
+  entries whose words match a plain-language question, ranked (BM25, names weighted
+  three times; identifiers and close names first) and copied word for word, as text for
+  a coding agent within a byte budget. The text says which of the question's words occur
+  in the manuals and which do not, with the nearest form of a long word that was searched
+  again allowing edits. No model is involved: the same question always gives the same
+  answer. Free the answer with `tld_doc_answer_free`. `tld_doc_n_entries`,
+  `tld_doc_entry_at` and `tld_doc_corpus_id` give the corpus itself. `TLD_DOC_VERSION` is
+  "0.1.0". Manual: `docs/tld_doc.md`; design: `docs/design/tld_doc-prd.md`.
+- The corpus: one record per entry of `docs/tld.md` and `docs/tld_ai.md`, generated
+  into `tld_doc.h` by `tools/tlddoc.c`, which now also writes `docs/tld_doc.md`.
+  `docs-current` checks both, and `tlddoc --examples` also covers `tld_doc.h`.
+- `examples/tld_ask.c` (target `tld-ask`): `tld-ask [-b BYTES] [-n N] "question"`.
+- Tests: `unit-doc` (corpus against the manuals and headers, the search, the text format
+  and budget, edge cases), `doc-eval` (the retrieval figures on the 69 questions of
+  `tests/doc/questions.tsv`) and `doc-eval-unknown-name` (doc-eval fails on an expected
+  name that is not in the corpus), `null-args-doc`, the `doc` scenario of `oom-tld`,
+  `tld_doc.h` in `names`, `doc-examples-doc`, `tld-ask-run`, `single-header-doc` and
+  `single-header-doc-strict`.
+
 ## tld_ai.h 0.4.0 (unreleased)
 
 ### Added

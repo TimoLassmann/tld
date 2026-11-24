@@ -1,8 +1,9 @@
-/* oom-tld: allocation-failure sweep over tld.h (see oom.h). Each scenario uses one
- * module the way a program would; every allocation it makes fails in turn. */
+/* oom-tld: allocation-failure sweep over tld.h and tld_doc.h (see oom.h). Each scenario
+ * uses one module the way a program would; every allocation it makes fails in turn. */
 #include "oom.h"
 #define TLD_IMPLEMENTATION
-#include "tld.h"
+#define TLD_DOC_IMPLEMENTATION
+#include "tld_doc.h"
 
 static int sc_str(void)
 {
@@ -382,6 +383,19 @@ ERROR:
         return FAIL;
 }
 
+static int sc_doc(void)                 /* tld_doc.h: search, near matches, budget */
+{
+        tld_doc_answer *a = NULL;
+        tld_doc_opts o = {.max_bytes = 1200, .top_n = 4};
+        RUN(tld_doc_ask("parse a json string, allocatoin", &o, &a));
+        ASSERT(a->n_hits > 0 && a->text != NULL, "no answer");
+        tld_doc_answer_free(a);
+        return OK;
+ERROR:
+        tld_doc_answer_free(a);
+        return FAIL;
+}
+
 static const struct oom_scenario scenarios[] = {
         {"str", sc_str, "string buffer append, prepend, copy", NULL},
         {"hash", sc_hash, "hash add (growing values), replace, rename, delete, iterate", NULL},
@@ -399,9 +413,11 @@ static const struct oom_scenario scenarios[] = {
         {"stats", sc_stats, "kde, quantile normalisation, auc", NULL},
         {"misc", sc_misc, "file names, command line, reading a file, bitfields", NULL},
         {"tpool", sc_tpool, "thread pool with 40 jobs", NULL},
+        {"doc", sc_doc, "tld_doc_ask: a typo searched again, entries cut by the byte budget", NULL},
 };
 
 int main(int argc, char *argv[])
 {
-        return oom_main(argc, argv, scenarios, (int) (sizeof scenarios / sizeof scenarios[0]), "tld.h");
+        return oom_main(argc, argv, scenarios, (int) (sizeof scenarios / sizeof scenarios[0]),
+                        "tld.h and tld_doc.h");
 }
