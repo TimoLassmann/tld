@@ -129,6 +129,7 @@ typedef struct { const tld_doc_entry *entry; double score; } tld_doc_hit;
 typedef struct { tld_doc_hit *hits; int n_hits; char *text; } tld_doc_answer;
 typedef struct { int max_bytes; /* 0: 4096 */ int top_n; /* 0: 8 */ } tld_doc_opts;
 int tld_doc_ask(const char *question, const tld_doc_opts *o, tld_doc_answer **out);
+int tld_doc_manual(const char *header, tld_strbuf *out);   /* the whole manual; NULL: both */
 void tld_doc_answer_free(tld_doc_answer *a);
 ```
 

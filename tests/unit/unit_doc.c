@@ -30,6 +30,14 @@
  *   - edge cases: an empty question, only stopwords, a very long question, the longest
  *     head this corpus can give, bytes >= 0x80 and control bytes, bad arguments.
  *
+ * The whole manual (tld_doc_manual):
+ *   - every record of the corpus once: per header its sections, then its entries, in
+ *     corpus order; NULL is tld.h, a blank line, tld_ai.h;
+ *   - each block is, byte for byte, the block tld_doc_ask shows for that record without
+ *     the rank number and the Matched line (and with the module description only at the
+ *     first entry of a module);
+ *   - the text is appended to the buffer; bad arguments.
+ *
  *   unit-doc [ROOT]     ROOT: the repository root (default: the source tree it was built from)
  */
 #define TLD_IMPLEMENTATION
@@ -1106,21 +1114,196 @@ ERROR:
         return FAIL;
 }
 
+/* The start of the next block at or after s (the '\n' before "ENTRY: ", "SECTION: " or
+ * "tld manual of ", the first line of the next manual), or the end of the text. */
+static const char *manual_next(const char *s)
+{
+        const char *best = s + strlen(s);
+        static const char *const mark[] = {"\nENTRY: ", "\nSECTION: ", "\ntld manual of "};
+        for(int k = 0; k < 3; k++){
+                const char *p = strstr(s, mark[k]);
+                if(p && p < best){
+                        best = p;
+                }
+        }
+        return best;
+}
+
+/* The block tld_doc_ask shows for record e, as tld_doc_manual writes it: without the
+ * rank number and the Matched line, and without the module description unless desc.
+ * *out is NULL when no answer to the record's own names shows it whole. */
+static int manual_want(const tld_doc_entry *e, int desc, tld_strbuf **out)
+{
+        tld_doc_answer *a = NULL;
+        tld_strbuf *b = NULL;
+        char q[512];
+        char mark[64];
+        const char *st = NULL;
+        const char *end = NULL;
+        const char *nl = NULL;
+        int h = 0;
+        *out = NULL;
+        snprintf(q, sizeof q, "%s", e->names);
+        if(e->kind == TLD_DOC_ENTRY && strchr(q, ',')){
+                *strchr(q, ',') = 0;
+        }
+        RUN(ask(q, 1 << 20, 8, &a));
+        while(h < a->n_hits && a->hits[h].entry != e){
+                h++;
+        }
+        if(h == a->n_hits){
+                tld_doc_answer_free(a);
+                return OK;
+        }
+        snprintf(mark, sizeof mark, "\n%s %d: ", e->kind == TLD_DOC_SECTION ? "SECTION" : "ENTRY", h + 1);
+        st = strstr(a->text, mark);
+        ASSERT(st != NULL, "'%s': hit %d is not in the answer", q, h + 1);
+        end = a->text + strlen(a->text);
+        for(int k = 0; k < 2; k++){
+                const char *p;
+                snprintf(mark, sizeof mark, "\n%s %d: ", k ? "SECTION" : "ENTRY", h + 2);
+                p = strstr(st + 1, mark);
+                if(p && p < end){
+                        end = p;
+                }
+        }
+        RUN(tld_strbuf_alloc(&b, 1024));
+        /* the first line without " N" */
+        RUN(tld_strbuf_append(b, e->kind == TLD_DOC_SECTION ? "\nSECTION" : "\nENTRY"));
+        st = strchr(st + 1, ':');
+        nl = strchr(st, '\n');
+        RUN(tld_strbuf_append_n(b, st, (size_t)(nl - st) + 1));
+        st = nl + 1;
+        if(e->kind == TLD_DOC_ENTRY){   /* the Header line */
+                nl = strchr(st, '\n');
+                if(!desc && e->module_desc[0]){
+                        size_t cut = (size_t)(nl - st) - strlen(e->module_desc) - 3;
+                        RUN(tld_strbuf_append_n(b, st, cut));
+                        RUN(tld_strbuf_append(b, "\n"));
+                }else{
+                        RUN(tld_strbuf_append_n(b, st, (size_t)(nl - st) + 1));
+                }
+                st = nl + 1;
+        }
+        ASSERT(strncmp(st, "Matched:", 8) == 0, "'%s': no Matched line where expected", q);
+        st = strchr(st, '\n') + 1;
+        RUN(tld_strbuf_append_n(b, st, (size_t)(end - st)));
+        *out = b;
+        tld_doc_answer_free(a);
+        return OK;
+ERROR:
+        tld_doc_answer_free(a);
+        tld_strbuf_free(b);
+        return FAIL;
+}
+
+static int test_manual(void)
+{
+        static const char *const headers[] = {"tld.h", "tld_ai.h"};
+        tld_strbuf *all = NULL;
+        tld_strbuf *one[2] = {NULL, NULL};
+        tld_strbuf *want = NULL;
+        const char *p = NULL;
+        int n = tld_doc_n_entries();
+        int n_blocks = 0;
+        int n_same = 0;
+        SECTION_MSG("the whole manual");
+        RUN(tld_strbuf_alloc(&all, 1 << 17));
+        RUN(tld_strbuf_append(all, "before\n"));
+        RUN(tld_doc_manual(NULL, all));
+        CHECK(strncmp(TLD_STR(all), "before\ntld manual of tld.h, corpus ", 35) == 0,
+              "the manual is not appended to what the buffer holds");
+        for(int k = 0; k < 2; k++){
+                RUN(tld_strbuf_alloc(&one[k], 1 << 16));
+                RUN(tld_doc_manual(headers[k], one[k]));
+                KV_MSG(headers[k], "%d bytes", (int)TLD_STRLEN(one[k]));
+        }
+        CHECK(TLD_STRLEN(all) == 7 + TLD_STRLEN(one[0]) + 1 + TLD_STRLEN(one[1]) &&
+              strncmp(TLD_STR(all) + 7, TLD_STR(one[0]), (size_t)TLD_STRLEN(one[0])) == 0 &&
+              TLD_STR(all)[7 + TLD_STRLEN(one[0])] == '\n' &&
+              strcmp(TLD_STR(all) + 7 + TLD_STRLEN(one[0]) + 1, TLD_STR(one[1])) == 0,
+              "the manual of NULL is not that of tld.h, a blank line and that of tld_ai.h");
+
+        /* the blocks in order: per header the sections, then the entries */
+        p = TLD_STR(all) + 7;
+        for(int k = 0; k < 2; k++){
+                char head[256];
+                const char *module = NULL;
+                snprintf(head, sizeof head, "%stld manual of %s, corpus %s. Everything under SECTION or ENTRY is "
+                         "copied exactly from it.\n", k ? "\n" : "", headers[k], tld_doc_corpus_id());
+                CHECK(strncmp(p, head, strlen(head)) == 0, "%s: its manual does not start with its first line",
+                      headers[k]);
+                p += strlen(head);
+                for(int kind = TLD_DOC_SECTION; kind >= TLD_DOC_ENTRY; kind--){
+                        for(int i = 0; i < n; i++){
+                                const tld_doc_entry *e = tld_doc_entry_at(i);
+                                const char *end = NULL;
+                                int desc = 0;
+                                if(e->kind != kind || strcmp(e->header, headers[k]) != 0){
+                                        continue;
+                                }
+                                if(kind == TLD_DOC_ENTRY){
+                                        desc = !module || strcmp(module, e->module) != 0;
+                                        module = e->module;
+                                }
+                                end = manual_next(p + 1);
+                                n_blocks++;
+                                RUN(manual_want(e, desc, &want));
+                                if(want){
+                                        n_same++;
+                                        CHECK((size_t)(end - p) == (size_t)TLD_STRLEN(want) &&
+                                              strncmp(p, TLD_STR(want), (size_t)(end - p)) == 0,
+                                              "'%s': its block in the manual is not the block of an answer", e->names);
+                                        tld_strbuf_free(want);
+                                        want = NULL;
+                                }else{
+                                        char first[512];
+                                        snprintf(first, sizeof first, "\n%s: %s\n", kind == TLD_DOC_SECTION ? "SECTION" :
+                                                 "ENTRY", e->names);
+                                        CHECK(strncmp(p, first, strlen(first)) == 0, "'%s': not the next block of the manual",
+                                              e->names);
+                                }
+                                p = end;
+                        }
+                }
+        }
+        CHECK(*p == 0, "the manual has text after its last record");
+        CHECK(n_blocks == n, "%d blocks for %d records", n_blocks, n);
+        CHECK(n_same >= n * 9 / 10, "only %d of %d blocks could be compared with an answer", n_same, n);
+        KV_MSG("blocks", "%d, %d compared byte for byte with an answer", n_blocks, n_same);
+
+        test_expect_errors();
+        CHECK(tld_doc_manual(NULL, NULL) == FAIL, "a NULL buffer is not FAIL");
+        CHECK(tld_doc_manual("tld_doc.h", one[0]) == FAIL, "a header without a manual in the corpus is not FAIL");
+        test_expect_errors_end();
+        tld_strbuf_free(all);
+        tld_strbuf_free(one[0]);
+        tld_strbuf_free(one[1]);
+        section_ok("every record once, in manual order, as an answer shows it");
+        return OK;
+ERROR:
+        tld_strbuf_free(all);
+        tld_strbuf_free(one[0]);
+        tld_strbuf_free(one[1]);
+        tld_strbuf_free(want);
+        return FAIL;
+}
+
 int main(int argc, char *argv[])
 {
         const char *root = TLD_DOC_TEST_ROOT;
         test_init(&argc, argv, "[ROOT]",
                   "Checks the corpus of tld_doc.h against ROOT/docs/tld.md, ROOT/docs/tld_ai.md,\n"
                   "ROOT/tld.h and ROOT/tld_ai.h (ROOT: the repository root; default: the\n"
-                  "source tree the program was built from), the corpus API, the search and the\n"
-                  "answer text.");
+                  "source tree the program was built from), the corpus API, the search, the\n"
+                  "answer text and the whole manual.");
         if(argc > 1){
                 root = argv[1];
         }
         if(test_corpus(root) != OK){
                 failed++;
         }
-        if(test_search() != OK || test_budget() != OK || test_edges() != OK){
+        if(test_search() != OK || test_budget() != OK || test_edges() != OK || test_manual() != OK){
                 failed++;
         }
         if(failed){

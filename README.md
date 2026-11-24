@@ -235,6 +235,10 @@ the question occur in the manuals and which do not (`Not found: weather, paris`)
 the reader can judge whether the entries are relevant. It stays within a byte budget
 (`.max_bytes`, 4096 by default), and declarations are never cut.
 
+`tld_doc_manual("tld.h", buf)` appends the whole manual of one header (`NULL`: both) to a
+`tld_strbuf` instead, in the same layout, for a prompt that should hold all of it (about
+70 KB for `tld.h` and 30 KB for `tld_ai.h`).
+
 `examples/tld_ask.c` (built as `build/tests/tld-ask`) is a command-line front end:
 `tld-ask "how do I read a JSON string?"`, and `tld-ask -b 1500 -n 3 "..."` for the first
 3 entries within 1500 bytes. The corpus is generated into `tld_doc.h` by the same command

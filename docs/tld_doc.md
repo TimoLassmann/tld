@@ -25,6 +25,7 @@ Every public symbol of tld_doc.h is documented below, module by module, with its
 - [general](#mod-general): 1 symbol
 - [the corpus](#mod-the-corpus): 6 symbols
 - [asking](#mod-asking): 5 symbols
+- [the whole manual](#mod-the-whole-manual): 1 symbol
 - [Index](#index)
 
 <a id="sec-usage"></a>
@@ -280,6 +281,52 @@ void tld_doc_answer_free(tld_doc_answer *a);
 
 Free an answer from tld_doc_ask; NULL is ignored.
 
+<a id="mod-the-whole-manual"></a>
+
+## the whole manual
+
+<a id="tld_doc_manual"></a>
+
+### `tld_doc_manual`
+
+```c
+int tld_doc_manual(const char *header, tld_strbuf *out);
+```
+
+Append the whole manual of header ("tld.h" or "tld_ai.h"; NULL: both, tld.h first) to
+out, as text for a prompt or a file: about 70 KB for tld.h and 30 KB for tld_ai.h.
+Returns FAIL when out is NULL, header names no manual of the corpus, or out of memory
+(out then holds the text written so far).
+
+Each manual starts with a line that names it and the corpus identifier. Then, after a
+blank line each, come its general sections and then its entries, in the order of the
+manual. Every record of the corpus appears once, whole, in the layout of a tld_doc_ask
+answer without the rank number and the Matched line:
+
+```text
+SECTION: tld.h: Errors
+Documentation:
+    (the section's text)
+Example:
+    (its code)
+```
+
+```text
+ENTRY: tld_json_parse, tld_json_parse_n
+Header: tld.h, module json
+Declaration:
+...
+```
+
+The Header line carries the module's description at the first entry of each module.
+
+```c
+tld_strbuf *prompt = NULL;
+RUN(tld_strbuf_alloc(&prompt, 1 << 17));
+RUN(tld_doc_manual("tld.h", prompt));
+RUN(tld_strbuf_append(prompt, "\nWrite a program that ...\n"));
+```
+
 <a id="index"></a>
 
 ## Index
@@ -294,6 +341,7 @@ Free an answer from tld_doc_ask; NULL is ignored.
 | [`tld_doc_entry`](#tld_doc_entry) | type | [the corpus](#mod-the-corpus) |
 | [`tld_doc_entry_at`](#tld_doc_entry_at) | function | [the corpus](#mod-the-corpus) |
 | [`tld_doc_hit`](#tld_doc_hit) | type | [asking](#mod-asking) |
+| [`tld_doc_manual`](#tld_doc_manual) | function | [the whole manual](#mod-the-whole-manual) |
 | [`tld_doc_n_entries`](#tld_doc_n_entries) | function | [the corpus](#mod-the-corpus) |
 | [`tld_doc_opts`](#tld_doc_opts) | type | [asking](#mod-asking) |
 | [`TLD_DOC_SECTION`](#TLD_DOC_SECTION) | macro | [the corpus](#mod-the-corpus) |

@@ -170,6 +170,38 @@ int tld_doc_ask(const char *question, const tld_doc_opts *o, tld_doc_answer **ou
 /* Free an answer from tld_doc_ask; NULL is ignored. */
 void tld_doc_answer_free(tld_doc_answer *a);
 
+/* ---- the whole manual ---------------------------------------------------- */
+
+/* Append the whole manual of header ("tld.h" or "tld_ai.h"; NULL: both, tld.h first) to
+ * out, as text for a prompt or a file: about 70 KB for tld.h and 30 KB for tld_ai.h.
+ * Returns FAIL when out is NULL, header names no manual of the corpus, or out of memory
+ * (out then holds the text written so far).
+ *
+ * Each manual starts with a line that names it and the corpus identifier. Then, after a
+ * blank line each, come its general sections and then its entries, in the order of the
+ * manual. Every record of the corpus appears once, whole, in the layout of a tld_doc_ask
+ * answer without the rank number and the Matched line:
+ *
+ *     SECTION: tld.h: Errors
+ *     Documentation:
+ *         (the section's text)
+ *     Example:
+ *         (its code)
+ *
+ *     ENTRY: tld_json_parse, tld_json_parse_n
+ *     Header: tld.h, module json
+ *     Declaration:
+ *     ...
+ *
+ * The Header line carries the module's description at the first entry of each module.
+ *
+ *     tld_strbuf *prompt = NULL;
+ *     RUN(tld_strbuf_alloc(&prompt, 1 << 17));
+ *     RUN(tld_doc_manual("tld.h", prompt));
+ *     RUN(tld_strbuf_append(prompt, "\nWrite a program that ...\n"));
+ */
+int tld_doc_manual(const char *header, tld_strbuf *out);
+
 #ifdef __cplusplus
 }
 #endif
@@ -3581,21 +3613,22 @@ ERROR:
         return FAIL;
 }
 
-/* Append to b the block of hit h (numbered rank) in at most limit bytes, as complete as
- * fits: the mandatory part (names, header with the module description when desc is
- * set, matched line, declaration, short
- * Documentation and Example lines, See also), then the whole doc text or as many of its
- * first sentences as fit, then the example when the doc text is whole. *shown is 0 (and
- * b unchanged) when the mandatory part does not fit. */
-static int tld__doc_entry(tld_strbuf *b, const tld_doc_answer *a, const tld__doc_query *q, int h, int rank,
-                          int desc, long limit, int *shown)
+/* Append to b the block of record e in at most limit bytes, as complete as fits: the
+ * mandatory part (names, header with the module description when desc is set, matched
+ * line, declaration, short Documentation and Example lines, See also), then the whole
+ * doc text or as many of its first sentences as fit, then the example when the doc text
+ * is whole. *shown is 0 (and b unchanged) when the mandatory part does not fit. With a
+ * query q the block is one of an answer: numbered rank, with the Matched line. With q
+ * NULL it is one of tld_doc_manual: "ENTRY: names", no Matched line. */
+static int tld__doc_entry(tld_strbuf *b, const tld_doc_entry *e, const tld__doc_query *q, int rank, int desc,
+                          long limit, int *shown)
 {
         static const char doc_min[] = "Documentation: not shown (byte budget).\n";
         static const char ex_none[] = "Example: none in the manual.\n";
         static const char ex_min[] = "Example: not shown (byte budget).\n";
-        const tld_doc_entry *e = a->hits[h].entry;
         int r = (int)(e - tld__doc_corpus);
         int ai = strcmp(e->header, "tld_ai.h") == 0;
+        char num[16] = "";
         tld_strbuf *top = NULL;
         tld_strbuf *see = NULL;
         tld_strbuf *doc = NULL;
@@ -3608,17 +3641,24 @@ static int tld__doc_entry(tld_strbuf *b, const tld_doc_answer *a, const tld__doc
         RUN(tld_strbuf_alloc(&see, 256));
         RUN(tld_strbuf_alloc(&doc, 1024));
         RUN(tld_strbuf_alloc(&ex, 1024));
+        if(q){
+                snprintf(num, sizeof num, " %d", rank);
+        }
         if(e->kind == TLD_DOC_SECTION){
-                RUN(tld__doc_appendf(top, "\nSECTION %d: %s\n", rank, e->names));
-                RUN(tld__doc_match_line(top, q, r));
+                RUN(tld__doc_appendf(top, "\nSECTION%s: %s\n", num, e->names));
+                if(q){
+                        RUN(tld__doc_match_line(top, q, r));
+                }
         }else{
-                RUN(tld__doc_appendf(top, "\nENTRY %d: %s\nHeader: %s, %s %s", rank, e->names, e->header,
+                RUN(tld__doc_appendf(top, "\nENTRY%s: %s\nHeader: %s, %s %s", num, e->names, e->header,
                                      ai ? "section" : "module", e->module));
                 if(e->module_desc[0] && desc){
                         RUN(tld__doc_appendf(top, " (%s)", e->module_desc));
                 }
                 RUN(tld_strbuf_append(top, "\n"));
-                RUN(tld__doc_match_line(top, q, r));
+                if(q){
+                        RUN(tld__doc_match_line(top, q, r));
+                }
                 RUN(tld_strbuf_append(top, "Declaration:\n"));
                 RUN(tld__doc_indent(top, e->decl, strlen(e->decl)));
         }
@@ -3758,7 +3798,7 @@ static int tld__doc_render(tld_doc_answer *a, const tld__doc_query *q, int max_b
                 }
                 RUN(tld_strbuf_clear(f));
                 RUN(tld__doc_footer(f, a, from + 1, (long)INT32_MAX));
-                RUN(tld__doc_entry(b, a, q, from, from + 1, desc, (long)max_bytes - TLD_STRLEN(b) - TLD_STRLEN(f),
+                RUN(tld__doc_entry(b, e, q, from + 1, desc, (long)max_bytes - TLD_STRLEN(b) - TLD_STRLEN(f),
                                    &shown));
                 if(!shown){
                         break;
@@ -3813,6 +3853,45 @@ void tld_doc_answer_free(tld_doc_answer *a)
                 MFREE(a->text);
                 MFREE(a);
         }
+}
+
+int tld_doc_manual(const char *header, tld_strbuf *out)
+{
+        int n_done = 0;
+        ASSERT(out != NULL, "No buffer for the manual (out is NULL)");
+        for(int i = 0; i < TLD__DOC_N_ENTRIES; i++){
+                const char *h = tld__doc_corpus[i].header;
+                const char *module = NULL;
+                int first = 1;
+                for(int x = 0; x < i && first; x++){
+                        first = strcmp(tld__doc_corpus[x].header, h) != 0;
+                }
+                if(!first || (header && strcmp(header, h) != 0)){
+                        continue;
+                }
+                RUN(tld__doc_appendf(out, "%stld manual of %s, corpus %s. Everything under SECTION or ENTRY is "
+                                     "copied exactly from it.\n", n_done++ ? "\n" : "", h, TLD__DOC_CORPUS_ID));
+                /* the general sections of h, then its entries; both are in manual order */
+                for(int kind = TLD_DOC_SECTION; kind >= TLD_DOC_ENTRY; kind--){
+                        for(int x = i; x < TLD__DOC_N_ENTRIES; x++){
+                                const tld_doc_entry *e = &tld__doc_corpus[x];
+                                int shown = 0;
+                                int desc = 0;
+                                if(e->kind != kind || strcmp(e->header, h) != 0){
+                                        continue;
+                                }
+                                if(kind == TLD_DOC_ENTRY){
+                                        desc = !module || strcmp(module, e->module) != 0;
+                                        module = e->module;
+                                }
+                                RUN(tld__doc_entry(out, e, NULL, 0, desc, (long)INT32_MAX, &shown));
+                        }
+                }
+        }
+        ASSERT(n_done > 0, "No manual of '%s' in the corpus (tld.h, tld_ai.h, or NULL for both)", header);
+        return OK;
+ERROR:
+        return FAIL;
 }
 
 /* The implementation's own macros end here (TLD__DOC_IMPLEMENTED stays: it guards

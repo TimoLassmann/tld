@@ -100,14 +100,18 @@ ERROR:
         return FAIL;
 }
 #else
-/* tld_doc.h fixtures: the answer and options (no setup needed) */
+/* tld_doc.h fixtures: the answer, the options and a buffer for the manual */
 static tld_doc_answer *DA;
 static tld_doc_opts DOPT = {.max_bytes = 1024};
+static tld_strbuf *SB;
 
 static int setup(int with_pool)
 {
         (void) with_pool;
+        RUN(tld_strbuf_alloc(&SB, 16));
         return OK;
+ERROR:
+        return FAIL;
 }
 #endif
 
@@ -333,6 +337,9 @@ static int setup(int with_pool)
         X(OPT, 0, NONE(tld_doc_ask("parse json", NULL, &DA))) \
         X(OPT, 0, NONE(tld_doc_ask("parse json", &DOPT, &DA))) \
         X(FRE, 0, NONE(tld_doc_answer_free(NULL))) \
+        X(NUL, 0, FAILS(tld_doc_manual("tld.h", NULL))) \
+        X(NUL, 0, FAILS(tld_doc_manual("no.h", SB))) \
+        X(OPT, 0, NONE(tld_doc_manual(NULL, SB))) \
         X(NUL, 0, (tld_doc_entry_at(-1) == NULL)) \
         X(NUL, 0, (tld_doc_entry_at(tld_doc_n_entries()) == NULL)) \
         X(OPT, 0, NONE(tld_doc_n_entries())) \

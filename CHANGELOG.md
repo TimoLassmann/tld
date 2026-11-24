@@ -27,6 +27,10 @@
   function, such as the `ERROR:` label. The entries of `RUN`, `ERROR_MSG`, `MMALLOC`,
   `MREALLOC`, `MMALLOC_ALIGNED` and `galloc` now say that the enclosing function needs
   that label, as `ASSERT` did.
+- `tld_doc_manual(header, out)` appends the whole manual of `tld.h`, `tld_ai.h` or both
+  to a string buffer, for a prompt that should hold all of it: every corpus record once,
+  per header the general sections and then the entries, each block as an answer shows it
+  without the rank number and the Matched line.
 - `examples/tld_ask.c` (target `tld-ask`): `tld-ask [-b BYTES] [-n N] "question"`.
 - Tests: `unit-doc` (corpus against the manuals and headers, the search, the text format
   and budget, edge cases), `doc-eval` (the retrieval figures on the 69 questions of
