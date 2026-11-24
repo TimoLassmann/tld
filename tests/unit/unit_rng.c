@@ -114,6 +114,7 @@ int main(int argc, char *argv[])
                 double r = tld_rng_double( rng);
                 DEBUG_MSG("%d %f",i, r);
         }
+        OK_MSG("10 doubles drawn");
         tld_rng_free(rng);
 
         SECTION_MSG("Test rngdist");

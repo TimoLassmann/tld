@@ -1023,7 +1023,6 @@ static void test_add(void)
         CHECK(tld_json_get_int(o, "list[0]", &i) == OK && i == 1);
 
         /* a NULL child fails; the caller's object keeps what it had */
-        fprintf(stderr, "regress-json: expect two errors about a NULL entry:\n");
         CHECK(tld_json_obj_add(&o, TLD_JOBJ("bad", NULL)) == FAIL);
         CHECK(o != NULL && o->n == 3);
         CHECK(tld_json_arr_add(&a, TLD_JOBJ(NULL, NULL)) == FAIL);  /* new one freed */
@@ -1059,7 +1058,6 @@ static void test_strict(void)
         tld_strbuf *b = NULL;
         const char *str = NULL;
         double d = 1.0;
-        fprintf(stderr, "regress-json: expect parse errors for the rejected inputs:\n");
         for(size_t i = 0; i < sizeof in / sizeof in[0]; i++){
                 int rc = tld_json_parse(in[i].text, &o);
                 if((rc == OK) != in[i].ok){
@@ -1216,7 +1214,9 @@ int main(int argc, char *argv[])
                         continue;
                 }
                 SECTION_MSG("%s: %s", checks[k].name, checks[k].about);
+                test_expect_errors();
                 checks[k].fn();
+                test_expect_errors_end();
                 if(n_fail == f0){
                         OK_MSG("%s: %d checks passed", checks[k].name, n_check - c0);
                 }

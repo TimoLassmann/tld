@@ -28,6 +28,8 @@ else()
 endif()
 
 find_package(Threads REQUIRED)
+# tests/test.h looks up the sanitizer runtime with dlsym (test_expect_errors).
+link_libraries(${CMAKE_DL_LIBS})
 
 # tld_test(NAME SOURCE...): a program linked against tld-dev, run by ctest (under
 # valgrind when it is installed).

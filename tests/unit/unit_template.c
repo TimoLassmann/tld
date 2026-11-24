@@ -3,6 +3,38 @@
 #include <stdio.h>
 #include <string.h>
 
+/* A key and its text as KV_MSG lines; a text longer than 87 bytes continues on the next
+ * lines (broken at a space, which is dropped), so no line passes column 100. */
+static void show(const char *key, const char *text)
+{
+        const int width = 87;
+        int len;
+        if(*text == 0){
+                text = "(empty)";
+        }
+        len = (int)strlen(text);
+        do{
+                int n = len;
+                if(n > width){
+                        n = width;
+                        while(n > 0 && text[n] != ' '){
+                                n--;
+                        }
+                        if(n == 0){
+                                n = width;
+                        }
+                }
+                KV_MSG(key, "%.*s", n, text);
+                text += n;
+                len -= n;
+                if(*text == ' '){
+                        text++;
+                        len--;
+                }
+                key = "";
+        }while(len > 0);
+}
+
 int test_new_template(void);
 int test_get_vars_template(void);
 
@@ -135,19 +167,30 @@ int test_get_vars_template(void)
 
         tld_hash* h = NULL;
         tld_strbuf* template = NULL;
+        tld_strbuf* vars = NULL;
         RUN(tld_strbuf_alloc(&template, 64));
+        RUN(tld_strbuf_alloc(&vars, 64));
 
         for (int i = 0; i < num_test_templates; i++) {
                 tld_strbuf_clear(template);
                 RUN(tld_strbuf_append(template, test_templates[i]));
-                KV_MSG("template", "%s", TLD_STR(template));
-                if(tld_template_vars(template, &h) == OK){
+                show("template", TLD_STR(template));
+                int rc;
+                test_expect_errors();
+                rc = tld_template_vars(template, &h);
+                test_expect_errors_end();
+                if(rc == OK){
                         RUN(tld_hash_iter_init(h));
                         const char* key = NULL;
                         const char* value = NULL;
+                        tld_strbuf_clear(vars);
                         while(tld_hash_iter_next(h, &key, &value) == OK){
-                                DEBUG_MSG("key %s value %s", key, value);
+                                if(TLD_STRLEN(vars)){
+                                        RUN(tld_strbuf_append(vars, ", "));
+                                }
+                                RUN(tld_strbuf_append(vars, key));
                         }
+                        show("vars", TLD_STRLEN(vars) ? TLD_STR(vars) : "(none)");
                         tld_hash_free(h);
 
                         h = NULL;
@@ -155,6 +198,7 @@ int test_get_vars_template(void)
 
         }
         tld_strbuf_free(template);
+        tld_strbuf_free(vars);
 
         return OK;
 ERROR:
@@ -237,11 +281,13 @@ int test_new_template(void)
         for (int i = 0; i < num_test_templates; i++) {
                 tld_strbuf_clear(template);
                 RUN(tld_strbuf_append(template, test_templates[i]));
-                KV_MSG("template", "%s", TLD_STR(template));
+                show("template", TLD_STR(template));
+                test_expect_errors();
                 if(tld_template_apply(template, h) != OK){
                         DEBUG_MSG("template %d rejected (some test templates are malformed on purpose)", i);
                 }
-                KV_MSG("result", "%s", TLD_STR(template));
+                test_expect_errors_end();
+                show("result", TLD_STR(template));
         }
         tld_strbuf_free(template);
         tld_hash_free(h);

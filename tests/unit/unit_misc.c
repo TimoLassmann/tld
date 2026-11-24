@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
         SECTION_MSG("tld_cmdline_capture");
         RUN(tld_cmdline_capture(&cmd, orig_n, orig));
 
-        KV_MSG("command line", "%s", TLD_STR(cmd));
+        KV_MSG("command", "%s", TLD_STR(cmd));
 
         tld_strbuf_free(cmd);
         cmd = NULL;

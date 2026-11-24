@@ -264,7 +264,9 @@ int main(int argc, char *argv[])
                         continue;
                 }
                 SECTION_MSG("%s: %s", checks[k].name, checks[k].about);
+                test_expect_errors();
                 checks[k].fn();
+                test_expect_errors_end();
                 if(n_fail == f0){
                         OK_MSG("%s: %d checks passed", checks[k].name, n_check - c0);
                 }

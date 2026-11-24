@@ -109,15 +109,13 @@ int test_standardisation(void)
         for(int i = 0; i < size;i++){
                 DEBUG_MSG("%d %f",i, data[i]);
         }
-        KV_MSG("mean", "%f", mean);
-        KV_MSG("stdev", "%f", stdev);
+        KV_MSG("input", "mean %f stdev %f", mean, stdev);
         RUN(tld_standardise(data, size, &mean, &stdev));
         DEBUG_MSG("After2:");
         for(int i = 0; i < size;i++){
                 DEBUG_MSG("%d %f",i, data[i]);
         }
-        KV_MSG("mean", "%f", mean);
-        KV_MSG("stdev", "%f", stdev);
+        KV_MSG("output", "mean %f stdev %f (standardised again: 0 and 1)", mean, stdev);
         return OK;
 ERROR:
         return FAIL;
@@ -144,9 +142,9 @@ int test_covariance(void)
 
         tld_pop_covariance(v1, v2, n, &cov);
 
-        KV_MSG("pop cov", "%f", cov);
+        KV_MSG("cov", "%f (population)", cov);
         tld_sample_covariance(v1, v2, n, &cov);
-        KV_MSG("sample cov", "%f", cov);
+        KV_MSG("cov", "%f (sample)", cov);
 
         /* R code to check the values (-vv) */
         char line[1024];

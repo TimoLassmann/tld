@@ -61,14 +61,14 @@ int main(int argc, char *argv[])
         TLD_SORT_DESC(x_flt,10);
         o = 0;
         for(int i = 0; i < 10;i++){
-                o += snprintf(line + o, sizeof line - o, "%f ", x_flt[i]);
+                o += snprintf(line + o, sizeof line - o, "%s%f", i ? " " : "", x_flt[i]);
         }
         KV_MSG("desc", "%s", line);
 
         TLD_SORT_ASC(x_flt,10);
         o = 0;
         for(int i = 0; i < 10;i++){
-                o += snprintf(line + o, sizeof line - o, "%f ", x_flt[i]);
+                o += snprintf(line + o, sizeof line - o, "%s%f", i ? " " : "", x_flt[i]);
         }
         KV_MSG("asc", "%s", line);
 

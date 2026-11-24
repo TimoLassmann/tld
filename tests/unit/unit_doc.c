@@ -47,6 +47,16 @@
 #endif
 
 static int failed = 0;
+static int failed_before = 0; /* failed when the section began */
+
+/* The OK line of a section, when none of its checks failed. */
+static void section_ok(const char *what)
+{
+        if(failed == failed_before){
+                OK_MSG("%s", what);
+        }
+        failed_before = failed;
+}
 
 #define CHECK(cond, ...) do {                                           \
                 if(!(cond)){                                            \
@@ -223,9 +233,10 @@ static int test_corpus(const char *root)
                 with_example += e->example != NULL;
                 CHECK(e->example == NULL || e->example[0], "record %d (%s): empty example", i, e->names);
         }
-        KV_MSG("with examples", "%d", with_example);
+        KV_MSG("examples", "%d records have one", with_example);
         CHECK(with_example > 0, "no record has a code example");
 
+        section_ok("every record has its ### entry");
         SECTION_MSG("declarations versus the headers");
         for(int i = 0; i < n; i++){
                 const tld_doc_entry *e = tld_doc_entry_at(i);
@@ -237,9 +248,10 @@ static int test_corpus(const char *root)
                 check_decl(e, TLD_STR(src[strcmp(e->header, "tld.h") == 0 ? 0 : 1]), i, &sigs,
                            &expanded);
         }
-        KV_MSG("macro signatures", "%d (macros longer than 7 lines)", sigs);
-        KV_MSG("expanded lines", "%d (from macro invocations)", expanded);
+        KV_MSG("macros", "%d signatures (macros longer than 7 lines)", sigs);
+        KV_MSG("expanded", "%d lines (from macro invocations)", expanded);
 
+        section_ok("every declaration is in its header");
         SECTION_MSG("corpus identifier");
         for(int i = 0; i < n; i++){
                 const tld_doc_entry *e = tld_doc_entry_at(i);
@@ -267,17 +279,21 @@ static int test_corpus(const char *root)
                 CHECK(q != NULL, "no #define AI_VERSION line in tld_ai.h");
                 snprintf(want, sizeof want, "%016" PRIx64 "-%.*s", hash, q ? (int)(q - v - 21) : 0, v ? v + 21 : "");
         }
-        KV_MSG("corpus id", "%s", id ? id : "(NULL)");
+        KV_MSG("id", "%s", id ? id : "(NULL)");
         CHECK(id != NULL && strcmp(id, want) == 0, "tld_doc_corpus_id() is %s, the records give %s",
               id ? id : "(NULL)", want);
         CHECK(tld_doc_corpus_id() == id, "tld_doc_corpus_id() changes between calls");
 
+        section_ok("the identifier is the hash of the corpus and the version");
         SECTION_MSG("corpus API");
+        test_expect_errors();
         CHECK(tld_doc_entry_at(-1) == NULL, "tld_doc_entry_at(-1) is not NULL");
         CHECK(tld_doc_entry_at(n) == NULL, "tld_doc_entry_at(n) is not NULL");
+        test_expect_errors_end();
         CHECK(n > 0 && tld_doc_entry_at(0) == tld_doc_entry_at(0), "tld_doc_entry_at(0) changes");
         CHECK(strcmp(TLD_DOC_VERSION, "0.1.0") == 0, "TLD_DOC_VERSION is %s", TLD_DOC_VERSION);
         tld_doc_answer_free(NULL);
+        section_ok("entries outside the corpus are NULL");
 
         for(int f = 0; f < 2; f++){
                 tld_strbuf_free(man[f]);
@@ -698,6 +714,7 @@ static int test_search(void)
                 "papa alpha", 0, 0, &a));
         CHECK(strstr(a->text, "Not searched") == NULL, "16 distinct words: a Not searched line");
         tld_doc_answer_free(a);
+        section_ok("ranking, stems, typos and missing words as expected");
         return OK;
 ERROR:
         tld_doc_answer_free(a);
@@ -739,7 +756,8 @@ static int test_budget(void)
                 a = NULL;
                 runs += 2;
         }
-        KV_MSG("budgets checked", "%d texts", runs);
+        KV_MSG("budgets", "%d texts checked", runs);
+        section_ok("every text is within its budget and cut where allowed");
         return OK;
 ERROR:
         tld_doc_answer_free(a);
@@ -845,7 +863,7 @@ static int test_edges(void)
         RUN(ask(big, 0, 0, &a));
         check_text(a, 0, "16 missing words");
         CHECK(strstr(a->text, " and more (only the first 16 distinct words") != NULL, "no Not searched line");
-        KV_MSG("head, 16 missing words", "%zu bytes", head_len(a->text));
+        KV_MSG("head", "%zu bytes with 16 missing words", head_len(a->text));
         tld_doc_answer_free(a);
         a = NULL;
         /* the longest head this corpus gives: 16 distinct words of 26 bytes that each have
@@ -876,12 +894,13 @@ static int test_edges(void)
                       strstr(a->text, " and more (only the first 16 distinct words") != NULL,
                       "the longest head: %d of 16 nearest forms, or the question not cut, or no Not searched line",
                       n_near);
-                KV_MSG("head, the longest", "%zu bytes (at most 2300)", head_len(a->text));
+                KV_MSG("head", "%zu bytes at the longest (at most 2300)", head_len(a->text));
                 tld_doc_answer_free(a);
                 a = NULL;
         }
 
         /* bad arguments: FAIL with *out NULL */
+        test_expect_errors();
         CHECK(tld_doc_ask(NULL, NULL, &a) == FAIL && a == NULL, "a NULL question is not FAIL");
         CHECK(tld_doc_ask("json", NULL, NULL) == FAIL, "a NULL out is not FAIL");
         o.max_bytes = -1;
@@ -889,9 +908,11 @@ static int test_edges(void)
         o.max_bytes = 0;
         o.top_n = -1;
         CHECK(tld_doc_ask("json", &o, &a) == FAIL && a == NULL, "top_n -1 is not FAIL");
+        test_expect_errors_end();
         RUN(tld_doc_ask("json", NULL, &a));
         CHECK(a != NULL && a->text != NULL, "o NULL gives no answer");
         tld_doc_answer_free(a);
+        section_ok("edge cases and bad arguments handled");
         return OK;
 ERROR:
         tld_doc_answer_free(a);

@@ -361,7 +361,47 @@ static int run_case(int i)
         return -1;
 }
 
-/* Run case i in a child with stderr in a file; 0 when it behaved, 1 otherwise. */
+/* The module of the call in text for the -v sections: what follows the first "tld_" or
+ * "ai_" up to the next '_' or '(' ("tld_bitfield_set(...)": bitfield), else "other".
+ * The statistics functions share no prefix and are listed here; galloc and gfree are
+ * "alloc". */
+static void module_of(const char *text, char *out, size_t size)
+{
+        static const char *stats[] = {"auc", "quantile", "shannon", "mean", "pop", "sample", "standardise",
+                                      "pearson", "sigmoid", "normal", "kde"};
+        const char *t = strstr(text, "tld_");
+        const char *a = strstr(text, "ai_");
+        size_t n = 0;
+        if(t == NULL && a == NULL){
+                snprintf(out, size, "other");
+                return;
+        }
+        if(t == NULL || (a != NULL && a < t)){
+                snprintf(out, size, "ai");
+                return;
+        }
+        t += 4;
+        while(*t == '_'){
+                t++;
+        }
+        while(t[n] && t[n] != '_' && t[n] != '(' && n + 1 < size){
+                out[n] = t[n];
+                n++;
+        }
+        out[n] = 0;
+        for(size_t i = 0; i < sizeof stats / sizeof stats[0]; i++){
+                if(strcmp(out, stats[i]) == 0){
+                        snprintf(out, size, "stats");
+                }
+        }
+        if(strcmp(out, "galloc") == 0 || strcmp(out, "gfree") == 0){
+                snprintf(out, size, "alloc");
+        }
+}
+
+/* Run case i in a child with stderr in a file; 0 when it behaved, 1 otherwise.
+ * With verbose a "fails" line is a NULL that must give the failure value and an ERROR
+ * line, "allowed" a NULL the function accepts, "silent" a free function given NULL. */
 static int check(int i, int verbose)
 {
         static const char *kinds[] = {"NUL", "OPT", "FRE"};
@@ -420,7 +460,15 @@ static int check(int i, int verbose)
                 return 1;
         }
         if(verbose){
-                fprintf(stderr, "null-args: ok %s %s\n", kinds[cases[i].kind], cases[i].text);
+                static const char *shown[] = {"fails", "allowed", "silent"};
+                static char last[32];
+                char module[32];
+                module_of(cases[i].text, module, sizeof module);
+                if(strcmp(module, last) != 0){
+                        SECTION_MSG("%s", module);
+                        snprintf(last, sizeof last, "%s", module);
+                }
+                KV_MSG(shown[cases[i].kind], "%s", cases[i].text);
         }
         return 0;
 }
@@ -429,6 +477,7 @@ int main(int argc, char *argv[])
 {
         const int n = (int) (sizeof cases / sizeof cases[0]);
         int bad = 0;
+        int n_run = 0;
         const char *v = NULL;
         test_init(&argc, argv, "[TEXT]",
                   "Calls every public function with NULL in each pointer argument, one call\n"
@@ -441,11 +490,13 @@ int main(int argc, char *argv[])
                 if(argc > 1 && strstr(cases[i].text, argv[1]) == NULL){
                         continue;
                 }
+                n_run++;
                 bad += check(i, v && atoi(v) > 0);
         }
         if(bad){
                 fprintf(stderr, "null-args: %d of %d cases misbehaved\n", bad, n);
                 return EXIT_FAILURE;
         }
+        OK_MSG("%d calls behaved", n_run);
         return EXIT_SUCCESS;
 }

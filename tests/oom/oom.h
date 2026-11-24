@@ -270,11 +270,9 @@ DONE:
                 if(!v || strcmp(v, "0") != 0){  /* tld.h comes after this file: no OK_MSG */
                         if(s->stride > 1){
                                 fprintf(stderr, " OK %s: %ld allocations, the first and last %d and every "
-                                        "%ld-th failed: no leak, crash or swallowed failure\n", s->name, total,
-                                        OOM_DENSE, s->stride);
+                                        "%ld-th failed\n", s->name, total, OOM_DENSE, s->stride);
                         }else{
-                                fprintf(stderr, " OK %s: %ld allocations, each failed in turn: no leak, crash "
-                                        "or swallowed failure\n", s->name, total);
+                                fprintf(stderr, " OK %s: %ld allocations, each failed in turn\n", s->name, total);
                         }
                 }
         }
@@ -332,6 +330,12 @@ static int oom_main(int argc, char *argv[], const struct oom_scenario *s, int n,
                 fprintf(stderr, "oom: %d finding(s); the stderr of the last failing run of each scenario is in oom-NAME.err\n",
                         n_found);
                 return EXIT_FAILURE;
+        }
+        {
+                const char *v = getenv("TLD_VERBOSE");
+                if(!v || strcmp(v, "0") != 0){
+                        fprintf(stderr, " OK no leak, crash or swallowed failure in any of them\n");
+                }
         }
         return EXIT_SUCCESS;
 }
