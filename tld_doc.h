@@ -29,7 +29,10 @@
  *   taken off) are matched where words of the manual start. Records are ranked by BM25
  *   (the standard ranking formula, with its usual parameters), a match in a name counting
  *   three times; an identifier ("tld_json_get_str", or with a typo "tld_jsn_get_str")
- *   puts its entry first. A word of 6 or more letters found nowhere is searched again
+ *   puts its entry first. A word written exactly as a name of the manuals, case included
+ *   ("OK", "RUN", "MMALLOC"), is an identifier too: it is searched even when shorter than
+ *   3 letters and puts its entry first, so "OK parse json" ranks OK, FAIL first and "ok
+ *   parse json" does not. A word of 6 or more letters found nowhere is searched again
  *   allowing an edit or two. The full rules are in the implementation.
  *
  * THE CORPUS
@@ -140,7 +143,7 @@ typedef struct {
  *
  * Everything indented under Declaration, Documentation and Example is copied from the
  * manual. The text is at most max_bytes bytes, except that the head always appears
- * whole (at most 2048 bytes, about 300 for a short question) and so does, when entries
+ * whole (at most 2300 bytes, under 300 for a short question) and so does, when entries
  * are not shown, the line "Not shown (byte budget): ... and N more" (at most 43 bytes).
  * Entries come in rank order, each as complete as fits: a declaration is never cut; the
  * doc text is whole, or cut after its last sentence that fits and " ...", or "not shown
@@ -2317,9 +2320,15 @@ const char *tld_doc_corpus_id(void)
  *      byte that is not a letter or digit, so "json" matches in "tld_json_parse" and
  *      "pars" in "parsed", but "paris" not in "comparison"); the number of such matches
  *      is the word's frequency in that field.
- *   4. Near matches. A word of at least 6 bytes with no match anywhere is searched again
- *      with k = 1 (k = 2 from 12 bytes); its matches starting within one byte of a word
- *      start then count as its frequencies, and the head shows the nearest form.
+ *   4. Near matches. A word with no exact or name match anywhere is searched again with
+ *      k = 1 edit (k = 2 from 12 bytes): first its stem, when the stem has at least 6
+ *      bytes ("alocations" -> "alocation" finds "allocation"); then, when that finds
+ *      nothing, the word as written (lower case), when it has at least 6 bytes and differs
+ *      from its stem (a misspelled "alocation" stems to "aloc"). The matches starting
+ *      within one byte of a word start then count as its frequencies, and the head shows
+ *      the nearest form: the first word (letters, digits and '_') of the closest match,
+ *      with its own edit distance; a match whose first word is more than k edits away
+ *      gives no form.
  *   5. Names. An identifier equal to a name of a record (ignoring case when it contains
  *      '_') is a name match there; otherwise one within d edits of a name, d * 6 <= its
  *      length and d <= 3 (tld_bpm_distance), is a close-name match.
@@ -2636,7 +2645,18 @@ static void tld__doc_words(const char *question, tld__doc_query *q)
                         continue;
                 }
                 for(int j = 0; j < q->n_words; j++){
-                        dup |= strcmp(q->w[j].low, x.low) == 0;
+                        if(strcmp(q->w[j].low, x.low) != 0){
+                                continue;
+                        }
+                        dup = 1;
+                        /* an identifier spelling wins over a plain word of the same
+                           lower-case form, so the answer does not depend on which comes
+                           first */
+                        if(ident && !q->w[j].ident){
+                                memcpy(q->w[j].word, x.word, sizeof x.word);
+                                memcpy(q->w[j].stem, x.low, sizeof x.low);
+                                q->w[j].ident = 1;
+                        }
                 }
                 for(int j = 0; j < q->n_ignored; j++){
                         dup |= tld__doc_eq_nocase(q->ignored[j], strlen(q->ignored[j]), x.low, n);
@@ -2660,6 +2680,43 @@ static void tld__doc_words(const char *question, tld__doc_query *q)
                 }
                 q->w[q->n_words++] = x;
         }
+}
+
+/* The nearest form of word w (rule 4) from a near match of b at t[st, end) with dist
+ * edits: the first word (letters, digits and '_') of the span. A match can run over the
+ * ", " between names or into the next word; then the word is compared again and kept only
+ * when it is at most k edits from b, with that distance. It replaces w's form when it is
+ * closer. */
+static int tld__doc_near_form(tld__doc_word *w, const tld_bpm *b, const char *t, int64_t st, int64_t end,
+                              int dist, int k)
+{
+        int64_t a = st;
+        int64_t z;
+        while(a < end && !(tld__doc_alnum((unsigned char)t[a]) || t[a] == '_')){
+                a++;
+        }
+        z = a;
+        while(z < end && (tld__doc_alnum((unsigned char)t[z]) || t[z] == '_')){
+                z++;
+        }
+        if(z == a){
+                return OK;
+        }
+        if(z < end || a > st){
+                /* the word is not the whole span: its own distance (a word continuing past
+                   the span, as "Complete" for a match "Comple", stays cut at the span) */
+                RUN(tld_bpm_distance(b, t + a, z - a, &dist));
+                if(dist > k){
+                        return OK;
+                }
+        }
+        if(dist < w->near_dist){
+                w->near_dist = dist;
+                tld__doc_clean(w->near, TLD__DOC_MAX_WORD, t + a, (size_t)(z - a));
+        }
+        return OK;
+ERROR:
+        return FAIL;
 }
 
 /* Count the matches of b (with up to k edits) of word j in every field of every record
@@ -2692,9 +2749,8 @@ static int tld__doc_count(tld__doc_query *q, int j, const tld_bpm *b, int k, int
                                         }
                                         cnt++;
                                         if(k > 0 && hits[x].dist < w->near_dist){
-                                                w->near_dist = hits[x].dist;
-                                                tld__doc_clean(w->near, TLD__DOC_MAX_WORD, t + st,
-                                                               (size_t)(hits[x].end - st));
+                                                RUN(tld__doc_near_form(w, b, t, st, hits[x].end, hits[x].dist,
+                                                                       k));
                                         }
                                 }
                                 MFREE(hits);
@@ -2718,10 +2774,11 @@ static int tld__doc_search_word(tld__doc_query *q, int j)
 {
         tld__doc_word *w = &q->w[j];
         tld_bpm *b = NULL;
-        size_t len = strlen(w->stem);
+        size_t len = strlen(w->low);
+        size_t sl = strlen(w->stem);
         int df = 0;
         w->near_dist = INT32_MAX;
-        RUN(tld_bpm_alloc(&b, w->stem, (int)len, TLD_BPM_NOCASE));
+        RUN(tld_bpm_alloc(&b, w->stem, (int)sl, TLD_BPM_NOCASE));
         RUN(tld__doc_count(q, j, b, 0, &df));
         w->found = df > 0;
         if(w->ident){
@@ -2740,7 +2797,15 @@ static int tld__doc_search_word(tld__doc_query *q, int j)
                         }
                 }
         }
-        if(!w->found && len >= 6){
+        /* rule 4: the stem first, then the word as written (a misspelled word can stem to
+           something short and garbled: "alocation" -> "aloc") */
+        if(!w->found && sl >= 6){
+                RUN(tld__doc_count(q, j, b, sl >= 12 ? 2 : 1, &df));
+        }
+        if(!w->found && df == 0 && len >= 6 && strcmp(w->low, w->stem) != 0){
+                tld_bpm_free(b);
+                b = NULL;
+                RUN(tld_bpm_alloc(&b, w->low, (int)len, TLD_BPM_NOCASE));
                 RUN(tld__doc_count(q, j, b, len >= 12 ? 2 : 1, &df));
         }
         w->df = df;
@@ -2889,6 +2954,19 @@ static int tld__doc_sentence_end(const char *s, size_t i, size_t n)
         }
         return j >= n || (s[j] >= 'A' && s[j] <= 'Z');
 }
+
+/* The longest head tld__doc_head can write: 2213 bytes (tld_doc_ask documents at most
+ * 2300, which the assertion below holds). The title and Question line: 25 + 1 bytes and
+ * the question, at most TLD__DOC_MAX_QUESTION + 4 with " ..." (tld__doc_clean writes one
+ * byte for each byte it replaces). The Words line is longest with no word found: 27 + 17 (" none. Not found:")
+ * + 2 bytes, and per word ", " (one byte less for the first), the word (at most
+ * TLD__DOC_MAX_WORD) and " (nearest: \"\", 2 edits)" (23, one digit as k <= 2) around a
+ * nearest form of at most TLD__DOC_MAX_WORD + 4. The Not searched line: 13 + 9 (" and
+ * more") + 64 bytes, and per word ", " and the word. The closing line: at most 93. */
+#define TLD__DOC_MAX_HEAD (25 + TLD__DOC_MAX_QUESTION + 4 + 1 + \
+        27 + 17 + 2 + TLD__DOC_MAX_WORDS * (2 + TLD__DOC_MAX_WORD + 23 + TLD__DOC_MAX_WORD + 4) - 1 + \
+        13 + 9 + 64 + TLD__DOC_MAX_IGNORED * (2 + TLD__DOC_MAX_WORD) - 1 + 93)
+_Static_assert(TLD__DOC_MAX_HEAD <= 2300, "the head can be longer than the 2300 bytes tld_doc_ask documents");
 
 /* The head: title, question, the facts of the search, the words not searched. */
 static int tld__doc_head(tld_strbuf *b, const tld_doc_answer *a, const tld__doc_query *q)
@@ -3258,6 +3336,7 @@ void tld_doc_answer_free(tld_doc_answer *a)
 #undef TLD__DOC_MAX_QUESTION
 #undef TLD__DOC_MAX_IGNORED
 #undef TLD__DOC_MAX_SEE
+#undef TLD__DOC_MAX_HEAD
 #undef TLD__DOC_N_FIELDS
 #undef TLD__DOC_W_NAMES
 #undef TLD__DOC_K1

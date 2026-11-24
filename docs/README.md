@@ -17,8 +17,12 @@ uv run python tools/amalgamate.py        # src/ -> tld.h
 cmake --build build --target docs        # headers -> docs/*.md and the corpus in tld_doc.h
 ```
 
-The test `docs-current` (`tlddoc --check`) fails while a manual or the corpus block is out
-of date or a public symbol has no doc comment.
+The docs target leaves a file that is already current alone (it prints `unchanged`, and
+its modification time stays, so nothing that includes `tld_doc.h` is rebuilt) and replaces
+the others whole, through a temporary file renamed over them, so a failed run never leaves
+one half written. The test `docs-current` (`tlddoc --check`) fails while a manual or the
+corpus block is out of date or a public symbol has no doc comment; `docs-unchanged` checks
+that a run that changes nothing writes nothing.
 
 ## Comment convention
 

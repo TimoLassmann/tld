@@ -52,7 +52,10 @@ question's words (common English words dropped, plurals and endings such as -ing
 taken off) are matched where words of the manual start. Records are ranked by BM25
 (the standard ranking formula, with its usual parameters), a match in a name counting
 three times; an identifier ("tld_json_get_str", or with a typo "tld_jsn_get_str")
-puts its entry first. A word of 6 or more letters found nowhere is searched again
+puts its entry first. A word written exactly as a name of the manuals, case included
+("OK", "RUN", "MMALLOC"), is an identifier too: it is searched even when shorter than
+3 letters and puts its entry first, so "OK parse json" ranks OK, FAIL first and "ok
+parse json" does not. A word of 6 or more letters found nowhere is searched again
 allowing an edit or two. The full rules are in the implementation.
 
 <a id="sec-the-corpus"></a>
@@ -237,7 +240,7 @@ See also: tld_json_obj_free              (names its doc text mentions)
 
 Everything indented under Declaration, Documentation and Example is copied from the
 manual. The text is at most max_bytes bytes, except that the head always appears
-whole (at most 2048 bytes, about 300 for a short question) and so does, when entries
+whole (at most 2300 bytes, under 300 for a short question) and so does, when entries
 are not shown, the line "Not shown (byte budget): ... and N more" (at most 43 bytes).
 Entries come in rank order, each as complete as fits: a declaration is never cut; the
 doc text is whole, or cut after its last sentence that fits and " ...", or "not shown

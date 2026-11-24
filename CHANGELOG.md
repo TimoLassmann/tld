@@ -16,12 +16,16 @@
   "0.1.0". Manual: `docs/tld_doc.md`; design: `docs/design/tld_doc-prd.md`.
 - The corpus: one record per entry of `docs/tld.md` and `docs/tld_ai.md`, generated
   into `tld_doc.h` by `tools/tlddoc.c`, which now also writes `docs/tld_doc.md`.
-  `docs-current` checks both, and `tlddoc --examples` also covers `tld_doc.h`.
+  `docs-current` checks both, and `tlddoc --examples` also covers `tld_doc.h`. tlddoc
+  writes only the outputs that changed, each through a temporary file renamed over the
+  old one, so a docs run with no change rebuilds nothing and a failed run never leaves a
+  half-written `tld_doc.h`.
 - `examples/tld_ask.c` (target `tld-ask`): `tld-ask [-b BYTES] [-n N] "question"`.
 - Tests: `unit-doc` (corpus against the manuals and headers, the search, the text format
   and budget, edge cases), `doc-eval` (the retrieval figures on the 69 questions of
   `tests/doc/questions.tsv`) and `doc-eval-unknown-name` (doc-eval fails on an expected
-  name that is not in the corpus), `null-args-doc`, the `doc` scenario of `oom-tld`,
+  name that is not in the corpus), `docs-unchanged`, `null-args-doc`, the `doc` scenario
+  of `oom-tld`,
   `tld_doc.h` in `names`, `doc-examples-doc`, `tld-ask-run`, `single-header-doc` and
   `single-header-doc-strict`.
 

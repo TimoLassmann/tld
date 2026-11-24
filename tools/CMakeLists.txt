@@ -2,6 +2,7 @@
 # tld_ai.h and tld_doc.h, and the corpus block in tld_doc.h from the first two manuals.
 #   cmake --build build --target docs     regenerate the manuals and the corpus block
 #   ctest -R docs-current                 fails while any of the four is out of date
+#   ctest -R docs-unchanged               fails if a run that changes nothing writes a file
 #   ctest -R doc-examples                 fails while a doc-comment example does not compile or run
 find_package(Threads REQUIRED)
 
@@ -16,6 +17,12 @@ add_custom_target(docs
   VERBATIM)
 
 add_test(NAME docs-current COMMAND tlddoc --check ${CMAKE_SOURCE_DIR})
+
+# A docs run that changes nothing leaves every output (and its modification time) alone,
+# and an edit replaces the outputs whole; run on a copy of the headers in the build tree.
+add_test(NAME docs-unchanged
+  COMMAND sh ${CMAKE_SOURCE_DIR}/tests/docs/unchanged.sh $<TARGET_FILE:tlddoc>
+          ${CMAKE_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/docs-unchanged)
 
 # Every code example in the doc comments compiles and runs against the current headers;
 # the tld_ai.h ones against tests/ai/mock_ollama.py, a mock server (never a real Ollama).

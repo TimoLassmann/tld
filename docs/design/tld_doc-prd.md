@@ -51,9 +51,12 @@ claim that the entries answer the question; the reader decides.
 
 ## 5. The corpus (generated, never edited)
 
-- `tlddoc ROOT` (and `cmake --build build --target docs`) writes, in one run, `docs/tld.md`,
+- `tlddoc ROOT` (and `cmake --build build --target docs`) makes, in one run, `docs/tld.md`,
   `docs/tld_ai.md`, `docs/tld_doc.md` and the corpus block in `tld_doc.h`. There is no
-  separate step to forget.
+  separate step to forget. An output that is already current is not written (no
+  needless rebuild); a changed one is written to a temporary file in the same directory
+  and renamed over the old one, so a failed run never leaves a half-written header
+  (ctest `docs-unchanged`).
 - `tlddoc --check ROOT` (ctest `docs-current`) fails when any of the four differs from what
   would be generated. The output holds no dates or paths: byte-for-byte reproducible.
 - The block sits between two marker lines, e.g.
@@ -131,8 +134,10 @@ The rules, as in the comment above the search code in tld_doc.h:
 1. Words: ASCII letters, digits and `_`; every other byte separates words. At most 16
    distinct words, each cut to 32 bytes; the head names the first 8 words left out
    ("Not searched: ..."). An identifier contains `_` or is exactly, with case, a corpus
-   name (`MMALLOC`, `galloc`). Other words are lower-cased; a stopword (a fixed list of
-   about 100 English function words) or a word under 3 bytes is dropped.
+   name (`MMALLOC`, `galloc`, `OK`). Other words are lower-cased; a stopword (a fixed list
+   of about 100 English function words) or a word under 3 bytes is dropped. When a word
+   comes twice, once as an identifier (`MMALLOC`) and once not (`mmalloc`), the
+   identifier is kept, whichever comes first.
 2. Stems: a plain word loses one suffix (`ation`, `ing`, `ies`, `ed`, `es` if 4 bytes
    remain, `s` if 3 remain and not after `s`, `u`, `i`), then a final `e` if 4 remain.
    Identifiers are searched whole.
@@ -142,9 +147,14 @@ The rules, as in the comment above the search code in tld_doc.h:
    The two module fields are shared by all records of a module, so they are scored
    without length normalisation (b = 0): they move a module's records together and
    never reorder them.
-4. Near matches: a word of 6 or more bytes with no match anywhere is searched again
-   with k = 1 (k = 2 from 12 bytes); those matches become its frequencies, and the head
-   shows the nearest form ("levenstein (nearest: \"Levenshtein\", 1 edit)").
+4. Near matches: a word with no exact or name match anywhere is searched again with
+   k = 1 (k = 2 from 12 bytes): first its stem, when it has at least 6 bytes
+   ("alocations" -> "alocation", 1 edit from "allocation"); when that finds nothing, the
+   word as written, when it has at least 6 bytes and differs from its stem ("alocation"
+   stems to "aloc"). Those matches become its frequencies, and the head shows the
+   nearest form, the first word of the closest match with its own distance
+   ("levenstein (nearest: \"Levenshtein\", 1 edit)"). Trying the stem first keeps every
+   typo the stem finds; on 793 generated typos this order loses none and gains 32.
 5. Names: an identifier equal to a record's name is a name match; within d edits of a
    name (d <= 3, 6d <= length) a close-name match.
 6. Ranking: BM25F with k1 = 1.2 and b = 0.75, the names field weighing 3, the others 1;
@@ -180,7 +190,7 @@ Not shown (byte budget): name; name; ... and N more
 
 Instead of the found/not-found line the head may say that the question has no words to
 search for; with words but no hits it says that no entry matches them. The text is at
-most max_bytes bytes, except that the head always appears whole (at most 2048 bytes) and
+most max_bytes bytes, except that the head always appears whole (at most 2300 bytes) and
 so does the shortest Not shown line. Entries come in rank order, each as complete as
 fits: the declaration is never cut; the doc text is whole, cut after its last sentence
 that fits (" ..."), or "not shown (byte budget)"; the example only with the whole doc
@@ -221,9 +231,14 @@ translate and pdf). A gap seen but not tuned for: "read a JSON string" ranks
 ## 10. Tests and consistency
 
 - `docs-current`: the manuals, docs/tld_doc.md and the corpus block are current.
+- `docs-unchanged`: on a copy of the headers, a second tlddoc run writes nothing, an
+  edit rewrites the outputs whole and keeps the file mode, and a failed write leaves the
+  old file and no temporary file.
 - `unit-doc`: the corpus against the manuals and headers (section 5), the corpus API, the
-  search on fixed questions (identifiers exact, with a typo, without `_`; near forms;
-  found and not found; no words; no match; top_n; the same text twice), every text
+  search on fixed questions (identifiers exact, with a typo, without `_`, `OK` against
+  `ok`; typos through the stem and as written, and their nearest forms; a word repeated
+  in two spellings; found and not found; no words; no match; top_n; the same text
+  twice), every text
   checked for the rules of section 8 (budget, head, entries a prefix of the hits with
   the rest under Not shown, whole declarations and examples, cut doc text, See also
   from the doc text, the module description once per module) over 738 budgets, and

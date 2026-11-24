@@ -7,7 +7,11 @@
  *
  * ROOT is the repository root (it holds the three headers); DIR defaults to ROOT/docs
  * and holds the manuals (the corpus block is always written into ROOT/tld_doc.h).
- * Without --check the four outputs are (re)written in one run. With --check nothing is
+ * Without --check the four outputs are made in one run; one whose file already holds
+ * that text is left alone (not even its modification time changes, so a docs run that
+ * changes nothing rebuilds nothing) and reported as unchanged, the others are written to
+ * a temporary file beside them and renamed over them, so a failed run never leaves a
+ * file, tld_doc.h above all, half written (replace_file). With --check nothing is
  * written: the exit status is 1, with the problems listed on stderr, when a manual or
  * the corpus block on disk differs from what would be generated or when a public symbol
  * has no doc comment; 0 otherwise. The output holds no dates or paths, so it is
@@ -72,6 +76,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define MACRO_FULL_LINES 7   /* longer macros are shown as their signature only */
 
@@ -2473,6 +2478,74 @@ ERROR:
         return FAIL;
 }
 
+/* Replace path with text without ever leaving it half written: text goes to a new
+ * temporary file in the same directory (path.XXXXXX, from mkstemp), which is flushed,
+ * synced and closed with every error checked, given the mode of the file it replaces
+ * (or 0666 less the umask for a new file), and renamed over path. On any error the
+ * temporary file is removed, path is left as it was and FAIL is returned. rename()
+ * replaces a symbolic link at path with a regular file, and the file's owner and group
+ * become those of this process; neither matters for the files in this repository. */
+static int replace_file(const char *path, tld_strbuf *text)
+{
+        struct stat st;
+        FILE *f = NULL;
+        char *tmp = NULL;
+        size_t n = strlen(path) + 8;
+        mode_t mode;
+        int fd = -1;
+        int made = 0;
+
+        if(stat(path, &st) == 0){
+                mode = st.st_mode & 07777;
+        }else if(errno == ENOENT){
+                mode_t mask = umask(0);
+                umask(mask);
+                mode = 0666 & ~mask;
+        }else{
+                ERROR_MSG("Cannot stat %s: %s", path, strerror(errno));
+        }
+        MMALLOC(tmp, n);
+        snprintf(tmp, n, "%s.XXXXXX", path);
+        fd = mkstemp(tmp);
+        if(fd < 0){
+                ERROR_MSG("Cannot create a temporary file for %s: %s", path, strerror(errno));
+        }
+        made = 1;
+        if(fchmod(fd, mode) != 0){
+                ERROR_MSG("Cannot set the mode of %s: %s", tmp, strerror(errno));
+        }
+        f = fdopen(fd, "wb");
+        if(f == NULL){
+                ERROR_MSG("Cannot write %s: %s", tmp, strerror(errno));
+        }
+        fd = -1;        /* f owns it now */
+        if(fwrite(text->str, 1, (size_t)text->len, f) != (size_t)text->len || fflush(f) != 0 ||
+           fsync(fileno(f)) != 0){
+                ERROR_MSG("Cannot write %s: %s", tmp, strerror(errno));
+        }
+        if(fclose(f) != 0){
+                f = NULL;
+                ERROR_MSG("Cannot write %s: %s", tmp, strerror(errno));
+        }
+        f = NULL;
+        if(rename(tmp, path) != 0){
+                ERROR_MSG("Cannot rename %s to %s: %s", tmp, path, strerror(errno));
+        }
+        MFREE(tmp);
+        return OK;
+ERROR:
+        if(f){
+                fclose(f);
+        }else if(fd >= 0){
+                close(fd);
+        }
+        if(made){
+                remove(tmp);
+        }
+        MFREE(tmp);
+        return FAIL;
+}
+
 static int count_lines(tld_strbuf *b)
 {
         int n = 0;
@@ -2496,12 +2569,14 @@ static void usage(void)
 }
 
 /* Write text to path, or with check compare it with path and count a difference in
- * *problems. what is reported after the path ("lines, symbols"). */
+ * *problems. what is reported after the path ("lines, symbols"). A file that already
+ * holds text is not written (its modification time stays, so nothing that includes it
+ * is rebuilt) and is reported as unchanged; any other is replaced with replace_file. */
 static int put_file(const char *path, tld_strbuf *text, int check, int *problems, const char *what)
 {
         int same = 0;
+        RUN(same_as_file(path, text, &same));
         if(check){
-                RUN(same_as_file(path, text, &same));
                 if(!same){
                         fprintf(stderr, "tlddoc: %s is out of date; regenerate with "
                                 "cmake --build build --target docs\n", path);
@@ -2509,7 +2584,11 @@ static int put_file(const char *path, tld_strbuf *text, int check, int *problems
                 }
                 return OK;
         }
-        RUN(write_file(path, text));
+        if(same){
+                fprintf(stdout, "tlddoc: unchanged %s (%s)\n", path, what);
+                return OK;
+        }
+        RUN(replace_file(path, text));
         fprintf(stdout, "tlddoc: wrote %s (%s)\n", path, what);
         return OK;
 ERROR:

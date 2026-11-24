@@ -11,13 +11,13 @@
 | `null/`        | `null-args`, `null-args-doc`, `null-args-covered` | every public function with NULL in each pointer argument, each call in a child process: the failure value and an ERROR line, or a normal return where NULL is allowed (`null-args -h`); `null-args-doc` is the same program for every `tld_doc.h` function (built with `TLD_NULL_DOC`); `covered.sh` fails when a function has no case |
 | `names/`       | `names`                             | every symbol, macro and documented name of `tld.h` is `tld_`/`TLD_` (internals `tld__`/`TLD__`) or an idiom name such as `RUN`, and what `tld_doc.h` adds is `tld_doc_`/`TLD_DOC_` (internals `tld__doc_`/`TLD__DOC_`); `clash.c`, a program reusing common names after the implementation, compiles (`names/check.sh CC SRC_DIR`) |
 | `misuse/`      | `misuse-rejected`                   | the compiler rejects the mistakes the headers are designed to catch (`err_*.c`, `warn_*.c`); `ok_usage.c` compiles cleanly |
-| `docs/`        | `doc-examples`, `doc-examples-ai-mock`, `doc-examples-doc` | every code example in the doc comments of `tld.h`, `tld_ai.h` and `tld_doc.h` compiles and runs without failing: `tlddoc --examples` writes each as its own program, `docs/examples.sh` builds and runs them. The `tld_ai.h` examples run against `ai/mock_ollama.py`, a **mock** server with canned answers: this checks the C, not what a real model answers |
+| `docs/`        | `doc-examples`, `doc-examples-ai-mock`, `doc-examples-doc`, `docs-unchanged` | every code example in the doc comments of `tld.h`, `tld_ai.h` and `tld_doc.h` compiles and runs without failing: `tlddoc --examples` writes each as its own program, `docs/examples.sh` builds and runs them. The `tld_ai.h` examples run against `ai/mock_ollama.py`, a **mock** server with canned answers: this checks the C, not what a real model answers. `docs-unchanged` (`docs/unchanged.sh`) runs `tlddoc` on a copy of the three headers in the build tree: a second run reports all four outputs unchanged and touches no file; after an edited doc comment the outputs that hold it are rewritten (`tld_doc.h` keeping its mode), and no temporary file is left, also when a manual cannot be written |
 | `migrate/`     | `migrate`                           | `tools/migrate.py` turns `old.c` (code for the old tld) into `expected.c`, changes nothing on a second run, and flags what needs a hand edit |
 | `fuzz/`        | none (`fuzz-json`, `fuzz-template`, `fuzz-ai`, `fuzz-http` programs) | libFuzzer targets for JSON, templates and tld_ai.h replies, built with clang and `-DTLD_FUZZ=ON`, run by `fuzz/run.sh SECONDS BUILD_DIR` from the seeds in `fuzz/seeds/` |
 
 `test.h` is the small command-line helper every test program uses (not part of the
 library). `CMakeLists.txt` builds all programs into `build/tests/`; `ai.cmake` holds the
-`tld_ai.h` tests. `docs-current` and the `doc-examples*` tests are defined in
+`tld_ai.h` tests. `docs-current`, `docs-unchanged` and the `doc-examples*` tests are defined in
 `tools/CMakeLists.txt`.
 
 ## Running

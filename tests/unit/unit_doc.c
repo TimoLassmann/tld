@@ -15,16 +15,20 @@
  *   - the corpus API: tld_doc_n_entries, tld_doc_entry_at in and out of range.
  *
  * The search and the answer text (tld_doc_ask):
- *   - fixed questions: identifiers (exact, with a typo, without '_'), the order and
- *     number of hits, the words found and not found ("the weather in paris", a typo with
- *     its nearest form), no words, no match, the same text twice;
- *   - every text: at most max_bytes or its head, the head at most 2048 bytes, the
+ *   - fixed questions: identifiers (exact, with a typo, without '_', written as a name
+ *     with its case: OK but not ok), the order and number of hits, the words found and
+ *     not found ("the weather in paris"), typos searched again with edits through the
+ *     stem ("alocations") or as written ("alocation", "sortting") and their nearest
+ *     forms, a repeated word in two spellings in either order, no words, no match, the
+ *     same text twice;
+ *   - every text: at most max_bytes or its head, the head at most 2300 bytes, the
  *     entries a prefix of the hits in rank order with the rest listed under "Not shown",
  *     no declaration cut, a doc text whole or cut after a sentence, an example whole, a
- *     See also name one the doc text mentions, the module description once per module;
+ *     See also name one the doc text mentions, the module description once per module,
+ *     every nearest form letters, digits and '_' only;
  *   - the budget for many max_bytes values;
- *   - edge cases: an empty question, only stopwords, a very long question, bytes >=
- *     0x80 and control bytes, bad arguments.
+ *   - edge cases: an empty question, only stopwords, a very long question, the longest
+ *     head this corpus can give, bytes >= 0x80 and control bytes, bad arguments.
  *
  *   unit-doc [ROOT]     ROOT: the repository root (default: the source tree it was built from)
  */
@@ -368,12 +372,20 @@ static void check_text(const tld_doc_answer *a, int max_bytes, const char *what)
                       "%s, max_bytes %d: %zu bytes, head %zu, and more than the shortest Not shown line", what,
                       max_bytes, n, h);
         }
-        CHECK(h <= 2048, "%s: head of %zu bytes (more than 2048)", what, h);
+        CHECK(h <= 2300, "%s: head of %zu bytes (more than 2300)", what, h);
         CHECK(strncmp(t, "tld_doc answer\nQuestion: ", 25) == 0, "%s: text does not start with the title", what);
         CHECK((strstr(t, "\nWords found in the manuals: ") != NULL && strstr(t, "\nWords found in the manuals: ") < t + h) ||
               (strstr(t, "\nThe question has no words to search for") != NULL &&
                strstr(t, "\nThe question has no words to search for") < t + h),
               "%s: neither a Words found line nor a no-words line in the head", what);
+        /* a nearest form in the head is letters, digits and '_' only */
+        for(const char *x = strstr(t, "(nearest: \""); x && x < t + h; x = strstr(x + 1, "(nearest: \"")){
+                const char *y = x + 11;
+                while(*y && *y != '"' && (isalnum((unsigned char)*y) || *y == '_')){
+                        y++;
+                }
+                CHECK(*y == '"' && y > x + 11, "%s: the nearest form at \"%.40s\" is not word bytes only", what, x);
+        }
         ns = strstr(t, "\nNot shown (byte budget): ");
         for(int i = 0; i < a->n_hits; i++){
                 const tld_doc_entry *e = a->hits[i].entry;
@@ -540,6 +552,98 @@ static int test_search(void)
         CHECK(strstr(a->text, " Not found: levenstein (nearest: \"Levenshtein\", 1 edit).\n") != NULL,
               "levenstein: the head does not name the nearest form");
         CHECK(strstr(a->text, "; near levenstein\n") != NULL, "levenstein: no near match on the Matched line");
+        tld_doc_answer_free(a);
+        a = NULL;
+
+        /* the near search falls back to the word as written: the stem of "alocation" is
+           "aloc", too short for a near search */
+        RUN(ask("memory alocation", 0, 0, &a));
+        check_text(a, 0, "memory alocation");
+        CHECK(strstr(a->text, "\nWords found in the manuals: memory. Not found: alocation (nearest: \"allocation\", "
+                     "1 edit).\n") != NULL, "memory alocation: the head does not name the nearest form allocation");
+        CHECK(first_is(a, "MFREE"), "memory alocation: MFREE is not the first hit");
+        {
+                int mmalloc = 0;
+                for(int i = 0; i < a->n_hits; i++){
+                        mmalloc |= strcmp(a->hits[i].entry->names, "MMALLOC") == 0;
+                }
+                CHECK(mmalloc, "memory alocation: MMALLOC is not among the hits");
+        }
+        CHECK(strstr(a->text, "\nENTRY 3: MMALLOC\n") != NULL &&
+              strstr(strstr(a->text, "\nENTRY 3: MMALLOC\n"), "\nMatched: words memory; near alocation\n") != NULL,
+              "memory alocation: MMALLOC is not entry 3 with a near match");
+        tld_doc_answer_free(a);
+        a = NULL;
+        RUN(ask("sortting", 0, 0, &a));
+        CHECK(strstr(a->text, "\nWords found in the manuals: none. Not found: sortting (nearest: \"sorting\", "
+                     "1 edit).\n") != NULL && a->n_hits > 0 && strstr(a->text, "\nMatched: near sortting\n") != NULL,
+              "sortting (stem sortt): no near search");
+        tld_doc_answer_free(a);
+        a = NULL;
+
+        /* a later identifier spelling of a repeated word wins, whatever the order */
+        RUN(ask("mmalloc MMALLOC", 0, 0, &a));
+        RUN(ask("MMALLOC mmalloc", 0, 0, &b));
+        CHECK(first_is(a, "MMALLOC") && first_is(b, "MMALLOC"), "mmalloc MMALLOC: MMALLOC is not the first hit");
+        CHECK(strstr(a->text, "\nENTRY 1: MMALLOC\n") != NULL &&
+              strstr(a->text, "\nMatched: name \"MMALLOC\"\n") != NULL, "mmalloc MMALLOC: no name match");
+        CHECK(a->n_hits == b->n_hits && a->hits[0].score == b->hits[0].score && strchr(a->text, '\n') &&
+              strchr(b->text, '\n') && strcmp(strchr(a->text + 25, '\n'), strchr(b->text + 25, '\n')) == 0,
+              "mmalloc MMALLOC and MMALLOC mmalloc give different answers");
+        tld_doc_answer_free(a);
+        tld_doc_answer_free(b);
+        a = b = NULL;
+
+        /* a word written as a name with its case is an identifier, even of 2 letters: "OK"
+           puts OK, FAIL first and "ok" (shorter than 3 letters) is dropped */
+        RUN(ask("OK parse json", 0, 0, &a));
+        RUN(ask("ok parse json", 0, 0, &b));
+        CHECK(first_is(a, "OK, FAIL") && strstr(a->text, "\nMatched: name \"OK\"") != NULL,
+              "OK parse json: OK, FAIL is not the first hit with a name match");
+        CHECK(!first_is(b, "OK, FAIL") && strstr(b->text, "\nWords found in the manuals: parse, json. ") != NULL,
+              "ok parse json: OK, FAIL is the first hit, or ok is searched");
+        tld_doc_answer_free(a);
+        tld_doc_answer_free(b);
+        a = b = NULL;
+
+        /* the nearest form is trimmed to word bytes: the near match of tld_json_get_strx
+           runs over the ", " after tld_json_get_str in the names */
+        RUN(ask("tld_json_get_strx", 0, 0, &a));
+        check_text(a, 0, "tld_json_get_strx");
+        CHECK(strstr(a->text, " Not found: tld_json_get_strx (nearest: \"tld_json_get_str\", 1 edit).\n") != NULL,
+              "tld_json_get_strx: the nearest form is not tld_json_get_str");
+        tld_doc_answer_free(a);
+        a = NULL;
+        /* a match whose first word is more than k edits away (the span "tld_json_get_str(tld",
+           its word tld_json_get_str 3 edits from tld_json_get_strtld) gives no nearest form */
+        RUN(ask("tld_json_get_strtld", 0, 0, &a));
+        check_text(a, 0, "tld_json_get_strtld");
+        CHECK(strstr(a->text, " Not found: tld_json_get_strtld.\n") != NULL,
+              "tld_json_get_strtld: a nearest form with a non-word byte inside");
+        tld_doc_answer_free(a);
+        a = NULL;
+
+        /* the stem comes first: "alocations" stems to "alocation", 1 edit from allocation,
+           while the word as written is 2 edits away; the same for "aligments" */
+        RUN(ask("memory alocations", 0, 0, &a));
+        check_text(a, 0, "memory alocations");
+        CHECK(strstr(a->text, "\nWords found in the manuals: memory. Not found: alocations (nearest: \"allocation\", "
+                     "1 edit).\n") != NULL && first_is(a, "MFREE") &&
+              strstr(a->text, "\nMatched: words memory; near alocations\n") != NULL,
+              "memory alocations: no near match through the stem, or MFREE not first");
+        tld_doc_answer_free(a);
+        a = NULL;
+        RUN(ask("aligments", 0, 0, &a));
+        CHECK(strstr(a->text, " Not found: aligments (nearest: \"alignment\", 1 edit).\n") != NULL &&
+              first_is(a, "MMALLOC_ALIGNED"), "aligments: no near match through the stem");
+        tld_doc_answer_free(a);
+        a = NULL;
+        /* a match that runs into the next word ("Approximate s") gives its first word, with
+           that word's own distance */
+        RUN(ask("approximately", 0, 0, &a));
+        check_text(a, 0, "approximately");
+        CHECK(strstr(a->text, " Not found: approximately (nearest: \"Approximate\", 2 edits).\n") != NULL &&
+              a->n_hits > 0, "approximately: the nearest form is not Approximate, 2 edits");
         tld_doc_answer_free(a);
         a = NULL;
 
@@ -744,6 +848,38 @@ static int test_edges(void)
         KV_MSG("head, 16 missing words", "%zu bytes", head_len(a->text));
         tld_doc_answer_free(a);
         a = NULL;
+        /* the longest head this corpus gives: 16 distinct words of 26 bytes that each have
+           the longest nearest form (a nearest form is one word of the corpus, and the
+           longest, tld_thread_pool_stop_all, has 24 bytes), 9 more words of 32 bytes, a
+           question cut after 200 bytes, and max_bytes 1 */
+        {
+                static const char *const end[] = {"qq", "qx", "qz", "xq", "xx", "xz", "zq", "zx",
+                                                  "zz", "jq", "jx", "jz", "kq", "kx", "kz", "jj"};
+                const char *p;
+                int n_near = 0;
+                n = 0;
+                for(int i = 0; i < 16; i++){
+                        n += (size_t)snprintf(big + n, sizeof big - n, "tld_thread_pool_stop_all%s ", end[i]);
+                }
+                for(int i = 0; i < 9; i++){
+                        memset(big + n, 'z' - i, 32);
+                        n += 32;
+                        big[n++] = ' ';
+                }
+                big[n] = 0;
+                RUN(ask(big, 1, 0, &a));
+                check_text(a, 1, "the longest head");
+                for(p = a->text; (p = strstr(p, " (nearest: \"tld_thread_pool_stop_all\", 2 edits)")) != NULL; p++){
+                        n_near += p < a->text + head_len(a->text);
+                }
+                CHECK(n_near == 16 && strstr(a->text, " ...\nWords found in the manuals: none. Not found: ") != NULL &&
+                      strstr(a->text, " and more (only the first 16 distinct words") != NULL,
+                      "the longest head: %d of 16 nearest forms, or the question not cut, or no Not searched line",
+                      n_near);
+                KV_MSG("head, the longest", "%zu bytes (at most 2300)", head_len(a->text));
+                tld_doc_answer_free(a);
+                a = NULL;
+        }
 
         /* bad arguments: FAIL with *out NULL */
         CHECK(tld_doc_ask(NULL, NULL, &a) == FAIL && a == NULL, "a NULL question is not FAIL");
