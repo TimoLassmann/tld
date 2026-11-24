@@ -10,7 +10,7 @@
 
 /* MMALLOC(p, size): p = malloc(size), zero-filled. p must be NULL beforehand and size
  * non-zero; either mistake, or running out of memory, prints an error and does goto
- * ERROR. Free with MFREE. */
+ * ERROR (the enclosing function needs an ERROR: label). Free with MFREE. */
 #define MMALLOC(p, size)                                                \
         do {                                                            \
                 if ((p) != NULL) {                                      \
@@ -31,7 +31,8 @@
  * (undefined behaviour; UBSan reports "misaligned address ... requires 64 byte alignment").
  * Pass the struct's own alignment: MMALLOC_ALIGNED(p, sizeof(struct s), _Alignof(struct s)).
  * C11 aligned_alloc requires the size to be a multiple of the alignment, so the size is
- * rounded up. The block is freed with plain free(), so MFREE works unchanged. */
+ * rounded up. The block is freed with plain free(), so MFREE works unchanged. On failure
+ * an error is printed and goto ERROR; the enclosing function needs an ERROR: label. */
 #define MMALLOC_ALIGNED(p, size, align)                                 \
         do {                                                            \
                 if ((p) != NULL) {                                      \
@@ -50,7 +51,7 @@
 
 /* MREALLOC(p, size): resize p to size bytes (malloc when p is NULL). Bytes beyond the old
  * size are not zeroed. On failure p is unchanged, an error is printed and goto ERROR;
- * size 0 is an error. */
+ * size 0 is an error. The enclosing function needs an ERROR: label. */
 #define MREALLOC(p, size)                                               \
         do {                                                            \
                 void *tmpp;                                             \
@@ -82,7 +83,7 @@
  * contiguous block. Any element type (numbers, pointers, structs) whose alignment malloc
  * provides; a more strictly aligned type is a compile error. The pointer should be NULL (an existing block is not freed or resized). On
  * failure an error is printed and goto ERROR. Free with gfree; tld_galloc_dim1/tld_galloc_dim2 give
- * the dimensions back. */
+ * the dimensions back. The enclosing function needs an ERROR: label. */
 #define galloc(...) TLD__GALLOC_ARGS(__VA_ARGS__)
 
 /* gfree(p): free memory from galloc (1D or 2D) and set p to NULL, like MFREE, so a

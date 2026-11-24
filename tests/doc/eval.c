@@ -103,12 +103,13 @@ static int expected_known(const char *expected, const char **bad, size_t *bad_n)
         return 1;
 }
 
-/* Is hit i (an expected one) shown as an ENTRY block in the text of a ("ENTRY n: " and
- * its names, a line of their own)? */
+/* Is hit i (an expected one) shown as an ENTRY or SECTION block in the text of a
+ * ("ENTRY n: " or "SECTION n: " and its names, a line of their own)? */
 static int shown_as_entry(const tld_doc_answer *a, int i)
 {
         char line[8192];
-        snprintf(line, sizeof line, "\nENTRY %d: %s\n", i + 1, a->hits[i].entry->names);
+        snprintf(line, sizeof line, "\n%s %d: %s\n", a->hits[i].entry->kind == TLD_DOC_SECTION ? "SECTION" : "ENTRY",
+                 i + 1, a->hits[i].entry->names);
         return strstr(a->text, line) != NULL;
 }
 

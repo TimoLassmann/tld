@@ -23,7 +23,7 @@ Every public symbol of tld_doc.h is documented below, module by module, with its
 - [Errors](#sec-errors)
 - [Licence](#sec-licence)
 - [general](#mod-general): 1 symbol
-- [the corpus](#mod-the-corpus): 4 symbols
+- [the corpus](#mod-the-corpus): 6 symbols
 - [asking](#mod-asking): 5 symbols
 - [Index](#index)
 
@@ -99,6 +99,18 @@ Version of tld_doc.h.
 
 ## the corpus
 
+<a id="TLD_DOC_ENTRY"></a><a id="TLD_DOC_SECTION"></a>
+
+### `TLD_DOC_ENTRY`, `TLD_DOC_SECTION`
+
+```c
+#define TLD_DOC_ENTRY 0
+#define TLD_DOC_SECTION 1
+```
+
+The kinds of a corpus record (tld_doc_entry.kind): an entry of a manual, or one of its
+general sections.
+
 <a id="tld_doc_entry"></a>
 
 ### `tld_doc_entry`
@@ -112,6 +124,7 @@ typedef struct {
         const char *decl;
         const char *doc;
         const char *example;    /* NULL when the entry has none */
+        int kind;               /* TLD_DOC_ENTRY or TLD_DOC_SECTION */
 } tld_doc_entry;
 ```
 
@@ -121,6 +134,11 @@ name under the entry's heading, in order, separated by ", "; header is "tld.h" o
 its one-line description ("" when it has none); decl is the declaration block as the
 manual shows it; doc is the doc text without its code examples, and example the code
 examples (blocks separated by a blank line), NULL when the entry has none.
+
+A record of kind TLD_DOC_SECTION is a general section of a manual instead (Usage,
+Errors, Memory, ...: the rules that hold for every function). Its names is the header
+and the title, "tld.h: Errors"; module, module_desc and decl are ""; doc and example
+are the section's text and code.
 
 <a id="tld_doc_n_entries"></a>
 
@@ -140,8 +158,9 @@ The number of records in the corpus.
 const tld_doc_entry *tld_doc_entry_at(int i);
 ```
 
-Record i of the corpus, 0 <= i < tld_doc_n_entries(), in manual order (tld.h, then
-tld_ai.h); NULL with an ERROR line when i is outside that range.
+Record i of the corpus, 0 <= i < tld_doc_n_entries(): the entries in manual order
+(tld.h, then tld_ai.h), then the general sections in the same order; NULL with an
+ERROR line when i is outside that range.
 
 <a id="tld_doc_corpus_id"></a>
 
@@ -223,8 +242,8 @@ with " ..."), then the facts of the search: "Words found in the manuals: ..." an
 "Not found: ..." (with the nearest form of a word that was searched again allowing
 edits), or that the question has no words to search for, or that no entry matches.
 When entries follow, a line says they are ranked by word match and that everything
-under ENTRY is copied exactly from the manuals. Then, after a blank line each, the
-entries, best first:
+under ENTRY or SECTION is copied exactly from the manuals. Then, after a blank line
+each, the entries, best first:
 
 ```text
 ENTRY 1: tld_json_parse, tld_json_parse_n
@@ -237,6 +256,9 @@ Documentation:
 Example: none in the manual.             (or "Example:" and the code)
 See also: tld_json_obj_free              (names its doc text mentions)
 ```
+
+A general section (kind TLD_DOC_SECTION) is ranked with the entries and shown as
+"SECTION 2: tld.h: Errors", without the Header, Declaration and See also lines.
 
 Everything indented under Declaration, Documentation and Example is copied from the
 manual. The text is at most max_bytes bytes, except that the head always appears
@@ -268,9 +290,11 @@ Free an answer from tld_doc_ask; NULL is ignored.
 | [`tld_doc_answer_free`](#tld_doc_answer_free) | function | [asking](#mod-asking) |
 | [`tld_doc_ask`](#tld_doc_ask) | function | [asking](#mod-asking) |
 | [`tld_doc_corpus_id`](#tld_doc_corpus_id) | function | [the corpus](#mod-the-corpus) |
+| [`TLD_DOC_ENTRY`](#TLD_DOC_ENTRY) | macro | [the corpus](#mod-the-corpus) |
 | [`tld_doc_entry`](#tld_doc_entry) | type | [the corpus](#mod-the-corpus) |
 | [`tld_doc_entry_at`](#tld_doc_entry_at) | function | [the corpus](#mod-the-corpus) |
 | [`tld_doc_hit`](#tld_doc_hit) | type | [asking](#mod-asking) |
 | [`tld_doc_n_entries`](#tld_doc_n_entries) | function | [the corpus](#mod-the-corpus) |
 | [`tld_doc_opts`](#tld_doc_opts) | type | [asking](#mod-asking) |
+| [`TLD_DOC_SECTION`](#TLD_DOC_SECTION) | macro | [the corpus](#mod-the-corpus) |
 | [`TLD_DOC_VERSION`](#TLD_DOC_VERSION) | macro | [general](#mod-general) |

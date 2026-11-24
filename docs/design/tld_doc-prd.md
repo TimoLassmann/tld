@@ -33,6 +33,7 @@ claim that the entries answer the question; the reader decides.
 - Any model call: no rating, no reworded queries, no text written by a model.
 - Synonym lists. The known synonym gaps (section 9) are accepted.
 - Module overview entries, stemming beyond the simple suffix rule, writing examples.
+  (The general sections of the manuals are records since 2026-11-24, see section 5.)
 - tld_doc.h describing itself: its corpus covers tld.h and tld_ai.h only.
 - A server, a daemon or any network access.
 
@@ -72,12 +73,20 @@ claim that the entries answer the question; the reader decides.
   - the declaration block,
   - the doc text (plain text as in the manual),
   - the code examples of the entry, or none.
+- After the entries, one record per general section of the two manuals (Usage, Errors,
+  Memory, Threads, ...; every section of a header's top comment but the licence), kind
+  `TLD_DOC_SECTION`: names `"tld.h: Errors"`, no module and no declaration, the section's
+  text and code examples. Without them a reader of tld_doc answers never saw the rules
+  that hold for every function (the `ERROR:` label, NULL arguments, who frees what). The
+  answer shows one as `SECTION n: tld.h: Errors` with the Matched line, the text and
+  the example, and no Header, Declaration or See also line.
 - A corpus identifier: a 64-bit FNV-1a hash of the generated block's records, plus the
   `AI_VERSION` it was generated with, returned by `tld_doc_corpus_id()`.
 - C string literals as static const data; nothing is allocated to use the corpus.
 - An independent check in `unit-doc`: the number of records equals the number of `###`
-  entries in docs/tld.md + docs/tld_ai.md, and every record's declaration appears
-  verbatim in its header file.
+  entries in docs/tld.md + docs/tld_ai.md plus their general sections (the `##` headings
+  with no `###` entry, without Contents, Licence and Index), every entry's declaration
+  appears verbatim in its header file, and every section record has its `##` heading.
 
 As built (refinements of the points above):
 
@@ -227,6 +236,19 @@ no hits. Marked misses: c14, c36, p04, p06, p10, p11, all vocabulary gaps (measu
 timer, categories vs labels, mismatches vs edits, classify vs choose, save vs dump,
 translate and pdf). A gap seen but not tuned for: "read a JSON string" ranks
 `tld_json_parse` 6th, because its entry never says "read".
+
+With the general sections as records (section 5) and ten questions that expect one
+(`s01` to `s10`, counted as covered):
+
+| | top 1 | top 3 | top 8 | shown | MRR |
+|---|---|---|---|---|---|
+| covered (43), sections in the corpus | 29 | 38 | 41 | 40 | 0.79 |
+| partial (11), sections in the corpus | 3 | 7 | 7 | 7 | 0.42 |
+| covered (53), with `s01` to `s10` | 37 | 47 | 50 | 49 | 0.80 |
+
+Of the ten, eight have their section at rank 1, one at rank 2, and one is a marked miss
+("compile" where the section says "Build"). The partial MRR moved from 0.44 to 0.42: in
+`p05` a section now ranks above the expected entry.
 
 ## 10. Tests and consistency
 

@@ -2120,6 +2120,7 @@ enum { R_NAMES, R_HEADER, R_MODULE, R_MODDESC, R_DECL, R_DOC, R_EXAMPLE, R_N };
 /* One corpus record: the fields of tld_doc_entry, in its order; R_EXAMPLE may be NULL. */
 typedef struct {
         char *f[R_N];
+        int section;            /* a general section of the top comment, not a manual entry */
 } record;
 
 static uint64_t fnv1a(uint64_t h, const char *p, size_t n)
@@ -2291,6 +2292,51 @@ ERROR:
         return FAIL;
 }
 
+/* Is the top-comment section of this title a corpus record? All but the licence. */
+static int section_in_corpus(const char *title)
+{
+        return strcmp(title, "Licence") != 0;
+}
+
+/* The record of general section s of header h: names "tld.h: Errors", no module and no
+ * declaration, the text and examples as the manual shows them. */
+static int make_section_record(header *h, const section *s, record *r)
+{
+        tld_strbuf *b = NULL;
+        int base = text_indent(s->body);
+        const char *p = s->body;
+        memset(r, 0, sizeof *r);
+        r->section = 1;
+        RUN(tld_strbuf_alloc(&b, 256));
+        RUN(appendf(b, "%s: %s", h->file, s->title));
+        r->f[R_NAMES] = xstrdup(TLD_STR(b));
+        r->f[R_HEADER] = xstrdup(h->file);
+        r->f[R_MODULE] = xstrdup("");
+        r->f[R_MODDESC] = xstrdup("");
+        r->f[R_DECL] = xstrdup("");
+        RUN(tld_strbuf_clear(b));
+        while(*p){      /* the body without its common indentation, as render_text reads it */
+                const char *nl = strchr(p, '\n');
+                size_t n = nl ? (size_t)(nl - p) : strlen(p);
+                size_t skip = 0;
+                while(skip < (size_t)base && skip < n && p[skip] == ' '){
+                        skip++;
+                }
+                RUN(tld_strbuf_append_n(b, p + skip, n - skip));
+                RUN(tld_strbuf_append(b, "\n"));
+                p += n + (nl ? 1 : 0);
+        }
+        RUN(split_doc(TLD_STR(b), &r->f[R_DOC], &r->f[R_EXAMPLE]));
+        for(int k = 0; k < R_EXAMPLE; k++){
+                ASSERT(r->f[k] != NULL, "Out of memory");
+        }
+        tld_strbuf_free(b);
+        return OK;
+ERROR:
+        tld_strbuf_free(b);
+        return FAIL;
+}
+
 static void records_free(record *r, int n)
 {
         for(int i = 0; i < n; i++){
@@ -2322,8 +2368,9 @@ ERROR:
 }
 
 /* The corpus block of tld_doc.h, both marker lines included, from the n headers hs (the
- * one holding AI_VERSION is hs[ai]): one record per manual entry and the corpus
- * identifier (see tld_doc_corpus_id in tld_doc.h). */
+ * one holding AI_VERSION is hs[ai]): one record per manual entry, then one per general
+ * section of the top comments (Usage, Errors, ...), and the corpus identifier (see
+ * tld_doc_corpus_id in tld_doc.h). */
 static int corpus_block(header **hs, int n, int ai, tld_strbuf *o, int *n_records)
 {
         static const char *ind = "                ";
@@ -2332,12 +2379,27 @@ static int corpus_block(header **hs, int n, int ai, tld_strbuf *o, int *n_record
         int n_all = 0;
         uint64_t hash = 0xcbf29ce484222325ULL;
         char ver[64];
+        char *title = NULL;
+        char *overview = NULL;
+        char *preamble = NULL;
+        section *sec = NULL;
+        int n_sec = 0;
 
         RUN(ai_version(hs[ai], ver, sizeof ver));
         for(int f = 0; f < n; f++){
                 for(int i = 0; i < hs[f]->n_m; i++){
                         n_all += hs[f]->m[i]->n_e;
                 }
+        }
+        for(int f = 0; f < n; f++){
+                RUN(split_top(hs[f]->top, &title, &overview, &preamble, &sec, &n_sec));
+                n_all += n_sec;
+                MFREE(title);
+                MFREE(overview);
+                MFREE(preamble);
+                sections_free(sec, n_sec);
+                sec = NULL;
+                n_sec = 0;
         }
         MMALLOC(r, sizeof(record) * (size_t)(n_all ? n_all : 1));
         for(int f = 0; f < n; f++){
@@ -2348,6 +2410,21 @@ static int corpus_block(header **hs, int n, int ai, tld_strbuf *o, int *n_record
                                 RUN(make_record(hs[f], m, m->e[j], &r[n_r - 1]));
                         }
                 }
+        }
+        for(int f = 0; f < n; f++){
+                RUN(split_top(hs[f]->top, &title, &overview, &preamble, &sec, &n_sec));
+                for(int i = 0; i < n_sec; i++){
+                        if(section_in_corpus(sec[i].title)){
+                                n_r++;
+                                RUN(make_section_record(hs[f], &sec[i], &r[n_r - 1]));
+                        }
+                }
+                MFREE(title);
+                MFREE(overview);
+                MFREE(preamble);
+                sections_free(sec, n_sec);
+                sec = NULL;
+                n_sec = 0;
         }
         for(int i = 0; i < n_r; i++){
                 for(int k = 0; k < R_N; k++){
@@ -2367,11 +2444,12 @@ static int corpus_block(header **hs, int n, int ai, tld_strbuf *o, int *n_record
         RUN(tld_strbuf_append(o, "static const tld_doc_entry tld__doc_corpus[TLD__DOC_N_ENTRIES] = {\n"));
         for(int i = 0; i < n_r; i++){
                 RUN(appendf(o, "        {       /* %d: %s, %s */\n", i, r[i].f[R_HEADER],
-                            r[i].f[R_MODULE]));
+                            r[i].section ? strchr(r[i].f[R_NAMES], ' ') + 1 : r[i].f[R_MODULE]));
                 for(int k = 0; k < R_N; k++){
                         RUN(c_string(o, r[i].f[k], ind));
-                        RUN(tld_strbuf_append(o, k + 1 < R_N ? ",\n" : "\n"));
+                        RUN(tld_strbuf_append(o, ",\n"));
                 }
+                RUN(appendf(o, "%s%s\n", ind, r[i].section ? "TLD_DOC_SECTION" : "TLD_DOC_ENTRY"));
                 RUN(appendf(o, "        }%s\n", i + 1 < n_r ? "," : ""));
         }
         RUN(tld_strbuf_append(o, "};\n"));
@@ -2381,6 +2459,10 @@ static int corpus_block(header **hs, int n, int ai, tld_strbuf *o, int *n_record
         return OK;
 ERROR:
         records_free(r, n_r);
+        MFREE(title);
+        MFREE(overview);
+        MFREE(preamble);
+        sections_free(sec, n_sec);
         return FAIL;
 }
 

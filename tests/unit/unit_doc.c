@@ -84,6 +84,29 @@ typedef struct {
         const char *header;
 } heading;
 
+/* The general sections of a manual: its "## " headings with no "### " entry below them,
+ * without Contents, Licence and Index (not corpus records). */
+static int count_sections(const char *text)
+{
+        const char *s = text;
+        int n = 0;
+        int open = 0;   /* a "## " heading that has had no "### " yet */
+        while(*s){
+                const char *nl = strchr(s, '\n');
+                size_t len = nl ? (size_t)(nl - s) : strlen(s);
+                if(len > 3 && strncmp(s, "## ", 3) == 0){
+                        n += open;
+                        open = !(len == 11 && strncmp(s + 3, "Contents", 8) == 0) &&
+                               !(len == 10 && strncmp(s + 3, "Licence", 7) == 0) &&
+                               !(len == 8 && strncmp(s + 3, "Index", 5) == 0);
+                }else if(len > 4 && strncmp(s, "### ", 4) == 0){
+                        open = 0;
+                }
+                s += len + (nl ? 1 : 0);
+        }
+        return n + open;
+}
+
 static int read_headings(const char *text, const char *header, heading *h, int max, int *n)
 {
         const char *s = text;
@@ -178,6 +201,102 @@ static void check_decl(const tld_doc_entry *e, const char *src, int i, int *sigs
         }
 }
 
+/* s with every run of spaces and newlines as one space, in out (cut at size - 1). */
+static void one_line(const char *s, char *out, size_t size)
+{
+        size_t o = 0;
+        for(; *s && o + 1 < size; s++){
+                if(*s == ' ' || *s == '\n'){
+                        if(o && out[o - 1] != ' '){
+                                out[o++] = ' ';
+                        }
+                }else{
+                        out[o++] = *s;
+                }
+        }
+        out[o] = 0;
+}
+
+/* Does the body of a macro named in e ("#define NAME" and its continuation lines in
+ * the header text src) hold "goto ERROR"? */
+static int macro_jumps(const tld_doc_entry *e, const char *src)
+{
+        const char *s = e->names;
+        while(*s){
+                const char *c = strstr(s, ", ");
+                size_t len = c ? (size_t)(c - s) : strlen(s);
+                char def[300];
+                const char *d;
+                snprintf(def, sizeof def, "\n#define %.*s", (int)(len < 256 ? len : 256), s);
+                for(d = strstr(src, def); d; d = strstr(d + 1, def)){
+                        const char *p = d + strlen(def);
+                        if(*p != '(' && *p != ' ' && *p != '\t'){
+                                continue;       /* a longer name */
+                        }
+                        for(;;){
+                                const char *nl = strchr(p, '\n');
+                                size_t n = nl ? (size_t)(nl - p) : strlen(p);
+                                for(size_t i = 0; i + 10 <= n; i++){
+                                        if(strncmp(p + i, "goto ERROR", 10) == 0){
+                                                return 1;
+                                        }
+                                }
+                                if(nl == NULL || n == 0 || p[n - 1] != '\\'){
+                                        break;
+                                }
+                                p = nl + 1;
+                        }
+                }
+                s += len + (c ? 2 : 0);
+        }
+        return 0;
+}
+
+/* Is the name w (n bytes) a corpus name, or, with prefix set, the start of one? */
+static int corpus_name(const char *w, size_t n, int prefix)
+{
+        for(int r = 0; r < tld_doc_n_entries(); r++){
+                const char *s = tld_doc_entry_at(r)->names;
+                while(*s){
+                        const char *c = strstr(s, ", ");
+                        size_t len = c ? (size_t)(c - s) : strlen(s);
+                        if((prefix ? len >= n : len == n) && memcmp(s, w, n) == 0){
+                                return 1;
+                        }
+                        s += len + (c ? 2 : 0);
+                }
+        }
+        return 0;
+}
+
+/* Every tld_ or ai_ name in the text of section record e (a word of lower-case letters,
+ * digits and '_'; not a file name such as tld_ai.h) is a corpus name; one written with a
+ * wildcard, "tld_json_get_*", is the start of one. */
+static void check_section_names(const tld_doc_entry *e, int i)
+{
+        const char *s = e->doc;
+        while(*s){
+                size_t n = 0;
+                int start = (s == e->doc || !(isalnum((unsigned char)s[-1]) || s[-1] == '_')) &&
+                            (strncmp(s, "tld_", 4) == 0 || strncmp(s, "ai_", 3) == 0);
+                if(!start){
+                        s++;
+                        continue;
+                }
+                while(islower((unsigned char)s[n]) || isdigit((unsigned char)s[n]) || s[n] == '_'){
+                        n++;
+                }
+                if(s[n] == '*' || s[n] == '<'){
+                        CHECK(corpus_name(s, n, 1), "section %d (%s): no corpus name starts with %.*s", i, e->names,
+                              (int)n, s);
+                }else if(s[n] != '.' || !islower((unsigned char)s[n + 1])){
+                        CHECK(corpus_name(s, n, 0), "section %d (%s): %.*s is not a corpus name", i, e->names, (int)n,
+                              s);
+                }
+                s += n;
+        }
+}
+
 static uint64_t fnv1a(uint64_t h, const char *p, size_t n)
 {
         for(size_t i = 0; i < n; i++){
@@ -196,6 +315,8 @@ static int test_corpus(const char *root)
         static const char *mds[2] = {"docs/tld.md", "docs/tld_ai.md"};
         int n_h = 0;
         int n = tld_doc_n_entries();
+        int n_s = 0;
+        int jumping = 0;
         int expanded = 0;
         int sigs = 0;
         int with_example = 0;
@@ -210,8 +331,37 @@ static int test_corpus(const char *root)
         }
 
         SECTION_MSG("records versus the manuals");
-        CHECK(n == n_h, "%d records, but docs/tld.md and docs/tld_ai.md have %d ### entries", n, n_h);
-        KV_MSG("records", "%d (### entries: %d)", n, n_h);
+        n_s = count_sections(TLD_STR(man[0])) + count_sections(TLD_STR(man[1]));
+        CHECK(n == n_h + n_s, "%d records, but docs/tld.md and docs/tld_ai.md have %d ### entries and %d general "
+              "sections", n, n_h, n_s);
+        KV_MSG("records", "%d (### entries: %d, general sections: %d)", n, n_h, n_s);
+        for(int i = n_h; i < n; i++){   /* the sections: after the entries */
+                const tld_doc_entry *e = tld_doc_entry_at(i);
+                char want_head[256];
+                const char *title;
+                int f;
+                CHECK(e != NULL, "tld_doc_entry_at(%d) is NULL", i);
+                if(e == NULL){
+                        continue;
+                }
+                CHECK(e->kind == TLD_DOC_SECTION, "record %d (%s): after the entries, but not a section", i, e->names);
+                CHECK(e->names && e->header && e->module && e->module_desc && e->decl && e->doc,
+                      "record %d: a field other than example is NULL", i);
+                if(!(e->names && e->header && e->module && e->module_desc && e->decl && e->doc)){
+                        continue;
+                }
+                f = strcmp(e->header, "tld.h") == 0 ? 0 : 1;
+                title = strstr(e->names, ": ");
+                CHECK(title != NULL && strncmp(e->names, hdr[f], strlen(hdr[f])) == 0 &&
+                      title == e->names + strlen(hdr[f]), "section %d: names \"%s\" is not \"%s: Title\"", i,
+                      e->names, hdr[f]);
+                snprintf(want_head, sizeof want_head, "\n## %s\n", title ? title + 2 : "");
+                CHECK(strstr(TLD_STR(man[f]), want_head) != NULL, "section %d (%s): no such heading in %s", i,
+                      e->names, mds[f]);
+                CHECK(e->module[0] == 0 && e->module_desc[0] == 0 && e->decl[0] == 0 && e->doc[0],
+                      "section %d (%s): a module or declaration, or no text", i, e->names);
+                check_section_names(e, i);
+        }
         for(int i = 0; i < n && i < n_h; i++){
                 const tld_doc_entry *e = tld_doc_entry_at(i);
                 CHECK(e != NULL, "tld_doc_entry_at(%d) is NULL", i);
@@ -230,6 +380,7 @@ static int test_corpus(const char *root)
                               i, e->names, h[i].names);
                 }
                 CHECK(e->names[0] && e->module[0] && e->decl[0], "record %d: empty names, module or decl", i);
+                CHECK(e->kind == TLD_DOC_ENTRY, "record %d (%s): an entry of kind %d", i, e->names, e->kind);
                 with_example += e->example != NULL;
                 CHECK(e->example == NULL || e->example[0], "record %d (%s): empty example", i, e->names);
         }
@@ -245,11 +396,27 @@ static int test_corpus(const char *root)
                 }
                 CHECK(strcmp(e->header, "tld.h") == 0 || strcmp(e->header, "tld_ai.h") == 0,
                       "record %d: header %s", i, e->header);
+                if(e->kind == TLD_DOC_SECTION){
+                        continue;
+                }
                 check_decl(e, TLD_STR(src[strcmp(e->header, "tld.h") == 0 ? 0 : 1]), i, &sigs,
                            &expanded);
+                /* a macro that jumps to ERROR says that the function needs the label */
+                {
+                        static char flat[16384];
+                        one_line(e->doc, flat, sizeof flat);
+                        if(strstr(flat, "goto ERROR") ||
+                           macro_jumps(e, TLD_STR(src[strcmp(e->header, "tld.h") == 0 ? 0 : 1]))){
+                                jumping++;
+                                CHECK(strstr(flat, "needs an ERROR: label") != NULL, "record %d (%s) jumps to ERROR, "
+                                      "but its doc text does not say \"needs an ERROR: label\"", i, e->names);
+                        }
+                }
         }
         KV_MSG("macros", "%d signatures (macros longer than 7 lines)", sigs);
         KV_MSG("expanded", "%d lines (from macro invocations)", expanded);
+        KV_MSG("jumping", "%d entries goto ERROR and say that the label is needed", jumping);
+        CHECK(jumping >= 7, "only %d entries found that goto ERROR", jumping);
 
         section_ok("every declaration is in its header");
         SECTION_MSG("corpus identifier");
@@ -408,13 +575,19 @@ static void check_text(const tld_doc_answer *a, int max_bytes, const char *what)
                 const char *p;
                 const char *block_end;
                 const char *see;
-                snprintf(ent, sizeof ent, "\nENTRY %d: %s\n", i + 1, e->names);
+                int sec = e->kind == TLD_DOC_SECTION;
+                const char *next_sec;
+                snprintf(ent, sizeof ent, "\n%s %d: %s\n", sec ? "SECTION" : "ENTRY", i + 1, e->names);
                 p = strstr(t, ent);
                 if(p == NULL){
                         break;
                 }
                 shown++;
                 block_end = strstr(p + 1, "\nENTRY ");
+                next_sec = strstr(p + 1, "\nSECTION ");
+                if(next_sec && (block_end == NULL || next_sec < block_end)){
+                        block_end = next_sec;
+                }
                 if(block_end == NULL){
                         block_end = ns ? ns : t + n;
                 }
@@ -433,14 +606,25 @@ static void check_text(const tld_doc_answer *a, int max_bytes, const char *what)
                 }
                 CHECK(strstr(p, "\nMatched: ") != NULL && strstr(p, "\nMatched: ") < block_end,
                       "%s: no Matched line for %s", what, e->names);
-                indented(e->decl, ind, sizeof ind);
-                p = strstr(p, "\nDeclaration:\n");
-                CHECK(p && strncmp(p + 14, ind, strlen(ind)) == 0, "%s, max_bytes %d: declaration of %s cut or missing",
-                      what, max_bytes, e->names);
-                if(p == NULL){
-                        continue;
+                if(sec){        /* no Header and no Declaration: the Matched line, then the text */
+                        const char *d = strstr(p, "\nDeclaration:\n");
+                        CHECK(d == NULL || d > block_end, "%s: section %s has a Declaration line", what, e->names);
+                        p = strstr(p, "\nMatched: ");
+                        p = p ? strchr(p + 1, '\n') : NULL;
+                        if(p == NULL){
+                                continue;
+                        }
+                        p++;
+                }else{
+                        indented(e->decl, ind, sizeof ind);
+                        p = strstr(p, "\nDeclaration:\n");
+                        CHECK(p && strncmp(p + 14, ind, strlen(ind)) == 0, "%s, max_bytes %d: declaration of %s cut "
+                              "or missing", what, max_bytes, e->names);
+                        if(p == NULL){
+                                continue;
+                        }
+                        p += 14 + strlen(ind);
                 }
-                p += 14 + strlen(ind);
                 if(strncmp(p, "Documentation: not shown (byte budget).\n", 40) == 0){
                         p += 40;
                 }else{
@@ -483,6 +667,9 @@ static void check_text(const tld_doc_answer *a, int max_bytes, const char *what)
                 snprintf(ent, sizeof ent, "\nENTRY %d: ", shown + 2);
                 CHECK(strstr(t, ent) == NULL, "%s, max_bytes %d: entry %d is not shown, but a later one is", what,
                       max_bytes, shown + 1);
+                snprintf(ent, sizeof ent, "\nSECTION %d: ", shown + 2);
+                CHECK(strstr(t, ent) == NULL, "%s, max_bytes %d: entry %d is not shown, but a later section is", what,
+                      max_bytes, shown + 1);
                 CHECK(ns != NULL, "%s, max_bytes %d: %d of %d hits shown, no Not shown line", what, max_bytes, shown,
                       a->n_hits);
                 if(ns && end){
@@ -498,7 +685,7 @@ static void check_text(const tld_doc_answer *a, int max_bytes, const char *what)
         }else{
                 CHECK(ns == NULL, "%s, max_bytes %d: every hit shown, and a Not shown line", what, max_bytes);
         }
-        CHECK(a->n_hits == 0 || (strstr(t, "\nEntries ranked by word match. Everything under ENTRY is copied exactly "
+        CHECK(a->n_hits == 0 || (strstr(t, "\nEntries ranked by word match. Everything under ENTRY or SECTION is copied exactly "
                                         "from the tld manuals.\n") != NULL),
               "%s, max_bytes %d: hits, but the head does not say the entries are exact", what, max_bytes);
 }
