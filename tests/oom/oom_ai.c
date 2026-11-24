@@ -107,17 +107,17 @@ static int sc_review(void)
 #define CACHE_WARNING "cannot write a cache entry: out of memory"
 
 static const struct oom_scenario scenarios[] = {
-        {"text", sc_text, "ai_text", CACHE_WARNING},
-        {"text_opts", sc_text_opts, "ai_text_with every option, extra_options", CACHE_WARNING},
-        {"choose", sc_choose, "ai_choose (AI_CHOICE)", CACHE_WARNING},
-        {"rate", sc_rate, "ai_rate (AI_SCALE)", CACHE_WARNING},
-        {"yesno", sc_yesno, "ai_yesno with a JSON state", CACHE_WARNING},
-        {"fill", sc_fill, "ai_fill_with (AI_STRUCT)", CACHE_WARNING},
-        {"fill_dyn", sc_fill_dyn, "ai_fill_dyn_with (run-time ai_type)", CACHE_WARNING},
-        {"choose_dyn", sc_choose_dyn, "ai_choose_dyn (run-time ai_labels)", CACHE_WARNING},
-        {"rate_dyn", sc_rate_dyn, "ai_rate_dyn (run-time ai_labels)", CACHE_WARNING},
-        {"embed", sc_embed, "ai_embed_all", CACHE_WARNING},
-        {"review", sc_review, "ai_review", NULL},
+        {"text", sc_text, "ai_text", CACHE_WARNING, 0},
+        {"text_opts", sc_text_opts, "ai_text_with every option, extra_options", CACHE_WARNING, 0},
+        {"choose", sc_choose, "ai_choose (AI_CHOICE)", CACHE_WARNING, 0},
+        {"rate", sc_rate, "ai_rate (AI_SCALE)", CACHE_WARNING, 0},
+        {"yesno", sc_yesno, "ai_yesno with a JSON state", CACHE_WARNING, 0},
+        {"fill", sc_fill, "ai_fill_with (AI_STRUCT)", CACHE_WARNING, 0},
+        {"fill_dyn", sc_fill_dyn, "ai_fill_dyn_with (run-time ai_type)", CACHE_WARNING, 0},
+        {"choose_dyn", sc_choose_dyn, "ai_choose_dyn (run-time ai_labels)", CACHE_WARNING, 0},
+        {"rate_dyn", sc_rate_dyn, "ai_rate_dyn (run-time ai_labels)", CACHE_WARNING, 0},
+        {"embed", sc_embed, "ai_embed_all", CACHE_WARNING, 0},
+        {"review", sc_review, "ai_review", NULL, 0},
 };
 
 int main(int argc, char *argv[])

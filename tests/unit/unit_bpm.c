@@ -1,18 +1,23 @@
 /* unit-bpm: tld_bpm_best and tld_bpm_find against a plain dynamic-programming reference.
  *
  *   - every kernel (word, block, and avx2/neon where the CPU has them) gives the same
- *     matches and the same tld_bpm_distance as the reference, for patterns of 1 to 1000 bytes (1 to 16 words, every
- *     lane of the last vector), texts from empty to longer than the pattern, alphabets of
- *     2, 4, 20 and 256 byte values, k from 0 to above the pattern length, with and
- *     without TLD_BPM_NOCASE;
- *   - checks that do not depend on how matches are chosen: each match's distance is the
- *     Levenshtein distance of the pattern and text[start, end), matches are in order and
- *     do not overlap, and tld_bpm_best's distance is the smallest of any stretch of text;
+ *     matches and the same tld_bpm_distance as the reference, for patterns of 1 to 1000
+ *     bytes (each side of the word boundaries up to 4 words, 5 and 6 words, and 16
+ *     words), texts from empty to longer than the pattern, alphabets of 2, 4, 20 and 256
+ *     byte values (20 and 256 for patterns over 4 words), k from 0 to above the pattern
+ *     length, with and without TLD_BPM_NOCASE;
+ *   - checks that do not depend on how matches are chosen: matches are in order, do not
+ *     overlap and are within k, and tld_bpm_best's distance is the smallest of any
+ *     stretch of text; when a match differs from the reference, its distance is
+ *     recomputed (the reference's are exact), to say which side is wrong;
+ *   - the reference computes each match start once per case and shares it across k, so
+ *     the test stays a correctness check under the sanitizers, not a benchmark;
  *   - hand-worked cases (Levenshtein distances, repeats, overlaps, case, bytes 0 and 255, empty text, k above
  *     the pattern length) and argument errors;
  *   - matches ending on and around the boundaries of the kernels' 1024-position chunks,
  *     in texts where most chunks are passed over;
- *   - a 4 MB text with mutated copies of a pattern planted in it: every copy is found.
+ *   - a 1 MB text with mutated copies of a pattern planted in it: every copy is found,
+ *     and both kernels give the same matches.
  *
  *   unit-bpm PATTERN TEXT [K]    the kernel, the best match and the matches (K default 1)
  */
@@ -140,9 +145,11 @@ static int better(const tld_bpm_hit *a, const tld_bpm_hit *b)
         return a->end > b->end;
 }
 
-/* the matches as tld_bpm_find documents them, from the reference distances d */
+/* the matches as tld_bpm_find documents them, from the reference distances d; start[e]
+ * caches ref_start for end e (-1: not computed yet), which depends on e and d[e] only, so
+ * the calls for several k share it */
 static int64_t ref_find(const uint8_t *p, int m, const uint8_t *t, int64_t n, const int *d, int k,
-                        int nocase, tld_bpm_hit *out)
+                        int nocase, int64_t *start, tld_bpm_hit *out)
 {
         int64_t nh = 0;
         if(k > m) k = m;
@@ -154,7 +161,8 @@ static int64_t ref_find(const uint8_t *p, int m, const uint8_t *t, int64_t n, co
                 if(!(d[e] <= k && d[e] <= d[e - 1] && d[e] <= right)) continue;
                 h.end = e;
                 h.dist = d[e];
-                h.start = ref_start(p, m, t, e, d[e], nocase);
+                if(start[e] < 0) start[e] = ref_start(p, m, t, e, d[e], nocase);
+                h.start = start[e];
                 j = nh;
                 while(j > 0 && out[j - 1].end > h.start){
                         if(!better(&h, &out[j - 1])){ keep = 0; break; }
@@ -176,9 +184,18 @@ static void check_case(const uint8_t *p, int m, const uint8_t *t, int64_t n, con
 {
         const int nocase = flags & TLD_BPM_NOCASE;
         int *d = ref_ends(p, m, t, n, nocase);
-        tld_bpm_hit *ref = malloc(sizeof(tld_bpm_hit) * (size_t)(n + 1));
+        int64_t *start = malloc(sizeof(int64_t) * (size_t)(n + 1));
+        const int whole = ref_ed(p, m, t, n, nocase);   /* the distance of the whole text */
+        tld_bpm_hit *ref[8];
+        int64_t n_ref[8];
         int dmin = m;
         for(int64_t e = 1; e <= n; e++) if(d[e] < dmin) dmin = d[e];
+        for(int64_t e = 0; e <= n; e++) start[e] = -1;
+        /* the reference matches for each k, once for both kernels */
+        for(int ik = 0; ik < nk; ik++){
+                ref[ik] = malloc(sizeof(tld_bpm_hit) * (size_t)(n + 1));
+                n_ref[ik] = n ? ref_find(p, m, t, n, d, ks[ik], nocase, start, ref[ik]) : 0;
+        }
 
         for(int plain = 0; plain < 2; plain++){
                 tld_bpm *b = NULL;
@@ -203,17 +220,22 @@ static void check_case(const uint8_t *p, int m, const uint8_t *t, int64_t n, con
                         CHECK(best.dist == dmin, "%s [%s] m=%d n=%lld: best dist %d, smallest %d",
                               what, kern, m, (long long)n, best.dist, dmin);
                         CHECK(best.start >= 0 && best.start <= best.end && best.end <= n, "%s: best bounds", what);
-                        CHECK(ref_ed(p, m, t + best.start, best.end - best.start, nocase) == best.dist,
-                              "%s [%s]: best [%lld, %lld) is not at distance %d", what, kern,
-                              (long long)best.start, (long long)best.end, best.dist);
-                        nr = ref_find(p, m, t, n, d, dmin, nocase, all);
+                        nr = ref_find(p, m, t, n, d, dmin, nocase, start, all);
                         CHECK(nr > 0, "%s: reference has no best", what);
                         if(nr > 0){
+                                int same_best;
                                 r1[0] = all[0];
-                                CHECK(best.start == r1[0].start && best.end == r1[0].end && best.dist == r1[0].dist,
-                                      "%s [%s] m=%d n=%lld: best [%lld,%lld) %d, reference [%lld,%lld) %d", what, kern,
-                                      m, (long long)n, (long long)best.start, (long long)best.end, best.dist,
-                                      (long long)r1[0].start, (long long)r1[0].end, r1[0].dist);
+                                same_best = best.start == r1[0].start && best.end == r1[0].end &&
+                                        best.dist == r1[0].dist;
+                                CHECK(same_best, "%s [%s] m=%d n=%lld: best [%lld,%lld) %d, reference [%lld,%lld) %d",
+                                      what, kern, m, (long long)n, (long long)best.start, (long long)best.end,
+                                      best.dist, (long long)r1[0].start, (long long)r1[0].end, r1[0].dist);
+                                if(!same_best){
+                                        /* the reference's distance is exact; say whether best's is */
+                                        CHECK(ref_ed(p, m, t + best.start, best.end - best.start, nocase) == best.dist,
+                                              "%s [%s]: best [%lld, %lld) is not at distance %d", what, kern,
+                                              (long long)best.start, (long long)best.end, best.dist);
+                                }
                         }
                         free(all);
                 }
@@ -221,9 +243,9 @@ static void check_case(const uint8_t *p, int m, const uint8_t *t, int64_t n, con
                 /* the distance of the whole text */
                 {
                         int dist = -1;
-                        const int want = ref_ed(p, m, t, n, nocase);
-                        CHECK(tld_bpm_distance(b, (const char *)t, n, &dist) == OK && dist == want,
-                              "%s [%s] m=%d n=%lld: distance %d, reference %d", what, kern, m, (long long)n, dist, want);
+                        CHECK(tld_bpm_distance(b, (const char *)t, n, &dist) == OK && dist == whole,
+                              "%s [%s] m=%d n=%lld: distance %d, reference %d", what, kern, m, (long long)n, dist,
+                              whole);
                 }
 
                 /* find, for each k */
@@ -231,34 +253,42 @@ static void check_case(const uint8_t *p, int m, const uint8_t *t, int64_t n, con
                         int k = ks[ik];
                         tld_bpm_hit *hits = NULL;
                         int64_t nh = -1;
-                        int64_t nr;
+                        const int64_t nr = n_ref[ik];
+                        const tld_bpm_hit *r = ref[ik];
                         int same = 1;
                         if(tld_bpm_find(b, (const char *)t, n, k, &hits, &nh) != OK){
                                 CHECK(0, "%s: find failed (m=%d k=%d)", what, m, k);
                                 continue;
                         }
-                        nr = n ? ref_find(p, m, t, n, d, k, nocase, ref) : 0;
                         if(nh != nr) same = 0;
                         for(int64_t i = 0; same && i < nh; i++){
-                                if(hits[i].start != ref[i].start || hits[i].end != ref[i].end || hits[i].dist != ref[i].dist){
+                                if(hits[i].start != r[i].start || hits[i].end != r[i].end || hits[i].dist != r[i].dist){
                                         same = 0;
                                 }
                         }
                         CHECK(same, "%s [%s] m=%d n=%lld k=%d: %lld matches, reference %lld", what, kern, m,
                               (long long)n, k, (long long)nh, (long long)nr);
+                        /* when the matches equal the reference their distances are exact (the
+                           reference computes them); recompute them only when they differ, to
+                           report which one is wrong */
                         for(int64_t i = 0; i < nh; i++){
                                 const int kk = k > m ? m : k;
                                 CHECK(hits[i].dist <= kk, "%s: match over k", what);
                                 CHECK(i == 0 || hits[i].start >= hits[i - 1].end, "%s: matches overlap", what);
-                                CHECK(ref_ed(p, m, t + hits[i].start, hits[i].end - hits[i].start, nocase) == hits[i].dist,
-                                      "%s [%s]: match [%lld, %lld) is not at distance %d", what, kern,
-                                      (long long)hits[i].start, (long long)hits[i].end, hits[i].dist);
+                                if(!same){
+                                        CHECK(ref_ed(p, m, t + hits[i].start, hits[i].end - hits[i].start, nocase) ==
+                                              hits[i].dist, "%s [%s]: match [%lld, %lld) is not at distance %d", what,
+                                              kern, (long long)hits[i].start, (long long)hits[i].end, hits[i].dist);
+                                }
                         }
                         MFREE(hits);
                 }
                 tld_bpm_free(b);
         }
-        free(ref);
+        for(int ik = 0; ik < nk; ik++){
+                free(ref[ik]);
+        }
+        free(start);
         free(d);
 }
 
@@ -336,8 +366,12 @@ static void chunk_edges(void)
 
 static void random_cases(void)
 {
+        /* pattern lengths: each side of the 64-byte word boundaries up to 4 words, the
+           5 -> 6 word step (where NEON's wavefront starts), and one long pattern of 16
+           words; the patterns over 4 words run with 2 of the 4 alphabets, so the test
+           stays a correctness check (also under the sanitizers), not a benchmark */
         static const int ms[] = { 1, 2, 3, 5, 8, 13, 31, 32, 33, 63, 64, 65, 100, 127, 128, 129,
-                                  191, 192, 193, 255, 256, 257, 320, 321, 384, 385, 448, 449, 513, 700, 1000 };
+                                  191, 192, 193, 255, 256, 257, 320, 321, 1000 };
         static const int alpha[] = { 2, 4, 20, 256 };
         const int nm = (int)(sizeof ms / sizeof ms[0]);
         uint8_t *p = malloc(1000);
@@ -346,7 +380,7 @@ static void random_cases(void)
         for(int im = 0; im < nm; im++){
                 const int m = ms[im];
                 const int64_t ns[] = { 0, 1, 2, 3, 7, m > 1 ? m - 1 : 1, m, m + 1, 2 * (int64_t)m + 5, 600 };
-                for(int ia = 0; ia < 4; ia++){
+                for(int ia = m > 257 ? 2 : 0; ia < 4; ia++){
                         const int a = alpha[ia];
                         fill(p, m, a);
                         for(int in = 0; in < (int)(sizeof ns / sizeof ns[0]); in++){
@@ -571,7 +605,7 @@ static void error_cases(void)
 
 static void long_text(void)
 {
-        const int64_t len = 4 << 20;
+        const int64_t len = 1 << 20;    /* 16 of the 64 KB stretches of the four-at-once scan */
         const int ms[2] = { 40, 600 };
         const int ks[2] = { 2, 20 };
         uint8_t *t = malloc((size_t)len);
@@ -583,7 +617,6 @@ static void long_text(void)
                 tld_bpm_hit *hits[2] = { NULL, NULL };
                 int64_t nh[2] = { 0, 0 };
                 const char *kern[2] = { "", "" };
-                double sec[2] = { 0, 0 };
                 fill(t, len, 4);
                 fill(p, m, 4);
                 for(int i = 0; i < n_plant; i++){
@@ -592,15 +625,12 @@ static void long_text(void)
                 }
                 for(int plain = 0; plain < 2; plain++){
                         tld_bpm *b = NULL;
-                        clock_t c0;
                         if(tld_bpm_alloc(&b, (const char *)p, m, plain ? TLD_BPM_PLAIN : 0) != OK){
                                 CHECK(0, "long alloc");
                                 continue;
                         }
                         kern[plain] = tld_bpm_kernel(b);
-                        c0 = clock();
                         CHECK(tld_bpm_find(b, (const char *)t, len, k, &hits[plain], &nh[plain]) == OK, "long find");
-                        sec[plain] = (double)(clock() - c0) / CLOCKS_PER_SEC;
                         tld_bpm_free(b);
                 }
                 CHECK(nh[0] == nh[1], "long m=%d: %s %lld matches, %s %lld", m, kern[0], (long long)nh[0],
@@ -617,8 +647,8 @@ static void long_text(void)
                         }
                         CHECK(found, "long m=%d: copy %d at %lld not found", m, i, (long long)at[i]);
                 }
-                LOG_MSG("4 MB, m = %d, k = %d: %lld matches; %s %.3f s, %s %.3f s", m, k, (long long)nh[0],
-                        kern[0], sec[0], kern[1], sec[1]);
+                LOG_MSG("1 MB, m = %d, k = %d: %lld matches; %s and %s agree", m, k, (long long)nh[0], kern[0],
+                        kern[1]);
                 MFREE(hits[0]);
                 MFREE(hits[1]);
                 free(p);

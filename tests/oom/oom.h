@@ -149,7 +149,14 @@ struct oom_scenario {
         int (*fn)(void);
         const char *about;
         const char *allowed;    /* see SWALLOWED above; NULL for none */
+        long stride;            /* 0 or 1: every allocation fails in turn; above 1: the
+                                   first and the last OOM_DENSE, and every stride-th between
+                                   (for a scenario whose allocations are mostly one loop
+                                   repeated, where failing each costs the square of their
+                                   number and reaches no new error path) */
 };
+
+#define OOM_DENSE 512
 
 /* Does the file at fd contain text? text must be shorter than half the buffer; longer
    text is never found. The buffer holds the tail of the previous read (shorter than
@@ -222,6 +229,10 @@ static int oom_sweep(const struct oom_scenario *s, long from, long to)
                 to = total;
         }
         for(long i = from; i < to; i++){
+                if(s->stride > 1 && to - from > 1 && i >= from + OOM_DENSE && i < to - OOM_DENSE &&
+                   (i - from - OOM_DENSE) % s->stride){
+                        continue;
+                }
                 fflush(stderr);
                 if(ftruncate(fd, 0) != 0 || lseek(fd, 0, SEEK_SET) < 0){
                         dprintf(err, "oom: cannot reset %s\n", path);
@@ -257,8 +268,14 @@ DONE:
                 const char *v = getenv("TLD_VERBOSE");
                 unlink(path);
                 if(!v || strcmp(v, "0") != 0){  /* tld.h comes after this file: no OK_MSG */
-                        fprintf(stderr, " OK %s: %ld allocations, each failed in turn: no leak, crash or "
-                                "swallowed failure\n", s->name, total);
+                        if(s->stride > 1){
+                                fprintf(stderr, " OK %s: %ld allocations, the first and last %d and every "
+                                        "%ld-th failed: no leak, crash or swallowed failure\n", s->name, total,
+                                        OOM_DENSE, s->stride);
+                        }else{
+                                fprintf(stderr, " OK %s: %ld allocations, each failed in turn: no leak, crash "
+                                        "or swallowed failure\n", s->name, total);
+                        }
                 }
         }
         return n_found;
