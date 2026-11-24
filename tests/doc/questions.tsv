@@ -74,3 +74,14 @@ o12	off	convert a date between time zones	-
 o13	off	read a password from the keyboard without echo	-	
 o14	off	train a neural network on the GPU	-	
 o15	off	make an https request to a REST API	-
+# General sections (records of kind TLD_DOC_SECTION): the expected name is "header: Title".
+s01	covered	what happens when a function fails	tld.h: Errors	
+s02	covered	who frees the memory	tld.h: Memory	
+s03	covered	is it thread safe	tld.h: Threads,tld_ai.h: Threads	
+s04	covered	how do I compile a program that uses tld.h	tld.h: Usage	miss: synonym: compile vs build (the section says "Build: cc ..."); program occurs in many entries
+s05	covered	which environment variables does tld read	tld.h: Environment,tld_ai.h: Environment	
+s06	covered	what are the limitations of tld	tld.h: Limitations	
+s07	covered	how does the cache work and how do I replay answers	tld_ai.h: Cache and replay	
+s08	covered	can I use a cloud model	tld_ai.h: Cloud models	
+s09	covered	how do I free the memory the server uses for a model	tld_ai.h: Server memory	
+s10	covered	how does a person review an answer	tld_ai.h: Human review	

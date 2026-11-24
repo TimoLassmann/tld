@@ -73,7 +73,8 @@ TLD_API void tld__message_at(uint8_t type, const char *file, int line, const cha
 #define WARNING_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld__message(TLD__MSG_WARNING, __VA_ARGS__))
 
 /* ERROR_MSG(fmt, ...): print a timestamped ERROR line with file and line to stderr
- * (always, whatever TLD_VERBOSE says) and goto ERROR. */
+ * (always, whatever TLD_VERBOSE says) and goto ERROR. The enclosing function needs an
+ * ERROR: label. */
 #define ERROR_MSG(...) do {                                     \
                 TLD__LITERAL(__VA_ARGS__);                      \
                 tld__message_at(TLD__MSG_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
@@ -84,7 +85,8 @@ TLD_API void tld__message_at(uint8_t type, const char *file, int line, const cha
 #define TLD__FAILED(x)  "Function \"" TLD__TOSTRING(x) "\" failed."
 
 /* RUN(EXP): evaluate EXP (a call returning OK/FAIL); if it is not OK, print
- * Function "EXP" failed. as an ERROR line with file and line and goto ERROR. */
+ * Function "EXP" failed. as an ERROR line with file and line and goto ERROR. The
+ * enclosing function needs an ERROR: label. */
 #define RUN(EXP) do {                                           \
                 if((EXP) != OK){                                \
                         tld__message_at(TLD__MSG_ERROR, __FILE__, __LINE__, "%s", TLD__FAILED(EXP)); \

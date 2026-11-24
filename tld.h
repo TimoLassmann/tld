@@ -189,7 +189,8 @@ TLD_API void tld__message_at(uint8_t type, const char *file, int line, const cha
 #define WARNING_MSG(...) (TLD__LITERAL(__VA_ARGS__), tld__message(TLD__MSG_WARNING, __VA_ARGS__))
 
 /* ERROR_MSG(fmt, ...): print a timestamped ERROR line with file and line to stderr
- * (always, whatever TLD_VERBOSE says) and goto ERROR. */
+ * (always, whatever TLD_VERBOSE says) and goto ERROR. The enclosing function needs an
+ * ERROR: label. */
 #define ERROR_MSG(...) do {                                     \
                 TLD__LITERAL(__VA_ARGS__);                      \
                 tld__message_at(TLD__MSG_ERROR, __FILE__, __LINE__, __VA_ARGS__); \
@@ -200,7 +201,8 @@ TLD_API void tld__message_at(uint8_t type, const char *file, int line, const cha
 #define TLD__FAILED(x)  "Function \"" TLD__TOSTRING(x) "\" failed."
 
 /* RUN(EXP): evaluate EXP (a call returning OK/FAIL); if it is not OK, print
- * Function "EXP" failed. as an ERROR line with file and line and goto ERROR. */
+ * Function "EXP" failed. as an ERROR line with file and line and goto ERROR. The
+ * enclosing function needs an ERROR: label. */
 #define RUN(EXP) do {                                           \
                 if((EXP) != OK){                                \
                         tld__message_at(TLD__MSG_ERROR, __FILE__, __LINE__, "%s", TLD__FAILED(EXP)); \
@@ -273,7 +275,7 @@ TLD_API void tld_progress(long done, long total, const char *label);
 
 /* MMALLOC(p, size): p = malloc(size), zero-filled. p must be NULL beforehand and size
  * non-zero; either mistake, or running out of memory, prints an error and does goto
- * ERROR. Free with MFREE. */
+ * ERROR (the enclosing function needs an ERROR: label). Free with MFREE. */
 #define MMALLOC(p, size)                                                \
         do {                                                            \
                 if ((p) != NULL) {                                      \
@@ -294,7 +296,8 @@ TLD_API void tld_progress(long done, long total, const char *label);
  * (undefined behaviour; UBSan reports "misaligned address ... requires 64 byte alignment").
  * Pass the struct's own alignment: MMALLOC_ALIGNED(p, sizeof(struct s), _Alignof(struct s)).
  * C11 aligned_alloc requires the size to be a multiple of the alignment, so the size is
- * rounded up. The block is freed with plain free(), so MFREE works unchanged. */
+ * rounded up. The block is freed with plain free(), so MFREE works unchanged. On failure
+ * an error is printed and goto ERROR; the enclosing function needs an ERROR: label. */
 #define MMALLOC_ALIGNED(p, size, align)                                 \
         do {                                                            \
                 if ((p) != NULL) {                                      \
@@ -313,7 +316,7 @@ TLD_API void tld_progress(long done, long total, const char *label);
 
 /* MREALLOC(p, size): resize p to size bytes (malloc when p is NULL). Bytes beyond the old
  * size are not zeroed. On failure p is unchanged, an error is printed and goto ERROR;
- * size 0 is an error. */
+ * size 0 is an error. The enclosing function needs an ERROR: label. */
 #define MREALLOC(p, size)                                               \
         do {                                                            \
                 void *tmpp;                                             \
@@ -345,7 +348,7 @@ TLD_API void tld_progress(long done, long total, const char *label);
  * contiguous block. Any element type (numbers, pointers, structs) whose alignment malloc
  * provides; a more strictly aligned type is a compile error. The pointer should be NULL (an existing block is not freed or resized). On
  * failure an error is printed and goto ERROR. Free with gfree; tld_galloc_dim1/tld_galloc_dim2 give
- * the dimensions back. */
+ * the dimensions back. The enclosing function needs an ERROR: label. */
 #define galloc(...) TLD__GALLOC_ARGS(__VA_ARGS__)
 
 /* gfree(p): free memory from galloc (1D or 2D) and set p to NULL, like MFREE, so a

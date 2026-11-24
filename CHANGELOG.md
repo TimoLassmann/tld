@@ -20,6 +20,13 @@
   writes only the outputs that changed, each through a temporary file renamed over the
   old one, so a docs run with no change rebuilds nothing and a failed run never leaves a
   half-written `tld_doc.h`.
+- The general sections of the two manuals (Usage, Errors, Memory, Threads, ...) are
+  corpus records too, after the entries: `tld_doc_entry` has a `kind` field
+  (`TLD_DOC_ENTRY` or `TLD_DOC_SECTION`), and an answer shows a section as
+  `SECTION n: tld.h: Errors`. Before, an answer never held the rules that apply to every
+  function, such as the `ERROR:` label. The entries of `RUN`, `ERROR_MSG`, `MMALLOC`,
+  `MREALLOC`, `MMALLOC_ALIGNED` and `galloc` now say that the enclosing function needs
+  that label, as `ASSERT` did.
 - `examples/tld_ask.c` (target `tld-ask`): `tld-ask [-b BYTES] [-n N] "question"`.
 - Tests: `unit-doc` (corpus against the manuals and headers, the search, the text format
   and budget, edge cases), `doc-eval` (the retrieval figures on the 69 questions of

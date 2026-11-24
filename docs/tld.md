@@ -222,7 +222,8 @@ LOG_MSG(fmt, ...) / WARNING_MSG(fmt, ...): print a timestamped LOG or WARNING li
 ```
 
 ERROR_MSG(fmt, ...): print a timestamped ERROR line with file and line to stderr
-(always, whatever TLD_VERBOSE says) and goto ERROR.
+(always, whatever TLD_VERBOSE says) and goto ERROR. The enclosing function needs an
+ERROR: label.
 
 <a id="RUN"></a>
 
@@ -238,7 +239,8 @@ ERROR_MSG(fmt, ...): print a timestamped ERROR line with file and line to stderr
 ```
 
 RUN(EXP): evaluate EXP (a call returning OK/FAIL); if it is not OK, print
-Function "EXP" failed. as an ERROR line with file and line and goto ERROR.
+Function "EXP" failed. as an ERROR line with file and line and goto ERROR. The
+enclosing function needs an ERROR: label.
 
 <a id="ASSERT"></a>
 
@@ -329,7 +331,7 @@ meant to be called from several threads at once.
 
 MMALLOC(p, size): p = malloc(size), zero-filled. p must be NULL beforehand and size
 non-zero; either mistake, or running out of memory, prints an error and does goto
-ERROR. Free with MFREE.
+ERROR (the enclosing function needs an ERROR: label). Free with MFREE.
 
 <a id="MMALLOC_ALIGNED"></a>
 
@@ -345,7 +347,8 @@ plain malloc for such a struct breaks the promise the declaration makes to the c
 (undefined behaviour; UBSan reports "misaligned address ... requires 64 byte alignment").
 Pass the struct's own alignment: MMALLOC_ALIGNED(p, sizeof(struct s), _Alignof(struct s)).
 C11 aligned_alloc requires the size to be a multiple of the alignment, so the size is
-rounded up. The block is freed with plain free(), so MFREE works unchanged.
+rounded up. The block is freed with plain free(), so MFREE works unchanged. On failure
+an error is printed and goto ERROR; the enclosing function needs an ERROR: label.
 
 <a id="MREALLOC"></a>
 
@@ -357,7 +360,7 @@ rounded up. The block is freed with plain free(), so MFREE works unchanged.
 
 MREALLOC(p, size): resize p to size bytes (malloc when p is NULL). Bytes beyond the old
 size are not zeroed. On failure p is unchanged, an error is printed and goto ERROR;
-size 0 is an error.
+size 0 is an error. The enclosing function needs an ERROR: label.
 
 <a id="MFREE"></a>
 
@@ -387,7 +390,7 @@ galloc(&m, n, k): m = zeroed n x k matrix, used as m[i][j]; the rows share one
 contiguous block. Any element type (numbers, pointers, structs) whose alignment malloc
 provides; a more strictly aligned type is a compile error. The pointer should be NULL (an existing block is not freed or resized). On
 failure an error is printed and goto ERROR. Free with gfree; tld_galloc_dim1/tld_galloc_dim2 give
-the dimensions back.
+the dimensions back. The enclosing function needs an ERROR: label.
 
 <a id="gfree"></a>
 
