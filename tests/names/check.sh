@@ -105,6 +105,14 @@ if [ -f "$SRC/tld_doc.h" ]; then
                 if [ -s "$T/dbadmac_$view" ]; then bad "tld_doc.h macros outside TLD_DOC_ in the $view view:"; sed 's/^/        /' "$T/dbadmac_$view"
                 else echo "ok    tld_doc.h: $(wc -l < "$T/dm_$view" | tr -d ' ') macros in the $view view: TLD_DOC_ or TLD__DOC_"; fi
         done
+        # a file that only includes tld_doc.h gets no tld.h: its interface is plain C
+        if [ -f "$SRC/tld_ai.h" ]; then
+                printf '#include "tld_ai.h"\n' > "$T/ai_use.c"
+                if macros "$T/ai_use.c" | grep -qxE 'TLD_H|OK|FAIL|RUN'; then bad "tld_ai.h gives tld.h to a file that only includes it"
+                else echo "ok    tld_ai.h: a plain include does not include tld.h"; fi
+        fi
+        if macros "$T/doc_use.c" | grep -qxE 'TLD_H|OK|FAIL|RUN'; then bad "tld_doc.h gives tld.h to a file that only includes it"
+        else echo "ok    tld_doc.h: a plain include does not include tld.h"; fi
         comm -23 "$T/dm_impl" "$T/dm_use" | grep -E '^TLD__DOC_' | grep -vE '^TLD__DOC_IMPLEMENTED$' > "$T/dleak"
         if [ -s "$T/dleak" ]; then bad "tld_doc.h implementation-only macros not #undef'd:"; sed 's/^/        /' "$T/dleak"
         else echo "ok    tld_doc.h: implementation-only macros are #undef'd"; fi

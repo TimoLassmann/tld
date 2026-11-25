@@ -10,11 +10,13 @@ them.
   map, strict JSON, random numbers, statistics, sorting, a k-d tree, approximate string
   search (bit-parallel, AVX2/NEON), a thread pool, text templates and file helpers.
 - **`tld_ai.h`**: local LLMs, decision models and embeddings through the Ollama server
-  on the same machine, called as ordinary C functions. It builds on `tld.h`.
+  on the same machine, called as ordinary C functions. Its implementation builds on
+  `tld.h`; its interface is plain C.
 - **`tld_doc.h`**: live documentation. A program asks a question in plain language and
   gets back the manual entries of `tld.h` and `tld_ai.h` whose words match it, ranked and
   copied word for word, with the question's words that the manuals do not contain. A
-  deterministic lookup with no model. It builds on `tld.h`.
+  deterministic lookup with no model. Its implementation builds on `tld.h`; its
+  interface is plain C.
 
 All three need only C11, POSIX, libm and pthreads, and run on macOS and Linux. Ideas come from
 [easel](https://github.com/EddyRivasLab/easel) (Eddy/Rivas laboratory),
@@ -218,7 +220,7 @@ need `tld_ai.h` or a server.
 
 int main(void) {
     tld_doc_answer *a = NULL;
-    if (tld_doc_ask("how do I read a JSON string?", NULL, &a) != OK) return 1;
+    if (tld_doc_ask("how do I read a JSON string?", NULL, &a) != 0) return 1;
     fputs(a->text, stdout);
     tld_doc_answer_free(a);
     return 0;
@@ -235,9 +237,13 @@ the question occur in the manuals and which do not (`Not found: weather, paris`)
 the reader can judge whether the entries are relevant. It stays within a byte budget
 (`.max_bytes`, 4096 by default), and declarations are never cut.
 
-`tld_doc_manual("tld.h", buf)` appends the whole manual of one header (`NULL`: both) to a
-`tld_strbuf` instead, in the same layout, for a prompt that should hold all of it (about
-70 KB for `tld.h` and 30 KB for `tld_ai.h`).
+`tld_doc_manual("tld.h")` returns the whole manual of one header (`NULL`: both) as one
+string instead, in the same layout, for a prompt that should hold all of it (about 70 KB
+for `tld.h` and 30 KB for `tld_ai.h`). Release it with `free()`.
+
+The interface is plain C: functions return 0 or non-zero (or `NULL`), and a file that
+only includes `tld_doc.h` gets the `tld_doc_` names and nothing of `tld.h`. Only the one
+file that defines `TLD_DOC_IMPLEMENTATION` includes `tld.h`.
 
 `examples/tld_ask.c` (built as `build/tests/tld-ask`) is a command-line front end:
 `tld-ask "how do I read a JSON string?"`, and `tld-ask -b 1500 -n 3 "..."` for the first

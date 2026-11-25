@@ -396,15 +396,13 @@ ERROR:
         return FAIL;
 }
 
-static int sc_doc_manual(void)          /* tld_doc.h: the manual of tld_ai.h, the buffer growing */
+static int sc_doc_manual(void)          /* tld_doc.h: the manual of tld_ai.h, its buffer growing */
 {
-        tld_strbuf *b = NULL;
-        RUN(tld_strbuf_alloc(&b, 64));
-        RUN(tld_doc_manual("tld_ai.h", b));
-        tld_strbuf_free(b);
+        char *m = tld_doc_manual("tld_ai.h");
+        ASSERT(m != NULL, "no manual");
+        free(m);
         return OK;
 ERROR:
-        tld_strbuf_free(b);
         return FAIL;
 }
 
@@ -426,7 +424,7 @@ static const struct oom_scenario scenarios[] = {
         {"misc", sc_misc, "file names, command line, reading a file, bitfields", NULL, 0},
         {"tpool", sc_tpool, "thread pool with 40 jobs", NULL, 0},
         {"doc", sc_doc, "tld_doc_ask: a typo searched again, entries cut by the byte budget", NULL, 31},
-        {"doc_manual", sc_doc_manual, "tld_doc_manual: the manual of tld_ai.h into a small buffer", NULL, 0},
+        {"doc_manual", sc_doc_manual, "tld_doc_manual: the manual of tld_ai.h as a string", NULL, 0},
 };
 
 int main(int argc, char *argv[])

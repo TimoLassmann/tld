@@ -3,11 +3,13 @@
  * the question, ranked, copied word for word. A deterministic lookup, nothing more: the
  * same question always gives the same answer, no model is involved, and the answer says
  * which of the question's words occur in the manuals and which do not, so the reader can
- * judge. Single header, builds on tld.h.
+ * judge. Single header. Its interface is plain C: a program that uses it needs no name
+ * of tld.h, which only the implementation builds on.
  *
  *   tld_doc_answer *a = NULL;
- *   RUN(tld_doc_ask("how do I read a JSON string?", NULL, &a));
- *   fputs(a->text, stdout);
+ *   if(tld_doc_ask("how do I read a JSON string?", NULL, &a) == 0){
+ *           fputs(a->text, stdout);
+ *   }
  *   tld_doc_answer_free(a);
  *
  * Manual: docs/tld_doc.md, generated from tld_doc.h by tools/tlddoc.c.
@@ -17,11 +19,14 @@
  *
  *       #define TLD_IMPLEMENTATION      // unless another file already compiles tld.h
  *       #define TLD_DOC_IMPLEMENTATION
- *       #include "tld_doc.h"            // includes "tld.h"
+ *       #include "tld_doc.h"            // includes "tld.h", in this file only
  *
- *   and plain #include "tld_doc.h" everywhere else. Build: cc -std=c11 prog.c -lpthread
- *   -lm. tld_doc.h does not need tld_ai.h or an Ollama server; its corpus covers the
- *   manuals of both tld.h and tld_ai.h.
+ *   and plain #include "tld_doc.h" everywhere else. A plain include declares the
+ *   tld_doc_ and TLD_DOC_ names below and nothing else: it includes no other header,
+ *   neither tld.h nor a system header, so a file that also wants tld.h, <stdio.h> or
+ *   <stdlib.h> includes them itself. Build: cc -std=c11 prog.c -lpthread -lm. tld_doc.h
+ *   does not need tld_ai.h or an Ollama server; its corpus covers the manuals of both
+ *   tld.h and tld_ai.h.
  *
  * HOW A QUESTION IS ANSWERED
  *   A word search (tld_bpm, tld.h) over the corpus, one record per manual entry. The
@@ -44,15 +49,15 @@
  *   out of date. It is static const data: nothing is allocated to use it.
  *
  * ERRORS
- *   As in tld.h: functions return OK or FAIL (or NULL) with an ERROR line on stderr.
+ *   A function that returns int returns 0 on success and a non-zero value on failure;
+ *   one that returns a pointer returns NULL on failure. Each failure also writes an
+ *   ERROR line to stderr.
  *
  * LICENCE: MIT, see the end of tld_doc.h.
  */
 
 #ifndef TLD_DOC_H
 #define TLD_DOC_H
-
-#include "tld.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -129,9 +134,9 @@ typedef struct {
         int top_n;              /* entries retrieved; 0: 8 */
 } tld_doc_opts;
 
-/* Answer question into *out (o may be NULL: all defaults). Returns FAIL only for bad
- * arguments (question or out NULL, max_bytes or top_n negative) or out of memory. At
- * most the first 16 distinct words of the question are searched; the head names the
+/* Answer question into *out (o may be NULL: all defaults). Returns 0, and a non-zero
+ * value only for bad arguments (question or out NULL, max_bytes or top_n negative) or
+ * out of memory; *out is then NULL. At most the first 16 distinct words of the question are searched; the head names the
  * words left out ("Not searched: ...").
  *
  * The text starts with a head: "tld_doc answer", "Question: " and the question on one
@@ -172,10 +177,10 @@ void tld_doc_answer_free(tld_doc_answer *a);
 
 /* ---- the whole manual ---------------------------------------------------- */
 
-/* Append the whole manual of header ("tld.h" or "tld_ai.h"; NULL: both, tld.h first) to
- * out, as text for a prompt or a file: about 70 KB for tld.h and 30 KB for tld_ai.h.
- * Returns FAIL when out is NULL, header names no manual of the corpus, or out of memory
- * (out then holds the text written so far).
+/* The whole manual of header ("tld.h" or "tld_ai.h"; NULL: both, tld.h first) as one
+ * string, text for a prompt or a file: about 70 KB for tld.h and 30 KB for tld_ai.h.
+ * The string is allocated with malloc: release it with free(). Returns NULL when header
+ * names no manual of the corpus, or out of memory.
  *
  * Each manual starts with a line that names it and the corpus identifier. Then, after a
  * blank line each, come its general sections and then its entries, in the order of the
@@ -195,12 +200,13 @@ void tld_doc_answer_free(tld_doc_answer *a);
  *
  * The Header line carries the module's description at the first entry of each module.
  *
- *     tld_strbuf *prompt = NULL;
- *     RUN(tld_strbuf_alloc(&prompt, 1 << 17));
- *     RUN(tld_doc_manual("tld.h", prompt));
- *     RUN(tld_strbuf_append(prompt, "\nWrite a program that ...\n"));
+ *     char *manual = tld_doc_manual("tld.h");
+ *     if(manual){
+ *             printf("%s\nWrite a program that ...\n", manual);
+ *     }
+ *     free(manual);
  */
-int tld_doc_manual(const char *header, tld_strbuf *out);
+char *tld_doc_manual(const char *header);
 
 #ifdef __cplusplus
 }
@@ -212,9 +218,11 @@ int tld_doc_manual(const char *header, tld_strbuf *out);
 #ifndef TLD__DOC_IMPLEMENTED
 #define TLD__DOC_IMPLEMENTED
 
+#include "tld.h"
+
 /* ---- BEGIN CORPUS: generated by tools/tlddoc.c from tld.h and tld_ai.h; do not edit ---- */
 #define TLD__DOC_N_ENTRIES 187
-#define TLD__DOC_CORPUS_ID "3aead75db756d291-0.4.0"
+#define TLD__DOC_CORPUS_ID "307d9997055d2aa4-0.4.0"
 
 static const tld_doc_entry tld__doc_corpus[TLD__DOC_N_ENTRIES] = {
         {       /* 0: tld.h, core */
@@ -2283,9 +2291,9 @@ static const tld_doc_entry tld__doc_corpus[TLD__DOC_N_ENTRIES] = {
                 "the calls a program makes",
                 "",
                 "#define ai_fill(out, T, ...) \\\n"
-                "    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))\n"
+                "    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))\n"
                 "#define ai_fill_with(o, out, T, ...) \\\n"
-                "    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))",
+                "    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))",
                 "ai_fill(&s, T, fmt, ...): ask the LLM to fill s, a struct T made by AI_STRUCT, for the\n"
                 "printf-style task fmt. The struct's JSON schema is appended to the prompt; a reply\n"
                 "that does not fit is retried (o->retries, default 2 extra attempts). 0 on success, -1\n"
@@ -2615,7 +2623,9 @@ static const tld_doc_entry tld__doc_corpus[TLD__DOC_N_ENTRIES] = {
                 "",
                 "In exactly one .c file, before any other #include:\n"
                 "\n"
-                "and plain #include \"tld_ai.h\" everywhere else. The program must compile\n"
+                "and plain #include \"tld_ai.h\" everywhere else. A plain include declares what this\n"
+                "header documents and includes only <stddef.h>: not tld.h, so a file that also wants\n"
+                "tld.h includes it itself. The program must compile\n"
                 "TLD_IMPLEMENTATION in some file (tld_ai.h uses tld's JSON, strings and hash map).\n"
                 "Build: cc -std=c11 prog.c -lpthread -lm. Nothing else: no libcurl, no SQLite, no\n"
                 "cJSON (HTTP, JSON, cache and reviews are done here and in tld.h).\n"
@@ -2628,7 +2638,7 @@ static const tld_doc_entry tld__doc_corpus[TLD__DOC_N_ENTRIES] = {
                 "strict -std=c11 build hides.",
                 "#define TLD_IMPLEMENTATION      // unless another file already compiles tld.h\n"
                 "#define AI_IMPLEMENTATION\n"
-                "#include \"tld_ai.h\"                 // includes \"tld.h\" itself if TLD_H is not defined",
+                "#include \"tld_ai.h\"                 // includes \"tld.h\", in this file only",
                 TLD_DOC_SECTION
         },
         {       /* 178: tld_ai.h, Environment */
@@ -3855,10 +3865,12 @@ void tld_doc_answer_free(tld_doc_answer *a)
         }
 }
 
-int tld_doc_manual(const char *header, tld_strbuf *out)
+char *tld_doc_manual(const char *header)
 {
+        tld_strbuf *out = NULL;
+        char *text = NULL;
         int n_done = 0;
-        ASSERT(out != NULL, "No buffer for the manual (out is NULL)");
+        RUN(tld_strbuf_alloc(&out, 8192));
         for(int i = 0; i < TLD__DOC_N_ENTRIES; i++){
                 const char *h = tld__doc_corpus[i].header;
                 const char *module = NULL;
@@ -3889,9 +3901,13 @@ int tld_doc_manual(const char *header, tld_strbuf *out)
                 }
         }
         ASSERT(n_done > 0, "No manual of '%s' in the corpus (tld.h, tld_ai.h, or NULL for both)", header);
-        return OK;
+        MMALLOC(text, (size_t)TLD_STRLEN(out) + 1);
+        memcpy(text, TLD_STR(out), (size_t)TLD_STRLEN(out) + 1);
+        tld_strbuf_free(out);
+        return text;
 ERROR:
-        return FAIL;
+        tld_strbuf_free(out);
+        return NULL;
 }
 
 /* The implementation's own macros end here (TLD__DOC_IMPLEMENTED stays: it guards

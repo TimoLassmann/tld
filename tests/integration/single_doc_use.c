@@ -1,5 +1,7 @@
-/* single-header-doc test, TU 2 of 2: declarations only, of both headers. */
+/* single-header-doc test, TU 2 of 2: declarations only, of both headers. tld_doc.h
+ * does not include tld.h here, so this file includes it for the names it uses. */
 #include "tld_doc.h"
+#include "tld.h"
 
 int single_doc_use(void)
 {

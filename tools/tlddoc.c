@@ -1682,7 +1682,9 @@ static int is_definition(strlist *blk, int min_ind)
 
 /* Write blk as DIR/<stem>-NN.c: file-scope lines first, the rest in a function body that
  * has the ERROR label RUN and ASSERT jump to, and a main so the file links. Blocks with
- * an #include (the USAGE lines) are skipped: the file already includes the header. */
+ * an #include (the USAGE lines) are skipped: the file already includes the header. The
+ * file includes the header and <stdio.h>, <stdlib.h> and <string.h>, and its own lines
+ * use no name of tld.h, so an example of tld_doc.h compiles only when it is plain C. */
 static int write_example(strlist *blk, int min_ind)
 {
         tld_strbuf *b = NULL;
@@ -1704,7 +1706,8 @@ static int write_example(strlist *blk, int min_ind)
         def = is_definition(blk, min_ind);
         RUN(tld_strbuf_alloc(&b, 1024));
         RUN(appendf(b, "/* Example from the doc comment of %s in %s (tlddoc --examples). */\n"
-                    "#include \"%s\"\n\n", ex_where ? ex_where : "?", ex_file, ex_file));
+                    "#include \"%s\"\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n",
+                    ex_where ? ex_where : "?", ex_file, ex_file));
         /* file scope: a whole definition, or the #define lines (with their continuation
          * lines) and top-level invocations */
         for(int i = 0, cont = 0; i < blk->n; i++){
@@ -1726,8 +1729,8 @@ static int write_example(strlist *blk, int min_ind)
                         RUN(appendf(b, "        %s\n", s));
                 }
         }
-        RUN(tld_strbuf_append(b, "        return OK;\nERROR:\n        return FAIL;\n}\n\n"
-                              "int main(void)\n{\n        return example() == OK ? 0 : 1;\n}\n"));
+        RUN(tld_strbuf_append(b, "        return 0;\nERROR:\n        return 1;\n}\n\n"
+                              "int main(void)\n{\n        return example();\n}\n"));
         RUN(write_file(path, b));
         tld_strbuf_free(b);
         return OK;
