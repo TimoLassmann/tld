@@ -2,7 +2,7 @@
 
 # tld_ai.h
 
-Local LLMs, decision models and embeddings through the Ollama server on this machine, called as ordinary C functions. Single header, builds on tld.h. Thread-safe.
+Local LLMs, decision models and embeddings through the Ollama server on this machine, called as ordinary C functions. Single header. Thread-safe. Its interface is plain C: a program that uses it needs no name of tld.h, which only the implementation builds on.
 
 ```c
 #define TEAM(X) X(bug, "A software defect") X(billing, "Payments and refunds")
@@ -61,10 +61,12 @@ In exactly one .c file, before any other #include:
 ```c
 #define TLD_IMPLEMENTATION      // unless another file already compiles tld.h
 #define AI_IMPLEMENTATION
-#include "tld_ai.h"                 // includes "tld.h" itself if TLD_H is not defined
+#include "tld_ai.h"                 // includes "tld.h", in this file only
 ```
 
-and plain #include "tld_ai.h" everywhere else. The program must compile
+and plain #include "tld_ai.h" everywhere else. A plain include declares what this
+header documents and includes only <stddef.h>: not tld.h, so a file that also wants
+tld.h includes it itself. The program must compile
 TLD_IMPLEMENTATION in some file (tld_ai.h uses tld's JSON, strings and hash map).
 Build: cc -std=c11 prog.c -lpthread -lm. Nothing else: no libcurl, no SQLite, no
 cJSON (HTTP, JSON, cache and reviews are done here and in tld.h).
@@ -553,9 +555,9 @@ AI_SCALE(urgency, "How urgent is this?", URGENCY)
 
 ```c
 #define ai_fill(out, T, ...) \
-    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
+    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
 #define ai_fill_with(o, out, T, ...) \
-    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
+    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
 ```
 
 ai_fill(&s, T, fmt, ...): ask the LLM to fill s, a struct T made by AI_STRUCT, for the

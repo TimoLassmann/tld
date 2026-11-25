@@ -36,7 +36,7 @@
  *   - each block is, byte for byte, the block tld_doc_ask shows for that record without
  *     the rank number and the Matched line (and with the module description only at the
  *     first entry of a module);
- *   - the text is appended to the buffer; bad arguments.
+ *   - the text is a string of its own; a header without a manual.
  *
  *   unit-doc [ROOT]     ROOT: the repository root (default: the source tree it was built from)
  */
@@ -1200,32 +1200,31 @@ ERROR:
 static int test_manual(void)
 {
         static const char *const headers[] = {"tld.h", "tld_ai.h"};
-        tld_strbuf *all = NULL;
-        tld_strbuf *one[2] = {NULL, NULL};
+        char *all = NULL;
+        char *one[2] = {NULL, NULL};
+        size_t len[2] = {0, 0};
         tld_strbuf *want = NULL;
         const char *p = NULL;
         int n = tld_doc_n_entries();
         int n_blocks = 0;
         int n_same = 0;
         SECTION_MSG("the whole manual");
-        RUN(tld_strbuf_alloc(&all, 1 << 17));
-        RUN(tld_strbuf_append(all, "before\n"));
-        RUN(tld_doc_manual(NULL, all));
-        CHECK(strncmp(TLD_STR(all), "before\ntld manual of tld.h, corpus ", 35) == 0,
-              "the manual is not appended to what the buffer holds");
+        all = tld_doc_manual(NULL);
+        ASSERT(all != NULL, "no manual of NULL");
         for(int k = 0; k < 2; k++){
-                RUN(tld_strbuf_alloc(&one[k], 1 << 16));
-                RUN(tld_doc_manual(headers[k], one[k]));
-                KV_MSG(headers[k], "%d bytes", (int)TLD_STRLEN(one[k]));
+                one[k] = tld_doc_manual(headers[k]);
+                ASSERT(one[k] != NULL, "no manual of %s", headers[k]);
+                len[k] = strlen(one[k]);
+                KV_MSG(headers[k], "%zu bytes", len[k]);
         }
-        CHECK(TLD_STRLEN(all) == 7 + TLD_STRLEN(one[0]) + 1 + TLD_STRLEN(one[1]) &&
-              strncmp(TLD_STR(all) + 7, TLD_STR(one[0]), (size_t)TLD_STRLEN(one[0])) == 0 &&
-              TLD_STR(all)[7 + TLD_STRLEN(one[0])] == '\n' &&
-              strcmp(TLD_STR(all) + 7 + TLD_STRLEN(one[0]) + 1, TLD_STR(one[1])) == 0,
+        CHECK(strlen(all) == len[0] + 1 + len[1] &&
+              strncmp(all, one[0], len[0]) == 0 &&
+              all[len[0]] == '\n' &&
+              strcmp(all + len[0] + 1, one[1]) == 0,
               "the manual of NULL is not that of tld.h, a blank line and that of tld_ai.h");
 
         /* the blocks in order: per header the sections, then the entries */
-        p = TLD_STR(all) + 7;
+        p = all;
         for(int k = 0; k < 2; k++){
                 char head[256];
                 const char *module = NULL;
@@ -1273,18 +1272,17 @@ static int test_manual(void)
         KV_MSG("blocks", "%d, %d compared byte for byte with an answer", n_blocks, n_same);
 
         test_expect_errors();
-        CHECK(tld_doc_manual(NULL, NULL) == FAIL, "a NULL buffer is not FAIL");
-        CHECK(tld_doc_manual("tld_doc.h", one[0]) == FAIL, "a header without a manual in the corpus is not FAIL");
+        CHECK(tld_doc_manual("tld_doc.h") == NULL, "a header without a manual in the corpus is not NULL");
         test_expect_errors_end();
-        tld_strbuf_free(all);
-        tld_strbuf_free(one[0]);
-        tld_strbuf_free(one[1]);
+        free(all);
+        free(one[0]);
+        free(one[1]);
         section_ok("every record once, in manual order, as an answer shows it");
         return OK;
 ERROR:
-        tld_strbuf_free(all);
-        tld_strbuf_free(one[0]);
-        tld_strbuf_free(one[1]);
+        free(all);
+        free(one[0]);
+        free(one[1]);
         tld_strbuf_free(want);
         return FAIL;
 }

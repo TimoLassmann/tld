@@ -129,12 +129,14 @@ typedef struct { const tld_doc_entry *entry; double score; } tld_doc_hit;
 typedef struct { tld_doc_hit *hits; int n_hits; char *text; } tld_doc_answer;
 typedef struct { int max_bytes; /* 0: 4096 */ int top_n; /* 0: 8 */ } tld_doc_opts;
 int tld_doc_ask(const char *question, const tld_doc_opts *o, tld_doc_answer **out);
-int tld_doc_manual(const char *header, tld_strbuf *out);   /* the whole manual; NULL: both */
+char *tld_doc_manual(const char *header);       /* the whole manual; NULL: both; free() it */
 void tld_doc_answer_free(tld_doc_answer *a);
 ```
 
-`tld_doc_ask` returns FAIL only for bad arguments (question or out NULL, max_bytes or
-top_n negative) or out of memory; `o` NULL means every default. The score is the BM25F
+The interface is plain C: no declaration uses a type of `tld.h`, and a plain include of
+`tld_doc.h` includes no other header (`tld.h` is included only where
+`TLD_DOC_IMPLEMENTATION` is defined). `tld_doc_ask` returns non-zero only for bad
+arguments (question or out NULL, max_bytes or top_n negative) or out of memory; `o` NULL means every default. The score is the BM25F
 score, plus 1000 for an exact name match and 500 for a close one, so those come first.
 
 ## 7. How a question is answered

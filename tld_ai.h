@@ -1,5 +1,7 @@
 /* tld_ai.h - local LLMs, decision models and embeddings through the Ollama server on this
- * machine, called as ordinary C functions. Single header, builds on tld.h. Thread-safe.
+ * machine, called as ordinary C functions. Single header. Thread-safe. Its interface is
+ * plain C: a program that uses it needs no name of tld.h, which only the implementation
+ * builds on.
  *
  *   #define TEAM(X) X(bug, "A software defect") X(billing, "Payments and refunds")
  *   AI_CHOICE(team, "Which team should handle this ticket?", TEAM)
@@ -20,9 +22,11 @@
  *
  *       #define TLD_IMPLEMENTATION      // unless another file already compiles tld.h
  *       #define AI_IMPLEMENTATION
- *       #include "tld_ai.h"                 // includes "tld.h" itself if TLD_H is not defined
+ *       #include "tld_ai.h"                 // includes "tld.h", in this file only
  *
- *   and plain #include "tld_ai.h" everywhere else. The program must compile
+ *   and plain #include "tld_ai.h" everywhere else. A plain include declares what this
+ *   header documents and includes only <stddef.h>: not tld.h, so a file that also wants
+ *   tld.h includes it itself. The program must compile
  *   TLD_IMPLEMENTATION in some file (tld_ai.h uses tld's JSON, strings and hash map).
  *   Build: cc -std=c11 prog.c -lpthread -lm. Nothing else: no libcurl, no SQLite, no
  *   cJSON (HTTP, JSON, cache and reviews are done here and in tld.h).
@@ -148,19 +152,18 @@
 #ifndef AI_H
 #define AI_H
 
-#ifndef TLD_H
-#include "tld.h"
-#endif
 #include <stddef.h>
 
 /* Version of tld_ai.h. */
 #define AI_VERSION "0.4.0"
 
 /* Prompts and ai_fmt take printf formats. The compiler checks the arguments, and the
- * macros below check that the format is a string literal (TLD__LITERAL, as in tld.h's
- * message macros): a compile error there means text was passed as the format, which
- * would read or write random memory if it contained a %. Pass text with "%s":
- * ai_text("%s", prompt). */
+ * macros below check that the format is a string literal (AI__LITERAL: "" fmt only
+ * compiles for a literal, and costs nothing at run time): a compile error there means
+ * text was passed as the format, which would read or write random memory if it
+ * contained a %. Pass text with "%s": ai_text("%s", prompt). */
+#define AI__LITERAL_FIRST(f, ...) f
+#define AI__LITERAL(...) ((void)sizeof("" AI__LITERAL_FIRST(__VA_ARGS__, ~)))
 
 #ifdef __cplusplus
 extern "C" {
@@ -399,9 +402,9 @@ typedef struct { const char *name; const char *question; const ai_label *labels;
  * on failure with s zeroed. Strings in s are library memory until ai_reset(); never free
  * them. ai_fill_with(o, &s, T, fmt, ...) takes per-call options. */
 #define ai_fill(out, T, ...) \
-    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
+    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), NULL, __VA_ARGS__))
 #define ai_fill_with(o, out, T, ...) \
-    (TLD__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
+    (AI__LITERAL(__VA_ARGS__), ai__fill(AI__CHECK(out, T), T##__type(), (o), __VA_ARGS__))
 
 /* ai_choose(T, state): ask the decision model which label of the choice T (AI_CHOICE)
  * fits state; returns struct T_answer (struct team_answer for T = team): .ok (0 on
@@ -508,13 +511,13 @@ const ai_info *ai_last(void);
 const char *ai_fmt(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 /* ai_text, ai_text_with, ai_fmt, ai_fill_dyn and ai_fill_dyn_with are also macros that require a literal format (see
- * TLD__LITERAL); (ai_text)(fmt, ...) calls the function itself. */
-#define ai_text(...) (TLD__LITERAL(__VA_ARGS__), (ai_text)(__VA_ARGS__))
-#define ai_text_with(o, ...) (TLD__LITERAL(__VA_ARGS__), (ai_text_with)((o), __VA_ARGS__))
-#define ai_fmt(...) (TLD__LITERAL(__VA_ARGS__), (ai_fmt)(__VA_ARGS__))
-#define ai_fill_dyn(t, ...) (TLD__LITERAL(__VA_ARGS__), (ai_fill_dyn)((t), __VA_ARGS__))
+ * AI__LITERAL); (ai_text)(fmt, ...) calls the function itself. */
+#define ai_text(...) (AI__LITERAL(__VA_ARGS__), (ai_text)(__VA_ARGS__))
+#define ai_text_with(o, ...) (AI__LITERAL(__VA_ARGS__), (ai_text_with)((o), __VA_ARGS__))
+#define ai_fmt(...) (AI__LITERAL(__VA_ARGS__), (ai_fmt)(__VA_ARGS__))
+#define ai_fill_dyn(t, ...) (AI__LITERAL(__VA_ARGS__), (ai_fill_dyn)((t), __VA_ARGS__))
 #define ai_fill_dyn_with(o, t, ...) \
-    (TLD__LITERAL(__VA_ARGS__), (ai_fill_dyn_with)((o), (t), __VA_ARGS__))
+    (AI__LITERAL(__VA_ARGS__), (ai_fill_dyn_with)((o), (t), __VA_ARGS__))
 
 /* Free every string and vector the library has returned, in all threads. Call it only
  * when no thread still uses them; the library keeps working afterwards. */
@@ -550,6 +553,8 @@ int ai__rate(const ai_labels *c, const char *state, const ai_opts *o, double *sc
 #ifdef __cplusplus
 #error "tld_ai.h: the implementation is C only; define AI_IMPLEMENTATION in a .c file"
 #endif
+
+#include "tld.h"
 
 #include <ctype.h>
 #include <errno.h>

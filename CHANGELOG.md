@@ -27,10 +27,18 @@
   function, such as the `ERROR:` label. The entries of `RUN`, `ERROR_MSG`, `MMALLOC`,
   `MREALLOC`, `MMALLOC_ALIGNED` and `galloc` now say that the enclosing function needs
   that label, as `ASSERT` did.
-- `tld_doc_manual(header, out)` appends the whole manual of `tld.h`, `tld_ai.h` or both
-  to a string buffer, for a prompt that should hold all of it: every corpus record once,
-  per header the general sections and then the entries, each block as an answer shows it
-  without the rank number and the Matched line.
+- `tld_doc_manual(header)` returns the whole manual of `tld.h`, `tld_ai.h` or both as a
+  string the caller releases with `free()`, for a prompt that should hold all of it:
+  every corpus record once, per header the general sections and then the entries, each
+  block as an answer shows it without the rank number and the Matched line.
+- The interface of `tld_doc.h` is plain C. No declaration uses a type of `tld.h`, the
+  functions are documented as returning 0 or non-zero (or `NULL`), and the examples in
+  its comments use no name of `tld.h`. A plain `#include "tld_doc.h"` includes no other
+  header; `tld.h` is included only in the file that defines `TLD_DOC_IMPLEMENTATION`,
+  so a file that relied on `tld_doc.h` for `tld.h` now includes `tld.h` itself. `names`
+  checks that a plain include does not bring in `tld.h`, and `tlddoc --examples` writes
+  each example with `tld_doc.h` and three system headers only, so `doc-examples-doc`
+  fails on an example that needs `tld.h`.
 - `examples/tld_ask.c` (target `tld-ask`): `tld-ask [-b BYTES] [-n N] "question"`.
 - Tests: `unit-doc` (corpus against the manuals and headers, the search, the text format
   and budget, edge cases), `doc-eval` (the retrieval figures on the 69 questions of
@@ -64,6 +72,11 @@
 
 - `AI_CHOICE` and `AI_SCALE` now build an `ai_labels` and go through the same code as
   the `_dyn` calls; their behaviour and requests are unchanged. `AI_VERSION` is "0.4.0".
+- A plain `#include "tld_ai.h"` no longer includes `tld.h`: it includes `<stddef.h>`
+  only, and `tld.h` is included in the file that defines `AI_IMPLEMENTATION`. The
+  interface used no type of `tld.h` before; its literal-format check is now its own
+  macro (`AI__LITERAL`). A file that relied on `tld_ai.h` for `tld.h` now includes
+  `tld.h` itself. `names` checks that a plain include does not bring in `tld.h`.
 
 ## modernisation branch (unreleased)
 
